@@ -46,6 +46,15 @@ claude mcp add godot -e GODOT_PATH="C:/Godot/Godot_v4.x-stable_win64.exe" -- npx
 
 Node.js kurulu olmalı.
 
+### 4b. i-have-adhd (önerilir)
+
+Yanıtları eylemle başlatır, adımları numaralar, laf kalabalığını keser. Proje ayarlarında zaten açık; sadece marketplace'i ekleyin:
+
+```
+/plugin marketplace add ayghri/i-have-adhd
+/plugin install i-have-adhd@i-have-adhd
+```
+
 ### 5. PixelLab MCP (isteğe bağlı)
 
 Sprite, ikon ve VFX üretimi için. Ayrı bir PixelLab aboneliği ve API anahtarı gerekir. Kurulum: https://pixellab.ai

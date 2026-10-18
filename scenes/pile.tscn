@@ -1,0 +1,8 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/pile.gd" id="1"]
+[ext_resource type="Material" path="res://materials/pile_surface.tres" id="2"]
+
+[node name="Pile" type="StaticBody3D" groups=["bullet_pile"]]
+script = ExtResource("1")
+cone_material = ExtResource("2")

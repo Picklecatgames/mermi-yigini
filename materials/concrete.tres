@@ -1,30 +1,10 @@
 [gd_resource type="ShaderMaterial" format=3 uid="uid://0a53tq0sfu3q"]
 
 [ext_resource type="Shader" uid="uid://cgbon7bkhfluj" path="res://materials/concrete.gdshader" id="1"]
-
-[sub_resource type="FastNoiseLite" id="noise_grain"]
-seed = 7
-frequency = 0.03
-fractal_octaves = 6
-fractal_gain = 0.6
-
-[sub_resource type="NoiseTexture2D" id="tex_grain"]
-width = 1024
-height = 1024
-noise = SubResource("noise_grain")
-seamless = true
-
-[sub_resource type="FastNoiseLite" id="noise_bump"]
-seed = 3
-frequency = 0.06
-
-[sub_resource type="NoiseTexture2D" id="tex_normal"]
-width = 1024
-height = 1024
-noise = SubResource("noise_bump")
-seamless = true
-as_normal_map = true
-bump_strength = 4.0
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_diff.jpg" id="2"]
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_nor_gl.jpg" id="3"]
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_rough.jpg" id="4"]
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_ao.jpg" id="5"]
 
 [sub_resource type="FastNoiseLite" id="noise_stain"]
 seed = 21
@@ -38,13 +18,8 @@ seamless = true
 [resource]
 render_priority = 0
 shader = ExtResource("1")
-shader_parameter/grain_tex = SubResource("tex_grain")
+shader_parameter/albedo_tex = ExtResource("2")
+shader_parameter/normal_tex = ExtResource("3")
+shader_parameter/rough_tex = ExtResource("4")
+shader_parameter/ao_tex = ExtResource("5")
 shader_parameter/stain_tex = SubResource("tex_stain")
-shader_parameter/normal_tex = SubResource("tex_normal")
-shader_parameter/base_color = Color(0.62, 0.6, 0.57, 1)
-shader_parameter/grain_scale = 0.5
-shader_parameter/stain_scale = 0.04
-shader_parameter/normal_scale = 0.5
-shader_parameter/normal_strength = 0.8
-shader_parameter/slab_size = 4.0
-shader_parameter/seam_width = 0.012

@@ -17,6 +17,7 @@
     "superpowers@claude-plugins-official": false,
     "watch@claude-video": false,
     "disciplines@awesome-gamedev-agent-skills": true,
-    "session-report@claude-plugins-official": true
+    "session-report@claude-plugins-official": true,
+    "i-have-adhd@i-have-adhd": true
   }
 }

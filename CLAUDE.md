@@ -58,7 +58,13 @@ Bu dosya, Claude ile yapılan planlama konuşmasının (2026-10-18) özetidir. C
 
 ## Seçilen ve aday asetler
 
-**Güncelleme (2026-10-18):** Low-poly set **kullanılmayacak**; hedef daha gerçekçi görünüm (PBR). Aşağıdaki liste yalnızca referans. Beton zemin prosedürel: `materials/concrete.tres` (world-space shader, 4 m plaka derzleri).
+**Güncelleme (2026-10-18):** Low-poly set **kullanılmayacak**; hedef daha gerçekçi görünüm (PBR). Aşağıdaki liste yalnızca referans. Beton zemin: `materials/concrete.tres` (Poly Haven taraması, world-space shader, 4 m plaka derzleri; her plakada doku rastgele kaydırılıp döndürülür).
+
+**Kullanılan asetler (jenerikte isim verilecekler):**
+- `assets/bullet/bullet_9mm.glb`: "Bullet 9 mm", Y2JHBK, CC-BY-4.0, https://sketchfab.com/3d-models/bullet-9-mm-4cc75b7ef1bc474392c319a47fd97348
+- `materials/concrete/`: "Concrete Floor Worn 001", Poly Haven (Dimitrios Savva, Rico Cilliers), CC0, https://polyhaven.com/a/concrete_floor_worn_001
+
+**Mekan:** 56×56 m poligon, 4 m prefabrik beton duvar; duvarların iç yüzü 4 m plaka derzine oturur. Ortada yığın: 100M mermi ≈ 380 m³ → 30° koni, r ≈ 8.6 m, h ≈ 4.9 m (`scripts/pile.gd`). Yığın gerçek bir yükseklik alanı: her alım alındığı noktadan hacim çıkarır, 30°'yi aşan eğim kayar. Alımlar `request_take_bullets(count, at)` ile yapılır; co-op'ta ağdan yalnızca `bullets_taken(at, count)` olayı gider. Yığındaki mermiler tek tip, yalnızca sayı; sekme/hasar/gold çarpanı gibi özellikler mermi yığından alındıktan sonra (şarjör, bant) tip olarak taşınır.
 
 Eski öneri (low-poly, toplam yaklaşık 20 $):
 
@@ -87,6 +93,6 @@ Eski öneri (low-poly, toplam yaklaşık 20 $):
 
 ## Araçlar
 
-- **Açık:** godot, disciplines, context7, ponytail, session-report plugin'leri; godot MCP (yerel); **Beckett MCP** (editör eklentisi, `addons/beckett`; yalnızca Godot editörü açıkken çalışır, oyunu editör içinde çalıştırıp ekran görüntüsü alır — Godot'u ayrı pencerede açan `run_project` yerine bunu kullan; `.mcp.json` gizli token içerir, git'e girmez); `.claude/agents/` içinde 8 agent (Godot, tasarım, QA). Graphify, superpowers, caveman ve watch/video kapalı.
+- **Açık:** godot, disciplines, context7, ponytail, session-report, i-have-adhd (yanıtı eylemle başlatır, adımları numaralar; `/i-have-adhd`) plugin'leri; godot MCP (yerel); **Beckett MCP** (editör eklentisi, `addons/beckett`; yalnızca Godot editörü açıkken çalışır, oyunu editör içinde çalıştırıp ekran görüntüsü alır — Godot'u ayrı pencerede açan `run_project` yerine bunu kullan; `.mcp.json` gizli token içerir, git'e girmez); `.claude/agents/` içinde 8 agent (Godot, tasarım, QA). Graphify, superpowers, caveman ve watch/video kapalı.
 - **Kural:** Bir görev kapalı bir araca ihtiyaç duyarsa (video analizi, sprite üretimi vb.) o aracı kullanmaya çalışma. Hangi aracın neden gerektiğini ve nasıl açılacağını söyle.
 - **Kural:** Çoklu agent, büyük klasör taraması ya da uzun süren bir işten önce maliyetini söyleyip onay iste.
