@@ -1,0 +1,13 @@
+# Godot cache
+.godot/
+
+# Beckett: per-machine port + secret token
+.mcp.json
+.beckett/
+
+# Claude per-user settings
+.claude/settings.local.json
+
+# Screenshots dropped in project root during visual checks
+/*.png
+/*.png.import

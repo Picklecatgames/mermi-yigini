@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.godot/**)",
+      "Read(./**/*.glb)",
+      "Read(./**/*.fbx)",
+      "Read(./**/*.blend)",
+      "Read(./**/*.wav)",
+      "Read(./**/*.ogg)",
+      "Read(./**/*.import)"
+    ]
+  },
+  "enabledPlugins": {
+    "godot@awesome-gamedev-agent-skills": true,
+    "context7@claude-plugins-official": true,
+    "ponytail@ponytail": true,
+    "superpowers@claude-plugins-official": false,
+    "watch@claude-video": false,
+    "disciplines@awesome-gamedev-agent-skills": true,
+    "session-report@claude-plugins-official": true
+  }
+}

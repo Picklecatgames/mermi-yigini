@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://csjp1aulupqqp"]
+
+[ext_resource type="Material" uid="uid://0a53tq0sfu3q" path="res://materials/concrete.tres" id="1"]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_mat")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 2
+sky = SubResource("sky")
+tonemap_mode = 4
+ssao_enabled = true
+
+[sub_resource type="PlaneMesh" id="floor_mesh"]
+size = Vector2(60, 60)
+
+[sub_resource type="WorldBoundaryShape3D" id="floor_shape"]
+
+[node name="Main" type="Node3D" unique_id=603565990]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=773579308]
+environment = SubResource("env")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=870282233]
+transform = Transform3D(0.8660254, -0.3830424, 0.32141075, 0, 0.6428215, 0.7660848, -0.5, -0.66344887, 0.55669975, 0, 10, 0)
+light_energy = 1.5
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="." unique_id=2068922334]
+
+[node name="Mesh" type="MeshInstance3D" parent="Floor" unique_id=343054350]
+mesh = SubResource("floor_mesh")
+surface_material_override/0 = ExtResource("1")
+
+[node name="Collision" type="CollisionShape3D" parent="Floor" unique_id=490957567]
+shape = SubResource("floor_shape")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1879168128]
+transform = Transform3D(1, 0, 0, 0, 0.9553, -0.2955, 0, 0.2955, 0.9553, 0, 1.7, 6)
