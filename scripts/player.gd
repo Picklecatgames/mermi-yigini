@@ -11,6 +11,7 @@ const MOUSE_SENSITIVITY := 0.002
 const EYE := 1.6         # m, head above the feet
 const BOB_FREQ := 1.4    # bob cycles per metre walked, scaled by speed
 const BOB_AMP := 0.05    # metres
+const LAND_AIR_TIME := 0.15  # s in the air before touching down counts as a landing step
 const HAND_MAX := 6      # bullets drawn in hand; more are carried but not shown
 const GRAB_TIME := 0.25  # s for one bullet to fly into the hand
 const GRAB_GAP := 0.08   # s between bullets of one grab
@@ -30,6 +31,8 @@ var _pitch := 0.0
 var _climb := 0.0  # rad of aim climb still to add
 var _bob := 0.0
 var _bob_offset := Vector3.ZERO
+var _bob_amount := 0.0  # 0..1, fades the bob in and out without lagging its phase
+var _air_time := 0.0
 var _recoil := 0.0  # rad of view kick
 var _recoil_vel := 0.0
 var _fly: Array[Node3D] = []
@@ -44,6 +47,7 @@ var _hip_fov := 75.0
 var _zoom := 1.0
 
 @onready var _head: Node3D = $Head
+@onready var _step_sound: AudioStreamPlayer3D = $StepSound
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _reach: RayCast3D = $Head/Camera3D/Reach
 @onready var _hand: Node3D = $Head/Camera3D/Hand
@@ -202,6 +206,14 @@ func _physics_process(delta: float) -> void:
 	# switched off over there) you can still walk back out, never in.
 	set_collision_mask_value(GameState.FENCE_LAYER, not GameState.player().placing and global_position.x < GameState.FIRING_LINE_X)
 	move_and_slide()
+	if is_on_floor():
+		if _air_time > LAND_AIR_TIME:
+			_step_sound.play()
+			_bob = PI * floor(_bob / PI) + 0.75 * PI + 0.001  # just past a dip: next step a full stride later
+			_bob_amount = maxf(_bob_amount, 0.05)  # keeps the start-off rule from moving the stride
+		_air_time = 0.0
+	else:
+		_air_time += delta
 
 	# Holding E keeps grabbing, one bullet at a time, until the hand is full.
 	_grab_timer -= delta
@@ -224,9 +236,15 @@ func _head_bob(delta: float) -> void:
 	var speed := Vector2(velocity.x, velocity.z).length()
 	var moving := is_on_floor() and speed > 0.1
 	if moving:
+		if _bob_amount < 0.05:
+			_bob = PI * floor(_bob / PI) + 0.25 * PI  # starting off: first step half a stride in
+		var before := _bob
 		_bob += delta * speed * BOB_FREQ
-	var target := Vector3(cos(_bob) * BOB_AMP, sin(_bob * 2.0) * BOB_AMP, 0.0) if moving else Vector3.ZERO
-	_bob_offset = _bob_offset.lerp(target, 1.0 - exp(-delta * 10.0))
+		# Two steps per bob cycle, at the bottom of each vertical dip (sin(2·bob) = -1).
+		if floor((_bob + PI / 4.0) / PI) != floor((before + PI / 4.0) / PI):
+			_step_sound.play()
+	_bob_amount = move_toward(_bob_amount, 1.0 if moving else 0.0, delta * 5.0)
+	_bob_offset = Vector3(cos(_bob) * BOB_AMP, sin(_bob * 2.0) * BOB_AMP, 0.0) * _bob_amount
 
 
 func _looking_at_pile() -> bool:
@@ -246,7 +264,7 @@ func _fly_to_hand(from: Vector3, shown_before: int) -> void:
 	_set_hand_count(shown_before)
 	var b := _fly[_next_fly]
 	_next_fly = (_next_fly + 1) % FLY_POOL
-	var old: Tween = b.get_meta("tween", null)
+	var old: Tween = b.get_meta("tween") if b.has_meta("tween") else null
 	if old and old.is_valid():
 		old.kill()  # pool wrapped around: the oldest flyer just lands now
 	b.visible = true

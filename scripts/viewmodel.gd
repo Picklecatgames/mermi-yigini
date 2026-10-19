@@ -58,11 +58,18 @@ const PORT := Vector3(-2.6, 8.8, 5.0)
 ## The clip's own fire recoil is linear and starts canted, so in fire sections only the gun's
 ## moving parts (FIRE_PARTS) are animated. Shot spacing is GameState.fire_interval (fixed);
 ## holding the trigger fires at that rate.
-const RECOIL_PITCH := 0.15   # rad of muzzle climb at the peak of one shot from rest
+## Recoil: the hand is shoved back and the gun flips up around the wrist (RECOIL_PIVOT, below and
+## behind the grip), so the muzzle rises most. The push springs back with one small dip past aim;
+## the gun follows the push through a stiff spring, so the flip snaps up in ~40 ms and eases home.
+const RECOIL_PIVOT := Vector3(0.0, 2.0, -8.0)  # Talon space: the wrist
+const RECOIL_PITCH := 0.15   # rad of muzzle flip at the peak of one shot from rest
 const RECOIL_BACK := 0.035   # m toward the camera at the peak
 const RECOIL_UP := 0.01      # m
 const RECOIL_YAW := 0.02     # rad, random side each shot
+const RECOIL_ROLL := 0.035   # rad, random cant each shot
 const RECOIL_DAMPING := 0.55  # below 1 leaves one small dip past aim
+const RECOIL_SNAP := 90.0    # rad/s, how stiffly the gun follows the push
+const RECOIL_PEAK := 0.75    # peak of the snap spring after a unit push (simulated; RECOIL_SNAP 90, 0.38 s settle)
 const RECOIL_SETTLE := 0.45  # s to settle at slow fire rates; faster ones settle before the next shot
 const FIRE_PARTS := ["Talon/slide", "Talon/hammer", "Talon/trigger", "Talon/slidecatch", "Talon/clip", "R_point"]  # R_point: the trigger finger
 const FIRE_BUFFER := 0.15    # s an early click waits for the gun to be ready
@@ -75,7 +82,7 @@ const BREATH := Vector2(0.0008, 0.0012)  # m; the model's own idle clip bobs too
 const ADS_TIME := 0.18     # s to bring the sights up (and to drop them)
 const ADS_EYE := 0.22      # m from the eye to the rear sight when aimed
 const ADS_STEADY := 0.2    # share of sway, bob and breath left when aimed
-const ADS_RECOIL := 0.7    # share of the gun's kick when aimed (braced with both hands)
+const ADS_RECOIL := 0.8    # share of the gun's kick when aimed (braced with both hands)
 const ADS_CLIPS := ["", "fire", "fire_last"]  # rest pose only: reloads and the draw drop the sights
 const SHELL_POOL := 20
 const MUZZLE_FX := preload("res://scenes/muzzle_fx.tscn")
@@ -102,9 +109,13 @@ var _aim_lin := 0.0
 var _ads_pos: Vector3  # where the gun sits, and how it is turned, with the sights on the view axis
 var _ads_rot: Quaternion
 var _base: Vector3  # sway + bob + breath, smoothed, before the recoil layer
-var _kick := 0.0  # recoil spring: 1 = peak of one shot from rest
+var _push := 0.0  # where the hand is shoved to; springs back to rest
+var _push_vel := 0.0
+var _kick := 0.0  # the gun following the push: 1 = peak of one shot from rest
 var _kick_vel := 0.0
 var _kick_yaw := 0.0
+var _kick_roll := 0.0
+var _pivot: Vector3  # RECOIL_PIVOT in our own space
 var _rig_tracks: Array[int] = []  # everything but FIRE_PARTS, muted while firing
 var _rest: Vector3
 var _sway := Vector3.ZERO
@@ -195,6 +206,7 @@ func _ready() -> void:
 func _measure_sights() -> void:
 	var inv := global_transform.affine_inverse()
 	var rear := inv * _marker(REAR_SIGHT).global_position
+	_pivot = inv * _marker(RECOIL_PIVOT).global_position
 	var front := inv * _marker(FRONT_SIGHT).global_position
 	var up := inv.basis * (_model.find_child("Talon", true, false) as Node3D).global_basis.y
 	var z := (rear - front).normalized()  # the gun's own back
@@ -319,6 +331,7 @@ func fire() -> void:
 		return
 	_add_kick(1.0)
 	_kick_yaw = randf_range(-1.0, 1.0)
+	_kick_roll = randf_range(-1.0, 1.0)
 	_since_fire = 0.0
 	_slide_locked = GameState.loaded == 0
 	_play("fire_last" if _slide_locked else "fire")
@@ -387,14 +400,9 @@ func _slam_slide() -> void:
 	tw.chain().tween_callback(_add_kick.bind(SLIDE_SLAM_JOLT))
 
 
-## Adds recoil-spring speed that alone would peak at `amount` (1 = one shot):
-## x(t) = v/wd * e^(-z w t) * sin(wd t).
+## Shoves the hand so the gun alone would peak at `amount` (1 = one shot).
 func _add_kick(amount: float) -> void:
-	var w := _kick_omega()
-	var z := RECOIL_DAMPING
-	var wd := w * sqrt(1.0 - z * z)
-	var t_peak := atan2(sqrt(1.0 - z * z), z) / wd
-	_kick_vel += amount * wd / (exp(-z * w * t_peak) * sin(wd * t_peak))
+	_push += amount / RECOIL_PEAK
 
 
 ## Every section ends in the rest pose (or slide-back when empty), so the gun just holds it.
@@ -496,14 +504,18 @@ func _sway_and_bob(delta: float) -> void:
 	_base = _base.lerp((_sway + bob + breath) * lerpf(1.0, ADS_STEADY, aim), 1.0 - exp(-delta * 10.0))
 	var w := _kick_omega()
 	var dt := minf(delta, 0.1)  # a long hitch must not fling the gun
-	var steps := maxi(4, ceili(dt * w / 0.25))  # explicit steps stay stable while h * w is small
+	var steps := maxi(4, ceili(dt * RECOIL_SNAP / 0.25))  # explicit steps stay stable while h * w is small
 	var h := dt / steps
 	for i in steps:
-		_kick_vel += (-w * w * _kick - 2.0 * RECOIL_DAMPING * w * _kick_vel) * h
+		_push_vel += (-w * w * _push - 2.0 * RECOIL_DAMPING * w * _push_vel) * h
+		_push += _push_vel * h
+		_kick_vel += (-RECOIL_SNAP * RECOIL_SNAP * (_kick - _push) - 2.0 * RECOIL_SNAP * _kick_vel) * h
 		_kick += _kick_vel * h
 	var kick := _kick * lerpf(1.0, ADS_RECOIL, aim)
-	position = _rest.lerp(_ads_pos, aim) + _base + Vector3(0.0, RECOIL_UP, RECOIL_BACK) * kick
-	basis = Basis.from_euler(Vector3(RECOIL_PITCH * kick, RECOIL_YAW * _kick_yaw * kick, 0.0)) * Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim))
+	# In the gun's own frame, around the wrist: when aimed the front post jumps above the notch.
+	var flip := Basis.from_euler(Vector3(RECOIL_PITCH, RECOIL_YAW * _kick_yaw, RECOIL_ROLL * _kick_roll) * kick)
+	var recoil := Transform3D(flip, _pivot - flip * _pivot + Vector3(0.0, RECOIL_UP, RECOIL_BACK) * kick)
+	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _rest.lerp(_ads_pos, aim) + _base) * recoil
 
 
 ## Spring frequency: settles (to ~2%) in RECOIL_SETTLE, or before the next shot if that is sooner.

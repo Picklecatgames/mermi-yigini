@@ -31,5 +31,23 @@ func _initialize() -> void:
 		var off := maxf(Vector2(r.x, r.y).length(), Vector2(f.x, f.y).length())
 		print("t=%.3f off-axis %.2f mm" % [t, off * 1000.0])
 		ok = ok and off < 0.0005
+	# One shot while aimed: the post must snap up fast, then come back onto the notch.
+	anim.seek(vm.CLIPS["settle"][1], true)
+	anim.advance(0.0)
+	vm.aim = 1.0
+	vm._add_kick(1.0)
+	var peak := 0.0
+	var peak_t := 0.0
+	var tilt := 0.0
+	for i in 50:  # 0.42 s at 120 fps, one shot interval
+		vm._sway_and_bob(1.0 / 120.0)
+		var r := cam.to_local(talon.to_global(vm.REAR_SIGHT))
+		var f := cam.to_local(talon.to_global(vm.FRONT_SIGHT))
+		tilt = atan2(f.y - r.y, r.z - f.z)  # post above the notch, rad
+		if tilt > peak:
+			peak = tilt
+			peak_t = (i + 1) / 120.0
+	print("flip peak %.1f deg at %d ms, left after one interval %.2f deg" % [rad_to_deg(peak), peak_t * 1000.0, rad_to_deg(tilt)])
+	ok = ok and peak > 0.05 and peak_t < 0.07 and absf(tilt) < 0.005
 	print("ADS_OK" if ok else "ADS_FAIL")
 	quit(0 if ok else 1)
