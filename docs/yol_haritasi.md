@@ -21,7 +21,11 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 
 ## Faz 1: Co-op iskeleti (~12 sa)
 
-4. **Ağ katmanı:** Godot'nun ENet'i ile aynı bilgisayarda iki pencere (host + istemci). `request_*` komutları host'a gider, `GameState` olayları herkese yayılır. Bağlantı katmanı tek yerde durur; Faz 6'da Steam'e geçmek yalnız onu değiştirir.
+4. ~~**Ağ katmanı:**~~ (bitti 2026-10-20) Godot'nun ENet'i ile aynı bilgisayarda iki pencere (host + istemci). `request_*` komutları host'a gider, `GameState` olayları herkese yayılır. Bağlantı katmanı tek yerde durur; Faz 6'da Steam'e geçmek yalnız onu değiştirir.
+   - Bağlantı: `scripts/net.gd` (`Net` autoload). Başlatma `-- --host` / `-- --join[=IP]`, debug build'de F7 host, F8 katıl (127.0.0.1). Port 24680. Durum sol üstte ve pencere başlığında.
+   - İstemcinin isteği kendi tarafında **tahmin** olarak çalışır (silah, el ve HUD hemen tepki verir) ve host'a gider. Host gerçekten uygular, oyuncunun durumunu geri yollar. İstemci bu cevabı yalnız bütün istekleri cevaplanınca uygular, yoldaki tahmini geri almaz. Dünya (yığın, dökülen mermi, anahtar, atış izi ve ödeme) yalnız host'ta değişir ve olay olarak gelir.
+   - Kontrol: `tools/net_check.gd` (iki süreç; istemci, host'un önceden aldığı mermiye uzanınca geri alınır; yığından alır, doldurur, dummy'ye atar; host'un isabeti istemcinin kendi ışınıyla aynı, $1 iki tarafta).
+   - Sonraki adımlara kalanlar: katılınca yalnız yığın *sayısı* gelir (şekli, dökülenler, anahtarlar 8. adım); host istemcinin `from` konumuna güvenir (5. adımda senkron konumla doğrulanır); kovanlar atış katmanında (1) ve yalnız atanın makinesinde var, host'un kovanı istemcinin atışını kesebilir (kovanları ayrı katmana almak gerek); her istemci aynı doğma noktasında başlar (5. adım).
 5. **Diğer oyuncular:** 3. şahıs karakter (konum, nişan yönü, durum: yürüyor/ateş ediyor/reload); başkasının atışı dünyada alev, ses ve izle oynar. İsim etiketi.
 6. **Mevcut sistemleri host'a bağla:**
    - Yığın kazıları zaten olay (`bullets_taken`); her makinede aynı sonucu verdiği doğrulanır.

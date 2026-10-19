@@ -3,6 +3,12 @@ extends Node
 ## solo they run directly, in co-op they will be routed to the host.
 ## The world (pile, loose bullets) is shared; each player has their own hands, gun, gold and
 ## upgrades, kept per peer id. `peer` 0 in a request means the local player.
+##
+## Co-op (scripts/net.gd connects): only the host changes state. A client's request runs here
+## too, as a prediction on its own PlayerState so the gun and hands answer at once, and goes to
+## the host (_request), which runs it for real and answers with that player's state (_state).
+## World changes (pile, loose bullets, keys, shots) happen on the host alone and reach every
+## peer as events (_world -> _event), so a client never digs, traces or pays by itself.
 
 signal pile_changed(count: int)
 ## Local player only; other players' state reaches their own machines over the network.
@@ -62,6 +68,20 @@ const SHOT_MASK := 1  # world layer: walls, floor, heap, dummies
 const FIRING_LINE_X := 14.0
 ## Physics layer of the railing: it stops players (mask), never rounds (SHOT_MASK).
 const FENCE_LAYER := 4
+## A client's shots reach the host up to this much closer together than FIRE_INTERVAL
+## (network jitter); the host lets them through rather than eat a round the client already fired.
+const NET_JITTER := 0.15  # s
+
+## What a client may ask the host for, with its argument count (`peer` comes from the sender).
+const REQUESTS := {
+	&"request_buy_upgrade": 1, &"request_debug_level_up": 1, &"request_pick_up": 2,
+	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
+	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
+	&"request_throw": 2,
+}
+## World signals: emitted on the host and sent on to every client.
+const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
+	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken"]
 
 
 class PlayerState:
@@ -76,6 +96,7 @@ class PlayerState:
 	var keys: Array[int] = []  # crate key ranks held (1 = most common)
 	var combo_left := 0.0  # s until the chain breaks; game time
 	var placing := false  # placement mode: may cross the firing line
+	var infinite_ammo := false  # test mode (T)
 
 
 var pile: int = PILE_START
@@ -83,6 +104,12 @@ var _players := {}  # peer id -> PlayerState
 var _next_loose_id := THROWN_ID_START
 # ponytail: grows by one per loose grab; the save system can prune ids no longer in the world.
 var _taken_loose := {}
+# Client side: requests sent to the host, and the last one it has answered. The host's answer is
+# taken as the truth only once every request has been answered, so it never undoes a prediction
+# still on its way.
+var _sent_seq := 0
+var _acked_seq := 0
+var _claimed := {}  # loose bullet ids asked for and not answered yet, so E held asks once
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -129,6 +156,19 @@ func mag_capacity_of(peer: int) -> int:
 	return upgrade_value("capacity", peer)
 
 
+func _ready() -> void:
+	# Someone joined: the pile count is the one thing they would see wrong right away.
+	# ponytail: count only; heap shape, loose bullets and keys come with mid-game join (Faz 1/8).
+	multiplayer.peer_connected.connect(func(id: int) -> void:
+		if multiplayer.is_server():
+			_event.rpc_id(id, &"pile_changed", [pile]))
+
+
+## Every request from this peer has been answered by the host (always true solo and on the host).
+func synced() -> bool:
+	return _acked_seq == _sent_seq
+
+
 func _process(delta: float) -> void:
 	for p: PlayerState in _players.values():
 		p.cooldown = maxf(p.cooldown - delta, 0.0)
@@ -146,6 +186,7 @@ func request_buy_upgrade(id: String, peer := 0) -> bool:
 	var costs: Array = UPGRADES[id].costs
 	if level >= costs.size() or p.gold < costs[level]:
 		return false
+	_send(&"request_buy_upgrade", [id], peer)
 	p.gold -= costs[level]
 	p.levels[id] = level + 1
 	if _is_local(peer):
@@ -158,6 +199,7 @@ func request_buy_upgrade(id: String, peer := 0) -> bool:
 func request_debug_level_up(id: String, peer := 0) -> void:
 	if not UPGRADES.has(id):
 		return
+	_send(&"request_debug_level_up", [id], peer)
 	var p := player(peer)
 	p.levels[id] = (p.levels[id] + 1) % UPGRADES[id].values.size()
 	if _is_local(peer):
@@ -165,19 +207,30 @@ func request_debug_level_up(id: String, peer := 0) -> void:
 
 
 ## Takes up to `count` bullets off the pile at world point `at`, returns how many were taken.
+## Host only: a client digs through its own requests.
 func request_take_bullets(count: int, at: Vector3) -> int:
+	if Net.is_client:
+		return 0
 	var taken: int = clampi(count, 0, pile)
 	if taken > 0:
 		pile -= taken
-		pile_changed.emit(pile)
-		bullets_taken.emit(at, taken)
+		_world(&"pile_changed", [pile])
+		_world(&"bullets_taken", [at, taken])
 	return taken
 
 
 ## Player grabs bullets at `at` by hand, up to carry capacity and at most `limit`.
 func request_pick_up(at: Vector3, limit := 1 << 30, peer := 0) -> int:
 	var p := player(peer)
-	var taken := request_take_bullets(mini(carry_capacity_of(peer) - p.carried, limit), at)
+	var want := mini(carry_capacity_of(peer) - p.carried, limit)
+	if want <= 0:
+		return 0  # a full hand asks nobody (E held sends a request every frame otherwise)
+	if _send(&"request_pick_up", [at, limit], peer):
+		# The host digs; if the pile ran dry first, its answer takes the bullet back.
+		var guess := clampi(want, 0, pile)
+		_set_carried(peer, p.carried + guess)
+		return guess
+	var taken := request_take_bullets(want, at)
 	if taken > 0:
 		_set_carried(peer, p.carried + taken)
 	return taken
@@ -189,11 +242,18 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 	var p := player(peer)
 	if _taken_loose.has(id) or p.carried >= carry_capacity_of(peer) or pile <= 0:
 		return 0
+	if Net.is_client and peer == 0:
+		if _claimed.has(id):
+			return 0
+		_claimed[id] = true
+	if _send(&"request_pick_up_loose", [id], peer):
+		_set_carried(peer, p.carried + 1)  # the bullet itself goes when the host says loose_taken
+		return 1
 	_taken_loose[id] = true
 	pile -= 1
-	pile_changed.emit(pile)
+	_world(&"pile_changed", [pile])
 	_set_carried(peer, p.carried + 1)
-	loose_taken.emit(id)
+	_world(&"loose_taken", [id])
 	return 1
 
 
@@ -203,6 +263,7 @@ func request_reload(peer := 0) -> int:
 	var n := mini(mag_capacity_of(peer) - p.loaded, p.carried)
 	if n <= 0:
 		return 0
+	_send(&"request_reload", [], peer)
 	_set_carried(peer, p.carried - n)
 	_set_loaded(peer, p.loaded + n)
 	return n
@@ -211,15 +272,17 @@ func request_reload(peer := 0) -> int:
 ## Placement mode (B for now, until the build mode has its own way in): lets the player through
 ## the firing line to set targets up.
 func request_toggle_placing(peer := 0) -> void:
+	_send(&"request_toggle_placing", [], peer)
 	var p := player(peer)
 	p.placing = not p.placing
 	if _is_local(peer):
 		placing_changed.emit(p.placing)
 
 
-## Test mode (T): the gun never runs dry, for trying the feel and effects.
-# ponytail: one switch for everyone; per-peer if co-op ever needs it.
-var infinite_ammo := false
+## Test mode (T): the gun never runs dry, for trying the feel and effects. Per player.
+var infinite_ammo: bool:
+	get: return player().infinite_ammo
+	set(v): player().infinite_ammo = v
 
 
 ## Debug builds only. Switching it off puts back what was in the gun, so it never leaves free
@@ -227,9 +290,10 @@ var infinite_ammo := false
 func request_toggle_infinite_ammo(peer := 0) -> void:
 	if not OS.is_debug_build():
 		return
-	infinite_ammo = not infinite_ammo
+	_send(&"request_toggle_infinite_ammo", [], peer)
 	var p := player(peer)
-	if infinite_ammo:
+	p.infinite_ammo = not p.infinite_ammo
+	if p.infinite_ammo:
 		p.saved_loaded = p.loaded
 		_set_loaded(peer, mag_capacity_of(peer))
 	elif p.saved_loaded >= 0:
@@ -243,18 +307,23 @@ func request_toggle_infinite_ammo(peer := 0) -> void:
 ## how much it paid is decided in one place.
 func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var p := player(peer)
-	if p.loaded <= 0 or p.cooldown > 0.02:  # slack for frame timing on the caller
+	# Slack for frame timing on the caller, more for a remote one's network jitter.
+	if p.loaded <= 0 or p.cooldown > (0.02 if _is_local(peer) else NET_JITTER):
 		return false
 	p.cooldown = FIRE_INTERVAL
-	if not infinite_ammo:
+	if not p.infinite_ammo:
 		_set_loaded(peer, p.loaded - 1)
+	# A client's gun kicks and flashes now; where the round went comes back as shot_landed.
+	# ponytail: the host trusts the client's `from`; check it against its synced position (Faz 1/5).
+	if _send(&"request_fire", [from, dir], peer):
+		return true
 	var who := local_peer() if peer == 0 else peer
-	fired.emit(who, from, dir)
+	_world(&"fired", [who, from, dir])
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * SHOT_RANGE, SHOT_MASK)
 	var hit := get_viewport().world_3d.direct_space_state.intersect_ray(q)
 	if hit.is_empty():
 		_break_chain(p)
-		shot_landed.emit(who, from + dir * SHOT_RANGE, -dir, dir, null, 0, false, 0)
+		_world(&"shot_landed", [who, from + dir * SHOT_RANGE, -dir, dir, null, 0, false, 0])
 		return true
 	var target: Node = hit.collider
 	var gold := 0
@@ -273,7 +342,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 			gold_changed.emit(p.gold)
 	else:
 		_break_chain(p)
-	shot_landed.emit(who, hit.position, hit.normal, dir, target, gold, weak, p.combo)
+	_world(&"shot_landed", [who, hit.position, hit.normal, dir, target, gold, weak, p.combo])
 	return true
 
 
@@ -282,11 +351,12 @@ var key_states := {}  # rank -> KeyState, for every key the heap holds
 
 
 ## The heap uncovered key `rank`; only buried keys can be revealed, once.
+## Host only: the host's heap says when a key comes out.
 func request_reveal_key(rank: int, at: Vector3) -> bool:
-	if key_states.get(rank, -1) != KeyState.BURIED:
+	if Net.is_client or key_states.get(rank, -1) != KeyState.BURIED:
 		return false
 	key_states[rank] = KeyState.EXPOSED
-	key_revealed.emit(rank, at)
+	_world(&"key_revealed", [rank, at])
 	return true
 
 
@@ -294,9 +364,11 @@ func request_reveal_key(rank: int, at: Vector3) -> bool:
 func request_take_key(rank: int, peer := 0) -> bool:
 	if key_states.get(rank, -1) != KeyState.EXPOSED:
 		return false
+	if _send(&"request_take_key", [rank], peer):
+		return true  # no guess: two players may reach for it, the host's key_taken says who won
 	key_states[rank] = KeyState.TAKEN
 	player(peer).keys.append(rank)
-	key_taken.emit(rank, local_peer() if peer == 0 else peer)
+	_world(&"key_taken", [rank, local_peer() if peer == 0 else peer])
 	return true
 
 
@@ -317,11 +389,13 @@ func request_throw(from: Vector3, dir: Vector3, peer := 0) -> int:
 	if n == 0:
 		return 0
 	_set_carried(peer, 0)
+	if _send(&"request_throw", [from, dir], peer):
+		return n  # the bullets fly when the host's bullets_thrown hands out their ids
 	pile += n
 	var first_id := _next_loose_id
 	_next_loose_id += n
-	pile_changed.emit(pile)
-	bullets_thrown.emit(from, dir, n, first_id)
+	_world(&"pile_changed", [pile])
+	_world(&"bullets_thrown", [from, dir, n, first_id])
 	return n
 
 
@@ -335,3 +409,84 @@ func _set_loaded(peer: int, n: int) -> void:
 	player(peer).loaded = n
 	if _is_local(peer):
 		loaded_changed.emit(n)
+
+
+# --- Co-op plumbing ---------------------------------------------------------------------------
+
+## The local player's request, while joined to someone else's session, goes to the host as
+## well. Returns true then; the caller predicts what it can and leaves the world to the host.
+func _send(method: StringName, args: Array, peer: int) -> bool:
+	if peer != 0 or not Net.is_client:
+		return false
+	_sent_seq += 1
+	_request.rpc_id(1, method, args, _sent_seq)
+	return true
+
+
+## Host: a client's request. Runs it for that peer and answers with the peer's state.
+@rpc("any_peer", "call_remote", "reliable")
+func _request(method: StringName, args: Array, seq: int) -> void:
+	if not multiplayer.is_server() or REQUESTS.get(method, -1) != args.size():
+		return  # anything else off the wire is ignored
+	var peer := multiplayer.get_remote_sender_id()
+	callv(method, args + [peer])
+	var p := player(peer)
+	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo)
+
+
+## Client: the host's word on our own state, after request `seq`.
+@rpc("authority", "call_remote", "reliable")
+func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool) -> void:
+	_acked_seq = seq
+	if seq != _sent_seq:
+		return  # newer requests are still on their way; their answer will have it all
+	_claimed.clear()
+	var p := player()
+	p.infinite_ammo = infinite
+	if p.carried != carried_:
+		_set_carried(0, carried_)
+	if p.loaded != loaded_:
+		_set_loaded(0, loaded_)
+	if p.gold != gold_:
+		p.gold = gold_
+		gold_changed.emit(gold_)
+	for id: String in levels:
+		if p.levels.get(id) != levels[id]:
+			p.levels[id] = levels[id]
+			upgraded.emit(id, levels[id])
+	if p.placing != placing:
+		p.placing = placing
+		placing_changed.emit(placing)
+
+
+## A world signal: emitted here, and on the host sent on to every client as well.
+func _world(event: StringName, args: Array) -> void:
+	callv(&"emit_signal", [event] + args)
+	if Net.online and multiplayer.is_server():
+		if event == &"shot_landed":  # nodes travel as paths; every peer runs the same scenes
+			args[4] = args[4].get_path() if args[4] else NodePath()
+		_event.rpc(event, args)
+
+
+## Client: a world event from the host. Mirrors the shared state, then emits it as the host did.
+@rpc("authority", "call_remote", "reliable")
+func _event(event: StringName, args: Array) -> void:
+	if event not in EVENTS:
+		return
+	match event:
+		&"pile_changed":
+			pile = args[0]
+		&"loose_taken":
+			_taken_loose[args[0]] = true
+		&"bullets_thrown":
+			_next_loose_id = maxi(_next_loose_id, args[3] + args[2])
+		&"key_revealed":
+			key_states[args[0]] = KeyState.EXPOSED
+		&"key_taken":
+			key_states[args[0]] = KeyState.TAKEN
+			player(args[1]).keys.append(args[0])
+		&"shot_landed":
+			# ponytail: a hit on a node only the host has (one of its spent shells) lands as null.
+			var path: NodePath = args[4]
+			args[4] = null if path.is_empty() else get_node_or_null(path)
+	callv(&"emit_signal", [event] + args)

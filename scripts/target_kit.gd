@@ -20,6 +20,7 @@ static func follow(c: CollisionShape3D, part: Node3D) -> void:
 ## The frame a part stands on blocks shots (sparks, and the combo breaks) but pays nothing.
 static func stand_body(parent: Node3D, part: MeshInstance3D) -> StaticBody3D:
 	var b := StaticBody3D.new()
+	b.name = part.name + "Body"  # a fixed name: shot_landed finds it by path on every peer
 	b.add_to_group("steel")
 	var c := CollisionShape3D.new()
 	c.shape = part.mesh.create_trimesh_shape()
