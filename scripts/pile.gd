@@ -18,6 +18,7 @@ const GRID := 160              # cells per side -> 20 m
 const MAX_STEP := SLOPE * CELL # steepest allowed height difference between neighbour cells
 const RELAX_PASSES := 3        # slide passes per physics frame while something is unsettled
 const MIN_SLIDE := 1e-4        # m, smaller moves count as settled
+const SLIDE_STEP := MAX_STEP + MIN_SLIDE  # height difference that slides
 const DIG_RADIUS := 2          # cells
 const SURFACE_GRAB := 0.1      # m around a heap take point to pick the mesh bullet from
 const COLLISION_INTERVAL := 0.25
@@ -33,6 +34,9 @@ const BULLET_LAYER := 1 << 2   # physics layer 3: loose bullets; the player's bo
 const WAKE_RADIUS := 0.3       # m around a walker's feet where resting spill turns into bodies
 const WAKE_SPEED := 0.5        # m/s, slower walkers don't kick anything
 const MAX_AWAKE := 64
+const TILE := 8 # cells per activity tile side; far-apart digs stay separate tiles
+const TILES := GRID / TILE
+const REDRAW_STEP := 0.001    # m a cell drifts before the mesh bullets on it are moved
 
 @export var bullet_scene: PackedScene = preload("res://assets/bullet/bullet_9mm.glb")
 @export var cone_material: ShaderMaterial
@@ -50,15 +54,28 @@ const MAX_AWAKE := 64
 var _h := PackedFloat32Array()   # height per cell, row j = +z, column i = +x
 var _img: Image
 var _tex: ImageTexture
+var _tex_prev: ImageTexture  # heights a tick earlier; the shader blends toward _tex
+var _prev_stale := false     # _tex_prev still differs from _tex
 var _shape := HeightMapShape3D.new()
-var _active := Rect2i()          # cells that may still slide; empty when the heap is at rest
-var _dirty := Rect2i()           # cells changed since the last visual update
+var _scaled := PackedFloat32Array()  # _h / CELL for the collision shape, kept current per changed cell
+var _active: Array[Rect2i] = []  # per tile: cells that may still slide; all empty when the heap is at rest
+var _dirty: Array[Rect2i] = []   # per tile: cells changed since the last visual update
+var _redraw: Array[Rect2i] = []  # per tile: cells whose mesh bullets need to move
+var _drawn_h := PackedFloat32Array()  # height per cell when bullets around it were last moved
+var _any_active := false
+var _any_dirty := false
 var _shape_dirty := false
 var _shape_timer := 0.0
 var _digs := []                  # [cell: Vector2i, height-metres still to remove]
+var _dig_w := PackedFloat64Array()  # Gaussian weight per cell of a dig, row by row
 var _surface: Array[MultiMeshInstance3D] = []
 var _surface_base: Array[PackedFloat32Array] = []
 var _cell_bullets := {}          # cell index -> PackedInt32Array of chunk << 16 | instance
+var _cell_first := PackedInt32Array()  # cell index -> first slot below; slots are in cell order
+var _slot_code := PackedInt32Array()   # per surface bullet: its code as in _cell_bullets
+var _slot_k := PackedInt32Array()      # cell whose corner the bullet's height interpolates from
+var _slot_f := PackedVector2Array()    # bilinear weights toward +x and +z
+var _slot_xform: Array[Transform3D] = []  # as placed
 var _spill: MultiMeshInstance3D
 var _spill_pos := PackedVector3Array()
 var _spill_xform: Array[Transform3D] = []
@@ -79,13 +96,21 @@ func _ready() -> void:
 	_noise.seed = 3
 	_noise.frequency = 0.45
 	_noise.fractal_octaves = 4
+	_active.resize(TILES * TILES)
+	_dirty.resize(TILES * TILES)
+	_redraw.resize(TILES * TILES)
+	for dj in range(-DIG_RADIUS, DIG_RADIUS + 1):
+		for di in range(-DIG_RADIUS, DIG_RADIUS + 1):
+			_dig_w.append(exp(-(di * di + dj * dj) * 0.5))
 	if not _load_heights():
 		_build_heights((GameState.PILE_START - spill_bullets) * BULLET_VOLUME)
 		settle_all()
 
 	_img = Image.create_from_data(GRID, GRID, false, Image.FORMAT_RF, _h.to_byte_array())
 	_tex = ImageTexture.create_from_image(_img)
+	_tex_prev = ImageTexture.create_from_image(_img)
 	cone_material.set_shader_parameter("height_field", _tex)
+	cone_material.set_shader_parameter("height_prev", _tex_prev)
 	cone_material.set_shader_parameter("grid", GRID)
 	cone_material.set_shader_parameter("cell_size", CELL)
 	cone_material.set_shader_parameter("tint", tint)
@@ -106,6 +131,10 @@ func _ready() -> void:
 	col.shape = _shape
 	col.scale = Vector3.ONE * CELL  # samples are 1 unit apart; heights are divided by CELL
 	add_child(col)
+	_drawn_h = _h.duplicate()
+	_scaled = _h.duplicate()
+	for k in _scaled.size():
+		_scaled[k] /= CELL
 	_update_shape()
 
 	_build_bullets()
@@ -151,12 +180,14 @@ func _load_heights() -> bool:
 ## so tools/bake_spill.gd runs it once and saves the result to HEAP_FILE; without it, the
 ## first take would set off an avalanche over the whole heap.
 func settle_all() -> void:
-	_active = Rect2i(0, 0, GRID, GRID)
+	_mark(_active, Rect2i(0, 0, GRID, GRID))
+	_any_active = true
 	for pass_i in 2000:
-		_active = _relax(_active)
-		if not _active.has_area():
+		_relax()
+		if not _any_active:
 			break
-	_dirty = Rect2i()
+	_dirty.fill(Rect2i())
+	_any_dirty = false
 
 
 func _build_bullets() -> void:
@@ -220,6 +251,23 @@ func _build_bullets() -> void:
 		add_child(node)
 		_surface.append(node)
 		_surface_base.append(buf)
+	# Flat copy of _cell_bullets for the per-frame update: bullets in cell order, cell -> first slot.
+	_cell_first.resize(GRID * GRID + 1)
+	for key in GRID * GRID:
+		_cell_first[key] = _slot_code.size()
+		for code in _cell_bullets.get(key, PackedInt32Array()):
+			var b := _surface_base[code >> 16]
+			var k: int = (code & 0xFFFF) * 12
+			var u: float = b[k + 3] / CELL + (GRID - 1) * 0.5
+			var v: float = b[k + 11] / CELL + (GRID - 1) * 0.5
+			var ci := clampi(floori(u), 0, GRID - 2)
+			var cj := clampi(floori(v), 0, GRID - 2)
+			_slot_code.append(code)
+			_slot_k.append(cj * GRID + ci)
+			_slot_f.append(Vector2(clampf(u - ci, 0.0, 1.0), clampf(v - cj, 0.0, 1.0)))
+			_slot_xform.append(Transform3D(Vector3(b[k], b[k + 4], b[k + 8]), Vector3(b[k + 1], b[k + 5], b[k + 9]),
+					Vector3(b[k + 2], b[k + 6], b[k + 10]), Vector3(b[k + 3], b[k + 7], b[k + 11])))
+	_cell_first[GRID * GRID] = _slot_code.size()
 
 	_spill_xform = _load_spill()
 	if _spill_xform.is_empty():
@@ -241,6 +289,7 @@ func _build_bullets() -> void:
 	for i in _spill_xform.size():
 		spill_mm.set_instance_transform(i, _spill_xform[i])
 	_spill = MultiMeshInstance3D.new()
+	_spill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # thousands of 1600-tri bullets per cascade
 	_spill.multimesh = spill_mm
 	_spill.material_override = mat
 	add_child(_spill)
@@ -317,7 +366,7 @@ func _overlaps(segments: Dictionary, cell: Vector2i, a: Vector3, b: Vector3) -> 
 
 ## True if a ray hit on `collider` / `rid` is part of this heap: the heap itself or a loose bullet.
 func is_grabbable(collider: Object, rid: RID) -> bool:
-	return collider == self or _spill_index.has(rid) or _awake.has(collider)
+	return collider == self or _spill_index.has(rid) or (collider is RigidBody3D and _awake.has(collider))
 
 
 ## Loose bullets (resting or moving) whose hitbox is within `radius` of world point `at`.
@@ -492,126 +541,201 @@ func _physics_process(delta: float) -> void:
 	for dig in _digs:
 		dig[1] = _dig(dig[0], dig[1])
 	# Leftover keeps digging at the same spot as the sides slide in; dropped once nothing can.
-	_digs = _digs.filter(func(d: Array) -> bool: return d[1] > 1e-9 and (_active.has_area() or _material_near(d[0])))
+	_digs = _digs.filter(func(d: Array) -> bool: return d[1] > 1e-9 and (_any_active or _material_near(d[0])))
 
 	for pass_i in RELAX_PASSES:
-		if not _active.has_area():
+		if not _any_active:
 			break
-		_active = _relax(_active)
+		_relax()
 
-	if _dirty.has_area():
+	if _any_dirty:
+		_tex_prev.update(_img)  # _img still holds last tick's heights
 		_img.set_data(GRID, GRID, false, Image.FORMAT_RF, _h.to_byte_array())
 		_tex.update(_img)
-		_update_surface_bullets(_dirty)
-		_dirty = Rect2i()
+		_prev_stale = true
+		for area in _dirty:
+			if area.has_area():
+				_update_cells(area)
+		_dirty.fill(Rect2i())
+		_any_dirty = false
+		for area in _redraw:
+			if area.has_area():
+				_update_surface_bullets(area)
+		_redraw.fill(Rect2i())
 		_shape_dirty = true
+	elif _prev_stale:  # came to rest: stop blending from the older heights
+		_tex_prev.update(_img)
+		_prev_stale = false
 	_shape_timer -= delta
 	if _shape_dirty and _shape_timer <= 0.0:
 		_update_shape()
 
 
+func _process(_delta: float) -> void:
+	cone_material.set_shader_parameter("blend", Engine.get_physics_interpolation_fraction())
+
+
 ## Removes up to `amount` height-metres around `cell`, Gaussian-weighted; returns the rest.
 func _dig(cell: Vector2i, amount: float) -> float:
 	var total := 0.0
-	for dj in range(-DIG_RADIUS, DIG_RADIUS + 1):
-		for di in range(-DIG_RADIUS, DIG_RADIUS + 1):
-			var c := cell + Vector2i(di, dj)
-			if _in_grid(c):
-				total += exp(-(di * di + dj * dj) * 0.5) * signf(_h[c.y * GRID + c.x])
+	var n := 0
+	for y in range(cell.y - DIG_RADIUS, cell.y + DIG_RADIUS + 1):
+		for x in range(cell.x - DIG_RADIUS, cell.x + DIG_RADIUS + 1):
+			if x >= 0 and y >= 0 and x < GRID and y < GRID:
+				total += _dig_w[n] * signf(_h[y * GRID + x])
+			n += 1
 	if total <= 0.0:
 		return amount
 	var left := amount
-	for dj in range(-DIG_RADIUS, DIG_RADIUS + 1):
-		for di in range(-DIG_RADIUS, DIG_RADIUS + 1):
-			var c := cell + Vector2i(di, dj)
-			if not _in_grid(c):
-				continue
-			var k := c.y * GRID + c.x
-			var take := minf(_h[k], amount * exp(-(di * di + dj * dj) * 0.5) / total)
-			_h[k] -= take
-			left -= take
+	n = 0
+	for y in range(cell.y - DIG_RADIUS, cell.y + DIG_RADIUS + 1):
+		for x in range(cell.x - DIG_RADIUS, cell.x + DIG_RADIUS + 1):
+			if x >= 0 and y >= 0 and x < GRID and y < GRID:
+				var k := y * GRID + x
+				var take := minf(_h[k], amount * _dig_w[n] / total)
+				_h[k] -= take
+				left -= take
+			n += 1
 	var area := Rect2i(cell - Vector2i.ONE * (DIG_RADIUS + 1), Vector2i.ONE * (DIG_RADIUS * 2 + 3))
-	_active = area if not _active.has_area() else _active.merge(area)
-	_mark_dirty(area)
+	_mark(_active, area)
+	_mark(_dirty, area)
+	_any_active = true
+	_any_dirty = true
 	return maxf(left, 0.0)
 
 
 func _material_near(cell: Vector2i) -> bool:
-	for dj in range(-DIG_RADIUS, DIG_RADIUS + 1):
-		for di in range(-DIG_RADIUS, DIG_RADIUS + 1):
-			var c := cell + Vector2i(di, dj)
-			if _in_grid(c) and _h[c.y * GRID + c.x] > 0.0:
+	for y in range(maxi(cell.y - DIG_RADIUS, 0), mini(cell.y + DIG_RADIUS + 1, GRID)):
+		for x in range(maxi(cell.x - DIG_RADIUS, 0), mini(cell.x + DIG_RADIUS + 1, GRID)):
+			if _h[y * GRID + x] > 0.0:
 				return true
 	return false
 
 
-## One sand-pile pass: any neighbour pair steeper than the angle of repose sheds half the
-## excess downhill. Returns the area still moving (grown by a cell), empty when settled.
-# ponytail: GDScript loop, ~3 passes over a few thousand cells per frame; move to a compute
-# shader if robots drain many spots at once.
-func _relax(area: Rect2i) -> Rect2i:
-	area = area.intersection(Rect2i(0, 0, GRID, GRID))
-	var lo := Vector2i(GRID, GRID)
-	var hi := Vector2i(-1, -1)
-	for j in range(area.position.y, area.end.y):
-		for i in range(area.position.x, area.end.x):
-			var k := j * GRID + i
-			for nb in 2:
-				var n := k + 1 if nb == 0 else k + GRID
-				if (nb == 0 and i + 1 >= GRID) or (nb == 1 and j + 1 >= GRID):
+## One sand-pile pass over the active tiles: any neighbour pair steeper than the angle of
+## repose sheds half the excess downhill. What moved is marked dirty and, grown a cell up and
+## left so slides cross tile edges, becomes the next pass's active area.
+# Rows run top to bottom across a whole tile row, so one dig visits cells in the same order
+# as a single rectangle would.
+# ponytail: GDScript loop, cost scales with active tiles; compute shader if the whole heap
+# avalanches at once.
+func _relax() -> void:
+	var cur := _active.duplicate()
+	_active.fill(Rect2i())
+	_any_active = false
+	var lo_x := PackedInt32Array()
+	lo_x.resize(TILES * TILES)
+	lo_x.fill(GRID)
+	var lo_y := lo_x.duplicate()
+	var hi_x := PackedInt32Array()
+	hi_x.resize(TILES * TILES)
+	hi_x.fill(-1)
+	var hi_y := hi_x.duplicate()
+	var h := _h
+	_h = PackedFloat32Array()  # h is then the only reference: writes don't copy the array
+	for tj in TILES:
+		var row: Array[int] = []
+		var y0 := GRID
+		var y1 := 0
+		for t in range(tj * TILES, tj * TILES + TILES):
+			var r: Rect2i = cur[t]
+			if r.has_area():
+				row.append(t)
+				y0 = mini(y0, r.position.y)
+				y1 = maxi(y1, r.end.y)
+		# The last row and column are skipped: they have no neighbour on one side, and the heap's
+		# foot ends metres before the grid does.
+		for j in range(y0, mini(y1, GRID - 1)):
+			for t in row:
+				var r: Rect2i = cur[t]
+				if j < r.position.y or j >= r.end.y:
 					continue
-				var d := _h[k] - _h[n]
-				var excess := absf(d) - MAX_STEP
-				if excess <= MIN_SLIDE:
-					continue
-				var m := excess * 0.5 * signf(d)
-				_h[k] -= m
-				_h[n] += m
-				lo = Vector2i(mini(lo.x, i), mini(lo.y, j))
-				hi = Vector2i(maxi(hi.x, i + 1 - nb), maxi(hi.y, j + nb))
-	if hi.x < 0:
-		return Rect2i()
-	var moved := Rect2i(lo, hi - lo + Vector2i.ONE)
-	_mark_dirty(moved.grow(1))
-	return moved.grow(1)
+				var first := -1  # columns of this row segment that moved
+				var last := -1
+				for i in range(r.position.x, mini(r.end.x, GRID - 1)):
+					var k := j * GRID + i
+					var hk := h[k]
+					var d := hk - h[k + 1]  # right neighbour
+					if absf(d) > SLIDE_STEP:
+						var m := (absf(d) - MAX_STEP) * 0.5 * signf(d)
+						hk -= m
+						h[k] = hk
+						h[k + 1] += m
+						last = i
+						if first < 0:
+							first = i
+					d = hk - h[k + GRID]  # neighbour below
+					if absf(d) > SLIDE_STEP:
+						var m := (absf(d) - MAX_STEP) * 0.5 * signf(d)
+						h[k] = hk - m
+						h[k + GRID] += m
+						last = i
+						if first < 0:
+							first = i
+				if last >= 0:  # counted as reaching one cell right and down either way
+					lo_x[t] = mini(lo_x[t], first)
+					lo_y[t] = mini(lo_y[t], j)
+					hi_x[t] = maxi(hi_x[t], last + 1)
+					hi_y[t] = maxi(hi_y[t], j + 1)
+	_h = h
+	for t in TILES * TILES:
+		if hi_x[t] < 0:
+			continue
+		var moved := Rect2i(lo_x[t], lo_y[t], hi_x[t] - lo_x[t] + 1, hi_y[t] - lo_y[t] + 1)
+		_mark(_active, moved.grow_individual(1, 1, 0, 0))  # a pair is checked from its left / upper cell
+		_mark(_dirty, moved)
+		_any_active = true
+		_any_dirty = true
 
 
-func _mark_dirty(area: Rect2i) -> void:
-	_dirty = area if not _dirty.has_area() else _dirty.merge(area)
-
-
-## Keeps mesh bullets resting on the changed cells; hides them where the heap is gone.
-func _update_surface_bullets(area: Rect2i) -> void:
+## Adds `area` to the per-tile rectangles in `tiles`, split along tile edges.
+func _mark(tiles: Array[Rect2i], area: Rect2i) -> void:
 	area = area.intersection(Rect2i(0, 0, GRID, GRID))
+	if not area.has_area():
+		return
+	for tj in range(area.position.y / TILE, (area.end.y - 1) / TILE + 1):
+		for ti in range(area.position.x / TILE, (area.end.x - 1) / TILE + 1):
+			var part := area.intersection(Rect2i(ti * TILE, tj * TILE, TILE, TILE))
+			var t := tj * TILES + ti
+			tiles[t] = part if not tiles[t].has_area() else tiles[t].merge(part)
+
+
+## Copies changed cells into the collision heights, and queues the mesh bullets around cells
+## that drifted a visible amount since they were last drawn. Most slides move a cell by
+## fractions of a millimetre; redrawing bullets for those cost more than the slides did.
+func _update_cells(area: Rect2i) -> void:
 	for j in range(area.position.y, area.end.y):
 		for i in range(area.position.x, area.end.x):
 			var key := j * GRID + i
-			if not _cell_bullets.has(key):
-				continue
-			for code in _cell_bullets[key]:
+			var h := _h[key]
+			_scaled[key] = h / CELL
+			if absf(h - _drawn_h[key]) >= REDRAW_STEP:
+				_drawn_h[key] = h
+				_mark(_redraw, Rect2i(i - 1, j - 1, 3, 3))  # bullets interpolate the cells around them
+
+
+## Keeps mesh bullets resting on the cells in `area`; hides them where the heap is gone.
+func _update_surface_bullets(area: Rect2i) -> void:
+	var h := _h
+	for j in range(area.position.y, area.end.y):
+		for i in range(area.position.x, area.end.x):
+			var key := j * GRID + i
+			for s in range(_cell_first[key], _cell_first[key + 1]):
+				var code := _slot_code[s]
 				if _surface_removed.has(code):
 					continue
-				var chunk: int = code >> 16
-				var idx: int = code & 0xFFFF
-				var b := _surface_base[chunk]
-				var origin := Vector3(b[idx * 12 + 3], 0.0, b[idx * 12 + 11])
-				var h := _height_smooth(origin)
-				origin.y = h + SURFACE_LIFT
-				var t := Transform3D(
-						Vector3(b[idx * 12], b[idx * 12 + 4], b[idx * 12 + 8]),
-						Vector3(b[idx * 12 + 1], b[idx * 12 + 5], b[idx * 12 + 9]),
-						Vector3(b[idx * 12 + 2], b[idx * 12 + 6], b[idx * 12 + 10]),
-						origin)
-				if h < 0.02:
+				var k := _slot_k[s]  # _height_smooth with the corner and weights worked out once
+				var f := _slot_f[s]
+				var y := lerpf(lerpf(h[k], h[k + 1], f.x), lerpf(h[k + GRID], h[k + GRID + 1], f.x), f.y)
+				var t := _slot_xform[s]
+				t.origin.y = y + SURFACE_LIFT
+				if y < 0.02:
 					t.basis = Basis.from_scale(Vector3.ZERO)
-				_surface[chunk].multimesh.set_instance_transform(idx, t)
+				_surface[code >> 16].multimesh.set_instance_transform(code & 0xFFFF, t)
 
 
 func _update_shape() -> void:
-	var scaled := _h.duplicate()
-	for k in scaled.size():
-		scaled[k] /= CELL
-	_shape.map_data = scaled
+	_shape.map_data = _scaled
 	_shape_dirty = false
 	_shape_timer = COLLISION_INTERVAL
 
@@ -626,6 +750,12 @@ func _cell_pos(cell: Vector2i) -> Vector3:
 
 func _in_grid(c: Vector2i) -> bool:
 	return c.x >= 0 and c.y >= 0 and c.x < GRID and c.y < GRID
+
+
+## World height of the heap's surface above `world` (the floor where there is no heap); for
+## things buried in it, like the crate keys.
+func surface_y(world: Vector3) -> float:
+	return global_position.y + _height_smooth(to_local(world))
 
 
 func _height_at(local: Vector3) -> float:

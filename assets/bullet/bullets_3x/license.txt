@@ -1,0 +1,8 @@
+Model Information:
+* title:	Bullets 3x
+* source:	https://sketchfab.com/3d-models/bullets-3x-88552c9cd6c24481bd566661fc146834
+* author:	firstAttempt (https://sketchfab.com/firstAttempt)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works

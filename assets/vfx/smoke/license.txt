@@ -1,0 +1,3 @@
+Smoke flipbooks from Unity Labs "Free VFX image sequences and flipbooks" (CC0 1.0)
+https://unity.com/blog/engine-platform/free-vfx-image-sequences-flipbooks
+candle_smoke_20x4.png = CandleSmoke01_20x4, wispy_smoke_8x8.png = WispySmoke03_8x8 (TGA converted to PNG)

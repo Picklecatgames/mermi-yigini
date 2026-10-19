@@ -16,6 +16,10 @@ uniform vec3 tint : source_color = vec3(1.0);  // set from pile.gd
 
 // Heap shape: height per cell, written by pile.gd as bullets are taken and slopes slide.
 uniform sampler2D height_field : filter_nearest;
+// Heights one physics tick earlier; slides are drawn between the two like physics interpolation
+// draws bodies, so the heap flows instead of stepping at the tick rate.
+uniform sampler2D height_prev : filter_nearest;
+uniform float blend = 1.0;  // Engine.get_physics_interpolation_fraction(), set every frame
 uniform int grid = 160;
 uniform float cell_size = 0.125;
 uniform float toe = 0.06;  // m; thinner than this the heap breaks up into single bullets
@@ -25,7 +29,8 @@ varying vec3 world_normal;
 varying float heap_h;
 
 float field(ivec2 c) {
-	return texelFetch(height_field, clamp(c, ivec2(0), ivec2(grid - 1)), 0).r;
+	ivec2 t = clamp(c, ivec2(0), ivec2(grid - 1));
+	return mix(texelFetch(height_prev, t, 0).r, texelFetch(height_field, t, 0).r, blend);
 }
 
 void vertex() {

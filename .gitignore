@@ -11,3 +11,7 @@
 # Screenshots dropped in project root during visual checks
 /*.png
 /*.png.import
+
+# Blender noise cache and throwaway perf tests
+waveletNoiseTile.bin
+.perf_tmp/

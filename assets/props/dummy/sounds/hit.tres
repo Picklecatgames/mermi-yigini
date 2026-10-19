@@ -1,0 +1,61 @@
+[gd_resource type="AudioStreamRandomizer" load_steps=19 format=3]
+
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_1a.wav" id="1"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_1b.wav" id="2"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_1c.wav" id="3"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_2a.wav" id="4"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_2b.wav" id="5"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_2c.wav" id="6"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_3a.wav" id="7"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_3b.wav" id="8"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_3c.wav" id="9"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_4a.wav" id="10"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_4b.wav" id="11"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_4c.wav" id="12"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_5a.wav" id="13"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_5b.wav" id="14"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_5c.wav" id="15"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_6a.wav" id="16"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_6b.wav" id="17"]
+[ext_resource type="AudioStream" path="res://assets/props/dummy/sounds/hit_6c.wav" id="18"]
+
+[resource]
+random_pitch = 1.02
+random_volume_offset_db = 1.5
+streams_count = 18
+stream_0/stream = ExtResource("1")
+stream_0/weight = 1.0
+stream_1/stream = ExtResource("2")
+stream_1/weight = 1.0
+stream_2/stream = ExtResource("3")
+stream_2/weight = 1.0
+stream_3/stream = ExtResource("4")
+stream_3/weight = 1.0
+stream_4/stream = ExtResource("5")
+stream_4/weight = 1.0
+stream_5/stream = ExtResource("6")
+stream_5/weight = 1.0
+stream_6/stream = ExtResource("7")
+stream_6/weight = 1.0
+stream_7/stream = ExtResource("8")
+stream_7/weight = 1.0
+stream_8/stream = ExtResource("9")
+stream_8/weight = 1.0
+stream_9/stream = ExtResource("10")
+stream_9/weight = 1.0
+stream_10/stream = ExtResource("11")
+stream_10/weight = 1.0
+stream_11/stream = ExtResource("12")
+stream_11/weight = 1.0
+stream_12/stream = ExtResource("13")
+stream_12/weight = 1.0
+stream_13/stream = ExtResource("14")
+stream_13/weight = 1.0
+stream_14/stream = ExtResource("15")
+stream_14/weight = 1.0
+stream_15/stream = ExtResource("16")
+stream_15/weight = 1.0
+stream_16/stream = ExtResource("17")
+stream_16/weight = 1.0
+stream_17/stream = ExtResource("18")
+stream_17/weight = 1.0

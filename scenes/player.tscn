@@ -2,6 +2,10 @@
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1"]
 [ext_resource type="PackedScene" path="res://assets/bullet/bullet_9mm.glb" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/viewmodel.tscn" id="3"]
+[ext_resource type="Script" path="res://scripts/upgrade_menu.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/hit_marker.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/combo_meter.gd" id="6"]
 
 [sub_resource type="CapsuleShape3D" id="body_shape"]
 radius = 0.35
@@ -18,6 +22,7 @@ shape = SubResource("body_shape")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
 
 [node name="Camera3D" type="Camera3D" parent="Head"]
+cull_mask = 1048573
 current = true
 
 [node name="Reach" type="RayCast3D" parent="Head/Camera3D"]
@@ -26,11 +31,35 @@ collision_mask = 5
 
 [node name="Hand" type="Node3D" parent="Head/Camera3D"]
 visible = false
-position = Vector3(0.2, -0.16, -0.38)
+position = Vector3(-0.2, -0.16, -0.38)
 rotation_degrees = Vector3(0, 0, 90)
 scale = Vector3(0.015, 0.015, 0.015)
 
 [node name="Bullet" parent="Head/Camera3D/Hand" instance=ExtResource("2")]
+
+[node name="ViewmodelView" type="SubViewportContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="ViewmodelView"]
+own_world_3d = true
+audio_listener_enable_3d = true
+transparent_bg = true
+handle_input_locally = false
+msaa_3d = 2
+size = Vector2i(1152, 648)
+render_target_update_mode = 4
+
+[node name="Camera" type="Camera3D" parent="ViewmodelView/SubViewport"]
+cull_mask = 2
+near = 0.01
+
+[node name="Viewmodel" parent="ViewmodelView/SubViewport/Camera" instance=ExtResource("3")]
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
@@ -66,3 +95,35 @@ offset_top = 16.0
 offset_right = 300.0
 offset_bottom = 70.0
 theme_override_font_sizes/font_size = 20
+
+[node name="HitMarker" type="Control" parent="HUD"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+mouse_filter = 2
+script = ExtResource("5")
+
+[node name="Money" type="Label" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -260.0
+offset_top = 14.0
+offset_right = -24.0
+offset_bottom = 64.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(0.33, 1, 0.42, 1)
+theme_override_colors/font_outline_color = Color(0, 0.12, 0.03, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 40
+text = "$0"
+horizontal_alignment = 2
+
+[node name="ComboMeter" type="Control" parent="HUD"]
+mouse_filter = 2
+script = ExtResource("6")
+
+[node name="UpgradeMenu" type="CanvasLayer" parent="."]
+script = ExtResource("4")
