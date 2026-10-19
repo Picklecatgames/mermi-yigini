@@ -1,5 +1,5 @@
 extends Node3D
-## The ten crate keys, buried in the bullet heap. Each game puts them somewhere new, but always
+## The twelve crate keys, buried in the bullet heap. Each game puts them somewhere new, but always
 ## deeper the rarer they are (DEPTHS, measured down from the starting surface), so what a key is
 ## worth decides how much of the heap has to go before it can be reached.
 ##
@@ -18,24 +18,26 @@ extends Node3D
 const PILE := preload("res://scripts/pile.gd")
 ## Rank order, most common first: [name, tier]. Models: assets/props/keys/key_NN.glb
 ## (tools/build_keys.py). What each one opens is decided with the crates.
+## The 6th opens the mid-game weapon, the 12th the minigun.
 const KEYS := [
 	["Kapı Anahtarı", 0], ["Paslı Anahtar", 0], ["Kahve Halka", 0], ["Madalyonlu Anahtar", 0],
-	["Pirinç Anahtar", 1], ["Kara Baklava", 1], ["Demir İskelet", 1], ["Viktorya Anahtarı", 1],
-	["Rulmanlı Anahtar", 2], ["Altın Düğüm", 2],
+	["Pirinç Anahtar", 1], ["Kum Adamı Anahtarı", 1], ["Kara Baklava", 1], ["Demir İskelet", 1],
+	["Viktorya Anahtarı", 1], ["Rulmanlı Anahtar", 2], ["Altın Düğüm", 2], ["Dişli Anahtar", 2],
 ]
 const TIER_NAMES := ["SIRADAN", "NADİR", "EFSANEVİ"]
 const TIER_COLORS := [Color(0.85, 0.9, 1.0), Color(0.35, 0.65, 1.0), Color(1.0, 0.72, 0.2)]
 ## m below the starting surface, by rank. Commons by hand in the first twenty minutes, rares once
 ## belts dig, legendaries in the last quarter hour.
 # ponytail: placeholder until the 60-minute balance pass; min_bullets() shows what each costs.
-const DEPTHS := [0.04, 0.055, 0.07, 0.085, 0.45, 0.53, 0.61, 0.70, 1.75, 2.1]
+const DEPTHS := [0.035, 0.042, 0.05, 0.058, 0.45, 0.51, 0.57, 0.63, 0.70, 1.75, 2.0, 2.3]
 const JITTER := 0.08       # ± fraction of a key's depth, so no two games match
 const FLOOR_GAP := 0.15    # m of heap kept under a key: never on the bare floor
 const SPACING := 1.5       # m between keys
 ## m from the heap's centre each tier may lie, [inner, outer]. Commons stay on the outer slopes:
 ## reachable by hand from the floor, and the same dig there costs a fraction of one higher up
-## the heap, where everything above slides in (tools/keys_check.gd: ~1,000 vs ~11,000 rounds).
-const RING := [[5.3, 7.8], [0.0, 8.5], [0.0, 8.5]]
+## the heap, where everything above slides in (tools/keys_check.gd: ~1,000-3,000 rounds from
+## 6 m out, 11,000-15,000 at 3.4-5.4 m).
+const RING := [[6.0, 7.8], [0.0, 8.5], [0.0, 8.5]]
 const CHECK_INTERVAL := 0.2  # s between looks at buried keys
 const PICK_RADIUS := 1.2   # m from a walker's feet
 const HOVER := 0.08        # m an exposed key floats over the surface

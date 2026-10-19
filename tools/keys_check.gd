@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless check for the crate keys (scripts/key_cache.gd): ten buried, deeper by rank, each
+## Headless check for the crate keys (scripts/key_cache.gd): all twelve buried, deeper by rank, each
 ## tier costing at least its share of the heap, and digging straight down onto a key with the
 ## real heap simulation needs at least the bound min_bullets() promises. Then it is picked up.
 ##   Godot.exe --headless --path . -s res://tools/keys_check.gd
@@ -16,10 +16,10 @@ func _initialize() -> void:
 	for i in 3:
 		await physics_frame
 	var ranks: Array = gs.key_states.keys()
-	assert(ranks.size() == 10, "ten keys buried, got %d" % ranks.size())
+	assert(ranks.size() == keys.KEYS.size(), "every key buried, got %d" % ranks.size())
 	var prev := 0.0
 	print("rank  depth   min rounds   from centre")
-	for rank in range(1, 11):
+	for rank in range(1, keys.KEYS.size() + 1):
 		var d: float = keys.key_depth(rank)
 		var p: Vector3 = keys.key_position(rank)
 		var need: int = keys.min_bullets(d)
@@ -29,7 +29,7 @@ func _initialize() -> void:
 		assert(p.y - pile.global_position.y >= keys.FLOOR_GAP - 0.001, "key %d sits above the floor" % rank)
 		assert(gs.key_states[rank] == gs.KeyState.BURIED)
 		match keys.KEYS[rank - 1][1]:
-			0: assert(need >= 40 and need <= 800, "a common key is a hand dig")
+			0: assert(need >= 20 and need <= 800, "a common key is a hand dig")
 			1: assert(need >= 50_000, "a rare key needs belts")
 			2: assert(need >= 3_000_000, "a legendary key needs late automation")
 	# Dig straight down onto every common key and the shallowest rare one.

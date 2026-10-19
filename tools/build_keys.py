@@ -1,12 +1,12 @@
-# Blender (5.x, background): the ten crate keys, from seven Sketchfab downloads (all CC-BY-4.0,
+# Blender (5.x, background): the twelve crate keys, from nine Sketchfab downloads (all CC-BY-4.0,
 # credits in CLAUDE.md), cut down for a game: each key on its own, decimated to a triangle budget,
 # textures shrunk, scaled to a length by tier and centred, written to <out>/key_NN.glb in rank
 # order (common first). The "Keys" pack holds four keys in one mesh; they are split apart by
 # position.
 # Run: blender -b --factory-startup -P tools/build_keys.py -- <unzipped downloads dir> <out_dir>
 #   <unzipped downloads dir> has one folder per zip (door_key, key, key__1_, key__2_, keys,
-#   medieval_gold_key, victorian_key), each with its scene.gltf.
-import bpy, bmesh, os, sys
+#   medieval_gold_key, old_key, sandman_key, victorian_key), each with its scene.gltf.
+import bpy, bmesh, math, os, sys
 from mathutils import Vector, Matrix
 
 SRC, OUT = sys.argv[sys.argv.index("--") + 1:][:2]
@@ -23,15 +23,21 @@ KEYS = [
     ("key__1_", None, "common", 1200),  # REMESH
     ("keys", 3, "common", 1200),
     ("keys", 1, "rare", 1500),
+    ("sandman_key", None, "rare", 1500),  # opens the mid-game weapon
     ("keys", 2, "rare", 1500),
     ("key", None, "rare", 1500),
     ("victorian_key", None, "rare", 2000),
     ("key__2_", None, "legendary", 2500),
     ("medieval_gold_key", None, "legendary", 2500),
+    ("old_key", None, "legendary", 2500),  # opens the minigun
 ]
 
 
 REMESH = {"key__1_"}
+# Bow came out at the bottom after standing up: turned over.
+FLIP = {"key__2_"}
+# Modelled lying diagonally: turned upright along their principal axis.
+ALIGN = {"old_key"}
 
 
 def load(folder):
@@ -124,6 +130,28 @@ for rank, (folder, index, tier, budget) in enumerate(KEYS, 1):
         o.data.transform(Matrix.Rotation(1.5708, 4, "Y"))
     elif d.y >= d.x and d.y >= d.z:
         o.data.transform(Matrix.Rotation(1.5708, 4, "X"))
+    # a key lying diagonally in its plane (old_key): turn about the thin axis so the long axis
+    # stands upright; of the two turns, keep the one that narrows the key most
+    vs = [v.co for v in o.data.vertices]
+    c = sum(vs, Vector()) / len(vs)
+    thin = min(range(3), key=lambda i: max(v[i] for v in vs) - min(v[i] for v in vs))
+    if folder in ALIGN and thin != 2:
+        a = 3 - thin - 2  # the in-plane axis that is not Z
+        saa = sum((v[a] - c[a]) ** 2 for v in vs)
+        szz = sum((v.z - c.z) ** 2 for v in vs)
+        saz = sum((v[a] - c[a]) * (v.z - c.z) for v in vs)
+        tilt = 0.5 * math.atan2(2 * saz, szz - saa)
+        if abs(tilt) > 0.1:
+            width = lambda m: (lambda w: max(w) - min(w))([(m @ v)[a] for v in vs])
+            turns = [Matrix.Rotation(t, 3, "XYZ"[thin]) for t in (tilt, -tilt)]
+            o.data.transform(min(turns, key=width).to_4x4())
+    # flat face toward Godot +Z: the thinnest side goes along Blender Y
+    vs = [v.co for v in o.data.vertices]
+    span = [max(v[i] for v in vs) - min(v[i] for v in vs) for i in range(3)]
+    if span[0] < span[1]:
+        o.data.transform(Matrix.Rotation(1.5708, 4, "Z"))
+    if folder in FLIP:
+        o.data.transform(Matrix.Rotation(3.14159265, 4, "Y"))
     o.data.update()
     # centre on the bounding box, longest side to TIERS length
     vs = [v.co for v in o.data.vertices]
