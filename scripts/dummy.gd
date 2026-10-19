@@ -65,7 +65,7 @@ func decal_parent(at: Vector3) -> Node3D:
 	return _upper if to_local(at).y > _pivot.y else self
 
 
-func _on_shot_landed(_peer: int, at: Vector3, _normal: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
+func _on_shot_landed(peer: int, at: Vector3, _normal: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
 	if target != self:
 		return
 	var r := at - _upper.global_position
@@ -76,7 +76,7 @@ func _on_shot_landed(_peer: int, at: Vector3, _normal: Vector3, dir: Vector3, ta
 		_hit_sound.global_position = at
 		_hit_sound.play()
 	if gold > 0:
-		_pops.pop(gold, above_head(), weak)
+		_pops.pop(gold, above_head(), weak, peer)
 
 
 ## Just over the top of the swinging body, wherever the swing has taken it.

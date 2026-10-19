@@ -90,7 +90,7 @@ func _nearest(at: Vector3) -> int:
 	return maxi(best, 0)
 
 
-func _on_shot_landed(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
+func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
 	if target != self:
 		return
 	KIT.play(_hit, at)
@@ -106,7 +106,7 @@ func _on_shot_landed(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target:
 	_fall_spin[i] = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * randf_range(6.0, 11.0)
 	_lurch += LURCH
 	_back_in[i] = RESPAWN
-	_pops.pop(gold, above_head(), weak)
+	_pops.pop(gold, above_head(), weak, peer)
 
 
 func _process(delta: float) -> void:

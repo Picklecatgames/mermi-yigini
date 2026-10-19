@@ -35,6 +35,7 @@ var _trails: Array[MeshInstance3D] = []
 var _trail_life: Array[float] = []
 var _next_trail := 0
 var _shot_from := {}  # peer -> where its last shot started (fired comes just before shot_landed)
+var _shot_sounds := {}  # peer -> AudioStreamPlayer3D for other players' shots
 # A few drawn variants of each mark, picked at random and spun, so no two look alike.
 var _concrete_tex: Array[Texture2D] = _marks(MARK_CONCRETE)
 var _burlap_tex: Array[Texture2D] = _marks(MARK_BURLAP)
@@ -66,7 +67,7 @@ func _ready() -> void:
 		add_child(m)
 		_trails.append(m)
 		_trail_life.append(1.0)
-	GameState.fired.connect(func(peer: int, from: Vector3, _dir: Vector3) -> void: _shot_from[peer] = from)
+	GameState.fired.connect(_on_fired)
 	GameState.shot_landed.connect(_on_shot_landed)
 	_prewarm.call_deferred()
 
@@ -88,6 +89,27 @@ func _prewarm() -> void:
 	_trails[0].global_transform = hidden
 	_trail_life[0] = 0.98
 	_trails[0].visible = true
+
+
+## Someone else's shot rings out where it was fired, in this world, so distance, direction and
+## the shed's reverb (bus Dunya) shape it for every listener. One player per shooter, a copy of
+## the first-person gun's ShotSound, so its stream and tuning stay in viewmodel.tscn.
+# ponytail: the sound only, at the shooter's eye; flash, shell and the gun in hand come with the
+# third-person character (Faz 1/5), which also gives the muzzle position.
+func _on_fired(peer: int, from: Vector3, _dir: Vector3) -> void:
+	_shot_from[peer] = from
+	if peer == GameState.local_peer():
+		return  # our own shot plays in first person (viewmodel.gd)
+	if not _shot_sounds.has(peer):
+		var gun := get_tree().get_first_node_in_group("first_person_gun")
+		if not gun:
+			return
+		var s: AudioStreamPlayer3D = gun.get_node("ShotSound").duplicate()
+		add_child(s)
+		_shot_sounds[peer] = s
+	var p: AudioStreamPlayer3D = _shot_sounds[peer]
+	p.global_position = from
+	p.play()
 
 
 func _on_shot_landed(peer: int, at: Vector3, normal: Vector3, dir: Vector3, target: Node, _gold: int, _weak: bool, _combo: int) -> void:

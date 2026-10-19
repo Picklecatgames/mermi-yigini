@@ -29,7 +29,10 @@ func _ready() -> void:
 		_labels.append(l)
 
 
-func pop(gold: int, at: Vector3, weak := false) -> void:
+## Only the shooter (`peer`) sees what they earned; the others still see the target react.
+func pop(gold: int, at: Vector3, weak := false, peer := 0) -> void:
+	if peer != 0 and peer != GameState.local_peer():
+		return
 	var l := _labels[_next]
 	_next = (_next + 1) % POOL
 	var old: Tween = l.get_meta("tween") if l.has_meta("tween") else null

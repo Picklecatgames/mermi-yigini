@@ -63,7 +63,7 @@ func above_head() -> Vector3:
 	return global_transform * Vector3(0, 0.95, 0)
 
 
-func _on_shot_landed(_peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
+func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
 	if target != self:
 		return
 	KIT.play(_hit, at)
@@ -73,7 +73,7 @@ func _on_shot_landed(_peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: 
 	_vel = minf(_vel, -KNOCK)
 	_down_left = randf_range(down_time.x, down_time.y)
 	_shape.disabled = true  # now, so the next round in the same burst goes past it
-	_pops.pop(gold, above_head(), weak)
+	_pops.pop(gold, above_head(), weak, peer)
 
 
 func _process(delta: float) -> void:

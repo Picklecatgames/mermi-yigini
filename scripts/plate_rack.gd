@@ -96,7 +96,7 @@ func _nearest(at: Vector3) -> int:
 	return best
 
 
-func _on_shot_landed(_peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
+func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
 	if target != self or _current < 0:
 		return
 	KIT.play(_hit, at)
@@ -109,7 +109,7 @@ func _on_shot_landed(_peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: 
 	_current = -1
 	_gap = GAP_HIT
 	_up_time = maxf(_up_time * SPEED_UP, UP_MIN)
-	_pops.pop(gold, above_head(), weak)
+	_pops.pop(gold, above_head(), weak, peer)
 
 
 func _process(delta: float) -> void:

@@ -35,8 +35,10 @@ func _host() -> void:
 	var client_id := [0]
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void: client_id[0] = id)
 	var shots := []
+	# The dummy connected first, so by now it has reacted; a "+$" over it would be on show.
+	var labels: Array = main.get_node("Dummy")._pops._labels
 	gs.shot_landed.connect(func(peer: int, _at: Vector3, _n: Vector3, _d: Vector3, t: Node, gold: int, _w: bool, _c: int) -> void:
-		shots.append([peer, t, gold]))
+		shots.append([peer, t, gold, labels.any(func(l: Label3D) -> bool: return l.visible)]))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
 	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
 		ProjectSettings.globalize_path("res://"), "-s", "res://tools/net_check.gd", "--", "--client"])
@@ -55,6 +57,10 @@ func _host() -> void:
 	if not _ok(gs.pile == gs.PILE_START - 2, "host pile: its loose bullet + the client's grab"): return
 	if not _ok(shots.size() == 1 and shots[0][0] == cid, "host traced one shot, the client's"): return
 	if not _ok(shots[0][1] == main.get_node("Dummy") and shots[0][2] == 1, "it hit the dummy for $1"): return
+	if not _ok(not shots[0][3], "the client's +$ shows on the client only"): return
+	var sounds: Dictionary = main.get_node("Impacts")._shot_sounds
+	if not _ok(sounds.has(cid) and sounds[cid].global_position.distance_to(main.get_node("Dummy").global_position + Vector3(-11, 1.1, 0)) < 0.001,
+			"the client's shot rang out where it was fired"): return
 	var p = gs.player(cid)
 	if not _ok(p.gold == 1 and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
 	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return

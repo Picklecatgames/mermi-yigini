@@ -99,7 +99,7 @@ class Plate extends StaticBody3D:
 	func above_head() -> Vector3:
 		return _target.global_transform * (_rest.origin + Vector3(0, _top + 0.2, 0))
 
-	func _on_shot_landed(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
+	func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, _combo: int) -> void:
 		if target != self:
 			return
 		# torque of the push about the hinge, in the plate's own axes (x along the bar)
@@ -113,7 +113,7 @@ class Plate extends StaticBody3D:
 			_sound.global_position = at
 			_sound.play()
 		if gold > 0:
-			_pops.pop(gold, above_head(), weak)
+			_pops.pop(gold, above_head(), weak, peer)
 
 	func _physics_process(delta: float) -> void:
 		var h := delta / SUBSTEPS
