@@ -116,14 +116,14 @@ Referans oyun: Find the Needle (Steam 5160800). Saman yığınında iğne arama;
 - `assets/props/steel_targets/sounds/`: kullanıcının verdiği `light.mp3` ve `heavy.mp3` (kaynak/lisans henüz yazılmadı); yalnızca kesildi, mono, seviye; rastgele perde ±%2
 - `assets/props/keys/` (hepsi CC-BY-4.0, ayrıntı `licenses.txt`): "Door Key", GUIBEL; "Keys", aruspice (4 anahtar); "key", yomans; "Key", eucocker; "Key", caior; "Medieval Gold Key", KneeKnow; "Victorian Key", cnseto (Sketchfab; üçgen sayısı indirildi, dokular küçültüldü)
 - `assets/props/targets/`: "Shooting Target Set", HippoStance, CC-BY-4.0, https://sketchfab.com/3d-models/shooting-target-set-ba8282fc05e044a187f556ef14c3ee26 (hedeflere ayrıldı, dokular 2K)
-- `assets/props/keys/` (hepsi Sketchfab, CC-BY-4.0; `tools/build_keys.py` ile ağır olanlar ~3K üçgene indirildi, dokular 1K, 15 cm, sap yukarı, yüz +Z; dosya adındaki numara iyiden kötüye sıra, önizleme `docs/keys_lineup.png`):
-  - 01 "Medieval Gold Key", KneeKnow, https://sketchfab.com/3d-models/medieval-gold-key-64b9661b76e84a769a5e7dd432f535bc
-  - 02, 04, 07, 10 "Keys", aruspice, https://sketchfab.com/3d-models/keys-16d847c5b8f24bcfb8cb32ab8ff8cebd (4 anahtarlık paket, ayrıldı)
-  - 03 "Key", caior, https://sketchfab.com/3d-models/key-7a0f6aaffe604d65bb560955990ce68b
-  - 05 "Key", eucocker, https://sketchfab.com/3d-models/key-bedeea90f698425f93ee7d15c284d24b
-  - 06 "Victorian Key", cnseto, https://sketchfab.com/3d-models/victorian-key-8260e2b3b9314b9aa7ef4002398ace2a
-  - 08 "key", yomans, https://sketchfab.com/3d-models/key-dccd0d629d704cc2bde905572b0947da
-  - 09 "Door Key", GUIBEL, https://sketchfab.com/3d-models/door-key-6538a6a21f5545e0b1dcf22bee5741a1
+- `assets/props/keys/key_NN.glb` (hepsi Sketchfab, CC-BY-4.0; `tools/build_keys.py`, numara yaygından nadire, `scripts/key_cache.gd` sırası; önizleme `docs/keys_lineup.png`):
+  - 01 "Door Key", GUIBEL, https://sketchfab.com/3d-models/door-key-6538a6a21f5545e0b1dcf22bee5741a1
+  - 02, 04, 05, 06 "Keys", aruspice, https://sketchfab.com/3d-models/keys-16d847c5b8f24bcfb8cb32ab8ff8cebd (4 anahtarlık paket, ayrıldı)
+  - 03 "key", yomans, https://sketchfab.com/3d-models/key-dccd0d629d704cc2bde905572b0947da
+  - 07 "Key", eucocker, https://sketchfab.com/3d-models/key-bedeea90f698425f93ee7d15c284d24b
+  - 08 "Victorian Key", cnseto, https://sketchfab.com/3d-models/victorian-key-8260e2b3b9314b9aa7ef4002398ace2a
+  - 09 "Key", caior, https://sketchfab.com/3d-models/key-7a0f6aaffe604d65bb560955990ce68b
+  - 10 "Medieval Gold Key", KneeKnow, https://sketchfab.com/3d-models/medieval-gold-key-64b9661b76e84a769a5e7dd432f535bc
 - `assets/props/dummy/`: "Medieval Combat Dummy", CaptainHC, CC-BY-4.0, https://sketchfab.com/3d-models/medieval-combat-dummy-0b3ab64360374a0e9ee3a5923c437995 (kaide/gövde ayrıldı, ölçeklendi, dokular 2K)
 - `assets/vfx/smoke/`: Unity Labs "Free VFX image sequences and flipbooks" (CandleSmoke01, WispySmoke03), CC0, https://unity.com/blog/engine-platform/free-vfx-image-sequences-flipbooks. Aynı sette 26 duman/ateş/patlama flipbook'u daha var.
 

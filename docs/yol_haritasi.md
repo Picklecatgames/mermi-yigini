@@ -4,8 +4,8 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. Önce gelir (eko
 
 ## Faz 0: Toparlanma (~1 sa)
 
-1. **Her şeyi commit'le.** Repoda yalnız 2 commit var, haftalık iş commit'lenmemiş ve paralel oturumlar aynı dosyalara dokunuyor.
-2. **Çift anahtar setini teke indir.** `assets/props/keys/` içinde iki set var: `key_NN.glb` (yaygından nadire, `key_cache.gd` bunu kullanıyor) ve `key_NN_<isim>.glb` (iyiden kötüye). Biri silinir, jenerik ona göre düzeltilir.
+1. ~~**Her şeyi commit'le.**~~ (yapıldı) Repoda yalnız 2 commit var, haftalık iş commit'lenmemiş ve paralel oturumlar aynı dosyalara dokunuyor.
+2. ~~**Çift anahtar setini teke indir.**~~ (yapıldı: `key_NN.glb` kaldı) `assets/props/keys/` içinde iki set var: `key_NN.glb` (yaygından nadire, `key_cache.gd` bunu kullanıyor) ve `key_NN_<isim>.glb` (iyiden kötüye). Biri silinir, jenerik ona göre düzeltilir.
 3. **`viewmodel.gd` parse hatası** (`REAR_SIGHT`, `FRONT_SIGHT`): silah yüklenmiyorsa ilk iş bu.
 
 ## Faz 1: İlk 15 dakika (~15 sa)
