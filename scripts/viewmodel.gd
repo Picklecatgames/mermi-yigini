@@ -108,6 +108,11 @@ const ADS_EYE := 0.22      # m from the eye to the rear sight when aimed
 const ADS_STEADY := 0.2    # share of sway, bob and breath left when aimed
 const ADS_RECOIL := 0.8    # share of the gun's kick when aimed (braced with both hands)
 const ADS_CLIPS := ["", "fire", "fire_last"]  # rest pose only: reloads and the draw drop the sights
+## Low ready, held while placing gear: euler (pitch, yaw, roll) around the wrist and a shift, in
+## the gun's frame. Muzzle down and in across the body, the hand a little lower and nearer.
+const LOW_ROT := Vector3(-0.35, 0.9, 0.45)
+const LOW_POS := Vector3(-0.03, 0.11, 0.02)  # m
+const LOW_TIME := 0.3  # s down, and back up
 const SHELL_POOL := 20
 const TINK_EVERY := Vector2i(10, 15)  # inside a burst, one shell clinks every this many
 const TINK_GAP := 1.5   # s without a shot before the next one counts as a lone shot
@@ -155,6 +160,8 @@ var _jelly_rot := Vector3.ZERO  # euler, rad
 var _jelly_rot_vel := Vector3.ZERO
 var _jelly_pos := Vector3.ZERO
 var _jelly_pos_vel := Vector3.ZERO
+var _low_lin := 0.0  # 0 up and live, 1 at low ready (placement mode); linear
+var _lowered := 0.0  # the same, eased
 var _fall_speed := 0.0  # m/s down on the last airborne frame
 var aim_offset := Vector2.ZERO  # rad (yaw left, pitch up) the shot leaves the screen centre by
 var spread := 0.0  # rad, cone half-angle of the next shot
@@ -320,14 +327,19 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_since_fire += delta
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	# Placing gear (B), left click puts it up and R turns it (scripts/placement.gd), so the gun rests.
-	if captured and _was_captured and not GameState.player().placing:
+	# Placing gear (B): left click puts it up and R turns it (scripts/placement.gd), so the gun goes
+	# to low ready, and is only live again once it is all the way back up.
+	var placing := GameState.player().placing
+	_low_lin = move_toward(_low_lin, 1.0 if placing else 0.0, delta / LOW_TIME)
+	_lowered = smoothstep(0.0, 1.0, _low_lin)
+	var live := _low_lin == 0.0
+	if captured and _was_captured and live:
 		if Input.is_action_pressed("fire"):
 			_want_fire = FIRE_BUFFER
 		elif Input.is_action_just_pressed("reload"):
 			_want_reload = RELOAD_BUFFER
 	_was_captured = captured
-	var want_aim := captured and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
+	var want_aim := captured and live and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
 	_aim_lin = move_toward(_aim_lin, 1.0 if want_aim else 0.0, delta / ADS_TIME)
 	aim = smoothstep(0.0, 1.0, _aim_lin)
 	_want_fire -= delta
@@ -620,7 +632,10 @@ func _sway_and_bob(delta: float) -> void:
 	# In the gun's own frame, around the wrist: when aimed the front post jumps above the notch.
 	var flip := Basis.from_euler(Vector3(RECOIL_PITCH, RECOIL_YAW * _kick_yaw, RECOIL_ROLL * _kick_roll) * kick)
 	var recoil := Transform3D(flip, _pivot - flip * _pivot + Vector3(0.0, RECOIL_UP, RECOIL_BACK) * kick)
-	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _rest.lerp(_ads_pos, aim) + _base) * jelly * recoil
+	# Low ready: around the wrist the muzzle drops and turns in across the body, the hand sinks.
+	var lb := Basis.from_euler(LOW_ROT * _lowered)
+	var low := Transform3D(lb, _pivot - lb * _pivot + LOW_POS * _lowered)
+	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _rest.lerp(_ads_pos, aim) + _base) * low * jelly * recoil
 
 
 ## Spring frequency: settles (to ~2%) in RECOIL_SETTLE, or before the next shot if that is sooner.
