@@ -40,7 +40,7 @@ class Plate extends StaticBody3D:
 	const SHIVER_TIME := 0.25
 
 	var hit_gold := 2
-	var kind: StringName  # for the combo's variety cap: one per target scene, all its plates alike
+	var kind: StringName  # so GameState can tell targets apart: one per target scene, all its plates alike
 	var _target: Node3D
 	var _rest: Transform3D  # hinge in the target's space
 	var _com := 0.0         # m from the hinge down to the centre of mass

@@ -19,7 +19,7 @@ const HEAD_FROM := 0.49    # m up the paddle where the round head starts
 
 ## Base pay per hit before weak spot and combo (GameState reads it).
 @export var hit_gold := 3
-## Target kind for the combo's variety cap; a pair of poppers counts once.
+## Target kind so GameState can tell targets apart; a pair of poppers counts once.
 var kind := &"popper"
 ## Seconds it stays down, picked at random in this range.
 @export var down_time := Vector2(2.0, 3.5)
