@@ -26,7 +26,14 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
    - İstemcinin isteği kendi tarafında **tahmin** olarak çalışır (silah, el ve HUD hemen tepki verir) ve host'a gider. Host gerçekten uygular, oyuncunun durumunu geri yollar. İstemci bu cevabı yalnız bütün istekleri cevaplanınca uygular, yoldaki tahmini geri almaz. Dünya (yığın, dökülen mermi, anahtar, atış izi ve ödeme) yalnız host'ta değişir ve olay olarak gelir.
    - Kontrol: `tools/net_check.gd` (iki süreç; istemci, host'un önceden aldığı mermiye uzanınca geri alınır; yığından alır, doldurur, dummy'ye atar; host'un isabeti istemcinin kendi ışınıyla aynı, $1 iki tarafta).
    - Sonraki adımlara kalanlar: katılınca yalnız yığın *sayısı* gelir (şekli, dökülenler, anahtarlar 8. adım); host istemcinin `from` konumuna güvenir (5. adımda senkron konumla doğrulanır); kovanlar atış katmanında (1) ve yalnız atanın makinesinde var, host'un kovanı istemcinin atışını kesebilir (kovanları ayrı katmana almak gerek); her istemci aynı doğma noktasında başlar (5. adım).
-5. **Diğer oyuncular:** 3. şahıs karakter (konum, nişan yönü, durum: yürüyor/ateş ediyor/reload); başkasının atışı dünyada alev, ses ve izle oynar. İsim etiketi.
+5. ~~**Diğer oyuncular:**~~ (bitti 2026-10-20) 3. şahıs karakter (konum, nişan yönü, durum: yürüyor/ateş ediyor/reload); başkasının atışı dünyada alev ve izle oynar. İsim etiketi. (Sesler bu adımda yok, 25. adımda.)
+   - Konum: her oyuncu ayağını, yaw/pitch'ini ve durumunu (`GameState.Act`) saniyede 20 kez yollar (`GameState.send_pose`, unreliable, ayrı kanal); host saklar ve öbürlerine dağıtır. Alan taraf 100 ms geride iki örnek arasında yumuşatır (`scripts/remote_players.gd`).
+   - Karakter: bumstrum operatörü, animasyonsuz. Kollar bir kez iki kemikli IK ile tabancaya oturur; omurga ve göğüs pitch'le eğilir (kollar, silah ve kafa göğüste), gövde yaw'la döner, yürürken hafif zıplar, reload'da aşağı bakar. Elinde ağır tabancanın kendisi (FP modelinin `Talon` parçası). Başının üstünde "Oyuncu <id>" (duvar arkasından da görünür). Ayrılınca kaybolur.
+   - Başkasının atışı: alev (FP silahın `Flash`'ının kopyası) ve barut taneleri karakterin namlusunda, mermi izi ve mevcut atış sesi oradan çıkar.
+   - Doğma: host ilk boş noktayı verir (`_spawn`), host 0'da.
+   - Host, istemcinin atışındaki `from`'u o oyuncunun son konumuyla karşılaştırır (göz ±1,5 m, `FIRE_FROM_SLACK`), uzaksa atış hiç olmamış sayılır. Oyuncu gövdeleri artık atışı durdurmaz (host'un gövdesi misafirlerin mermisini yiyordu). Kovanlar zaten hiçbir katmanda değil (`collision_layer = 0`), atışı kesemez; 4. adımdaki not yanlıştı.
+   - Kontrol: `tools/net_check.gd` genişledi (ayrı doğma noktası, host'un karakteri istemcide, istemcinin konumu host'ta, atış sesi karakterin namlusunda, sahte `from` reddedilir, ayrılınca karakter gider).
+   - Kalanlar: ayaklar yürürken kayıyor (yürüme animasyonu sanat geçişinde); oyuncular birbirinin içinden geçer; başkasının kovanı yok (süs, yerel kalır).
 6. **Mevcut sistemleri host'a bağla:**
    - Yığın kazıları zaten olay (`bullets_taken`); her makinede aynı sonucu verdiği doğrulanır.
    - Anahtar dizilimi (`key_cache.gd`) host'ta seçilir, tohumu yayılır.
@@ -65,6 +72,6 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 22. **GodotSteam:** lobi, arkadaş daveti, "arkadaşına katıl". Bağlantı katmanı ENet'ten Steam'e geçer.
 23. **Ana menü ve dünya oluşturma:** host et / katıl / ayarlar; oyuncu sayısına göre yığın büyüklüğü burada seçilir.
 24. **Kayıt:** dünya host'ta kaydedilir; kişisel durum Steam ID'ye göre saklanır.
-25. **60 dakikalık denge (1, 2 ve 4 oyuncuyla) + UI cilası.**
+25. **60 dakikalık denge (1, 2 ve 4 oyuncuyla) + UI cilası + ses geçişi:** bütün sesler (reload, ayak, boş tetik, kovan) co-op'ta karakterin konumunda 3D. Yerleri hazır: ayak ve reload `remote_players.gd` karakter düğümünde, atış `muzzle_position()`'da.
 26. **Dışarıdan test:** 3–5 kişilik gruplar uzaktan, Steam üzerinden oynar.
 27. **Steam sayfası ve demo uygulaması:** mağaza sayfası, ekran görüntüleri, fragman, ayrı demo app ID; hedef bir Next Fest'e yetiştirmek.

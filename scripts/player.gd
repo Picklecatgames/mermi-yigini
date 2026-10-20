@@ -24,6 +24,7 @@ const KICK_OMEGA := 28.0     # rad/s; peak at 1 / KICK_OMEGA ≈ 36 ms
 const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
 const SUN_SHADE_SPEED := 6.0  # 1/s, how fast the gun's sun fades in and out of shade
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
+const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
 
 var _grab_timer := 0.0
 var _yaw := 0.0
@@ -45,6 +46,7 @@ var _sun_lit := 1.0
 var _sun_query := PhysicsRayQueryParameters3D.new()
 var _hip_fov := 75.0
 var _zoom := 1.0
+var _pose_timer := 0.0
 
 @onready var _head: Node3D = $Head
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
@@ -63,10 +65,8 @@ var _zoom := 1.0
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	add_to_group("walker")  # kicks loose bullets around (Pile)
-	var spawns := get_tree().get_nodes_in_group("spawn")
-	if not spawns.is_empty():  # ponytail: solo takes the first; co-op hands out one per peer
-		global_transform = (spawns[0] as Node3D).global_transform
-	_yaw = rotation.y
+	_go_to_spawn(GameState.spawn_index)
+	GameState.spawn_assigned.connect(_go_to_spawn)
 	_hip_fov = _camera.fov
 	_head.top_level = true
 	_head.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # placed per frame
@@ -97,6 +97,28 @@ func _ready() -> void:
 	_update_counter()
 	_set_hand_count(mini(GameState.carried, HAND_MAX))
 	_place_head()
+
+
+## Solo and the host stand on the first spawn point; each guest gets its own from the host.
+func _go_to_spawn(index: int) -> void:
+	var spawns := get_tree().get_nodes_in_group("spawn")
+	if spawns.is_empty():
+		return
+	global_transform = (spawns[index % spawns.size()] as Node3D).global_transform
+	_yaw = rotation.y
+	_pitch = 0.0
+	velocity = Vector3.ZERO
+	reset_physics_interpolation()
+
+
+## What other machines show this player doing.
+func _act() -> int:
+	var clip: String = _viewmodel.clip
+	if clip.begins_with("fire"):
+		return GameState.Act.SHOOTING
+	if clip.begins_with("reload") or clip in ["settle", "slingshot", "rack"]:
+		return GameState.Act.RELOADING
+	return GameState.Act.WALKING if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.1 else GameState.Act.IDLE
 
 
 ## The gun is drawn in its own world: it does not need the shed, and sharing the shed's world
@@ -206,6 +228,10 @@ func _physics_process(delta: float) -> void:
 	# switched off over there) you can still walk back out, never in.
 	set_collision_mask_value(GameState.FENCE_LAYER, not GameState.player().placing and global_position.x < GameState.FIRING_LINE_X)
 	move_and_slide()
+	_pose_timer -= delta
+	if _pose_timer <= 0.0:
+		_pose_timer += POSE_INTERVAL
+		GameState.send_pose(global_position, _yaw, _pitch, _act())
 	if is_on_floor():
 		if _air_time > LAND_AIR_TIME:
 			_step_sound.play()

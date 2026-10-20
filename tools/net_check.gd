@@ -2,7 +2,9 @@ extends SceneTree
 ## Headless co-op check, host and client in two processes on 127.0.0.1:
 ##   Godot.exe --headless --path . -s res://tools/net_check.gd
 ## This process hosts and starts the client itself (same script with `-- --client`). The client
-## grabs, reloads and fires at the dummy; both sides check they agree on what happened.
+## grabs, reloads and fires at the dummy; both sides check they agree on what happened. Also:
+## each side gets its own spawn point, sees the other as a third-person character that follows
+## its pose, and the host drops a shot whose `from` is nowhere near the shooter.
 
 const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the way
 const LOG := "user://net_check_client.log"
@@ -35,10 +37,14 @@ func _host() -> void:
 	var client_id := [0]
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void: client_id[0] = id)
 	var shots := []
+	var rp: Node = main.get_node("RemotePlayers")
 	# The dummy connected first, so by now it has reacted; a "+$" over it would be on show.
 	var labels: Array = main.get_node("Dummy")._pops._labels
 	gs.shot_landed.connect(func(peer: int, _at: Vector3, _n: Vector3, _d: Vector3, t: Node, gold: int, _w: bool, _c: int) -> void:
-		shots.append([peer, t, gold, labels.any(func(l: Label3D) -> bool: return l.visible)]))
+		var who: Node3D = rp.character(peer)
+		var sound: Node3D = main.get_node("Impacts")._shot_sounds.get(peer)
+		shots.append([peer, t, gold, labels.any(func(l: Label3D) -> bool: return l.visible),
+			who.muzzle_position() if who else Vector3.INF, sound.global_position if sound else Vector3.INF]))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
 	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
 		ProjectSettings.globalize_path("res://"), "-s", "res://tools/net_check.gd", "--", "--client"])
@@ -58,9 +64,12 @@ func _host() -> void:
 	if not _ok(shots.size() == 1 and shots[0][0] == cid, "host traced one shot, the client's"): return
 	if not _ok(shots[0][1] == main.get_node("Dummy") and shots[0][2] == 1, "it hit the dummy for $1"): return
 	if not _ok(not shots[0][3], "the client's +$ shows on the client only"): return
-	var sounds: Dictionary = main.get_node("Impacts")._shot_sounds
-	if not _ok(sounds.has(cid) and sounds[cid].global_position.distance_to(main.get_node("Dummy").global_position + Vector3(-11, 1.1, 0)) < 0.001,
-			"the client's shot rang out where it was fired"): return
+	var muzzle: Vector3 = shots[0][4]
+	if not _ok(muzzle.distance_to(main.get_node("Dummy").global_position + Vector3(-11, 1.1, 0)) < 1.0,
+			"the client's character stood where it fired from"): return
+	if not _ok(shots[0][5].distance_to(muzzle) < 0.001, "the shot rang out at that character's muzzle"): return
+	if not _ok(gs.player(cid).has_pose and gs.player(cid).pos.distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
+	if not await _until(func() -> bool: return rp.character(cid) == null, "the client's character to go"): return
 	var p = gs.player(cid)
 	if not _ok(p.gold == 1 and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
 	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return
@@ -72,6 +81,20 @@ func _client() -> void:
 	net.join("127.0.0.1", PORT)
 	if not await _until(func() -> bool: return net.is_client, "connect"): return
 	if not await _until(func() -> bool: return gs.pile == gs.PILE_START - 1, "pile count on join"): return
+	# Our own spawn point, not the host's.
+	var me: Node3D = main.get_node("Player")
+	var spawns := root.get_tree().get_nodes_in_group("spawn")
+	if not await _until(func() -> bool: return gs.spawn_index == 1, "a spawn point from the host"): return
+	if not _ok(me.global_position.distance_to(spawns[1].global_position) < 0.5 and spawns[1].global_position.distance_to(spawns[0].global_position) > 2.0,
+			"we start on spawn 1, away from the host's"): return
+	# The host's body shows up as a character where the host stands.
+	var rp: Node = main.get_node("RemotePlayers")
+	if not await _until(func() -> bool: return rp.character(1) != null and rp.character(1).visible, "the host's character"): return
+	if not _ok(rp.character(1).global_position.distance_to(spawns[0].global_position) < 0.5, "it stands on the host's spawn"): return
+	# Walk up to the line to shoot from there; our pose follows us to the host.
+	me.global_position = Vector3(12, 0, 0)
+	me.reset_physics_interpolation()
+	await create_timer(0.5).timeout  # the pose reaches the host, its character catches up
 	# A loose bullet the host already has: the grab is predicted, then the host takes it back.
 	if not _ok(gs.request_pick_up_loose(0) == 1 and gs.carried == 1, "loose grab predicted"): return
 	if not _ok(gs.request_pick_up_loose(0) == 0, "holding E asks only once"): return
@@ -84,6 +107,15 @@ func _client() -> void:
 	if not _ok(gs.request_reload() == 1, "reload"): return
 	if not await _until(gs.synced, "answer to the reload"): return
 	if not _ok(gs.loaded == 1 and gs.carried == 0, "round in the gun"): return
+	# A shot from five metres off our body: predicted, then the host says it never happened.
+	var dummy0: Node3D = main.get_node("Dummy")
+	var fake := dummy0.global_position + Vector3(-11, 1.1, 5)
+	var any_shot := [false]
+	gs.shot_landed.connect(func(_p: int, _a: Vector3, _n: Vector3, _d: Vector3, _t: Node, _g: int, _w: bool, _c: int) -> void: any_shot[0] = true)
+	if not _ok(gs.request_fire(fake, Vector3(1, 0, 0)) and gs.loaded == 0, "forged shot predicted"): return
+	if not await _until(gs.synced, "answer to the forged shot"): return
+	if not _ok(gs.loaded == 1 and not any_shot[0], "host dropped it: round back, nothing landed"): return
+	gs.player().cooldown = 0.0
 	# One shot at the dummy's body. The client traces the same ray itself to compare.
 	var dummy: Node3D = main.get_node("Dummy")
 	var from := dummy.global_position + Vector3(-11, 1.1, 0)
