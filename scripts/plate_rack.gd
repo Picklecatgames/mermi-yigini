@@ -3,6 +3,8 @@ extends StaticBody3D
 ## springs up for a moment. Hit it and it slaps down and the next comes up sooner; every hit in
 ## a row also shortens how long the next one stays up. If one gets away it sinks back and the
 ## pace starts over. Faces +Z.
+## Co-op: the host picks which plate comes up and says when one got away (GameState.cue_target,
+## [plate] or [-1]); a client only follows. Hits come to everyone as shot_landed.
 
 const KIT := preload("res://scripts/target_kit.gd")
 const MODEL := preload("res://assets/props/targets/plate_rack.gltf")
@@ -68,6 +70,7 @@ func _ready() -> void:
 	_rise = KIT.sound(self, rise_sound)
 	add_child(_pops)
 	GameState.shot_landed.connect(_on_shot_landed)
+	GameState.target_cue.connect(_on_cue)
 
 
 ## The plate that is up right now, or -1 (for tests and tutorials).
@@ -112,23 +115,36 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: N
 	_pops.pop(gold, above_head(), weak, peer)
 
 
+## The host's call: plate `cue[0]` comes up, or (-1) the one up got away.
+func _on_cue(target: Node, cue: Array) -> void:
+	if target != self:
+		return
+	var i: int = cue[0]
+	if _current >= 0:
+		_shapes[_current].disabled = true
+	if i < 0:  # got away: sinks back, and the pace starts over
+		_current = -1
+		_gap = GAP
+		_up_time = UP_TIME
+		return
+	_current = i
+	_last = i
+	_knocked[i] = false
+	_up_left = _up_time
+	KIT.play(_rise, _plates[i].global_position)
+
+
 func _process(delta: float) -> void:
 	var dt := minf(delta, 0.05)
-	if _current < 0:
-		_gap -= delta  # real clock: only the springs are clamped
-		if _gap <= 0.0:
-			_current = (_last + 1 + randi() % (PLATES - 1)) % PLATES
-			_last = _current
-			_knocked[_current] = false
-			_up_left = _up_time
-			KIT.play(_rise, _plates[_current].global_position)
-	else:
-		_up_left -= delta
-		if _up_left <= 0.0:  # got away: sinks back, and the pace starts over
-			_shapes[_current].disabled = true
-			_current = -1
-			_gap = GAP
-			_up_time = UP_TIME
+	if not Net.is_client:  # real clock: only the springs are clamped
+		if _current < 0:
+			_gap -= delta
+			if _gap <= 0.0:
+				GameState.cue_target(self, [(_last + 1 + randi() % (PLATES - 1)) % PLATES])
+		else:
+			_up_left -= delta
+			if _up_left <= 0.0:
+				GameState.cue_target(self, [-1])
 	for i in PLATES:
 		for s in 4:
 			var h := dt / 4.0

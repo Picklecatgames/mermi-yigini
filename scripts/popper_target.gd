@@ -2,6 +2,8 @@ extends StaticBody3D
 ## Steel popper: a paddle with a round head on a ground hinge. A hit knocks it flat (it takes no
 ## hits on the way down), it lies there a few seconds and springs back up with a small
 ## overshoot. The round head is the weak spot. Faces +Z.
+## Co-op: the host rolls how long it stays down and says when it stands (GameState.cue_target);
+## a client's popper lies there until then.
 
 const KIT := preload("res://scripts/target_kit.gd")
 const MODEL := preload("res://assets/props/targets/popper.gltf")
@@ -49,6 +51,12 @@ func _ready() -> void:
 	_rise = KIT.sound(self, rise_sound)
 	add_child(_pops)
 	GameState.shot_landed.connect(_on_shot_landed)
+	GameState.target_cue.connect(_on_cue)
+
+
+## Lying down after a hit, until it stands back up.
+func is_down() -> bool:
+	return _knocked
 
 
 func is_weak(at: Vector3) -> bool:
@@ -71,9 +79,16 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: N
 		return
 	_knocked = true
 	_vel = minf(_vel, -KNOCK)
-	_down_left = randf_range(down_time.x, down_time.y)
+	_down_left = INF if Net.is_client else randf_range(down_time.x, down_time.y)
 	_shape.disabled = true  # now, so the next round in the same burst goes past it
 	_pops.pop(gold, above_head(), weak, peer)
+
+
+## The host's call: stand back up.
+func _on_cue(target: Node, _cue: Array) -> void:
+	if target == self and _knocked:
+		_knocked = false
+		KIT.play(_rise, global_position)
 
 
 func _process(delta: float) -> void:
@@ -81,8 +96,8 @@ func _process(delta: float) -> void:
 	if _knocked:
 		_down_left -= delta  # real clock: only the springs are clamped
 		if _down_left <= 0.0:
-			_knocked = false
-			KIT.play(_rise, global_position)
+			_down_left = INF
+			GameState.cue_target(self, [])
 	for i in 4:
 		var h := dt / 4.0
 		if _knocked:

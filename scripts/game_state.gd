@@ -43,6 +43,13 @@ signal key_taken(rank: int, peer: int)
 signal pose_received(peer: int, time: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool)
 ## The host gave this machine's player its own spawn point (index into group "spawn").
 signal spawn_assigned(index: int)
+## Where the keys are buried: the host rolls the seed, a client lays its keys out again from it
+## (scripts/key_cache.gd).
+signal key_layout(seed: int)
+## A moving target's own call, made on the host alone: which plate comes up, when a popper
+## stands back up, where the star has turned to. Clients follow these instead of rolling their own.
+## What `cue` holds is up to the target.
+signal target_cue(target: Node, cue: Array)
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -94,7 +101,10 @@ const REQUESTS := {
 }
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
-	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken"]
+	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
+	&"target_cue"]
+## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
+const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
 
 
 class PlayerState:
@@ -126,6 +136,7 @@ var _sent_seq := 0
 var _acked_seq := 0
 var _claimed := {}  # loose bullet ids asked for and not answered yet, so E held asks once
 var spawn_index := 0  # this machine's spawn point; the host is 0
+var key_seed := 0  # the key layout's seed; 0 until scripts/key_cache.gd has rolled or received one
 var _spawn_slots := {}  # host: peer -> spawn index
 
 # The local player's view, for HUD and first-person code.
@@ -179,6 +190,7 @@ func _ready() -> void:
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			_event.rpc_id(id, &"pile_changed", [pile])
+			_event.rpc_id(id, &"key_layout", [key_seed])
 			# Each player starts on a spawn point of their own: the first one nobody holds.
 			var slot := 1
 			while slot in _spawn_slots.values():
@@ -382,6 +394,19 @@ enum KeyState { BURIED, EXPOSED, TAKEN }
 var key_states := {}  # rank -> KeyState, for every key the heap holds
 
 
+## Host (or solo): the key layout's seed, told to everyone.
+func set_key_seed(seed: int) -> void:
+	if not Net.is_client:
+		key_seed = seed
+		_world(&"key_layout", [seed])
+
+
+## Host (or solo): a moving target's decision; see target_cue. A client's own calls are dropped.
+func cue_target(target: Node, cue: Array) -> void:
+	if not Net.is_client:
+		_world(&"target_cue", [target, cue])
+
+
 ## The heap uncovered key `rank`; only buried keys can be revealed, once.
 ## Host only: the host's heap says when a key comes out.
 func request_reveal_key(rank: int, at: Vector3) -> bool:
@@ -540,8 +565,9 @@ func _spawn(index: int) -> void:
 func _world(event: StringName, args: Array) -> void:
 	callv(&"emit_signal", [event] + args)
 	if Net.online and multiplayer.is_server():
-		if event == &"shot_landed":  # nodes travel as paths; every peer runs the same scenes
-			args[4] = args[4].get_path() if args[4] else NodePath()
+		if NODE_ARG.has(event):
+			var i: int = NODE_ARG[event]
+			args[i] = args[i].get_path() if args[i] else NodePath()
 		_event.rpc(event, args)
 
 
@@ -562,8 +588,13 @@ func _event(event: StringName, args: Array) -> void:
 		&"key_taken":
 			key_states[args[0]] = KeyState.TAKEN
 			player(args[1]).keys.append(args[0])
-		&"shot_landed":
-			# A node only the host has lands as null (spent shells are on no layer, so none yet).
-			var path: NodePath = args[4]
-			args[4] = null if path.is_empty() else get_node_or_null(path)
+		&"key_layout":
+			key_seed = args[0]
+	if NODE_ARG.has(event):
+		# A node only the host has lands as null (spent shells are on no layer, so none yet).
+		var i: int = NODE_ARG[event]
+		var path: NodePath = args[i]
+		args[i] = null if path.is_empty() else get_node_or_null(path)
+		if event == &"target_cue" and args[i] == null:
+			return
 	callv(&"emit_signal", [event] + args)

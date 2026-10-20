@@ -34,11 +34,13 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
    - Host, istemcinin atışındaki `from`'u o oyuncunun son konumuyla karşılaştırır (göz ±1,5 m, `FIRE_FROM_SLACK`), uzaksa atış hiç olmamış sayılır. Oyuncu gövdeleri artık atışı durdurmaz (host'un gövdesi misafirlerin mermisini yiyordu). Kovanlar zaten hiçbir katmanda değil (`collision_layer = 0`), atışı kesemez; 4. adımdaki not yanlıştı.
    - Kontrol: `tools/net_check.gd` genişledi (ayrı doğma noktası, host'un karakteri istemcide, istemcinin konumu host'ta, atış sesi karakterin namlusunda, sahte `from` reddedilir, ayrılınca karakter gider).
    - Kalanlar: yana ve geri yürürken de ileri yürüme klibi oynar (strafe klipleri UAL'de var, BlendSpace2D ile); oyuncular birbirinin içinden geçer; başkasının kovanı yok (süs, yerel kalır).
-6. **Mevcut sistemleri host'a bağla:**
-   - Yığın kazıları zaten olay (`bullets_taken`); her makinede aynı sonucu verdiği doğrulanır.
-   - Anahtar dizilimi (`key_cache.gd`) host'ta seçilir, tohumu yayılır.
-   - Köstebek rafının sırası, popper'ın yatma süresi, Texas Star açısı host'tan olay olarak gelir.
-   - Kovan, duman gibi süsler yerel kalır.
+6. ~~**Mevcut sistemleri host'a bağla:**~~ (bitti 2026-10-20)
+   - Yığın: kazılar zaten olaydı (`bullets_taken`). Host istemci içerideyken 10.000 mermi kazıyor, istemci 1 mermi alıyor; yığın oturunca iki taraftaki 160×160 yükseklik alanı **bit bit aynı** (hash eşit, en büyük fark 0). Kayma adımları sırayla aynı işlediği için kare zamanlaması fark yaratmıyor. Ortada katılan için yükseklik alanını yollamak 8. adımda.
+   - Anahtarlar: tohumu host atar (`GameState.key_seed`, `key_layout` olayı, katılana bağlanınca gider). İstemcinin kendi zarı yalnız tek başınayken geçerli; tohum gelince anahtarları kendi yığınına yeniden gömer (host'un başlangıç yığınıyla aynı, konumlar aynı çıkıyor). Açığa çıkma kararı zaten yalnız host'ta.
+   - Hareketli hedefler: yeni dünya olayı `target_cue(target, cue)`; hedef kendi kararını host'ta `GameState.cue_target` ile verir, istemci zamanlayıcı ya da zar kullanmaz, bekler. Köstebek rafı: `[plaka]` kalkar, `[-1]` kaçtı. Popper: yatma süresini host seçer, kalkma anı `[]` ile gelir. Texas Star: düşen plaka `[&"off", i, yön]`, geri gelen `[&"on", i]`; açı her 0,5 sn'de `[&"turn", açı, hız]` (istemci ENet gidiş-dönüş süresinin yarısı kadar ileri sarar, `Net.latency()`).
+   - Süsler yerel: kovan, duman, kıvılcım, toz, "+$", dökülen merminin tekmelenmesi, fırlatılan merminin saçılımı, düşen yıldız plakasının yuvarlanışı. Rastgelelikleri her makinede ayrı.
+   - Kontrol: `tools/net_check.gd` genişledi (yığın hash'i, anahtar konumları, rafın kaldırdığı plakalar, popper'ın düşüp kalkma anı, yıldız açısı; iki süreç aynı duvar saatini okuyarak karşılaştırır). 3 kez üst üste geçti: raf ±0,3 sn içinde aynı plakalar, yıldız farkı 0,02–0,03 rad.
+   - Kalanlar: ortada katılan anahtar durumlarını ve hedeflerin o anki halini almıyor (8. adım); istemci yıldızı gecikme kadar geride görmüyor ama vuruşu host'un yıldızında değerlendiriliyor, uzak bağlantıda nişan farkı hissedilebilir (Steam testinde bakılır).
 7. **Ortak kasa:** her isabetin payı (yer tutucu %20) kasaya akar, HUD'da görünür.
 8. **Katılma ve ayrılma:** oyun ortasında katılan oyuncu durumu bir kerede alır; ayrılan istemcinin kişisel durumu saklanır, geri dönünce kaldığı yerden; host ayrılırsa oturum biter (host göçü yok).
 

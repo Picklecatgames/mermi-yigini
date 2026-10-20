@@ -62,6 +62,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		join()
 
 
+## Seconds a message from the host takes to get here (half the round trip); 0 when not a client.
+func latency() -> float:
+	if not is_client:
+		return 0.0
+	var host_peer := (multiplayer.multiplayer_peer as ENetMultiplayerPeer).get_peer(1)
+	return host_peer.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME) / 2000.0 if host_peer else 0.0
+
+
 func host(port := PORT) -> Error:
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, GameState.MAX_PLAYERS - 1)
