@@ -50,6 +50,10 @@ signal key_layout(seed: int)
 ## VAULT_SHARE of its pay on top (the shooter keeps all of theirs). Float, so $1 hits add up.
 signal vault_changed(vault: float)
 signal gear_changed(stock: Dictionary)  # GEAR id -> bought, not placed yet
+## Gear went up in the target area: number `n` in placement order (its node is Placed/Gear_<n>).
+signal gear_placed(n: int, id: String, pos: Vector3, yaw: float)
+## Someone else's placement preview (scripts/placement.gd draws it faint); id "" when they stop.
+signal preview_received(peer: int, id: String, pos: Vector3, yaw: float)
 ## A moving target's own call, made on the host alone: which plate comes up, when a popper
 ## stands back up, where the star has turned to. Clients follow these instead of rolling their own.
 ## What `cue` holds is up to the target.
@@ -116,13 +120,13 @@ const VAULT_SHARE := 0.2  # placeholder (yol haritası 7)
 ## the shared stock until someone places them (yol haritası 10). Order is the menu's order.
 # ponytail: placeholder prices until the 60-minute balance pass.
 const GEAR := {
-	"dummy": {"scene": "res://scenes/dummy.tscn", "cost": 20},
-	"steel_silhouette": {"scene": "res://scenes/steel_silhouette.tscn", "cost": 35},
-	"steel_gong": {"scene": "res://scenes/steel_gong.tscn", "cost": 35},
-	"popper": {"scene": "res://scenes/popper_target.tscn", "cost": 60},
-	"steel_rack": {"scene": "res://scenes/steel_rack.tscn", "cost": 90},
-	"plate_rack": {"scene": "res://scenes/plate_rack.tscn", "cost": 150},
-	"texas_star": {"scene": "res://scenes/texas_star.tscn", "cost": 300},
+	"dummy": {"name": "Saman Kukla", "scene": "res://scenes/dummy.tscn", "cost": 20},
+	"steel_silhouette": {"name": "Çelik Siluet", "scene": "res://scenes/steel_silhouette.tscn", "cost": 35},
+	"steel_gong": {"name": "Çelik Gong", "scene": "res://scenes/steel_gong.tscn", "cost": 35},
+	"popper": {"name": "Popper", "scene": "res://scenes/popper_target.tscn", "cost": 60},
+	"steel_rack": {"name": "Plaka Dizisi", "scene": "res://scenes/steel_rack.tscn", "cost": 90},
+	"plate_rack": {"name": "Köstebek Rafı", "scene": "res://scenes/plate_rack.tscn", "cost": 150},
+	"texas_star": {"name": "Texas Star", "scene": "res://scenes/texas_star.tscn", "cost": 300},
 }
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
@@ -135,12 +139,17 @@ const REQUESTS := {
 	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
 	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
+	&"request_place_gear": 3,
 }
+## Where gear may stand: the target area past the firing line, clear of the east wall and the
+## crate stands; at least PLACE_GAP from any target's origin.
+const PLACE_ZONE := Rect2(15.0, -25.0, 11.5, 45.0)  # x, z
+const PLACE_GAP := 1.6  # m
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
-	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed"]
+	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
 
@@ -167,6 +176,7 @@ class PlayerState:
 var pile: int = PILE_START
 var vault := 0.0
 var gear_stock := {}  # GEAR id -> bought and not placed yet, shared by the team
+var placed := []      # [GEAR id, pos, yaw] per piece put up, in order
 var _players := {}  # peer id -> PlayerState
 var _next_loose_id := THROWN_ID_START
 # ponytail: grows by one per loose grab; the save system can prune ids no longer in the world.
@@ -249,6 +259,8 @@ func _ready() -> void:
 					_event.rpc_id(id, &"key_revealed", [rank, key_at.get(rank, Vector3.ZERO)])
 				if key_states[rank] == KeyState.TAKEN:
 					_event.rpc_id(id, &"key_taken", [rank, _holder_of(rank)])
+			for n in placed.size():  # before the cues: placed targets have state of their own
+				_event.rpc_id(id, &"gear_placed", [n] + placed[n])
 			for t: Node in get_tree().get_nodes_in_group("target"):
 				if t.has_method("join_cues"):
 					for cue: Array in t.join_cues():
@@ -332,6 +344,60 @@ func request_buy_gear(id: String, peer := 0) -> bool:
 	_world(&"vault_changed", [vault])
 	_world(&"gear_changed", [gear_stock])
 	return true
+
+
+## Whether piece `id` from the stock may go up at `pos` (target area, room around it).
+func can_place(id: String, pos: Vector3) -> bool:
+	if gear_stock.get(id, 0) <= 0 or not PLACE_ZONE.has_point(Vector2(pos.x, pos.z)):
+		return false
+	for t: Node in get_tree().get_nodes_in_group("target"):
+		var at: Vector3 = (t as Node3D).global_position
+		if Vector2(at.x - pos.x, at.z - pos.z).length() < PLACE_GAP:
+			return false
+	return true
+
+
+## Puts piece `id` from the shared stock up at `pos`, turned `yaw`. The host checks the spot; two
+## players dropping on one spot: the first wins, the second finds it taken (or the stock empty).
+func request_place_gear(id: String, pos: Vector3, yaw: float, peer := 0) -> bool:
+	if not GEAR.has(id):
+		return false
+	if _send(&"request_place_gear", [id, pos, yaw], peer):
+		return can_place(id, pos)  # no guess: the piece appears when the host's gear_placed comes
+	if not can_place(id, pos):
+		return false
+	gear_stock[id] -= 1
+	placed.append([id, pos, yaw])
+	_world(&"gear_changed", [gear_stock])
+	_world(&"gear_placed", [placed.size() - 1, id, pos, yaw])
+	return true
+
+
+## Our placement preview for the others to see faint; id "" when we stop. Unreliable, ~10 Hz.
+func send_preview(id: String, pos: Vector3, yaw: float) -> void:
+	if not Net.online:
+		return
+	if multiplayer.is_server():
+		_preview_of.rpc(local_peer(), id, pos, yaw)
+	else:
+		_preview.rpc_id(1, id, pos, yaw)
+
+
+@rpc("any_peer", "call_remote", "unreliable_ordered", 2)
+func _preview(id: String, pos: Vector3, yaw: float) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	preview_received.emit(peer, id, pos, yaw)
+	for other in multiplayer.get_peers():
+		if other != peer:
+			_preview_of.rpc_id(other, peer, id, pos, yaw)
+
+
+@rpc("authority", "call_remote", "unreliable_ordered", 2)
+func _preview_of(peer: int, id: String, pos: Vector3, yaw: float) -> void:
+	if peer != local_peer():
+		preview_received.emit(peer, id, pos, yaw)
 
 
 ## What a player is called on screen (name tag, Q menu).
@@ -804,6 +870,10 @@ func _event(event: StringName, args: Array) -> void:
 			vault = args[0]
 		&"gear_changed":
 			gear_stock = args[0]
+		&"gear_placed":
+			if args[0] != placed.size():
+				return  # already have it (a joiner's own copy can't happen, but stay idempotent)
+			placed.append(args.slice(1))
 	if NODE_ARG.has(event):
 		# A node only the host has lands as null (spent shells are on no layer, so none yet).
 		var i: int = NODE_ARG[event]

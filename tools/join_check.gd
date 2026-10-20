@@ -10,6 +10,8 @@ const PORT := 24692  # not Net.PORT or net_check's
 const LOG := "user://join_check_client.log"
 const WORLD := "user://join_check_client.json"
 const LOOSE := 7  # a starting spill bullet the host takes
+const DUMMY_AT := Vector3(18, 0, 15)   # gear the host puts up before anyone joins
+const POPPER_AT := Vector3(18, 0, 8)   # and the joiner puts up
 
 var gs: Node
 var net: Node
@@ -45,6 +47,13 @@ func _host() -> void:
 	if not _ok(gs.request_reveal_key(1, keys._pos[1]) and gs.request_take_key(1), "host takes key 1"): return
 	var popper: Node = main.get_node("LockedTargets/PopperNorth")
 	popper._on_cue(popper, [&"down"])
+	# Gear (yol haritası 10): buy a dummy and a popper, put the dummy up; the joiner places the popper.
+	gs.vault = 200.0
+	if not _ok(gs.request_buy_gear("dummy") and gs.request_buy_gear("popper"), "host buys a dummy and a popper"): return
+	if not _ok(not gs.request_place_gear("dummy", Vector3(10, 0, 15), -PI / 2), "no gear on the shooters' side"): return
+	if not _ok(gs.request_place_gear("dummy", DUMMY_AT, -PI / 2), "host puts the dummy up"): return
+	if not _ok(not gs.request_place_gear("popper", DUMMY_AT + Vector3(0.5, 0, 0), -PI / 2), "no gear on top of other gear"): return
+	if not _ok(main.has_node("Placed/Gear_0") and main.get_node("Placed/Gear_0").is_in_group("target"), "the dummy stands, as a target"): return
 	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty() and pile._awake.is_empty(), "the host's heap and throw to settle"): return
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
@@ -63,6 +72,8 @@ func _host() -> void:
 	if OS.get_process_exit_code(pid) != 0:
 		return _fail("client side failed")
 	if not _ok(gs._saved.size() == 1 and gs._token_of.is_empty(), "the client's state waits under its token"): return
+	var put: Node3D = main.get_node_or_null("Placed/Gear_1")
+	if not _ok(put != null and put.global_position.distance_to(POPPER_AT) < 0.01 and gs.gear_stock.popper == 0, "the client's popper stands here too, out of the stock"): return
 	print("join_check OK")
 	quit()
 
@@ -79,6 +90,10 @@ func _client() -> void:
 	var thrown: int = pile._spill_id.count(gs.THROWN_ID_START) + pile._spill_id.count(gs.THROWN_ID_START + 1) + pile._spill_id.count(gs.THROWN_ID_START + 2)
 	if not _ok(thrown == 3, "the three thrown bullets lie here too (%d)" % thrown): return
 	if not _ok(popper.is_down(), "the popper is down"): return
+	if not await _until(func() -> bool: return main.has_node("Placed/Gear_0"), "the host's placed dummy"): return
+	if not _ok((main.get_node("Placed/Gear_0") as Node3D).global_position.distance_to(DUMMY_AT) < 0.01 and gs.gear_stock.get("popper") == 1, "the dummy stands where the host put it; a popper in stock"): return
+	if not _ok(gs.request_place_gear("popper", POPPER_AT, -PI / 2), "we ask to put the popper up"): return
+	if not await _until(func() -> bool: return main.has_node("Placed/Gear_1"), "our popper, once the host lets it up"): return
 	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty(), "the heap to settle"): return
 	var host: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(WORLD))
 	var h: PackedFloat32Array = Marshalls.base64_to_raw(host.heights).to_float32_array()

@@ -320,7 +320,8 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_since_fire += delta
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if captured and _was_captured:
+	# Placing gear (B), left click puts it up and R turns it (scripts/placement.gd), so the gun rests.
+	if captured and _was_captured and not GameState.player().placing:
 		if Input.is_action_pressed("fire"):
 			_want_fire = FIRE_BUFFER
 		elif Input.is_action_just_pressed("reload"):

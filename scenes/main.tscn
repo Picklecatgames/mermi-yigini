@@ -12,6 +12,7 @@
 [ext_resource type="PackedScene" path="res://scenes/popper_target.tscn" id="7"]
 [ext_resource type="PackedScene" path="res://scenes/plate_rack.tscn" id="11"]
 [ext_resource type="PackedScene" path="res://scenes/texas_star.tscn" id="12"]
+[ext_resource type="Script" path="res://scripts/placement.gd" id="15"]
 
 [node name="Main" type="Node3D" unique_id=603565990]
 
@@ -54,6 +55,9 @@ rotation = Vector3(0, -1.5708, 0)
 [node name="TexasStar" parent="LockedTargets" instance=ExtResource("12")]
 position = Vector3(24, 0, -21.5)
 rotation = Vector3(0, -1.5708, 0)
+
+[node name="Placed" type="Node3D" parent="."]
+script = ExtResource("15")
 
 [node name="Impacts" type="Node3D" parent="."]
 script = ExtResource("5")

@@ -62,7 +62,12 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
    - **Teçhizat:** `GameState.GEAR` (7 hedef: kukla $20, siluet $35, gong $35, popper $60, plaka dizisi $90, köstebek rafı $150, Texas Star $300; yer tutucu). `request_buy_gear` kasadan düşer, `gear_stock`'a ekler; yalnız host karar verir (istemci tahmin etmez: iki kişi aynı parayı harcayabilir), `vault_changed` + `gear_changed` olaylarıyla herkese, katılana bağlanınca gider. Depodakiler 10. adımda yerleştirilecek.
    - SMG kişisel sekmeye gelmedi: silah sırası (revolver, Uzi, AK) ayrı bir iş.
    - Kontrol: `tools/shop_check.gd` (iki sekme, butonlar doğru fiyatla alır, para yetmezken kapalı, depo sayısı).
-10. **Yerleştirme modu:** satın alınan hedef böyle konur; ileride taret ve bant da aynı kodu kullanır. Konumu host doğrular; aynı yere iki kişi koyarsa ilk gelen kazanır. Başkalarının önizlemesi soluk görünür.
+10. ~~**Yerleştirme modu:**~~ (bitti 2026-10-21) satın alınan hedef böyle konur; ileride taret ve bant da aynı kodu kullanır. Konumu host doğrular; aynı yere iki kişi koyarsa ilk gelen kazanır. Başkalarının önizlemesi soluk görünür.
+   - B açık ve depoda bir şey varken bakılan yerde parçanın yarı saydam kopyası çıkar (yalnız meshleri; script, gövde, ses çalışmaz): yeşil konabilir, kırmızı konamaz. Tekerlek parçayı seçer, R 45° döndürür, sol tık koyar; altta ipucu yazısı. Yerleştirme modunda silah ateş etmez, R şarjör değiştirmez. `scripts/placement.gd` (ana sahnede `Placed` düğümü).
+   - Kurallar (`GameState.can_place`): depoda olmalı; korkuluğun ötesinde x 15–26,5, z −25–20 (`PLACE_ZONE`); hiçbir hedefin merkezine 1,6 m'den yakın olmamalı (`PLACE_GAP`); zemin (normal yukarı). İlk bakış batıya, atıcılara dönük.
+   - Co-op: `request_place_gear(id, konum, açı)` host'ta doğrulanır, istemci tahmin etmez; `gear_placed(n, ...)` olayıyla her makinede `Placed/Gear_<n>` adıyla kurulur, böylece vuruş ve cue olayları aynı yolu bulur. Katılana kurulu parçalar hedef cue'larından önce gider. Önizleme saniyede 10 kez güvenilmez kanaldan gider; başkalarınınki o oyuncunun renginde soluk görünür, 1,5 sn haber gelmezse kalkar.
+   - Kontrol: `tools/join_check.gd` genişledi (host alır ve kurar, korkuluğun berisine ve başka hedefin üstüne kuramaz; katılan kurulu kuklayı görür, kendi popper'ını kurar, host'ta da belirir, depodan düşer).
+   - Kalanlar: önizleme oyunda gözle denenmedi. Kurulan parça taşınamaz, kaldırılamaz, satılamaz. Parçaların gerçek boyutuna göre çakışma yok (yalnız merkez mesafesi). Kayıt (Faz 6) kurulu parçaları da saklamalı.
 11. **Hile menüsü (x10 hız, para ekle) + ilk 15 dakikanın denge turu:** yalnız host açar, yalnız debug build'de. Denge 1 ve 2 oyuncuyla ölçülür.
 
 ## Faz 3: İkinci para ve kasalar (~15 sa)

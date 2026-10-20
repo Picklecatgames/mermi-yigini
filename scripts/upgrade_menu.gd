@@ -11,14 +11,14 @@ const INFO := {
 	"gold_bonus": ["Altın", "Her isabetin verdiği altına eklenir.", "+%d%%"],
 	"range_bonus": ["Uzak Atış", "Korkuluğun her metre gerisinden vuruşa ek altın.", "+%d%%/m"],
 }
-const GEAR_INFO := {  # name, what it is, gold per hit
-	"dummy": ["Saman Kukla", "Çuval kukla. Kafası iki kat öder.", 1],
-	"steel_silhouette": ["Çelik Siluet", "İnsan boyu çelik; vurdukça sallanır.", 2],
-	"steel_gong": ["Çelik Gong", "Yuvarlak gong, sesi bütün atölyeye yayılır.", 2],
-	"popper": ["Popper", "Vurulunca devrilir, biraz sonra kalkar.", 3],
-	"steel_rack": ["Plaka Dizisi", "Yan yana küçük çelik plakalar.", 4],
-	"plate_rack": ["Köstebek Rafı", "Plakalar sırayla kalkar; kaçırma.", 7],
-	"texas_star": ["Texas Star", "Dönen yıldız; plaka düştükçe hızlanır.", 12],
+const GEAR_INFO := {  # what it is, gold per hit (the name is in GameState.GEAR)
+	"dummy": ["Çuval kukla. Kafası iki kat öder.", 1],
+	"steel_silhouette": ["İnsan boyu çelik; vurdukça sallanır.", 2],
+	"steel_gong": ["Yuvarlak gong, sesi bütün atölyeye yayılır.", 2],
+	"popper": ["Vurulunca devrilir, biraz sonra kalkar.", 3],
+	"steel_rack": ["Yan yana küçük çelik plakalar.", 4],
+	"plate_rack": ["Plakalar sırayla kalkar; kaçırma.", 7],
+	"texas_star": ["Dönen yıldız; plaka düştükçe hızlanır.", 12],
 }
 const BG := Color(0.07, 0.08, 0.1, 0.97)
 const SIDE := Color(0.045, 0.05, 0.065)
@@ -280,12 +280,12 @@ func _upgrade_card(id: String) -> Control:
 func _gear_card(id: String) -> Control:
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 6)
-	body.add_child(_label(GEAR_INFO[id][0], 22, Color.WHITE))
-	body.add_child(_label(GEAR_INFO[id][1], 14, DIM))
+	body.add_child(_label(GameState.GEAR[id].name, 22, Color.WHITE))
+	body.add_child(_label(GEAR_INFO[id][0], 14, DIM))
 	var chips := HBoxContainer.new()
 	chips.add_theme_constant_override("separation", 8)
 	body.add_child(chips)
-	chips.add_child(_chip("İsabet başı $%d" % GEAR_INFO[id][2], GREEN))
+	chips.add_child(_chip("İsabet başı $%d" % GEAR_INFO[id][1], GREEN))
 	var stock := _chip("", DIM)
 	chips.add_child(stock)
 	var card := _card(id, body, func() -> bool: return GameState.request_buy_gear(id))
