@@ -84,9 +84,22 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: N
 	_pops.pop(gold, above_head(), weak, peer)
 
 
-## The host's call: stand back up.
-func _on_cue(target: Node, _cue: Array) -> void:
-	if target == self and _knocked:
+## Host: cues that bring a player joining mid-game up to now.
+func join_cues() -> Array:
+	return [[&"down"]] if _knocked else []
+
+
+## The host's call: stand back up ([]), or for a joiner, it is lying down ([&"down"]).
+func _on_cue(target: Node, cue: Array) -> void:
+	if target != self:
+		return
+	if cue == [&"down"]:
+		_knocked = true
+		_angle = DOWN
+		_vel = 0.0
+		_down_left = INF
+		_shape.disabled = true
+	elif _knocked:
 		_knocked = false
 		KIT.play(_rise, global_position)
 

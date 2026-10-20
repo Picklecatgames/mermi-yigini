@@ -121,8 +121,9 @@ const REQUESTS := {
 	&"request_buy_upgrade": 1, &"request_debug_level_up": 1, &"request_pick_up": 2,
 	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
-	&"request_throw": 2, &"request_push": 2,
+	&"request_throw": 2, &"request_push": 2, &"request_hello": 1,
 }
+const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
@@ -167,6 +168,12 @@ var _spawned := false  # client: the host has placed us; until then our body sta
 var slots := {}  # peer -> spawn slot, everyone in the session (player_slots)
 var key_seed := 0  # the key layout's seed; 0 until scripts/key_cache.gd has rolled or received one
 var _spawn_slots := {}  # host: peer -> spawn index
+# Host: who is who across reconnects. A client says its token on joining (request_hello); a
+# leaver's state waits under it until the same token comes back.
+# ponytail: a token file per machine; Steam IDs replace it in Faz 6 (step 22).
+var _token_of := {}  # peer -> token
+var _saved := {}     # token -> PlayerState of a player who left
+var key_at := {}     # rank -> where an exposed key came out, for joiners
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -214,13 +221,23 @@ func mag_capacity_of(peer: int) -> int:
 
 
 func _ready() -> void:
-	# Someone joined: the pile count is the one thing they would see wrong right away.
-	# ponytail: count only; heap shape, loose bullets and keys come with mid-game join (Faz 1/8).
+	# Someone joined: they get the world as it is now, in one go, before any later event.
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		if multiplayer.is_server():
 			_event.rpc_id(id, &"pile_changed", [pile])
 			_event.rpc_id(id, &"key_layout", [key_seed])
 			_event.rpc_id(id, &"vault_changed", [vault])
+			var heap := get_tree().get_first_node_in_group("bullet_pile")
+			_join.rpc_id(id, heap.snapshot() if heap else [], _taken_loose.keys())
+			for rank: int in key_states:
+				if key_states[rank] != KeyState.BURIED:
+					_event.rpc_id(id, &"key_revealed", [rank, key_at.get(rank, Vector3.ZERO)])
+				if key_states[rank] == KeyState.TAKEN:
+					_event.rpc_id(id, &"key_taken", [rank, _holder_of(rank)])
+			for t: Node in get_tree().get_nodes_in_group("target"):
+				if t.has_method("join_cues"):
+					for cue: Array in t.join_cues():
+						_event.rpc_id(id, &"target_cue", [t.get_path(), cue])
 			# Each player starts on a spawn point of their own: the first one nobody holds.
 			var slot := 1
 			while slot in _spawn_slots.values():
@@ -229,9 +246,14 @@ func _ready() -> void:
 			_spawn.rpc_id(id, slot)
 			slots = _slots_now()
 			_world(&"player_slots", [slots]))
+	multiplayer.connected_to_server.connect(func() -> void: request_hello(_token()))
 	multiplayer.peer_disconnected.connect(func(id: int) -> void:
 		_spawn_slots.erase(id)
 		if multiplayer.is_server():
+			if _token_of.has(id) and _players.has(id):
+				_saved[_token_of[id]] = _players[id]  # gold, upgrades, hand, gun, keys: back when they are
+			_token_of.erase(id)
+			_players.erase(id)
 			slots = _slots_now()
 			_world(&"player_slots", [slots]))
 
@@ -519,8 +541,54 @@ func request_reveal_key(rank: int, at: Vector3) -> bool:
 	if Net.is_client or key_states.get(rank, -1) != KeyState.BURIED:
 		return false
 	key_states[rank] = KeyState.EXPOSED
+	key_at[rank] = at
 	_world(&"key_revealed", [rank, at])
 	return true
+
+
+## Host: who holds taken key `rank` (a player who left still counts, under their old id).
+func _holder_of(rank: int) -> int:
+	for peer: int in _players:
+		if rank in _players[peer].keys:
+			return peer
+	return 0
+
+
+## A client says who it is, once connected; the host gives back what it had when it left.
+func request_hello(token: String, peer := 0) -> void:
+	if _send(&"request_hello", [token], peer) or peer == 0:
+		return
+	if token.is_empty() or token in _token_of.values():
+		return  # a second window on the same machine plays as somebody new
+	_token_of[peer] = token
+	if _saved.has(token):
+		var p: PlayerState = _saved[token]
+		_saved.erase(token)
+		p.cooldown = 0.0
+		p.has_pose = false
+		_players[peer] = p  # the answer to this request (_state) carries it to the client
+
+
+## This machine's player token, made once and kept in user://.
+func _token() -> String:
+	if FileAccess.file_exists(TOKEN_FILE):
+		return FileAccess.get_file_as_string(TOKEN_FILE).strip_edges()
+	var t := "%x%x" % [randi(), Time.get_ticks_usec()]
+	var f := FileAccess.open(TOKEN_FILE, FileAccess.WRITE)
+	if f:
+		f.store_string(t)
+	return t
+
+
+## Joiner: the heap and loose bullets as the host has them now (pile.gd snapshot()).
+@rpc("authority", "call_remote", "reliable")
+func _join(heap: Array, taken: Array) -> void:
+	var node := get_tree().get_first_node_in_group("bullet_pile")
+	if node and not heap.is_empty():
+		node.restore(heap)
+	for id: int in taken:
+		_taken_loose[id] = true
+		loose_taken.emit(id)
 
 
 ## A player picks up an exposed key; the first request wins.
@@ -590,17 +658,18 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	callv(method, args + [peer])
 	var p := player(peer)
-	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo)
+	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys)
 
 
 ## Client: the host's word on our own state, after request `seq`.
 @rpc("authority", "call_remote", "reliable")
-func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool) -> void:
+func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array) -> void:
 	_acked_seq = seq
 	if seq != _sent_seq:
 		return  # newer requests are still on their way; their answer will have it all
 	_claimed.clear()
 	var p := player()
+	p.keys.assign(keys)
 	p.infinite_ammo = infinite
 	if p.carried != carried_:
 		_set_carried(0, carried_)

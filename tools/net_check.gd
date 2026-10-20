@@ -121,8 +121,8 @@ func _host() -> void:
 	if not _ok(me._pitch > 0.03, "and threw our aim up"): return
 	if not _ok(me.global_position.distance_to(home) > 0.3, "the client walking into us shoved us"): return
 	if not await _until(func() -> bool: return rp.character(cid) == null, "the client's character to go"): return
-	var p = gs.player(cid)
-	if not _ok(p.gold == 1 and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
+	var p = gs._saved.values()[0] if gs._saved.size() == 1 else null  # under the client's token
+	if not _ok(p != null and p.gold == 1 and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
 	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return
 	if not _ok(paid[0] >= 1 and is_equal_approx(gs.vault, paid[0] * gs.VAULT_SHARE), "every paid $ put its share in the vault (%.2f of $%.0f)" % [gs.vault, paid[0]]): return
 	print("net_check OK")
@@ -151,7 +151,10 @@ func _client() -> void:
 	me.global_position = Vector3(12, 0, 0)
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout  # the pose reaches the host, its character catches up
-	# A loose bullet the host already has: the grab is predicted, then the host takes it back.
+	# A loose bullet the host took before we joined: joining told us (yol haritası 8).
+	if not _ok(gs._taken_loose.has(0) and gs.request_pick_up_loose(0) == 0, "joining told us loose bullet 0 is gone"): return
+	# The race the join can't cover, both reaching for it at once: forget it, grab, be undone.
+	gs._taken_loose.erase(0)
 	if not _ok(gs.request_pick_up_loose(0) == 1 and gs.carried == 1, "loose grab predicted"): return
 	if not _ok(gs.request_pick_up_loose(0) == 0, "holding E asks only once"): return
 	if not await _until(gs.synced, "answer to the loose grab"): return

@@ -111,6 +111,15 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: 
 	_pops.pop(gold, above_head(), weak, peer)
 
 
+## Host: cues that bring a player joining mid-game up to now (fallen plates drop there too).
+func join_cues() -> Array:
+	var cues := [[&"turn", _angle, _lurch]]
+	for i in PLATES:
+		if not _on[i]:
+			cues.append([&"off", i, Vector3.DOWN])
+	return cues
+
+
 func _on_cue(target: Node, cue: Array) -> void:
 	if target != self:
 		return

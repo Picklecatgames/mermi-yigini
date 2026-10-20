@@ -200,7 +200,7 @@ func _on_revealed(rank: int, at: Vector3) -> void:
 	_shown[rank] = n
 	n.set_meta("popping", true)
 	var top := at + Vector3(0, 0.55 + tier * 0.25, 0)
-	var t := create_tween()
+	var t := n.create_tween()  # dies with the key if it is picked up mid-pop
 	t.tween_property(n, "global_position", top, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	t.parallel().tween_property(n, "rotation:y", TAU * 2.0, 0.65)
 	t.tween_property(n, "global_position", at + Vector3(0, HOVER, 0), 0.3).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)

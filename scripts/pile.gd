@@ -523,6 +523,38 @@ func _spawn_loose(id: int, t: Transform3D, velocity: Vector3) -> void:
 	_awake.append(body)
 
 
+## Host: the heap as it is now, for a player joining mid-game (GameState sends it). Heights,
+## what is still sliding and digging (so both go on settling the same way), the surface bullets
+## picked off, and thrown bullets with where they lie. Bullets taken from the starting spill come
+## separately (GameState's taken ids); kicked spill keeps its starting spot there (local visual).
+func snapshot() -> Array:
+	var thrown := []
+	for i in _spill_id.size():
+		if _spill_id[i] >= GameState.THROWN_ID_START:
+			thrown.append([_spill_id[i], _spill_xform[i]])
+	for body in _awake:
+		if body.get_meta("id") >= GameState.THROWN_ID_START:
+			var t := global_transform.affine_inverse() * body.global_transform
+			thrown.append([body.get_meta("id"), Transform3D(t.basis.orthonormalized().scaled(Vector3.ONE * BULLET_SCALE), t.origin)])
+	return [_h, _active, _digs, _surface_removed.keys(), thrown]
+
+
+## Joiner: takes the host's snapshot() over the starting heap this machine built.
+func restore(snap: Array) -> void:
+	_h = snap[0]
+	_active.assign(snap[1])
+	_any_active = _active.any(func(r: Rect2i) -> bool: return r.has_area())
+	_digs = snap[2]
+	for code: int in snap[3]:
+		_surface_removed[code] = true
+		_surface[code >> 16].multimesh.set_instance_transform(code & 0xFFFF, Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	for b: Array in snap[4]:
+		if not _id_index.has(b[0]):
+			_add_spill(b[1], b[0])
+	_mark(_dirty, Rect2i(0, 0, GRID, GRID))  # redraw and recollide wherever the heights moved
+	_any_dirty = true
+
+
 func _exit_tree() -> void:
 	for rid in _spill_rid:
 		PhysicsServer3D.free_rid(rid)

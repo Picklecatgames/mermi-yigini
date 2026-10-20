@@ -115,6 +115,11 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: N
 	_pops.pop(gold, above_head(), weak, peer)
 
 
+## Host: cues that bring a player joining mid-game up to now.
+func join_cues() -> Array:
+	return [[_current]] if _current >= 0 else []
+
+
 ## The host's call: plate `cue[0]` comes up, or (-1) the one up got away.
 func _on_cue(target: Node, cue: Array) -> void:
 	if target != self:
