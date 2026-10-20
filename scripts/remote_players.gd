@@ -92,7 +92,11 @@ class Character extends Node3D:
 	var _hand := {}  # "R_point1" etc. -> bone
 	var _on_gun := {}  # "R_point1" etc. -> that bone's turn in gun space, from the first-person grip
 	var _left_wrist_on_gun: Vector3
+	var _on_gun_at := {}  # "R_point3" etc. -> where the first-person joint is on the gun
 	var _left_hold := 1.0  # 0 while the left hand is off the gun for a reload
+	## The first-person hand's size over the operator's (~0.83): on the gun the operator's hand
+	## shrinks to it, or the same finger pose reaches past the trigger.
+	var _hand_scale := 1.0
 	var _hips_hold: Basis  # the hips standing in the pistol pose; the upper body keeps to it
 	var _spine := -1
 	var _chest := -1
@@ -141,12 +145,16 @@ class Character extends Node3D:
 				var key: String = side + "_" + h
 				_hand[key] = _find(_skel, key)
 				rest[key] = _skel.get_bone_global_rest(_hand[key]).origin
+				if h.ends_with("3"):  # the operator's tips: its last segments' own line
+					rest[key.left(-1) + "4"] = _skel.get_bone_global_rest(_find(_skel, key.left(-1) + "4")).origin
 		var own := _frames(rest)
 		var theirs := _frames(on_gun)
 		for key: String in _hand:
 			var r := _skel.get_bone_global_rest(_hand[key]).basis.orthonormalized()
 			_on_gun[key] = theirs[key] * own[key].inverse() * r
 		_left_wrist_on_gun = on_gun["L_wrist"]
+		_on_gun_at = on_gun
+		_hand_scale = on_gun["R_wrist"].distance_to(on_gun["R_middle1"]) / (rest["R_wrist"] as Vector3).distance_to(rest["R_middle1"])
 		# Aimed straight ahead (the model's +Z), the right wrist where the first-person one is.
 		var hand := _skel.get_bone_global_pose(_wrist)
 		_gun_in_hand = hand.affine_inverse() * Transform3D(Basis(), hand.origin - on_gun["R_wrist"])
@@ -383,24 +391,36 @@ class Character extends Node3D:
 		var reloading: bool = _tree.get("parameters/reload/active")
 		_left_hold = move_toward(_left_hold, 0.0 if reloading else 1.0, delta / LEFT_LET_GO)
 		var gun := _gun.transform
-		_hold("R", gun.basis, 1.0)
+		_hold("R", gun, 1.0)
 		if _left_hold > 0.0:
 			var w := _hand["L_wrist"] as int
 			var to := _skel.get_bone_global_pose(w).origin.lerp(gun * _left_wrist_on_gun, _left_hold)
 			_reach(w, to)
-			_hold("L", gun.basis, _left_hold)
+			_hold("L", gun, _left_hold)
 
 	## One hand's bones turned toward their place on the gun, by `weight`.
-	func _hold(side: String, gun: Basis, weight: float) -> void:
+	func _hold(side: String, gun: Transform3D, weight: float) -> void:
 		var glob := {}  # bone -> global basis, as set
 		for h: String in HAND:
 			var i: int = _hand[side + "_" + h]
 			var p := _skel.get_bone_parent(i)
 			var pg: Basis = glob[p] if glob.has(p) else _skel.get_bone_global_pose(p).basis.orthonormalized()
-			var want := (pg.inverse() * gun * (_on_gun[side + "_" + h] as Basis)).get_rotation_quaternion()
+			var want := (pg.inverse() * gun.basis * (_on_gun[side + "_" + h] as Basis)).get_rotation_quaternion()
 			var q := _skel.get_bone_pose_rotation(i).slerp(want, weight)
 			_skel.set_bone_pose_rotation(i, q)
 			glob[i] = pg * Basis(q)
+		_skel.set_bone_pose_scale(_hand[side + "_wrist"], Vector3.ONE * lerpf(1.0, _hand_scale, weight))
+		# The operator's fingers are thicker and root higher: each one turns at its knuckle until
+		# its last joint points where the first-person one is (the index's onto the trigger).
+		for finger in ["thumb", "point", "middle", "ring", "pink"]:
+			var root: int = _hand["%s_%s1" % [side, finger]]
+			var g := _skel.get_bone_global_pose(root)
+			var last := _skel.get_bone_global_pose(_hand["%s_%s3" % [side, finger]]).origin
+			var want: Vector3 = gun * _on_gun_at["%s_%s3" % [side, finger]]
+			var turned := _swing(last - g.origin, want - g.origin) * g.basis.orthonormalized()
+			var pg := _skel.get_bone_global_pose(_skel.get_bone_parent(root)).basis.orthonormalized()
+			var q := _skel.get_bone_pose_rotation(root).slerp((pg.inverse() * turned).get_rotation_quaternion(), weight)
+			_skel.set_bone_pose_rotation(root, q)
 
 	## The upper arm and forearm above `wrist` turned so it lands on `to`, the elbow staying on its side.
 	func _reach(wrist: int, to: Vector3) -> void:
@@ -448,17 +468,23 @@ class Character extends Node3D:
 		return -1
 
 	## Each hand bone's frame from joint positions alone (x along the bone, y toward the palm's
-	## width), so two different rigs agree on it. The last segment takes the middle one's line.
+	## width), so two different rigs agree on it. With no tip joint (the first-person rig) the last
+	## segment bends on from the middle one as the middle bends from the first, or the fingertips
+	## would stick out straight instead of closing on the grip and the trigger.
 	static func _frames(at: Dictionary) -> Dictionary:
 		var f := {}
 		for side in ["L", "R"]:
 			var width: Vector3 = at[side + "_pink1"] - at[side + "_point1"]
 			f[side + "_wrist"] = _frame(at[side + "_middle1"] - at[side + "_wrist"], width)
 			for h: String in HAND.slice(1):
-				var finger := h.left(-1)
-				var k := mini(int(h.right(1)), 2)
-				var tip: Vector3 = at["%s_%s%d" % [side, finger, k + 1]] - at["%s_%s%d" % [side, finger, k]]
-				f[side + "_" + h] = _frame(tip, width)
+				var seg: String = side + "_" + h
+				var next := seg.left(-1) + str(int(h.right(1)) + 1)
+				if at.has(next):
+					f[seg] = _frame(at[next] - at[seg], width)
+				else:
+					var first: Basis = f[seg.left(-1) + "1"]
+					var mid: Basis = f[seg.left(-1) + "2"]
+					f[seg] = Basis((mid * first.inverse()).get_rotation_quaternion()) * mid
 		return f
 
 	static func _frame(dir: Vector3, side: Vector3) -> Basis:

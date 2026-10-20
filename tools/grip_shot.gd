@@ -41,6 +41,12 @@ func _initialize() -> void:
 		await _hold(0.15)
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("user://grip_%s.png" % v)
+	# Close on the right side of the grip and trigger, wherever the gun ended up.
+	var gun: Vector3 = mgr.character(7)._gun.global_position
+	cam.look_at_from_position(gun + Vector3(0.35, 0.03, 0.0), gun)
+	await _hold(0.15)
+	await RenderingServer.frame_post_draw
+	root.get_texture().get_image().save_png("user://grip_trigger.png")
 	quit()
 
 
