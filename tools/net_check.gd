@@ -221,7 +221,8 @@ func _world_agrees() -> bool:
 		var p: Array = theirs.keys[str(rank)]
 		if not _ok(keys._pos[rank].distance_to(Vector3(p[0], p[1], p[2])) < 1e-4, "key %d on the same spot" % rank): return false
 	# Plate rack: every plate the client saw come up, the host raised at the same moment.
-	var raised: Array = theirs.rack.filter(func(s: Array) -> bool: return s[1] >= 0)
+	# The first sample is just how it stood: a plate the client raised alone, before joining.
+	var raised: Array = theirs.rack.slice(1).filter(func(s: Array) -> bool: return s[1] >= 0)
 	print("rack: client saw plates %s" % [raised.map(func(s: Array) -> int: return int(s[1]))])
 	if not _ok(raised.size() >= 2, "the client saw the rack raise plates"): return false
 	for s: Array in raised:

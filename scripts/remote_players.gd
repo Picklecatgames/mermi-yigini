@@ -31,6 +31,8 @@ const SPINE_SHARE := 0.35  # of the pitch; the chest takes the rest, so arms and
 const PITCH_MAX := 1.2  # rad either way; beyond it the torso would fold
 const FLASH_TIME := 0.05  # s
 const LABEL_HEIGHT := 2.1  # m above the feet
+## Render layer 3: the world camera sees it, floor decals and bullet holes don't land on it.
+const BODY_LAYER := 4
 
 var _chars := {}  # peer -> Character
 
@@ -116,6 +118,9 @@ class Character extends Node3D:
 		# Aimed straight ahead (the model's +Z) with its grip in the hand of the idle pistol pose.
 		var hand := _skel.get_bone_global_pose(_wrist)
 		_gun_in_hand = hand.affine_inverse() * Transform3D(Basis(), hand.origin - WRIST_ON_GUN)
+		# Off the floor paint's layer: its decals (cull_mask 1) were printing onto boots and legs.
+		for v: VisualInstance3D in _model.find_children("*", "VisualInstance3D", true, false):
+			v.layers = BODY_LAYER
 		# The first-person gun's flash, copied into this world (its layer there is the gun's own).
 		var fp := get_tree().get_first_node_in_group("first_person_gun")
 		if fp:
