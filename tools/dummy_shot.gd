@@ -14,7 +14,7 @@ func _initialize() -> void:
 	await process_frame
 	player.global_position = Vector3(8, 0, 9)
 	_aim(player, dummy.global_position + Vector3(0, 1.0, 0))
-	gs.player().levels["capacity"] = 6
+	gs.player().levels["magazine"] = 6
 	gs.player().carried = 7
 	await _wait(1.5)
 	vm.reload()
@@ -57,13 +57,13 @@ func _initialize() -> void:
 	vm.fire()
 	await _wait(0.06)
 	_save("wall_hit")
-	gs.player().levels["capacity"] = 0
+	gs.player().levels["magazine"] = 0
 	gs.player().gold = 30
 	gs.gold_changed.emit(30)
 	player.get_node("UpgradeMenu").toggle()
 	await _wait(0.3)
 	_save("menu")
-	print("buy ", gs.request_buy_upgrade("capacity"), " gold ", gs.gold, " cap ", gs.mag_capacity)
+	print("buy ", gs.request_buy_upgrade("magazine"), " gold ", gs.gold, " cap ", gs.mag_capacity)
 	await _wait(0.1)
 	_save("menu_bought")
 	quit()

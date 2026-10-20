@@ -12,7 +12,7 @@ func _initialize() -> void:
 	var vm: Node3D = player.get_node("ViewmodelView/SubViewport/Camera/Viewmodel")
 	player.rotation.y = deg_to_rad(20)  # pile off to the side, wall and floor in view
 	await process_frame  # GameState needs the tree's multiplayer before player()
-	gs.player().levels["capacity"] = 6
+	gs.player().levels["magazine"] = 6
 	gs.player().carried = 20
 	await _wait(1.3)
 	_save("idle")

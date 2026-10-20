@@ -16,7 +16,7 @@ const POP_TIME := 0.3       # s for a plate to grow back on
 
 ## Base pay per hit before weak spot and combo (GameState reads it).
 @export var hit_gold := 12
-## Target kind for the combo's variety cap.
+## Target kind so GameState can tell targets apart.
 var kind := &"texas_star"
 @export var hit_sound: AudioStream
 @export var reset_sound: AudioStream

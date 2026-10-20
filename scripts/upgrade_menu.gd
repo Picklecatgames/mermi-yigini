@@ -1,9 +1,13 @@
 extends CanvasLayer
 ## Upgrade screen, toggled with Q (Esc also closes). Rows come from GameState.UPGRADES, so a
-## new upgrade only needs a name and description here. The game keeps running behind it (co-op).
+## new upgrade only needs a name, description and value format here. The game keeps running behind it (co-op).
 
 const INFO := {
-	"capacity": ["Kapasite", "Elde ve şarjörde taşınan mermi"],
+	"carry": ["El Kapasitesi", "Elde taşınan mermi", "%d"],
+	"magazine": ["Şarjör", "Şarjöre sığan mermi", "%d"],
+	"combo_cap": ["Kombo Tavanı", "Ulaşılabilen en yüksek kombo", "x%d"],
+	"gold_bonus": ["Altın", "Bütün hedeflerin verdiği altın", "+%d%%"],
+	"range_bonus": ["Uzak Atış", "Korkuluğun her metre gerisinden vuruşta altın", "+%d%%/m"],
 }
 const GREEN := Color(0.33, 1.0, 0.42)
 const DIM := Color(0.62, 0.65, 0.7)
@@ -120,12 +124,12 @@ func _refresh() -> void:
 			((r.pips as Control).get_child(i) as ColorRect).color = GREEN if i <= level else Color(0.22, 0.24, 0.28)
 		var b: Button = r.button
 		if level >= costs.size():
-			(r.value as Label).text = str(values[level])
+			(r.value as Label).text = INFO[id][2] % values[level]
 			b.text = "MAKS"
 			b.disabled = true
 			b.add_theme_color_override("font_disabled_color", GREEN)
 			continue
-		(r.value as Label).text = "%d  →  %d" % [values[level], values[level + 1]]
+		(r.value as Label).text = "%s  →  %s" % [INFO[id][2] % values[level], INFO[id][2] % values[level + 1]]
 		b.text = "$%d  Satın al" % costs[level]
 		b.disabled = GameState.gold < costs[level]
 		b.add_theme_color_override("font_disabled_color", LOCKED)

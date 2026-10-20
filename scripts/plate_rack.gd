@@ -25,7 +25,7 @@ const LIVE := -0.5         # rad: above this the up plate takes hits
 
 ## Base pay per hit before weak spot and combo (GameState reads it).
 @export var hit_gold := 7
-## Target kind for the combo's variety cap.
+## Target kind so GameState can tell targets apart.
 var kind := &"plate_rack"
 @export var hit_sound: AudioStream
 @export var rise_sound: AudioStream

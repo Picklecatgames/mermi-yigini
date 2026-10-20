@@ -13,7 +13,7 @@ const POP_HEAD_GAP := 0.12  # m above the top of the body
 
 ## Base pay per hit before weak spot and combo (GameState reads it).
 @export var hit_gold := 1
-## Target kind for the combo's variety cap (GameState): every dummy is one kind.
+## Target kind, so GameState can tell targets apart.
 var kind := &"dummy"
 
 var _tip := Vector3.ZERO  # world-space rotation vector of the body about its pivot

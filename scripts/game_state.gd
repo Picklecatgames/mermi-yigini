@@ -44,23 +44,30 @@ const MAX_PLAYERS := 4
 const THROWN_ID_START := 1 << 20
 
 ## Upgrade tree: value per level (level 0 = start) and gold cost to reach each next level.
-## The pistol's only upgrade is capacity: rounds carried and rounds in the gun, up to the
-## heavy pistol's 7-round magazine. First level in ~20 s of play, the last ~10 min in.
+## All personal: each player buys their own, nothing carries over to the others.
 # ponytail: placeholder numbers until the 60-minute balance pass.
 const UPGRADES := {
-	"capacity": {"values": [1, 2, 3, 4, 5, 6, 7], "costs": [8, 20, 45, 90, 160, 280]},
+	"carry": {"values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "costs": [6, 15, 30, 55, 90, 140, 210, 300, 420]},
+	# Up to the heavy pistol's 7-round magazine. First level in ~20 s of play, the last ~10 min in.
+	"magazine": {"values": [1, 2, 3, 4, 5, 6, 7], "costs": [8, 20, 45, 90, 160, 280]},
+	# The highest a combo chain can reach, on every target. The last level is COMBO_MAX.
+	"combo_cap": {"values": [2, 5, 10, 15, 20], "costs": [15, 60, 180, 450]},
+	# Extra gold per hit on every target, in percent.
+	"gold_bonus": {"values": [0, 10, 20, 30, 40, 50, 60], "costs": [25, 60, 120, 220, 380, 600]},
+	# Extra gold in percent for every metre the shooter stands behind the firing line, every target.
+	"range_bonus": {"values": [0, 1, 2, 3, 4, 5], "costs": [30, 80, 180, 350, 600]},
 }
 ## Fixed, not an upgrade: the slide has finished its cycle and the recoil spring has settled.
 const FIRE_INTERVAL := 0.42  # s, ~143 rounds/min
 ## A weak spot pays this many times over: a collision shape in group "weak_spot" (the dummy's
 ## head), or where the target's `is_weak(at)` says so (a popper's round head).
 const WEAK_MULT := 2
-## Combo: each paying hit within this long of the last one adds 1 to the chain (shown as xN, it
-## can climb to x100 with a fast gun). A gap this long or a miss starts it over. What it pays is
-## `combo_pay`: it climbs with every hit, faster the more target kinds are in the chain.
+## Combo: each paying hit within this long of the last one adds 1 to the chain, and the chain is
+## the multiplier (x3 pays 3 times over), up to the player's "combo_cap" upgrade. Weak spot hits and body hits keep
+## separate chains, so a chain built on easy body shots never pays out on a head. A gap this long
+## starts a chain over; a miss starts both over.
 const COMBO_WINDOW := 1.5  # s
-const COMBO_SLOPE := 0.5  # multiplier gained per doubling of the chain, one kind
-const COMBO_KIND_SLOPE := 0.25  # added to that for each further kind in the chain
+const COMBO_MAX := 20  # combo_cap's last level; the combo meter's full size and colour
 const SHOT_RANGE := 300.0  # m
 const SHOT_MASK := 1  # world layer: walls, floor, heap, dummies
 ## The firing line: a railing across the shed at this x, with every target past it. Players
@@ -89,13 +96,15 @@ class PlayerState:
 	var carried := 0
 	var loaded := 0  # rounds in the gun
 	var gold := 0
-	var levels := {"capacity": 0}
+	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0}
+	var gold_rest := 0.0  # the fraction of a dollar the percent bonuses left over, paid on later hits
 	var cooldown := 0.0  # s; game time, so it follows Engine.time_scale like the gun does
-	var combo := 0  # paying hits in the current chain
-	var combo_kinds := {}  # target kinds hit in the current chain
+	var combo := 0  # body hits in the current chain
+	var weak_combo := 0  # weak spot hits in their own chain
 	var saved_loaded := -1  # rounds in the gun before test mode (T) filled it
 	var keys: Array[int] = []  # crate key ranks held (1 = most common)
-	var combo_left := 0.0  # s until the chain breaks; game time
+	var combo_left := 0.0  # s until the body chain breaks; game time
+	var weak_left := 0.0  # s until the weak spot chain breaks
 	var placing := false  # placement mode: may cross the firing line
 	var infinite_ammo := false  # test mode (T)
 
@@ -150,11 +159,11 @@ func upgrade_value(id: String, peer := 0) -> int:
 
 
 func carry_capacity_of(peer: int) -> int:
-	return upgrade_value("capacity", peer)
+	return upgrade_value("carry", peer)
 
 
 func mag_capacity_of(peer: int) -> int:
-	return upgrade_value("capacity", peer)
+	return upgrade_value("magazine", peer)
 
 
 func _ready() -> void:
@@ -174,8 +183,11 @@ func _process(delta: float) -> void:
 	for p: PlayerState in _players.values():
 		p.cooldown = maxf(p.cooldown - delta, 0.0)
 		p.combo_left = maxf(p.combo_left - delta, 0.0)
-		if p.combo_left == 0.0 and p.combo > 0:
-			_break_chain(p)
+		p.weak_left = maxf(p.weak_left - delta, 0.0)
+		if p.combo_left == 0.0:
+			p.combo = 0
+		if p.weak_left == 0.0:
+			p.weak_combo = 0
 
 
 ## Buys the next level of an upgrade if there is one and gold covers it.
@@ -329,21 +341,32 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var target: Node = hit.collider
 	var gold := 0
 	var weak := false
+	var chain := 0
 	# Pays only from the shooter's side of the firing line, at a target on the far side.
 	if target.is_in_group("target") and from.x <= FIRING_LINE_X and hit.position.x > FIRING_LINE_X:
 		var shape: Node = target.shape_owner_get_owner(target.shape_find_owner(hit.shape))
 		weak = shape.is_in_group("weak_spot") or (target.has_method("is_weak") and target.is_weak(hit.position))
-		p.combo += 1
-		p.combo_left = COMBO_WINDOW
-		p.combo_kinds[target.get("kind") if target.get("kind") else target.get_script()] = true
+		var cap := upgrade_value("combo_cap", peer)
+		if weak:
+			p.weak_combo = mini(p.weak_combo + 1, cap)
+			p.weak_left = COMBO_WINDOW
+			chain = p.weak_combo
+		else:
+			p.combo = mini(p.combo + 1, cap)
+			p.combo_left = COMBO_WINDOW
+			chain = p.combo
 		var base = target.get("hit_gold")
-		gold = roundi((base if base is int else 1) * (WEAK_MULT if weak else 1) * combo_pay(p.combo, p.combo_kinds.size()))
+		var behind := maxf(FIRING_LINE_X - from.x, 0.0)  # m behind the railing
+		var bonus := upgrade_value("gold_bonus", peer) + roundi(upgrade_value("range_bonus", peer) * behind)
+		var raw := float((base if base is int else 1) * (WEAK_MULT if weak else 1) * chain) * (100 + bonus) / 100.0 + p.gold_rest
+		gold = floori(raw)
+		p.gold_rest = raw - gold
 		p.gold += gold
 		if _is_local(peer):
 			gold_changed.emit(p.gold)
 	else:
 		_break_chain(p)
-	_world(&"shot_landed", [who, hit.position, hit.normal, dir, target, gold, weak, p.combo])
+	_world(&"shot_landed", [who, hit.position, hit.normal, dir, target, gold, weak, chain])
 	return true
 
 
@@ -373,18 +396,11 @@ func request_take_key(rank: int, peer := 0) -> bool:
 	return true
 
 
-## What a chain of `combo` hits over `kinds` different target kinds pays per hit: grows with
-## log2 of the chain, so it never stops climbing but a long chain from a fast gun stays sane,
-## and each kind in the chain makes it climb faster. One kind: x1.5 at 2, x2 at 4, x3.5 at 30;
-## three kinds: x2 at 2, x3 at 4, x5.9 at 30.
-static func combo_pay(combo: int, kinds: int) -> float:
-	return 1.0 + log(maxf(combo, 1)) / log(2.0) * (COMBO_SLOPE + COMBO_KIND_SLOPE * maxi(kinds - 1, 0))
-
-
 func _break_chain(p: PlayerState) -> void:
 	p.combo = 0
 	p.combo_left = 0.0
-	p.combo_kinds.clear()
+	p.weak_combo = 0
+	p.weak_left = 0.0
 
 
 ## Player throws everything they carry from `from` toward `dir`; it goes back to the pile.

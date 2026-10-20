@@ -1,12 +1,11 @@
 extends Control
 ## Combo multiplier over the dummy the local player is chaining hits on: "x5" with a glass bar
 ## under it that drains over GameState.COMBO_WINDOW while the text fades out. Every hit refills
-## it, punches the text, and grows it a little; the growth is logarithmic so x100 from a fast
-## gun stays a corner of the screen, not all of it.
+## it, punches the text, and grows it a little; the growth is logarithmic so x20 stays a
+## corner of the screen, not all of it.
 
 const BASE_SIZE := 30.0  # px at x2
-const GROW := 0.9        # x100 is (1 + GROW) times the x2 size: ~57 px
-const MAX_COMBO := 100.0
+const GROW := 0.9        # x20 (GameState.COMBO_MAX) is (1 + GROW) times the x2 size: ~57 px
 const PUNCH := 0.35      # extra scale on each hit, settles in ~0.15 s
 const OFFSET := Vector2(48, -6)  # px from the top of the dummy's head, right of the "+$" pop
 const BAR_H := 5.0
@@ -51,7 +50,7 @@ func _draw() -> void:
 	if cam == null or cam.is_position_behind(head):
 		return
 	var frac := _left / GameState.COMBO_WINDOW
-	var t := log(float(_combo)) / log(MAX_COMBO)  # 0.15 at x2, 1 at x100
+	var t := log(float(_combo)) / log(float(GameState.COMBO_MAX))  # 0.23 at x2, 1 at x20
 	var size := int(BASE_SIZE * (1.0 + GROW * clampf(t, 0.0, 1.0)))
 	var color := WHITE.lerp(GOLD, clampf(t * 2.0, 0.0, 1.0)).lerp(RED, clampf(t * 2.0 - 1.0, 0.0, 1.0))
 	var alpha := pow(frac, 0.6)  # holds a while, then fades out as the bar runs dry

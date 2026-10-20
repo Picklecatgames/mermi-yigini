@@ -4,10 +4,10 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 
 ## Oyun
 
-- Yığından mermi al, şarjöre koy, hedeflere ateş et. İsabet = $ (dummy $1, kafa ×2). Ateş hızı sabit 0,42 sn; tabancanın tek upgrade'i Kapasite 1→7 (Q menüsü).
+- Yığından mermi al, şarjöre koy, hedeflere ateş et. İsabet = $ (dummy $1, kafa ×2). Ateş hızı sabit 0,42 sn; Q menüsü (kişisel, bütün hedeflere): El Kapasitesi, Şarjör, Kombo Tavanı (x2→x20), Altın (+%60), Uzak Atış (korkuluğun gerisinde %/m).
 - Silah sırası: tabanca → revolver → Uzi → AK. Kasadan çıkan benzersiz silahlar: orta oyun (6. anahtar, seçilmedi) ve minigun (12. anahtar, final).
 - **Yığın hem hedef hem yakıt.** Hiçbir mekanik yığına/envantere mermi eklemez; modifiyeler yalnız gold'u çarpar.
-- Kombo: 1,5 sn içindeki isabetler zinciri büyütür; ödenen çarpan = 1 + log2(zincir) × (0,5 + 0,25 × (farklı tür − 1)), tavansız. Taret/bant zinciri büyütmez.
+- Kombo: 1,5 sn içindeki isabetler zinciri büyütür; ödenen çarpan = zincir, tavanı Kombo Tavanı upgrade'i (x2→x20). Kafa ve gövde ayrı zincir. Taret/bant zinciri büyütmez.
 - Hedefler doğu duvarında, x = 14'teki korkuluğun arkasında; korkuluğun ötesinden atış para vermez. Küçük/hareketli/zamanlı hedef daha çok öder.
 - 12 anahtar yığına gömülü (derinlik nadirliğe bağlı, `scripts/key_cache.gd`); her biri bir kasa açar (mermi tipi, benzersiz silah, özel dummy). Kasa açılınca özellik bütün takıma açılır. Kasalar henüz yok.
 - Planlananlar: kovan → fırın → külçe (taret geliştirme), taretler, tek yönlü grid bantlar, bant modifiyeleri (seken mermi vb.), robotlar, HP'li dummy.

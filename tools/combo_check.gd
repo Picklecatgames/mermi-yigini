@@ -12,6 +12,7 @@ func _initialize() -> void:
 		await physics_frame
 	gs.infinite_ammo = true
 	gs.player().loaded = 1
+	gs.player().levels["combo_cap"] = 4  # x20; the cap itself is checked further down
 	var from: Vector3 = dummy.global_position + Vector3(-11, 0, 0)  # from in front of the firing line
 	var shot := func(height: float) -> int:
 		var before: int = gs.player().gold
@@ -20,9 +21,11 @@ func _initialize() -> void:
 		gs.request_fire(from + Vector3(0, height, 0), (to - from - Vector3(0, height, 0)).normalized())
 		return gs.player().gold - before
 	assert(shot.call(1.1) == 1, "first hit pays 1")
-	assert(shot.call(1.64) == 3, "2nd hit in the window, head: 1 x2 weak x1.5 chain")
-	assert(shot.call(1.1) == 2, "3rd hit: chain x3 pays x1.79, rounded")
-	assert(gs.player().combo == 3, "the chain itself keeps counting")
+	assert(shot.call(1.1) == 2, "2nd body hit: chain x2")
+	assert(shot.call(1.64) == 2, "a head starts its own chain: 1 x2 weak x1")
+	assert(shot.call(1.1) == 3, "3rd body hit: chain x3, the head did not add to it")
+	assert(shot.call(1.64) == 4, "2nd head: 1 x2 weak x2")
+	assert(gs.player().combo == 3 and gs.player().weak_combo == 2, "two chains")
 	gs._process(gs.COMBO_WINDOW + 0.1)  # let the window run out
 	assert(gs.player().combo == 0, "a gap breaks the chain")
 	assert(shot.call(1.1) == 1, "chain starts over")
@@ -81,7 +84,7 @@ func _initialize() -> void:
 	var star: Node3D = main.get_node("LockedTargets/TexasStar")
 	assert(front.call("TexasStar", star.plate_center(0)) == 12, "star plate pays 12")
 	assert(star.plates_on() == 4, "the hit plate falls off")
-	# Variety lifts the cap: dummy, then gong, then the star in one chain pays x3 on the third.
+	# One body chain runs across targets: three on the dummy, the fourth on the star.
 	gs._process(gs.COMBO_WINDOW + 0.1)
 	var chain := func(point: Vector3, from_dir: Vector3) -> int:
 		var start: Vector3 = point + from_dir * 11.0
@@ -90,17 +93,48 @@ func _initialize() -> void:
 		gs.request_fire(start, (point - start).normalized())
 		return gs.player().gold - before
 	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 1, "chain 1")
-	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 2, "chain 2, one kind")
-	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 2, "chain 3, still one kind")
-	assert(chain.call(star.plate_center(1), Vector3(-1, 0, 0)) == 30, "a second kind: chain 4 pays x2.5")
-	# The multiplier never stalls: every doubling of the chain adds to it, more with variety.
-	var pay: Callable = gs.combo_pay
-	for kinds in [1, 3]:
-		var last := 0.0
-		for c in [1, 2, 4, 8, 16, 32, 64, 128]:
-			assert(pay.call(c, kinds) > last, "chain %d over %d kinds pays more than the chain before" % [c, kinds])
-			last = pay.call(c, kinds)
-	assert(is_equal_approx(pay.call(4, 1), 2.0) and is_equal_approx(pay.call(4, 3), 3.0), "x2 / x3 at chain 4")
+	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 2, "chain 2")
+	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 3, "chain 3")
+	assert(chain.call(star.plate_center(1), Vector3(-1, 0, 0)) == 12 * 4, "chain 4 pays x4 on the star too")
+	# The chain is the multiplier all the way to COMBO_MAX, then holds there.
+	gs._process(gs.COMBO_WINDOW + 0.1)
+	var got := 0
+	for i in gs.COMBO_MAX + 3:
+		got = chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0))
+		if i < gs.COMBO_MAX:
+			assert(got == i + 1, "hit %d pays x%d" % [i + 1, i + 1])
+	assert(got == gs.COMBO_MAX, "capped at x%d" % gs.COMBO_MAX)
+	# Q upgrades, on every target: a fresh player's combo stops at x2, and +10% gold adds up.
+	gs.player().levels["combo_cap"] = 0
+	gs.player().levels["gold_bonus"] = 1
+	gs.player().gold_rest = 0.0
+	gs._process(gs.COMBO_WINDOW + 0.1)
+	var total := 0
+	for i in 10:
+		total += chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0))
+	assert(gs.player().combo == 2, "combo capped at x2 before the upgrade")
+	assert(total == 20, "1.1 + 9 x 2.2 = 20.9: whole dollars paid, the 0.9 carried")
+	assert(chain.call(star.plate_center(2), Vector3(-1, 0, 0)) == 27, "the star too: 12 x2 x1.1 + 0.9 carried = 27.3")
+	gs.player().levels["gold_bonus"] = 0
+	# Range: +4%/m from 5 m behind the railing (clear of the heap) is +20%.
+	gs.player().levels["range_bonus"] = 4
+	gs.player().gold_rest = 0.0
+	gs._process(gs.COMBO_WINDOW + 0.1)
+	var body: Vector3 = dummy.global_position + Vector3(0, 1.1, 0)
+	var back := Vector3(gs.FIRING_LINE_X - 5.0, body.y, body.z)
+	total = 0
+	for i in 5:
+		var before: int = gs.player().gold
+		gs.player().cooldown = 0.0
+		gs.request_fire(back, (body - back).normalized())
+		total += gs.player().gold - before
+	assert(total == 10, "1.2 + 4 x 2.4 = 10.8 from 5 m back")
+	gs.player().levels["range_bonus"] = 0
+	gs.player().levels["combo_cap"] = 4
+	# Hand and magazine grow apart.
+	gs.player().levels["carry"] = 4
+	assert(gs.carry_capacity == 5 and gs.mag_capacity == 1, "carry and magazine are separate upgrades")
+	gs.player().levels["carry"] = 0
 	# From past the line a popper rings but stays up.
 	gs._process(gs.COMBO_WINDOW + 0.1)
 	var south: Node3D = main.get_node("LockedTargets/PopperSouth")
@@ -111,7 +145,7 @@ func _initialize() -> void:
 	assert(front.call("PopperSouth", head) == 6, "still standing after a shot from past the line")
 	# Test mode (T) gives the gun back as it was.
 	gs.infinite_ammo = false  # the test turned it on directly at the start
-	gs.player().levels["capacity"] = 3  # room for more than the 2 rounds below
+	gs.player().levels["magazine"] = 3  # room for more than the 2 rounds below
 	gs.player().loaded = 2
 	gs.request_toggle_infinite_ammo()
 	gs.request_toggle_infinite_ammo()
