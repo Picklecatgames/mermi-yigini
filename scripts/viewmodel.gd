@@ -131,6 +131,8 @@ var _since_fire := 10.0
 var _want_fire := 0.0  # s left on a buffered click
 var _want_reload := 0.0
 var _was_captured := false  # the click that recaptures the mouse must not also shoot
+var clip: String:  # the section playing ("" at rest), so the player can tell others
+	get: return _clip
 var aim := 0.0  # 0 hip, 1 sights on the screen centre (eased); the player zooms by it
 var _aim_lin := 0.0
 var _ads_pos: Vector3  # where the gun sits, and how it is turned, with the sights on the view axis

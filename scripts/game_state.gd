@@ -37,6 +37,25 @@ signal placing_changed(on: bool)
 signal key_revealed(rank: int, at: Vector3)
 ## Someone picked a key up; every peer removes it from the heap.
 signal key_taken(rank: int, peer: int)
+## Another player's body moved: feet `pos`, look `yaw`/`pitch`, what they are doing (Act),
+## whether they are off the ground (`air`, a jump or a fall). `time` is on that player's own
+## clock (seconds), so the receiver can space snapshots evenly.
+signal pose_received(peer: int, time: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool)
+## The host gave this machine's player its own spawn point (index into group "spawn").
+signal spawn_assigned(index: int)
+## Where the keys are buried: the host rolls the seed, a client lays its keys out again from it
+## (scripts/key_cache.gd).
+signal key_layout(seed: int)
+## A moving target's own call, made on the host alone: which plate comes up, when a popper
+## stands back up, where the star has turned to. Clients follow these instead of rolling their own.
+## What `cue` holds is up to the target.
+signal target_cue(target: Node, cue: Array)
+## Friendly fire: `shooter`'s round struck `victim`. It does no harm; it throws the victim's aim.
+signal player_shot(shooter: int, victim: int, at: Vector3, dir: Vector3)
+## Who stands on which spawn point (peer -> slot, the host 0); a player's colour follows it.
+signal player_slots(slots: Dictionary)
+## Someone walked into the local player: shove it this way (m/s), on top of its own walking.
+signal pushed(vel: Vector3)
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -72,17 +91,33 @@ const FENCE_LAYER := 4
 ## A client's shots reach the host up to this much closer together than FIRE_INTERVAL
 ## (network jitter); the host lets them through rather than eat a round the client already fired.
 const NET_JITTER := 0.15  # s
+## The eye above the feet (player.gd EYE): where a player's rounds leave from.
+const EYE := 1.6  # m
+## A client's round must leave from within this of its synced eye (pose lag plus a sprint step);
+## anything farther is a forged `from` and the host drops the shot.
+const FIRE_FROM_SLACK := 1.5  # m
+## A push only counts between players this close (feet, from their poses), and is never faster
+## than a sprint, so a forged one cannot fling anybody across the shed.
+const PUSH_REACH := 1.5  # m
+const PUSH_MAX := 8.0  # m/s
+## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
+const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
+## What a player is doing, sent with its pose so other machines can show it.
+enum Act { IDLE, WALKING, RELOADING, SHOOTING }
 
 ## What a client may ask the host for, with its argument count (`peer` comes from the sender).
 const REQUESTS := {
 	&"request_buy_upgrade": 1, &"request_debug_level_up": 1, &"request_pick_up": 2,
 	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
-	&"request_throw": 2,
+	&"request_throw": 2, &"request_push": 2,
 }
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
-	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken"]
+	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
+	&"target_cue", &"player_shot", &"player_slots"]
+## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
+const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
 
 
 class PlayerState:
@@ -98,6 +133,8 @@ class PlayerState:
 	var combo_left := 0.0  # s until the chain breaks; game time
 	var placing := false  # placement mode: may cross the firing line
 	var infinite_ammo := false  # test mode (T)
+	var pos := Vector3.ZERO  # feet, from the last pose
+	var has_pose := false
 
 
 var pile: int = PILE_START
@@ -111,6 +148,11 @@ var _taken_loose := {}
 var _sent_seq := 0
 var _acked_seq := 0
 var _claimed := {}  # loose bullet ids asked for and not answered yet, so E held asks once
+var spawn_index := 0  # this machine's spawn point; the host is 0
+var _spawned := false  # client: the host has placed us; until then our body stays unseen
+var slots := {}  # peer -> spawn slot, everyone in the session (player_slots)
+var key_seed := 0  # the key layout's seed; 0 until scripts/key_cache.gd has rolled or received one
+var _spawn_slots := {}  # host: peer -> spawn index
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -162,7 +204,32 @@ func _ready() -> void:
 	# ponytail: count only; heap shape, loose bullets and keys come with mid-game join (Faz 1/8).
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		if multiplayer.is_server():
-			_event.rpc_id(id, &"pile_changed", [pile]))
+			_event.rpc_id(id, &"pile_changed", [pile])
+			_event.rpc_id(id, &"key_layout", [key_seed])
+			# Each player starts on a spawn point of their own: the first one nobody holds.
+			var slot := 1
+			while slot in _spawn_slots.values():
+				slot += 1
+			_spawn_slots[id] = slot
+			_spawn.rpc_id(id, slot)
+			slots = _slots_now()
+			_world(&"player_slots", [slots]))
+	multiplayer.peer_disconnected.connect(func(id: int) -> void:
+		_spawn_slots.erase(id)
+		if multiplayer.is_server():
+			slots = _slots_now()
+			_world(&"player_slots", [slots]))
+
+
+func _slots_now() -> Dictionary:
+	var all := _spawn_slots.duplicate()
+	all[local_peer()] = 0
+	return all
+
+
+## The colour standing for `peer` (name tag).
+func color_of(peer: int) -> Color:
+	return PLAYER_COLORS[slots.get(peer, 0) % PLAYER_COLORS.size()]
 
 
 ## Every request from this peer has been answered by the host (always true solo and on the host).
@@ -311,22 +378,33 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	# Slack for frame timing on the caller, more for a remote one's network jitter.
 	if p.loaded <= 0 or p.cooldown > (0.02 if _is_local(peer) else NET_JITTER):
 		return false
+	# A remote round leaves from that player's synced eye, or not at all.
+	if not _is_local(peer) and not (p.has_pose and from.distance_to(p.pos + Vector3.UP * EYE) <= FIRE_FROM_SLACK):
+		return false
 	p.cooldown = FIRE_INTERVAL
 	if not p.infinite_ammo:
 		_set_loaded(peer, p.loaded - 1)
 	# A client's gun kicks and flashes now; where the round went comes back as shot_landed.
-	# ponytail: the host trusts the client's `from`; check it against its synced position (Faz 1/5).
 	if _send(&"request_fire", [from, dir], peer):
 		return true
 	var who := local_peer() if peer == 0 else peer
 	_world(&"fired", [who, from, dir])
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * SHOT_RANGE, SHOT_MASK)
+	var own := _body_of(who)  # the round starts inside the shooter
+	if own:
+		q.exclude = [own.get_rid()]
 	var hit := get_viewport().world_3d.direct_space_state.intersect_ray(q)
 	if hit.is_empty():
 		_break_chain(p)
 		_world(&"shot_landed", [who, from + dir * SHOT_RANGE, -dir, dir, null, 0, false, 0])
 		return true
 	var target: Node = hit.collider
+	var victim := _peer_of(target)
+	if victim != 0:  # friendly fire: no pay, no harm, the chain breaks and their aim jumps
+		_break_chain(p)
+		_world(&"shot_landed", [who, hit.position, hit.normal, dir, null, 0, false, 0])
+		_world(&"player_shot", [who, victim, hit.position, dir])
+		return true
 	var gold := 0
 	var weak := false
 	# Pays only from the shooter's side of the firing line, at a target on the far side.
@@ -347,8 +425,60 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	return true
 
 
+## The body standing for `peer` here: this machine's own player, or another's character.
+func _body_of(peer: int) -> CollisionObject3D:
+	if peer == local_peer():
+		return get_tree().get_first_node_in_group("walker") as CollisionObject3D
+	var rp := get_tree().get_first_node_in_group("remote_players")
+	var c: Node = rp.character(peer) if rp else null
+	return c.body if c else null
+
+
+## Which player a collider is (0 if it is no player).
+func _peer_of(collider: Node) -> int:
+	if collider.is_in_group("walker"):
+		return local_peer()
+	return collider.get_meta("peer", 0)
+
+
+## The local player walked into `target`'s body: shove them along with `vel`. The shoved player's
+## own machine moves them (everyone moves their own body), so this goes there through the host.
+func request_push(target: int, vel: Vector3, peer := 0) -> void:
+	if _send(&"request_push", [target, vel], peer):
+		return
+	var who := local_peer() if peer == 0 else peer
+	var a := player(who)
+	var b := player(target)
+	if target == who or not b.has_pose or not a.has_pose or a.pos.distance_to(b.pos) > PUSH_REACH:
+		return
+	vel = Vector3(vel.x, 0.0, vel.z).limit_length(PUSH_MAX)
+	if target == local_peer():
+		pushed.emit(vel)
+	elif Net.online:
+		_pushed.rpc_id(target, vel)
+
+
+## Client: someone walked into us (from the host).
+@rpc("authority", "call_remote", "reliable")
+func _pushed(vel: Vector3) -> void:
+	pushed.emit(vel)
+
+
 enum KeyState { BURIED, EXPOSED, TAKEN }
 var key_states := {}  # rank -> KeyState, for every key the heap holds
+
+
+## Host (or solo): the key layout's seed, told to everyone.
+func set_key_seed(seed: int) -> void:
+	if not Net.is_client:
+		key_seed = seed
+		_world(&"key_layout", [seed])
+
+
+## Host (or solo): a moving target's decision; see target_cue. A client's own calls are dropped.
+func cue_target(target: Node, cue: Array) -> void:
+	if not Net.is_client:
+		_world(&"target_cue", [target, cue])
 
 
 ## The heap uncovered key `rank`; only buried keys can be revealed, once.
@@ -463,12 +593,59 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 		placing_changed.emit(placing)
 
 
+## The local player's body, ~20 times a second (player.gd). Online it goes to the host, which
+## keeps it (request_fire checks `from` against it) and passes it on to everyone else. Poses are
+## unreliable on a channel of their own: a lost one is replaced 50 ms later anyway.
+func send_pose(pos: Vector3, yaw: float, pitch: float, act: int, air: bool) -> void:
+	var p := player()
+	p.pos = pos
+	p.has_pose = true
+	if not Net.online or (Net.is_client and not _spawned):
+		return  # a joiner stands on the host's spot until its own comes: bodies would collide
+	var t := Time.get_ticks_msec() / 1000.0
+	if multiplayer.is_server():
+		_pose_of.rpc(local_peer(), t, pos, yaw, pitch, act, air)
+	else:
+		_pose.rpc_id(1, t, pos, yaw, pitch, act, air)
+
+
+## Host: a client's pose.
+@rpc("any_peer", "call_remote", "unreliable_ordered", 1)
+func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	var peer := multiplayer.get_remote_sender_id()
+	var p := player(peer)
+	p.pos = pos
+	p.has_pose = true
+	pose_received.emit(peer, t, pos, yaw, pitch, act, air)
+	for id in multiplayer.get_peers():
+		if id != peer:
+			_pose_of.rpc_id(id, peer, t, pos, yaw, pitch, act, air)
+
+
+## Client: someone else's pose, from the host.
+@rpc("authority", "call_remote", "unreliable_ordered", 1)
+func _pose_of(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool) -> void:
+	if peer != local_peer():
+		pose_received.emit(peer, t, pos, yaw, pitch, act, air)
+
+
+## Client: the host's pick of our spawn point.
+@rpc("authority", "call_remote", "reliable")
+func _spawn(index: int) -> void:
+	spawn_index = index
+	spawn_assigned.emit(index)
+	_spawned = true
+
+
 ## A world signal: emitted here, and on the host sent on to every client as well.
 func _world(event: StringName, args: Array) -> void:
 	callv(&"emit_signal", [event] + args)
 	if Net.online and multiplayer.is_server():
-		if event == &"shot_landed":  # nodes travel as paths; every peer runs the same scenes
-			args[4] = args[4].get_path() if args[4] else NodePath()
+		if NODE_ARG.has(event):
+			var i: int = NODE_ARG[event]
+			args[i] = args[i].get_path() if args[i] else NodePath()
 		_event.rpc(event, args)
 
 
@@ -489,8 +666,15 @@ func _event(event: StringName, args: Array) -> void:
 		&"key_taken":
 			key_states[args[0]] = KeyState.TAKEN
 			player(args[1]).keys.append(args[0])
-		&"shot_landed":
-			# ponytail: a hit on a node only the host has (one of its spent shells) lands as null.
-			var path: NodePath = args[4]
-			args[4] = null if path.is_empty() else get_node_or_null(path)
+		&"key_layout":
+			key_seed = args[0]
+		&"player_slots":
+			slots = args[0]
+	if NODE_ARG.has(event):
+		# A node only the host has lands as null (spent shells are on no layer, so none yet).
+		var i: int = NODE_ARG[event]
+		var path: NodePath = args[i]
+		args[i] = null if path.is_empty() else get_node_or_null(path)
+		if event == &"target_cue" and args[i] == null:
+			return
 	callv(&"emit_signal", [event] + args)

@@ -14,6 +14,9 @@ extends Node3D
 ## When digging gets down to a key it pops out onto the surface, glows in its tier's colour and
 ## lies there until someone walks over it. Placement and the reveal check run where the heap is
 ## simulated; GameState holds who has what (host-authoritative, like everything else).
+## Co-op: the host rolls the layout's seed and sends it (GameState.key_layout); a client lays the
+## keys out again from it on its own heap, which is the host's starting heap, so they land on the
+## same spots. Only the host's heap decides when one comes out.
 
 const PILE := preload("res://scripts/pile.gd")
 ## Rank order, most common first: [name, tier]. Models: assets/props/keys/key_NN.glb
@@ -50,6 +53,7 @@ const SHOW_SCALE := 1.6    # keys are 8-13 cm; drawn a bit larger so they read i
 @export var layout_seed := 0
 
 var _pile: Node3D
+var _seed := 0
 var _pos := {}    # rank -> world position: buried centre, then where it lies
 var _depth := {}  # rank -> m below the starting surface
 var _shown := {}  # rank -> Node3D while exposed
@@ -68,12 +72,12 @@ static func min_bullets(depth: float) -> int:
 
 func _ready() -> void:
 	_pile = get_node(pile_path)
-	var rng := RandomNumberGenerator.new()
-	if layout_seed != 0:
-		rng.seed = layout_seed
-	else:
-		rng.randomize()
-	_bury(rng)
+	_seed = layout_seed
+	while _seed == 0:
+		_seed = randi()
+	_bury()
+	GameState.key_layout.connect(_on_layout)
+	GameState.set_key_seed(_seed)
 	_reveal.stream = reveal_sound
 	_reveal.bus = &"Dunya"
 	_reveal.unit_size = 10.0
@@ -85,8 +89,26 @@ func _ready() -> void:
 	GameState.key_taken.connect(_on_taken)
 
 
+## The host's layout: lay the keys out again from its seed.
+# ponytail: assumes nothing came out yet (joining at the start); a mid-game join gets the key
+# states with the heap (Faz 1/8).
+func _on_layout(seed: int) -> void:
+	if seed == 0 or seed == _seed:
+		return
+	_seed = seed
+	for n: Node3D in _shown.values():
+		n.queue_free()
+	_shown.clear()
+	_pos.clear()
+	_depth.clear()
+	GameState.key_states.clear()
+	_bury()
+
+
 ## Where each key is, deepest first so the rare ones get the thick middle of the heap.
-func _bury(rng: RandomNumberGenerator) -> void:
+func _bury() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _seed
 	var placed: Array[Vector3] = []
 	var depths: Array[float] = []
 	var prev := 0.0

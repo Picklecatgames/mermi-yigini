@@ -91,15 +91,22 @@ func _prewarm() -> void:
 	_trails[0].visible = true
 
 
-## Someone else's shot rings out where it was fired, in this world, so distance, direction and
-## the shed's reverb (bus Dunya) shape it for every listener. One player per shooter, a copy of
-## the first-person gun's ShotSound, so its stream and tuning stay in viewmodel.tscn.
-# ponytail: the sound only, at the shooter's eye; flash, shell and the gun in hand come with the
-# third-person character (Faz 1/5), which also gives the muzzle position.
-func _on_fired(peer: int, from: Vector3, _dir: Vector3) -> void:
-	_shot_from[peer] = from
+## Someone else's shot flashes at their character's muzzle (scripts/remote_players.gd) and rings
+## out there, in this world, so distance, direction and the shed's reverb (bus Dunya) shape it for
+## every listener. One sound player per shooter, a copy of the first-person gun's ShotSound, so its
+## stream and tuning stay in viewmodel.tscn. Spent shells stay with the shooter's own machine.
+func _on_fired(peer: int, from: Vector3, dir: Vector3) -> void:
 	if peer == GameState.local_peer():
+		_shot_from[peer] = from
 		return  # our own shot plays in first person (viewmodel.gd)
+	var others := get_tree().get_first_node_in_group("remote_players")
+	var who: Node3D = others.character(peer) if others else null
+	if who and who.visible:
+		who.shoot()
+		from = who.muzzle_position()
+	else:
+		from += dir * TRAIL_SKIP  # no character yet: roughly where a muzzle would be
+	_shot_from[peer] = from
 	if not _shot_sounds.has(peer):
 		var gun := get_tree().get_first_node_in_group("first_person_gun")
 		if not gun:
@@ -115,7 +122,7 @@ func _on_fired(peer: int, from: Vector3, _dir: Vector3) -> void:
 func _on_shot_landed(peer: int, at: Vector3, normal: Vector3, dir: Vector3, target: Node, _gold: int, _weak: bool, _combo: int) -> void:
 	if _shot_from.has(peer):
 		var gun := get_tree().get_first_node_in_group("first_person_gun")
-		var from: Vector3 = gun.muzzle_position() + dir * 0.05 if gun and peer == GameState.local_peer() else _shot_from[peer] + dir * TRAIL_SKIP
+		var from: Vector3 = gun.muzzle_position() + dir * 0.05 if gun and peer == GameState.local_peer() else _shot_from[peer]
 		_trail(from, at)
 	if target == null:
 		return  # into the sky

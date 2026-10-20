@@ -16,7 +16,7 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 ## Teknik kurallar
 
 - **Mermi mantıkta yalnız bir sayı.** Görseller MultiMesh + havuz; mermi başına node/fizik yok. Yığın bir yükseklik alanı (`scripts/pile.gd`), 30°'yi aşan eğim kayar.
-- **Co-op:** bütün durum `GameState` autoload'unda; her oyuncu eylemi `request_*` komutu; host otoriter. Bağlantı yalnız `scripts/net.gd`. **Yeni dünya sinyali: `emit` yerine `_world` kullan, `EVENTS`'e yaz. Yeni istemci komutu: `REQUESTS`'e yaz.** Gold kişisel, dünyaya kurulan her şey ortak kasadan. Kontrol: `tools/net_check.gd`.
+- **Co-op:** bütün durum `GameState` autoload'unda; her oyuncu eylemi `request_*` komutu; host otoriter. Bağlantı yalnız `scripts/net.gd`. **Yeni dünya sinyali: `emit` yerine `_world` kullan, `EVENTS`'e yaz. Yeni istemci komutu: `REQUESTS`'e yaz.** Gold kişisel, dünyaya kurulan her şey ortak kasadan. Rastgelelik yalnız host'ta (`cue_target` / `key_layout` ile yayılır); süsler yerel. Kontrol: `tools/net_check.gd`.
 - Viewmodel: bumstrum kolları, tek `allanims` klibi `play_section` ile bölümlenir, idle klibi kullanılmaz; ayrı SubViewport, render katmanı 2.
 - `scenes/arena.tscn` elle düzenlenmez: `tools/build_arena.gd`'yi değiştirip yeniden çalıştır.
 - Ses: gerçek kayıtlar kullanıcıdan gelir, kodla ses üretilmez. Perde kaydırma ve kompresör kullanılmaz. `AudioStreamRandomizer` + `max_polyphony`.

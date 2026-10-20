@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/dummy.tscn" id="4"]
 [ext_resource type="Script" path="res://scripts/impacts.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/key_cache.gd" id="13"]
+[ext_resource type="Script" path="res://scripts/remote_players.gd" id="14"]
 [ext_resource type="PackedScene" path="res://scenes/steel_gong.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/steel_rack.tscn" id="10"]
 [ext_resource type="PackedScene" path="res://scenes/popper_target.tscn" id="7"]
@@ -56,3 +57,6 @@ rotation = Vector3(0, -1.5708, 0)
 
 [node name="Impacts" type="Node3D" parent="."]
 script = ExtResource("5")
+
+[node name="RemotePlayers" type="Node3D" parent="."]
+script = ExtResource("14")

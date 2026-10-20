@@ -6,8 +6,8 @@ extends StaticBody3D
 ## Spilled floor bullets are individual, numbered, and get picked up one by one.
 ## Co-op: only GameState events cross the network (bullets_taken for the heap, loose_taken by
 ## id for single bullets); every peer digs and removes locally.
-# ponytail: slides can drift a few mm between peers (frame timing); when co-op lands the host
-# sends _h (160² floats) on join and every few seconds.
+# Every peer runs the same digs through the same slide passes, so heights match bit for bit
+# (tools/net_check.gd compares them). Joining mid-game needs _h sent once (Faz 1/8).
 
 const BULLET_VOLUME := 3.8e-6  # m³ per 9mm cartridge incl. gaps in a loose heap
 const SLOPE := 0.577           # tan(30°), angle of repose

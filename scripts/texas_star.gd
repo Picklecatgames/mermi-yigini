@@ -2,6 +2,9 @@ extends StaticBody3D
 ## Texas Star: five small plates on a star that turns clockwise, fast enough that a hit takes
 ## real aim. A hit knocks that plate off; it tumbles to the ground, the star lurches on a little
 ## faster for a moment, and the plate grows back on its spot RESPAWN seconds later. Faces +Z.
+## Co-op: the host's star is the real one. It says which plate fell and when it grows back, and
+## every SYNC seconds where the star has turned to (GameState.cue_target: [&"off", plate, dir],
+## [&"on", plate], [&"turn", angle, lurch]); a client turns on its own in between.
 
 const KIT := preload("res://scripts/target_kit.gd")
 const MODEL := preload("res://assets/props/targets/texas_star.gltf")
@@ -13,6 +16,7 @@ const LURCH_DECAY := 1.2    # rad/s² it settles back by
 const GRAVITY := 9.8
 const RESPAWN := 1.5        # s from a plate falling to it growing back
 const POP_TIME := 0.3       # s for a plate to grow back on
+const SYNC := 0.5           # s between the host's word on the angle
 
 ## Base pay per hit before weak spot and combo (GameState reads it).
 @export var hit_gold := 12
@@ -35,6 +39,7 @@ var _back_in: Array[float] = []  # s until each fallen plate grows back
 var _hit: AudioStreamPlayer3D
 var _reset: AudioStreamPlayer3D
 var _pops: Node3D = PAYOUT_POP.new()
+var _sync := 0.0
 
 
 func _ready() -> void:
@@ -59,6 +64,7 @@ func _ready() -> void:
 	_reset = KIT.sound(self, reset_sound)
 	add_child(_pops)
 	GameState.shot_landed.connect(_on_shot_landed)
+	GameState.target_cue.connect(_on_cue)
 
 
 func plates_on() -> int:
@@ -67,6 +73,11 @@ func plates_on() -> int:
 
 func plate_center(i: int) -> Vector3:
 	return _plates[i].global_transform * _plates[i].get_aabb().get_center()
+
+
+## Where the star has turned to, rad (for tests).
+func angle() -> float:
+	return _angle
 
 
 ## The plate that was hit, even if it has just been knocked off (its mark falls with it).
@@ -96,7 +107,27 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: 
 	KIT.play(_hit, at)
 	if gold == 0:  # from past the firing line: it rings, but nothing falls
 		return
-	var i := _nearest(at)
+	GameState.cue_target(self, [&"off", _nearest(at), dir])  # host only: a client waits for it
+	_pops.pop(gold, above_head(), weak, peer)
+
+
+func _on_cue(target: Node, cue: Array) -> void:
+	if target != self:
+		return
+	match cue[0]:
+		&"off":
+			_knock(cue[1], cue[2])
+		&"on":
+			if not _on[cue[1]]:
+				_put_back(cue[1])
+		&"turn":  # the host's angle, run on by however long it took to get here
+			_lurch = cue[2]
+			_angle = fmod(cue[1] - (SPIN + _lurch) * Net.latency(), TAU)
+
+
+func _knock(i: int, dir: Vector3) -> void:
+	if not _on[i]:
+		return
 	_on[i] = false
 	_shapes[i].disabled = true
 	var p := _plates[i]
@@ -105,8 +136,7 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: 
 	_fall_vel[i] = push * 1.2 + Vector3.UP * randf_range(0.6, 1.2)
 	_fall_spin[i] = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * randf_range(6.0, 11.0)
 	_lurch += LURCH
-	_back_in[i] = RESPAWN
-	_pops.pop(gold, above_head(), weak, peer)
+	_back_in[i] = INF if Net.is_client else RESPAWN
 
 
 func _process(delta: float) -> void:
@@ -114,6 +144,11 @@ func _process(delta: float) -> void:
 	_lurch = move_toward(_lurch, 0.0, LURCH_DECAY * dt)
 	_angle = fmod(_angle - (SPIN + _lurch) * delta, TAU)  # real clock: x10 test speed spins x10
 	_arm.transform = Transform3D(Basis(Vector3.BACK, _angle) * _arm_rest.basis, _arm_rest.origin)
+	if Net.online and not Net.is_client:
+		_sync -= delta
+		if _sync <= 0.0:
+			_sync = SYNC
+			GameState.cue_target(self, [&"turn", _angle, _lurch])
 	var floor_y := global_position.y + 0.02
 	for i in PLATES:
 		if _on[i]:
@@ -129,7 +164,8 @@ func _process(delta: float) -> void:
 				_fall_vel[i] = Vector3.ZERO
 		_back_in[i] -= delta
 		if _back_in[i] <= 0.0:
-			_put_back(i)
+			_back_in[i] = INF
+			GameState.cue_target(self, [&"on", i])
 
 
 ## A fallen plate grows back on its spot on the star.

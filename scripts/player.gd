@@ -24,6 +24,17 @@ const KICK_OMEGA := 28.0     # rad/s; peak at 1 / KICK_OMEGA ≈ 36 ms
 const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
 const SUN_SHADE_SPEED := 6.0  # 1/s, how fast the gun's sun fades in and out of shade
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
+const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
+const AIR_SHOWN := 0.1  # s off the ground before others see a jump (not every bump and step)
+## Walking into another player shoves them with this share of your speed into them; you stay
+## in touch and push them along at a crawl. Sent at most every PUSH_INTERVAL.
+const PUSH_SHARE := 0.9
+const PUSH_INTERVAL := 0.1  # s
+const SHOVE_DECAY := 6.0  # 1/s: a shove dies out in about half a second
+## Friendly fire throws the aim: up by FF_CLIMB and sideways by up to FF_YAW (rad), eased in.
+const FF_CLIMB := Vector2(0.05, 0.1)
+const FF_YAW := 0.09
+const FF_KICK := 0.06  # rad of view jolt on top
 
 var _grab_timer := 0.0
 var _yaw := 0.0
@@ -45,6 +56,10 @@ var _sun_lit := 1.0
 var _sun_query := PhysicsRayQueryParameters3D.new()
 var _hip_fov := 75.0
 var _zoom := 1.0
+var _pose_timer := 0.0
+var _shove := Vector3.ZERO  # m/s from someone walking into us
+var _push_timer := 0.0
+var _yaw_climb := 0.0  # rad of sideways aim still to add (friendly fire)
 
 @onready var _head: Node3D = $Head
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
@@ -64,10 +79,8 @@ var _zoom := 1.0
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	add_to_group("walker")  # kicks loose bullets around (Pile)
-	var spawns := get_tree().get_nodes_in_group("spawn")
-	if not spawns.is_empty():  # ponytail: solo takes the first; co-op hands out one per peer
-		global_transform = (spawns[0] as Node3D).global_transform
-	_yaw = rotation.y
+	_go_to_spawn(GameState.spawn_index)
+	GameState.spawn_assigned.connect(_go_to_spawn)
 	_hip_fov = _camera.fov
 	_head.top_level = true
 	_head.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # placed per frame
@@ -95,9 +108,44 @@ func _ready() -> void:
 		b.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # tweened per frame
 		add_child(b)
 		_fly.append(b)
+	GameState.pushed.connect(func(v: Vector3) -> void:
+		if v.length() > _shove.length():
+			_shove = v)
+	GameState.player_shot.connect(_on_player_shot)
 	_update_counter()
 	_set_hand_count(mini(GameState.carried, HAND_MAX))
 	_place_head()
+
+
+## Friendly fire: it doesn't hurt, but it throws the aim off right when you need it.
+func _on_player_shot(_shooter: int, victim: int, _at: Vector3, _dir: Vector3) -> void:
+	if victim != GameState.local_peer():
+		return
+	_climb += randf_range(FF_CLIMB.x, FF_CLIMB.y)
+	_yaw_climb += randf_range(-FF_YAW, FF_YAW)
+	_recoil_vel += FF_KICK * KICK_OMEGA * exp(1.0)
+
+
+## Solo and the host stand on the first spawn point; each guest gets its own from the host.
+func _go_to_spawn(index: int) -> void:
+	var spawns := get_tree().get_nodes_in_group("spawn")
+	if spawns.is_empty():
+		return
+	global_transform = (spawns[index % spawns.size()] as Node3D).global_transform
+	_yaw = rotation.y
+	_pitch = 0.0
+	velocity = Vector3.ZERO
+	reset_physics_interpolation()
+
+
+## What other machines show this player doing.
+func _act() -> int:
+	var clip: String = _viewmodel.clip
+	if clip.begins_with("fire"):
+		return GameState.Act.SHOOTING
+	if clip.begins_with("reload") or clip in ["settle", "slingshot", "rack"]:
+		return GameState.Act.RELOADING
+	return GameState.Act.WALKING if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.1 else GameState.Act.IDLE
 
 
 ## The gun is drawn in its own world: it does not need the shed, and sharing the shed's world
@@ -156,6 +204,9 @@ func _process(delta: float) -> void:
 	var c := _climb * (1.0 - exp(-dt * 30.0))
 	_climb -= c
 	_pitch = clampf(_pitch + c, -1.5, 1.5)
+	var y := _yaw_climb * (1.0 - exp(-dt * 30.0))
+	_yaw_climb -= y
+	_yaw += y
 	# x'' = -w²x - 2w x' (critically damped); a few steps keep it stable at low frame rates
 	for i in 4:
 		var h := dt / 4.0
@@ -208,12 +259,19 @@ func _physics_process(delta: float) -> void:
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
 	var speed := SPRINT_SPEED if Input.is_action_pressed("sprint") and _viewmodel.aim == 0.0 else SPEED
-	velocity.x = dir.x * speed
-	velocity.z = dir.z * speed
+	_shove = _shove * exp(-SHOVE_DECAY * delta)
+	velocity.x = dir.x * speed + _shove.x
+	velocity.z = dir.z * speed + _shove.z
 	# The firing line stops you unless you are placing targets; caught past it (placement mode
 	# switched off over there) you can still walk back out, never in.
 	set_collision_mask_value(GameState.FENCE_LAYER, not GameState.player().placing and global_position.x < GameState.FIRING_LINE_X)
+	var walked := Vector3(velocity.x, 0.0, velocity.z)  # before sliding takes the bump out of it
 	move_and_slide()
+	_push_others(delta, walked)
+	_pose_timer -= delta
+	if _pose_timer <= 0.0:
+		_pose_timer += POSE_INTERVAL
+		GameState.send_pose(global_position, _yaw, _pitch, _act(), _air_time > AIR_SHOWN)
 	if is_on_floor():
 		if _air_time > LAND_AIR_TIME:
 			_step_sound.play()
@@ -238,6 +296,25 @@ func _physics_process(delta: float) -> void:
 
 	_prompt.visible = looking
 	_prompt.text = "[E] Mermi al (basılı tut)" if GameState.carried < GameState.carry_capacity else "Elin dolu  [G] Fırlat"
+
+
+## Bumped into another player's body: shove them along with how fast we walked into them.
+func _push_others(delta: float, walked: Vector3) -> void:
+	_push_timer -= delta
+	if _push_timer > 0.0:
+		return
+	for i in get_slide_collision_count():
+		var k := get_slide_collision(i)
+		var other := k.get_collider() as Node
+		if other == null or not other.has_meta("peer"):
+			continue
+		var away := -k.get_normal()
+		away.y = 0.0
+		var into := walked.dot(away.normalized())
+		if into > 0.5:
+			GameState.request_push(other.get_meta("peer"), away.normalized() * into * PUSH_SHARE)
+			_push_timer = PUSH_INTERVAL
+		return
 
 
 func _head_bob(delta: float) -> void:
