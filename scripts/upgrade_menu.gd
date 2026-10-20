@@ -184,8 +184,8 @@ func _show_tab(index: int) -> void:
 		title.text = titles[i]
 		title.modulate = Color.WHITE if on else Color(1, 1, 1, 0.6)
 		_pages[i].visible = on
-	_title.text = ["Kendini geliştir", "Takımın teçhizatı"][index]
-	_subtitle.text = ["Kendi paranla, yalnız senin için. Her seviye bir öncekinden daha çok kazandırır.",
+	_title.text = [GameState.display_name(), "Takımın teçhizatı"][index]
+	_subtitle.text = ["Bu geliştirmeler yalnızca senin için geçerlidir.",
 		"Ortak kasadan alınır, herkes için. Alınanlar depoya gider; yerleştirme yakında."][index]
 	_refresh()
 
