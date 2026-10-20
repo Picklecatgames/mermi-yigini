@@ -57,7 +57,11 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 
 ## Faz 2: İlk 15 dakika (~15 sa)
 
-9. **Dükkân:** Q menüsünde kişisel (kapasite, SMG) ve ortak (hedefler) bölümler. Ortak alımda kasadan düşülür, herkes görür.
+9. ~~**Dükkân:**~~ (bitti 2026-10-21) Q menüsünde kişisel (kapasite, SMG) ve ortak (hedefler) bölümler. Ortak alımda kasadan düşülür, herkes görür.
+   - **Atölye (kullanıcı isteği):** solda iki sekme: oyuncunun adı (kişisel geliştirmeler, oyuncu renginde vurgu) ve Teçhizatlar (ortak kasa, altın vurgu); altta Paran ve Ortak Kasa. Sağda iki sütun kart: ad, açıklama, şimdiki → sonraki değer, seviye çubuğu, paranın fiyata ne kadar yettiğini gösteren çubuk ("$N eksik" / "Hazır!"), alınabilince yanan buton, en üst seviyede altın çerçeve. Satın alınca kart parlar, "+1 SEVİYE" / "+1 DEPOYA" yükselir. Panel küçük pencereye göre küçülür. `scripts/upgrade_menu.gd`.
+   - **Teçhizat:** `GameState.GEAR` (7 hedef: kukla $20, siluet $35, gong $35, popper $60, plaka dizisi $90, köstebek rafı $150, Texas Star $300; yer tutucu). `request_buy_gear` kasadan düşer, `gear_stock`'a ekler; yalnız host karar verir (istemci tahmin etmez: iki kişi aynı parayı harcayabilir), `vault_changed` + `gear_changed` olaylarıyla herkese, katılana bağlanınca gider. Depodakiler 10. adımda yerleştirilecek.
+   - SMG kişisel sekmeye gelmedi: silah sırası (revolver, Uzi, AK) ayrı bir iş.
+   - Kontrol: `tools/shop_check.gd` (iki sekme, butonlar doğru fiyatla alır, para yetmezken kapalı, depo sayısı).
 10. **Yerleştirme modu:** satın alınan hedef böyle konur; ileride taret ve bant da aynı kodu kullanır. Konumu host doğrular; aynı yere iki kişi koyarsa ilk gelen kazanır. Başkalarının önizlemesi soluk görünür.
 11. **Hile menüsü (x10 hız, para ekle) + ilk 15 dakikanın denge turu:** yalnız host açar, yalnız debug build'de. Denge 1 ve 2 oyuncuyla ölçülür.
 
