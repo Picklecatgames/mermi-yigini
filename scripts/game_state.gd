@@ -49,6 +49,7 @@ signal key_layout(seed: int)
 ## The shared vault: everything built into the world is bought from it. Every paying hit adds
 ## VAULT_SHARE of its pay on top (the shooter keeps all of theirs). Float, so $1 hits add up.
 signal vault_changed(vault: float)
+signal gear_changed(stock: Dictionary)  # GEAR id -> bought, not placed yet
 ## A moving target's own call, made on the host alone: which plate comes up, when a popper
 ## stands back up, where the star has turned to. Clients follow these instead of rolling their own.
 ## What `cue` holds is up to the target.
@@ -111,6 +112,18 @@ const FIRE_FROM_SLACK := 1.5  # m
 const PUSH_REACH := 1.5  # m
 const PUSH_MAX := 8.0  # m/s
 const VAULT_SHARE := 0.2  # placeholder (yol haritası 7)
+## Gear: targets the team buys from the shared vault (Q menu, Teçhizatlar). Bought ones wait in
+## the shared stock until someone places them (yol haritası 10). Order is the menu's order.
+# ponytail: placeholder prices until the 60-minute balance pass.
+const GEAR := {
+	"dummy": {"scene": "res://scenes/dummy.tscn", "cost": 20},
+	"steel_silhouette": {"scene": "res://scenes/steel_silhouette.tscn", "cost": 35},
+	"steel_gong": {"scene": "res://scenes/steel_gong.tscn", "cost": 35},
+	"popper": {"scene": "res://scenes/popper_target.tscn", "cost": 60},
+	"steel_rack": {"scene": "res://scenes/steel_rack.tscn", "cost": 90},
+	"plate_rack": {"scene": "res://scenes/plate_rack.tscn", "cost": 150},
+	"texas_star": {"scene": "res://scenes/texas_star.tscn", "cost": 300},
+}
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
@@ -121,13 +134,13 @@ const REQUESTS := {
 	&"request_buy_upgrade": 1, &"request_debug_level_up": 1, &"request_pick_up": 2,
 	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
-	&"request_throw": 2, &"request_push": 2, &"request_hello": 1,
+	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
 }
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
-	&"target_cue", &"player_shot", &"player_slots", &"vault_changed"]
+	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
 
@@ -153,6 +166,7 @@ class PlayerState:
 
 var pile: int = PILE_START
 var vault := 0.0
+var gear_stock := {}  # GEAR id -> bought and not placed yet, shared by the team
 var _players := {}  # peer id -> PlayerState
 var _next_loose_id := THROWN_ID_START
 # ponytail: grows by one per loose grab; the save system can prune ids no longer in the world.
@@ -227,6 +241,7 @@ func _ready() -> void:
 			_event.rpc_id(id, &"pile_changed", [pile])
 			_event.rpc_id(id, &"key_layout", [key_seed])
 			_event.rpc_id(id, &"vault_changed", [vault])
+			_event.rpc_id(id, &"gear_changed", [gear_stock])
 			var heap := get_tree().get_first_node_in_group("bullet_pile")
 			_join.rpc_id(id, heap.snapshot() if heap else [], _taken_loose.keys())
 			for rank: int in key_states:
@@ -301,6 +316,27 @@ func request_buy_upgrade(id: String, peer := 0) -> bool:
 		upgraded.emit(id, level + 1)
 		gold_changed.emit(p.gold)
 	return true
+
+
+## Anyone buys a piece of gear for the team, from the shared vault. No guess on a client: the
+## vault is the host's, and two players may spend the same money; gear_changed says what came of it.
+func request_buy_gear(id: String, peer := 0) -> bool:
+	if not GEAR.has(id):
+		return false
+	if _send(&"request_buy_gear", [id], peer):
+		return vault >= GEAR[id].cost
+	if vault < GEAR[id].cost:
+		return false
+	vault -= GEAR[id].cost
+	gear_stock[id] = gear_stock.get(id, 0) + 1
+	_world(&"vault_changed", [vault])
+	_world(&"gear_changed", [gear_stock])
+	return true
+
+
+## What a player is called on screen (name tag, Q menu).
+func display_name(peer := 0) -> String:
+	return "Oyuncu %d" % (local_peer() if peer == 0 else peer)  # ponytail: Steam name in Faz 6
 
 
 ## Demo key: next level of an upgrade for free, back to the start after the last one.
@@ -766,6 +802,8 @@ func _event(event: StringName, args: Array) -> void:
 			slots = args[0]
 		&"vault_changed":
 			vault = args[0]
+		&"gear_changed":
+			gear_stock = args[0]
 	if NODE_ARG.has(event):
 		# A node only the host has lands as null (spent shells are on no layer, so none yet).
 		var i: int = NODE_ARG[event]
