@@ -25,6 +25,7 @@ const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
 const SUN_SHADE_SPEED := 6.0  # 1/s, how fast the gun's sun fades in and out of shade
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
 const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
+const AIR_SHOWN := 0.1  # s off the ground before others see a jump (not every bump and step)
 
 var _grab_timer := 0.0
 var _yaw := 0.0
@@ -231,7 +232,7 @@ func _physics_process(delta: float) -> void:
 	_pose_timer -= delta
 	if _pose_timer <= 0.0:
 		_pose_timer += POSE_INTERVAL
-		GameState.send_pose(global_position, _yaw, _pitch, _act())
+		GameState.send_pose(global_position, _yaw, _pitch, _act(), _air_time > AIR_SHOWN)
 	if is_on_floor():
 		if _air_time > LAND_AIR_TIME:
 			_step_sound.play()
