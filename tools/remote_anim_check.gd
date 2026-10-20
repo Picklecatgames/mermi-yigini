@@ -15,6 +15,7 @@ func _initialize() -> void:
 	var p := Vector3.ZERO
 	await _hold(p, 0.0, 0, false, 0.5)
 	_check("ground", 0.0, "stands", func(c) -> bool: return c.speed < 0.1 and _foot(c) < 0.15)
+	_check("", -1.0, "both hands on the gun", func(c) -> bool: return _left_off_gun(c) < 0.5)
 	await _hold(p, 0.7, 0, false, 0.4)
 	_check("ground", 0.7, "aims up with the look", func(c) -> bool: return c.muzzle_position().y > 1.7)
 	var t0 := Time.get_ticks_msec()
@@ -28,7 +29,7 @@ func _initialize() -> void:
 	await _hold(p, 0.0, 0, false, 0.3)
 	_check("ground", 0.0, "lands with a crouch", func(c) -> bool: return c._tree.get("parameters/land/active") and c.muzzle_position().y < 1.2)
 	await _hold(p, 0.0, root.get_node("GameState").Act.RELOADING, false, 0.5)
-	_check("", -1.0, "reloads", func(c) -> bool: return c._tree.get("parameters/reload/active"))
+	_check("", -1.0, "reloads, left hand off the gun", func(c) -> bool: return c._tree.get("parameters/reload/active") and _left_off_gun(c) > 3.0)
 	mgr.character(7).shoot()
 	await process_frame  # emitted before the nodes process: the second one has advanced the tree
 	await process_frame
@@ -53,6 +54,12 @@ func _check(state: String, pitch: float, what: String, cond: Callable) -> void:
 	var good: bool = (state == "" or legs.get_current_node() == state) and (pitch < 0.0 or aim > 0.995) and cond.call(c)
 	print("%s %s (legs %s, aim %.3f, speed %.1f)" % ["ok  " if good else "FAIL", what, legs.get_current_node(), aim, c.speed])
 	ok = ok and good
+
+
+## Centimetres between the left wrist and its place on the gun.
+func _left_off_gun(c) -> float:
+	var w: Vector3 = c._skel.get_bone_global_pose(c._hand["L_wrist"]).origin
+	return w.distance_to(c._gun.transform * c._left_wrist_on_gun)
 
 
 func _foot(c) -> float:

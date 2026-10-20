@@ -10,7 +10,7 @@ extends Node3D
 ## and jump when the pose says it is off the ground; from the spine up it holds the pistol, and
 ## plays the reload when the player reloads and the shot when they fire. The look pitch bends spine
 ## and chest on top of that, so arms, gun and head aim where the player looks; the gun rides the
-## right wrist.
+## right wrist, and both hands close round it as the first-person hands do (_grip).
 # ponytail: one forward cycle for every direction; strafing and walking backwards slide sideways.
 # A directional BlendSpace2D needs strafe clips (UAL has them) when it bothers anyone.
 
@@ -25,8 +25,10 @@ const UNIT := 0.01  # the model is in centimetres
 ## Ground speed (m/s) each cycle is blended in at: the player walks at 5 and sprints at 8.
 const GAITS := {"idle": 0.0, "walk": 1.5, "jog": 5.0, "sprint": 8.0}
 const MOVING := 0.5  # m/s; slower than this lands standing (the full crouch), faster runs on
-## Where the gun sits in the right hand, in its own (Talon) space: the wrist, behind the grip.
-const WRIST_ON_GUN := Vector3(0.0, 2.0, -8.0)
+## Hand bones, parents first, each with "L_"/"R_" in front; the operator's 4th (tip) segment stays as animated.
+const HAND := ["wrist", "thumb1", "thumb2", "thumb3", "point1", "point2", "point3", "middle1", "middle2",
+	"middle3", "ring1", "ring2", "ring3", "pink1", "pink2", "pink3"]
+const LEFT_LET_GO := 0.2  # s for the left hand to leave the gun for a reload, and to come back
 const SPINE_SHARE := 0.35  # of the pitch; the chest takes the rest, so arms and gun aim with all of it
 const PITCH_MAX := 1.2  # rad either way; beyond it the torso would fold
 const FLASH_TIME := 0.05  # s
@@ -86,7 +88,11 @@ class Character extends Node3D:
 	var _skel: Skeleton3D
 	var _tree: AnimationTree
 	var _gun: Node3D
-	var _gun_in_hand: Transform3D  # the gun relative to the right wrist bone
+	var _gun_in_hand: Transform3D  # the gun relative to the right wrist bone, as the clips move it
+	var _hand := {}  # "R_point1" etc. -> bone
+	var _on_gun := {}  # "R_point1" etc. -> that bone's turn in gun space, from the first-person grip
+	var _left_wrist_on_gun: Vector3
+	var _left_hold := 1.0  # 0 while the left hand is off the gun for a reload
 	var _hips_hold: Basis  # the hips standing in the pistol pose; the upper body keeps to it
 	var _spine := -1
 	var _chest := -1
@@ -117,15 +123,33 @@ class Character extends Node3D:
 		_model.add_child(_tree)
 		_tree.advance(0.0)  # in the pistol pose now, to fit the gun to the hand
 		_hips_hold = _skel.get_bone_global_pose(_skel.get_bone_parent(_spine)).basis
-		# The heavy pistol on its own: the first-person model's gun part, without the arms.
+		# The heavy pistol on its own: the first-person model's gun part. Its arms only lend their
+		# grip: where each hand bone sits on the gun in the rest pose.
 		var whole: Node3D = GUN.instantiate()
+		add_child(whole)
 		_gun = whole.find_child("Talon", true, false)
+		var on_gun := _grip_points(whole)
 		_gun.get_parent().remove_child(_gun)
+		remove_child(whole)
 		whole.free()
 		_model.add_child(_gun)
-		# Aimed straight ahead (the model's +Z) with its grip in the hand of the idle pistol pose.
+		# Hand bones turned in gun space as the first-person hands are: line each one's own frame
+		# (along the bone, rolled by the palm's width) up with the first-person bone's.
+		var rest := {}
+		for side in ["L", "R"]:
+			for h: String in HAND:
+				var key: String = side + "_" + h
+				_hand[key] = _find(_skel, key)
+				rest[key] = _skel.get_bone_global_rest(_hand[key]).origin
+		var own := _frames(rest)
+		var theirs := _frames(on_gun)
+		for key: String in _hand:
+			var r := _skel.get_bone_global_rest(_hand[key]).basis.orthonormalized()
+			_on_gun[key] = theirs[key] * own[key].inverse() * r
+		_left_wrist_on_gun = on_gun["L_wrist"]
+		# Aimed straight ahead (the model's +Z), the right wrist where the first-person one is.
 		var hand := _skel.get_bone_global_pose(_wrist)
-		_gun_in_hand = hand.affine_inverse() * Transform3D(Basis(), hand.origin - WRIST_ON_GUN)
+		_gun_in_hand = hand.affine_inverse() * Transform3D(Basis(), hand.origin - on_gun["R_wrist"])
 		# Off the floor paint's layer: its decals (cull_mask 1) were printing onto boots and legs.
 		for v: VisualInstance3D in _model.find_children("*", "VisualInstance3D", true, false):
 			v.layers = BODY_LAYER
@@ -321,6 +345,7 @@ class Character extends Node3D:
 		_pitch = lerpf(_pitch, clampf(lerpf(a[3], b[3], f), -PITCH_MAX, PITCH_MAX), 1.0 - exp(-delta * 20.0))
 		_bend(_pitch)
 		_gun.transform = _skel.get_bone_global_pose(_wrist) * _gun_in_hand
+		_grip(delta)
 		if _flash:
 			_flash.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 			_flash_left -= delta
@@ -350,3 +375,99 @@ class Character extends Node3D:
 		var chest := Basis(Vector3.RIGHT, -pitch * (1.0 - SPINE_SHARE)) * spine * Basis(_skel.get_bone_pose_rotation(_chest))
 		_skel.set_bone_pose_rotation(_spine, (parent.inverse() * spine).get_rotation_quaternion())
 		_skel.set_bone_pose_rotation(_chest, (spine.inverse() * chest).get_rotation_quaternion())
+
+	## Both hands on the gun as the first-person hands hold it, over whatever the clips did: the right
+	## one wraps the grip with the index on the trigger guard, the left cups it from below. The left
+	## arm reaches for its place with two-bone IK and lets go while a reload plays.
+	func _grip(delta: float) -> void:
+		var reloading: bool = _tree.get("parameters/reload/active")
+		_left_hold = move_toward(_left_hold, 0.0 if reloading else 1.0, delta / LEFT_LET_GO)
+		var gun := _gun.transform
+		_hold("R", gun.basis, 1.0)
+		if _left_hold > 0.0:
+			var w := _hand["L_wrist"] as int
+			var to := _skel.get_bone_global_pose(w).origin.lerp(gun * _left_wrist_on_gun, _left_hold)
+			_reach(w, to)
+			_hold("L", gun.basis, _left_hold)
+
+	## One hand's bones turned toward their place on the gun, by `weight`.
+	func _hold(side: String, gun: Basis, weight: float) -> void:
+		var glob := {}  # bone -> global basis, as set
+		for h: String in HAND:
+			var i: int = _hand[side + "_" + h]
+			var p := _skel.get_bone_parent(i)
+			var pg: Basis = glob[p] if glob.has(p) else _skel.get_bone_global_pose(p).basis.orthonormalized()
+			var want := (pg.inverse() * gun * (_on_gun[side + "_" + h] as Basis)).get_rotation_quaternion()
+			var q := _skel.get_bone_pose_rotation(i).slerp(want, weight)
+			_skel.set_bone_pose_rotation(i, q)
+			glob[i] = pg * Basis(q)
+
+	## The upper arm and forearm above `wrist` turned so it lands on `to`, the elbow staying on its side.
+	func _reach(wrist: int, to: Vector3) -> void:
+		var elbow := _skel.get_bone_parent(wrist)
+		var arm := _skel.get_bone_parent(elbow)
+		var a := _skel.get_bone_global_pose(arm)
+		var e := _skel.get_bone_global_pose(elbow)
+		var pw := _skel.get_bone_global_pose(wrist).origin
+		var l1 := a.origin.distance_to(e.origin)
+		var l2 := e.origin.distance_to(pw)
+		var reach := to - a.origin
+		var dist := clampf(reach.length(), absf(l1 - l2) + 0.001, l1 + l2 - 0.001)
+		var fwd := reach.normalized()
+		var pole := (e.origin - a.origin) - fwd * (e.origin - a.origin).dot(fwd)
+		pole = pole.normalized() if pole.length() > 0.001 else Vector3.DOWN
+		var cos_a := (l1 * l1 + dist * dist - l2 * l2) / (2.0 * l1 * dist)
+		var new_e := a.origin + (fwd * cos_a + pole * sqrt(maxf(0.0, 1.0 - cos_a * cos_a))) * l1
+		var turn := _swing(e.origin - a.origin, new_e - a.origin)
+		var arm_g := turn * a.basis.orthonormalized()
+		var fore := _swing(turn * (pw - e.origin), a.origin + fwd * dist - new_e) * turn * e.basis.orthonormalized()
+		var shoulder := _skel.get_bone_global_pose(_skel.get_bone_parent(arm)).basis.orthonormalized()
+		_skel.set_bone_pose_rotation(arm, (shoulder.inverse() * arm_g).get_rotation_quaternion())
+		_skel.set_bone_pose_rotation(elbow, (arm_g.inverse() * fore).get_rotation_quaternion())
+
+	## Where each hand bone of the first-person arms sits on the gun (Talon space) in the rest pose
+	## every first-person clip ends in. `whole` (the first-person model) is in the tree.
+	func _grip_points(whole: Node3D) -> Dictionary:
+		var sk: Skeleton3D = whole.find_children("*", "Skeleton3D", true, false)[0]
+		var ap: AnimationPlayer = whole.find_children("*", "AnimationPlayer", true, false)[0]
+		ap.play("allanims")
+		ap.seek(VIEWMODEL.CLIPS["settle"][1], true)
+		var to_gun := _gun.global_transform.affine_inverse() * sk.global_transform
+		var at := {}
+		for side in ["L", "R"]:
+			for h: String in HAND:
+				at[side + "_" + h] = to_gun * sk.get_bone_global_pose(_find(sk, side + "_" + h)).origin
+		return at
+
+	## A bone by name without its numeric suffix ("R_thumb3" finds "R_thumb3_00").
+	static func _find(sk: Skeleton3D, key: String) -> int:
+		for i in sk.get_bone_count():
+			if sk.get_bone_name(i).begins_with(key + "_"):
+				return i
+		push_error("no bone " + key)
+		return -1
+
+	## Each hand bone's frame from joint positions alone (x along the bone, y toward the palm's
+	## width), so two different rigs agree on it. The last segment takes the middle one's line.
+	static func _frames(at: Dictionary) -> Dictionary:
+		var f := {}
+		for side in ["L", "R"]:
+			var width: Vector3 = at[side + "_pink1"] - at[side + "_point1"]
+			f[side + "_wrist"] = _frame(at[side + "_middle1"] - at[side + "_wrist"], width)
+			for h: String in HAND.slice(1):
+				var finger := h.left(-1)
+				var k := mini(int(h.right(1)), 2)
+				var tip: Vector3 = at["%s_%s%d" % [side, finger, k + 1]] - at["%s_%s%d" % [side, finger, k]]
+				f[side + "_" + h] = _frame(tip, width)
+		return f
+
+	static func _frame(dir: Vector3, side: Vector3) -> Basis:
+		var x := dir.normalized()
+		var z := x.cross(side).normalized()
+		return Basis(x, z.cross(x), z)
+
+	static func _swing(from: Vector3, to: Vector3) -> Basis:
+		var axis := from.cross(to)
+		if axis.length() < 0.00001:
+			return Basis()
+		return Basis(axis.normalized(), from.angle_to(to))
