@@ -3,7 +3,7 @@ extends Control
 ## jumping, firing), easing in and out so the change is seen, never jumping between shapes.
 ## The player sets `offset` and `gap` (px) every frame from the gun's aim.
 
-const RADIUS := 3.0  # px at rest
+const RADIUS := 2.4  # px at rest
 const EASE := 12.0   # 1/s, how fast the ring follows the spread
 
 var offset := Vector2.ZERO

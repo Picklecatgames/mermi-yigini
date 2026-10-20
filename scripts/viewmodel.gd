@@ -96,10 +96,10 @@ const FIRE_JIGGLE := Vector3(0.6, 0.8, 1.1)  # rad/s of random wobble a shot add
 ## Where the shot goes follows a share of the jelly, and spreads from the hip while moving or
 ## shooting fast; standing still (or aimed) it stays dead on. The crosshair draws both.
 const AIM_FOLLOW := 0.35      # share of the gun's sway the shot (and the dot) takes
-## Kept small: the ring only hints that the shot can drift (about 2-5 px at 1080p).
-const SPREAD_MOVE := 0.003    # rad cone half-angle at walking speed, hip
-const SPREAD_AIR := 0.007     # rad in the air
-const SPREAD_SHOT := 0.004    # rad a shot adds, fading at SPREAD_RECOVER
+## Kept small: the ring only hints that the shot can drift (about 2-4 px at 1080p).
+const SPREAD_MOVE := 0.0024   # rad cone half-angle at walking speed, hip
+const SPREAD_AIR := 0.0056    # rad in the air
+const SPREAD_SHOT := 0.0032   # rad a shot adds, fading at SPREAD_RECOVER
 const SPREAD_RECOVER := 0.015 # rad/s
 const SPREAD_ADS := 0.15      # share left when aimed
 const BREATH := Vector2(0.0008, 0.0012)  # m; the model's own idle clip bobs too fast
