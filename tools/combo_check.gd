@@ -20,8 +20,8 @@ func _initialize() -> void:
 		gs.request_fire(from + Vector3(0, height, 0), (to - from - Vector3(0, height, 0)).normalized())
 		return gs.player().gold - before
 	assert(shot.call(1.1) == 1, "first hit pays 1")
-	assert(shot.call(1.64) == 4, "2nd hit in the window, head: 1 x2 weak x2 chain")
-	assert(shot.call(1.1) == 2, "3rd hit: chain x3, but one kind caps the pay at x2")
+	assert(shot.call(1.64) == 3, "2nd hit in the window, head: 1 x2 weak x1.5 chain")
+	assert(shot.call(1.1) == 2, "3rd hit: chain x3 pays x1.79, rounded")
 	assert(gs.player().combo == 3, "the chain itself keeps counting")
 	gs._process(gs.COMBO_WINDOW + 0.1)  # let the window run out
 	assert(gs.player().combo == 0, "a gap breaks the chain")
@@ -92,7 +92,15 @@ func _initialize() -> void:
 	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 1, "chain 1")
 	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 2, "chain 2, one kind")
 	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 2, "chain 3, still one kind")
-	assert(chain.call(star.plate_center(1), Vector3(-1, 0, 0)) == 12 * 3, "a second kind: chain 4 pays x3")
+	assert(chain.call(star.plate_center(1), Vector3(-1, 0, 0)) == 30, "a second kind: chain 4 pays x2.5")
+	# The multiplier never stalls: every doubling of the chain adds to it, more with variety.
+	var pay: Callable = gs.combo_pay
+	for kinds in [1, 3]:
+		var last := 0.0
+		for c in [1, 2, 4, 8, 16, 32, 64, 128]:
+			assert(pay.call(c, kinds) > last, "chain %d over %d kinds pays more than the chain before" % [c, kinds])
+			last = pay.call(c, kinds)
+	assert(is_equal_approx(pay.call(4, 1), 2.0) and is_equal_approx(pay.call(4, 3), 3.0), "x2 / x3 at chain 4")
 	# From past the line a popper rings but stays up.
 	gs._process(gs.COMBO_WINDOW + 0.1)
 	var south: Node3D = main.get_node("LockedTargets/PopperSouth")

@@ -7,20 +7,11 @@
 [ext_resource type="Script" path="res://scripts/hit_marker.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/combo_meter.gd" id="6"]
 [ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step.tres" id="step_snd"]
+[ext_resource type="Script" path="res://scripts/crosshair.gd" id="7"]
 
 [sub_resource type="CapsuleShape3D" id="body_shape"]
 radius = 0.35
 height = 1.8
-
-[sub_resource type="StyleBoxFlat" id="crosshair_dot"]
-bg_color = Color(1, 1, 1, 0.9)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
-corner_detail = 6
-shadow_color = Color(0, 0, 0, 0.35)
-shadow_size = 1
 
 [node name="Player" type="CharacterBody3D"]
 script = ExtResource("1")
@@ -31,9 +22,11 @@ shape = SubResource("body_shape")
 
 [node name="StepSound" type="AudioStreamPlayer3D" parent="."]
 stream = ExtResource("step_snd")
-volume_db = -14.0
+volume_db = -24.0
 unit_size = 6.0
 max_polyphony = 2
+panning_strength = 0.0
+bus = &"Adim"
 
 [node name="Head" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
@@ -80,18 +73,14 @@ near = 0.01
 
 [node name="HUD" type="CanvasLayer" parent="."]
 
-[node name="Crosshair" type="Panel" parent="HUD"]
+[node name="Crosshair" type="Control" parent="HUD"]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -2.0
-offset_top = -2.0
-offset_right = 2.0
-offset_bottom = 2.0
 mouse_filter = 2
-theme_override_styles/panel = SubResource("crosshair_dot")
+script = ExtResource("7")
 
 [node name="Prompt" type="Label" parent="HUD"]
 visible = false

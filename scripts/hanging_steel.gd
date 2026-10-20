@@ -80,9 +80,9 @@ class Plate extends StaticBody3D:
 		shape.shape = mesh.mesh.create_convex_shape()
 		add_child(shape)
 		_sound.stream = target.hit_sound
-		_sound.bus = &"Dunya"
-		_sound.unit_size = 14.0
-		_sound.max_db = 6.0
+		_sound.volume_db = 4.0
+		_sound.unit_size = 4.0  # dry and falling off: a far plate sounds far
+		_sound.attenuation_filter_db = 0.0
 		_sound.max_polyphony = 3
 		add_child(_sound)
 		add_child(_pops)

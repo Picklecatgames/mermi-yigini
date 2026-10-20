@@ -56,10 +56,11 @@ const FIRE_INTERVAL := 0.42  # s, ~143 rounds/min
 ## head), or where the target's `is_weak(at)` says so (a popper's round head).
 const WEAK_MULT := 2
 ## Combo: each paying hit within this long of the last one adds 1 to the chain (shown as xN, it
-## can climb to x100 with a fast gun). A gap this long or a miss starts it over. The chain pays
-## at most 1 + the number of different target kinds hit in it, so variety is what lifts the
-## multiplier: a dummy alone tops out at x2, dummy + gong + popper at x4 (docs/oyun_kritigi).
+## can climb to x100 with a fast gun). A gap this long or a miss starts it over. What it pays is
+## `combo_pay`: it climbs with every hit, faster the more target kinds are in the chain.
 const COMBO_WINDOW := 1.5  # s
+const COMBO_SLOPE := 0.5  # multiplier gained per doubling of the chain, one kind
+const COMBO_KIND_SLOPE := 0.25  # added to that for each further kind in the chain
 const SHOT_RANGE := 300.0  # m
 const SHOT_MASK := 1  # world layer: walls, floor, heap, dummies
 ## The firing line: a railing across the shed at this x, with every target past it. Players
@@ -336,7 +337,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 		p.combo_left = COMBO_WINDOW
 		p.combo_kinds[target.get("kind") if target.get("kind") else target.get_script()] = true
 		var base = target.get("hit_gold")
-		gold = (base if base is int else 1) * (WEAK_MULT if weak else 1) * combo_pay(p.combo, p.combo_kinds.size())
+		gold = roundi((base if base is int else 1) * (WEAK_MULT if weak else 1) * combo_pay(p.combo, p.combo_kinds.size()))
 		p.gold += gold
 		if _is_local(peer):
 			gold_changed.emit(p.gold)
@@ -372,9 +373,12 @@ func request_take_key(rank: int, peer := 0) -> bool:
 	return true
 
 
-## What a chain of `combo` hits over `kinds` different target kinds pays per hit.
-static func combo_pay(combo: int, kinds: int) -> int:
-	return mini(combo, 1 + kinds)
+## What a chain of `combo` hits over `kinds` different target kinds pays per hit: grows with
+## log2 of the chain, so it never stops climbing but a long chain from a fast gun stays sane,
+## and each kind in the chain makes it climb faster. One kind: x1.5 at 2, x2 at 4, x3.5 at 30;
+## three kinds: x2 at 2, x3 at 4, x5.9 at 30.
+static func combo_pay(combo: int, kinds: int) -> float:
+	return 1.0 + log(maxf(combo, 1)) / log(2.0) * (COMBO_SLOPE + COMBO_KIND_SLOPE * maxi(kinds - 1, 0))
 
 
 func _break_chain(p: PlayerState) -> void:

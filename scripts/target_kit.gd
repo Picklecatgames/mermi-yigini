@@ -33,8 +33,9 @@ static func stand_body(parent: Node3D, part: MeshInstance3D) -> StaticBody3D:
 static func sound(parent: Node3D, stream: AudioStream) -> AudioStreamPlayer3D:
 	var p := AudioStreamPlayer3D.new()
 	p.stream = stream
-	p.bus = &"Dunya"
-	p.unit_size = 8.0
+	p.volume_db = 4.0
+	p.unit_size = 4.0  # dry and falling off: a far target sounds far
+	p.attenuation_filter_db = 0.0
 	p.max_polyphony = 3
 	parent.add_child(p)
 	return p

@@ -7,6 +7,7 @@ const FADE := 0.22  # s
 
 var _alpha := 0.0
 var _weak := false  # weak-spot hits flash gold
+var center := Vector2.ZERO  # px; the player keeps it on the crosshair dot
 
 
 func _ready() -> void:
@@ -30,5 +31,5 @@ func _draw() -> void:
 	var c := Color(1, 0.8, 0.2, _alpha) if _weak else Color(1, 1, 1, _alpha)
 	for d: Vector2 in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
 		var n := d.normalized()
-		draw_line(n * GAP, n * (GAP + LEN), Color(0, 0, 0, _alpha * 0.6), 4.0, true)
-		draw_line(n * GAP, n * (GAP + LEN), c, 2.0, true)
+		draw_line(center + n * GAP, center + n * (GAP + LEN), Color(0, 0, 0, _alpha * 0.6), 4.0, true)
+		draw_line(center + n * GAP, center + n * (GAP + LEN), c, 2.0, true)

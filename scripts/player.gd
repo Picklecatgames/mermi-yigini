@@ -55,6 +55,7 @@ var _zoom := 1.0
 @onready var _counter: Label = $HUD/Counter
 @onready var _money: Label = $HUD/Money
 @onready var _crosshair: Control = $HUD/Crosshair
+@onready var _hit_marker: Control = $HUD/HitMarker
 @onready var _vm_view: SubViewport = $ViewmodelView/SubViewport
 @onready var _vm_camera: Camera3D = $ViewmodelView/SubViewport/Camera
 @onready var _viewmodel: Node3D = $ViewmodelView/SubViewport/Camera/Viewmodel
@@ -165,6 +166,13 @@ func _process(delta: float) -> void:
 	_zoom = lerpf(1.0, ADS_ZOOM, _viewmodel.aim)
 	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom))
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
+	# Screen px per unit of tan(angle) off the view axis (fov is vertical).
+	var focal := get_viewport().get_visible_rect().size.y * 0.5 / tan(deg_to_rad(_camera.fov) * 0.5)
+	var off: Vector2 = _viewmodel.aim_offset
+	_crosshair.offset = Vector2(-tan(off.x), -tan(off.y)) * focal
+	_crosshair.gap = tan(_viewmodel.spread) * focal
+	_crosshair.queue_redraw()
+	_hit_marker.center = _crosshair.offset
 	_vm_camera.global_transform = _camera.global_transform
 	_vm_camera.fov = _camera.fov
 	_shade_viewmodel(dt)

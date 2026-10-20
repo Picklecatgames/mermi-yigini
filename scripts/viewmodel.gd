@@ -77,7 +77,31 @@ const RELOAD_BUFFER := 0.6   # s an R pressed during a shot or a settle waits fo
 const KICK := 0.035        # rad of view climb per shot
 const SWAY := 0.000008     # m per px/s of mouse speed
 const SWAY_MAX := 0.018
-const BOB_AMP := Vector2(0.006, 0.004)
+const BOB_AMP := Vector2(0.01, 0.007)
+const BOB_ROLL := 0.012    # rad the gun rocks with each step
+## Jelly: an underdamped spring on the gun's angle and position around the wrist, so it lags
+## turns, leans into strafes, rides jumps and wobbles past rest instead of sitting on the screen.
+const JELLY_OMEGA := 11.0     # rad/s, ~1.8 wobbles a second
+const JELLY_DAMPING := 0.25   # below 1 overshoots; lower wobbles longer
+const SWAY_ROT := Vector3(0.00006, 0.000075, 0.00005)  # rad per px/s of mouse speed: pitch, yaw, roll
+const SWAY_ROT_MAX := 0.15
+const STRAFE_ROLL := 0.0125   # rad per m/s sideways
+const AIR_LIFT := 0.003       # m per m/s of vertical speed: up on the jump, down on the fall
+const AIR_LIFT_MAX := 0.02
+const AIR_PITCH := 0.0125     # rad of muzzle rise per m/s of vertical speed
+const AIR_PITCH_MAX := 0.075
+const LAND_DIP := 0.06        # m/s of downward shove per m/s of landing speed
+const LAND_TILT := 0.15       # rad/s of muzzle dip per m/s of landing speed
+const FIRE_JIGGLE := Vector3(0.6, 0.8, 1.1)  # rad/s of random wobble a shot adds: pitch, yaw, roll
+## Where the shot goes follows a share of the jelly, and spreads from the hip while moving or
+## shooting fast; standing still (or aimed) it stays dead on. The crosshair draws both.
+const AIM_FOLLOW := 0.35      # share of the gun's sway the shot (and the dot) takes
+## Kept small: the ring only hints that the shot can drift (about 2-5 px at 1080p).
+const SPREAD_MOVE := 0.003    # rad cone half-angle at walking speed, hip
+const SPREAD_AIR := 0.007     # rad in the air
+const SPREAD_SHOT := 0.004    # rad a shot adds, fading at SPREAD_RECOVER
+const SPREAD_RECOVER := 0.015 # rad/s
+const SPREAD_ADS := 0.15      # share left when aimed
 const BREATH := Vector2(0.0008, 0.0012)  # m; the model's own idle clip bobs too fast
 const ADS_TIME := 0.18     # s to bring the sights up (and to drop them)
 const ADS_EYE := 0.22      # m from the eye to the rear sight when aimed
@@ -124,6 +148,16 @@ var _rest: Vector3
 var _sway := Vector3.ZERO
 var _sway_target := Vector3.ZERO
 var _mouse := Vector2.ZERO  # mouse travel since the last frame
+var _mouse_vel := Vector2.ZERO  # px/s, smoothed
+var _jelly_rot := Vector3.ZERO  # euler, rad
+var _jelly_rot_vel := Vector3.ZERO
+var _jelly_pos := Vector3.ZERO
+var _jelly_pos_vel := Vector3.ZERO
+var _fall_speed := 0.0  # m/s down on the last airborne frame
+var aim_offset := Vector2.ZERO  # rad (yaw left, pitch up) the shot leaves the screen centre by
+var spread := 0.0  # rad, cone half-angle of the next shot
+var _bloom := 0.0  # rad of spread from recent shots
+var _was_on_floor := true
 var _bob := 0.0
 var _time := 0.0
 var _shells: Array[RigidBody3D] = []
@@ -155,6 +189,9 @@ var _world_flash: OmniLight3D  # the gun lives in its own world; this one lights
 func _ready() -> void:
 	_rest = position
 	add_to_group("first_person_gun")
+	# The import auto-generates LODs and the arms are skinned: Godot judges their distance off the
+	# rest pose and draws the hands as a coarse blob. The gun is always at arm's length; full detail.
+	get_viewport().mesh_lod_threshold = 0.0
 	# Barrel smoke lives in the world (both worlds share coordinates): swing the gun and the
 	# threads stay behind, bend and curl, instead of being glued to the screen.
 	_wisp.local_coords = false
@@ -333,11 +370,15 @@ func fire() -> void:
 			reload()
 		return
 	var cam := get_viewport().get_camera_3d()
-	if not GameState.request_fire(cam.global_position, -cam.global_basis.z):
+	var cone := Vector2.from_angle(randf() * TAU) * spread * sqrt(randf())  # uniform over the disc
+	var off := aim_offset + cone
+	if not GameState.request_fire(cam.global_position, cam.global_basis * Basis.from_euler(Vector3(off.y, off.x, 0.0)) * Vector3.FORWARD):
 		return
+	_bloom += SPREAD_SHOT
 	_add_kick(1.0)
 	_kick_yaw = randf_range(-1.0, 1.0)
 	_kick_roll = randf_range(-1.0, 1.0)
+	_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * FIRE_JIGGLE
 	_since_fire = 0.0
 	_slide_locked = GameState.loaded == 0
 	_play("fire_last" if _slide_locked else "fire")
@@ -518,8 +559,25 @@ func _make_shell() -> RigidBody3D:
 ## at their own rate), and a single stage still shows that as jitter.
 func _sway_and_bob(delta: float) -> void:
 	_time += delta
-	var m := _mouse / maxf(delta, 0.001) * SWAY
+	var mv := _mouse / maxf(delta, 0.001)
+	var m := mv * SWAY
 	_mouse = Vector2.ZERO
+	_mouse_vel = _mouse_vel.lerp(mv, 1.0 - exp(-delta * 10.0))
+	# Lags the turn: swing right and the muzzle trails left, cants, then wobbles back past centre.
+	var rot_target := Vector3(_mouse_vel.y * SWAY_ROT.x, _mouse_vel.x * SWAY_ROT.y, _mouse_vel.x * SWAY_ROT.z).clampf(-SWAY_ROT_MAX, SWAY_ROT_MAX)
+	var pos_target := Vector3.ZERO
+	if body:
+		var local_v := (get_parent() as Node3D).global_basis.inverse() * body.velocity
+		rot_target.z -= local_v.x * STRAFE_ROLL  # leans into the strafe
+		pos_target.y = clampf(body.velocity.y * AIR_LIFT, -AIR_LIFT_MAX, AIR_LIFT_MAX)
+		rot_target.x += clampf(body.velocity.y * AIR_PITCH, -AIR_PITCH_MAX, AIR_PITCH_MAX)
+		var on_floor := body.is_on_floor()
+		if not on_floor:
+			_fall_speed = maxf(-body.velocity.y, 0.0)
+		elif not _was_on_floor and _fall_speed > 1.0:  # landing: shoved down, muzzle dips, bounces back
+			_jelly_pos_vel.y -= _fall_speed * LAND_DIP
+			_jelly_rot_vel.x -= _fall_speed * LAND_TILT
+		_was_on_floor = on_floor
 	var target := Vector3(clampf(-m.x, -SWAY_MAX, SWAY_MAX), clampf(m.y, -SWAY_MAX, SWAY_MAX), 0.0)
 	_sway_target = _sway_target.lerp(target, 1.0 - exp(-delta * 10.0))
 	_sway = _sway.lerp(_sway_target, 1.0 - exp(-delta * 6.0))
@@ -530,6 +588,7 @@ func _sway_and_bob(delta: float) -> void:
 		if speed > 0.1:
 			_bob += delta * speed * 1.4
 			bob = Vector3(sin(_bob) * BOB_AMP.x, -absf(cos(_bob)) * BOB_AMP.y, 0.0) * minf(speed / 5.0, 1.6)
+			rot_target.z += sin(_bob) * BOB_ROLL * minf(speed / 5.0, 1.6)
 	_base = _base.lerp((_sway + bob + breath) * lerpf(1.0, ADS_STEADY, aim), 1.0 - exp(-delta * 10.0))
 	var w := _kick_omega()
 	var dt := minf(delta, 0.1)  # a long hitch must not fling the gun
@@ -540,11 +599,25 @@ func _sway_and_bob(delta: float) -> void:
 		_push += _push_vel * h
 		_kick_vel += (-RECOIL_SNAP * RECOIL_SNAP * (_kick - _push) - 2.0 * RECOIL_SNAP * _kick_vel) * h
 		_kick += _kick_vel * h
+		_jelly_rot_vel += (-JELLY_OMEGA * JELLY_OMEGA * (_jelly_rot - rot_target) - 2.0 * JELLY_DAMPING * JELLY_OMEGA * _jelly_rot_vel) * h
+		_jelly_rot += _jelly_rot_vel * h
+		_jelly_pos_vel += (-JELLY_OMEGA * JELLY_OMEGA * (_jelly_pos - pos_target) - 2.0 * JELLY_DAMPING * JELLY_OMEGA * _jelly_pos_vel) * h
+		_jelly_pos += _jelly_pos_vel * h
+	var steady := lerpf(1.0, ADS_STEADY, aim)
+	# Aimed, the shot goes where the sights point; from the hip only a share of the sway.
+	aim_offset = Vector2(_jelly_rot.y, _jelly_rot.x) * steady * lerpf(AIM_FOLLOW, 1.0, aim)
+	_bloom = maxf(_bloom - SPREAD_RECOVER * dt, 0.0)
+	var move := 0.0
+	if body:
+		move = SPREAD_AIR if not body.is_on_floor() else SPREAD_MOVE * minf(Vector2(body.velocity.x, body.velocity.z).length() / 5.0, 1.6)
+	spread = (move + _bloom) * lerpf(1.0, SPREAD_ADS, aim)
+	var jb := Basis.from_euler(_jelly_rot * steady)
+	var jelly := Transform3D(jb, _pivot - jb * _pivot + _jelly_pos * steady)
 	var kick := _kick * lerpf(1.0, ADS_RECOIL, aim)
 	# In the gun's own frame, around the wrist: when aimed the front post jumps above the notch.
 	var flip := Basis.from_euler(Vector3(RECOIL_PITCH, RECOIL_YAW * _kick_yaw, RECOIL_ROLL * _kick_roll) * kick)
 	var recoil := Transform3D(flip, _pivot - flip * _pivot + Vector3(0.0, RECOIL_UP, RECOIL_BACK) * kick)
-	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _rest.lerp(_ads_pos, aim) + _base) * recoil
+	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _rest.lerp(_ads_pos, aim) + _base) * jelly * recoil
 
 
 ## Spring frequency: settles (to ~2%) in RECOIL_SETTLE, or before the next shot if that is sooner.

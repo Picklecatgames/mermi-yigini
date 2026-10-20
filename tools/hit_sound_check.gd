@@ -1,8 +1,8 @@
 extends SceneTree
-## Headless: the dummy's hit randomizer has all 18 variants, and the gun's own world can be heard.
+## Headless: the dummy's hit randomizer has all 6 hits, and the gun's own world can be heard.
 func _init() -> void:
 	var r: AudioStreamRandomizer = load("res://assets/props/dummy/sounds/hit.tres")
-	assert(r.streams_count == 18)
+	assert(r.streams_count == 6)
 	for i in r.streams_count:
 		assert(r.get_stream(i).get_length() > 0.3)
 	var s := (load("res://scenes/player.tscn") as PackedScene).get_state()
