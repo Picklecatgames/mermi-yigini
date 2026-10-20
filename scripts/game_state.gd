@@ -46,6 +46,9 @@ signal spawn_assigned(index: int)
 ## Where the keys are buried: the host rolls the seed, a client lays its keys out again from it
 ## (scripts/key_cache.gd).
 signal key_layout(seed: int)
+## The shared vault: everything built into the world is bought from it. Every paying hit adds
+## VAULT_SHARE of its pay on top (the shooter keeps all of theirs). Float, so $1 hits add up.
+signal vault_changed(vault: float)
 ## A moving target's own call, made on the host alone: which plate comes up, when a popper
 ## stands back up, where the star has turned to. Clients follow these instead of rolling their own.
 ## What `cue` holds is up to the target.
@@ -100,6 +103,7 @@ const FIRE_FROM_SLACK := 1.5  # m
 ## than a sprint, so a forged one cannot fling anybody across the shed.
 const PUSH_REACH := 1.5  # m
 const PUSH_MAX := 8.0  # m/s
+const VAULT_SHARE := 0.2  # placeholder (yol haritası 7)
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
@@ -115,7 +119,7 @@ const REQUESTS := {
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
-	&"target_cue", &"player_shot", &"player_slots"]
+	&"target_cue", &"player_shot", &"player_slots", &"vault_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
 
@@ -138,6 +142,7 @@ class PlayerState:
 
 
 var pile: int = PILE_START
+var vault := 0.0
 var _players := {}  # peer id -> PlayerState
 var _next_loose_id := THROWN_ID_START
 # ponytail: grows by one per loose grab; the save system can prune ids no longer in the world.
@@ -206,6 +211,7 @@ func _ready() -> void:
 		if multiplayer.is_server():
 			_event.rpc_id(id, &"pile_changed", [pile])
 			_event.rpc_id(id, &"key_layout", [key_seed])
+			_event.rpc_id(id, &"vault_changed", [vault])
 			# Each player starts on a spawn point of their own: the first one nobody holds.
 			var slot := 1
 			while slot in _spawn_slots.values():
@@ -419,6 +425,9 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 		p.gold += gold
 		if _is_local(peer):
 			gold_changed.emit(p.gold)
+		if not Net.is_client:  # a client's prediction leaves the shared vault to the host
+			vault += gold * VAULT_SHARE
+			_world(&"vault_changed", [vault])
 	else:
 		_break_chain(p)
 	_world(&"shot_landed", [who, hit.position, hit.normal, dir, target, gold, weak, p.combo])
@@ -670,6 +679,8 @@ func _event(event: StringName, args: Array) -> void:
 			key_seed = args[0]
 		&"player_slots":
 			slots = args[0]
+		&"vault_changed":
+			vault = args[0]
 	if NODE_ARG.has(event):
 		# A node only the host has lands as null (spent shells are on no layer, so none yet).
 		var i: int = NODE_ARG[event]

@@ -69,6 +69,7 @@ var _yaw_climb := 0.0  # rad of sideways aim still to add (friendly fire)
 @onready var _prompt: Label = $HUD/Prompt
 @onready var _counter: Label = $HUD/Counter
 @onready var _money: Label = $HUD/Money
+@onready var _vault: Label = $HUD/Vault
 @onready var _crosshair: Control = $HUD/Crosshair
 @onready var _hit_marker: Control = $HUD/HitMarker
 @onready var _vm_view: SubViewport = $ViewmodelView/SubViewport
@@ -96,6 +97,8 @@ func _ready() -> void:
 	GameState.gold_changed.connect(_on_gold_changed)
 	GameState.placing_changed.connect(_update_counter.unbind(1))
 	_money.text = "$%d" % GameState.gold
+	GameState.vault_changed.connect(func(v: float) -> void: _vault.text = "Kasa $%d" % floori(v))
+	_vault.text = "Kasa $%d" % floori(GameState.vault)
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float) -> void:

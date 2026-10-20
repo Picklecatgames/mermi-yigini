@@ -58,6 +58,9 @@ func _host() -> void:
 	var rp: Node = main.get_node("RemotePlayers")
 	# The dummy connected first, so by now it has reacted; a "+$" over it would be on show.
 	var labels: Array = main.get_node("Dummy")._pops._labels
+	var paid := [gs.vault / gs.VAULT_SHARE]  # gold paid so far, by anyone (the vault takes its share of each)
+	gs.shot_landed.connect(func(_p: int, _a: Vector3, _n: Vector3, _d: Vector3, _t: Node, gold: int, _w: bool, _c: int) -> void:
+		paid[0] += gold)
 	gs.shot_landed.connect(func(peer: int, _at: Vector3, _n: Vector3, _d: Vector3, t: Node, gold: int, _w: bool, _c: int) -> void:
 		if peer == gs.local_peer() or t == null:
 			return  # our own shot at the popper, the client's at us
@@ -121,6 +124,7 @@ func _host() -> void:
 	var p = gs.player(cid)
 	if not _ok(p.gold == 1 and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
 	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return
+	if not _ok(paid[0] >= 1 and is_equal_approx(gs.vault, paid[0] * gs.VAULT_SHARE), "every paid $ put its share in the vault (%.2f of $%.0f)" % [gs.vault, paid[0]]): return
 	print("net_check OK")
 	quit()
 
@@ -185,6 +189,7 @@ func _client() -> void:
 	if not _ok(s[0] == gs.local_peer(), "the event names us as the shooter"): return
 	if not _ok(s[1].distance_to(mine.position) < 0.001 and s[2] == dummy, "host's hit = our own trace"): return
 	if not _ok(s[3] == 1 and s[4] == 1 and gs.gold == 1, "$1 paid, and it reached us"): return
+	if not _ok(is_equal_approx(gs.vault, gs.VAULT_SHARE), "the vault's share of it reached us too"): return
 	gs.player().cooldown = 0.0
 	if not _ok(not gs.request_fire(from, dir), "empty gun stays quiet"): return
 	# Friendly fire: up close to the host on its spawn, shoot it, then walk into it.
