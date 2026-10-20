@@ -82,12 +82,24 @@ func _process(_d: float) -> bool:
 		var c := ds.find_bone(child)
 		var dir_t := (ds.get_bone_global_rest(c).origin - ds.get_bone_global_rest(i).origin).normalized()
 		var dir_s := _src_dir(ss, s)
-		swing[i] = _swing(dir_t, dir_s)
+		var side := ""
+		for k in ["L", "R"]:
+			if name.begins_with(k + "_") and (name.contains("wrist") or _is_finger(name)):
+				side = k
+		if side == "":
+			swing[i] = _swing(dir_t, dir_s)
+		else:
+			# Hands and fingers also roll to match: the palm's width (index root -> pinky root)
+			# lines up too, or the grip closes around the wrong axis.
+			var w_t := _across(ds, "%s_point1" % side, "%s_pink1" % side)
+			var w_s := _across(ss, "DEF-f_index.01.%s" % side, "DEF-f_pinky.01.%s" % side)
+			swing[i] = _frame(dir_s, w_s) * _frame(dir_t, w_t).inverse()
 
 	var hip_t := ds.find_bone("hips_01")
 	var hip_s := ss.find_bone("DEF-hips")
 	var scale := ds.get_bone_global_rest(hip_t).origin.y / ss.get_bone_global_rest(hip_s).origin.y
 	var skel_path := str(dst.get_path_to(ds))
+	var arm_scale := _arm_len(ds, "L_arm_015", "L_wrist_017") / _arm_len(ss, "DEF-upper_arm.L", "DEF-hand.L")
 
 	var lib := AnimationLibrary.new()
 	for clip in CLIPS:
@@ -123,7 +135,11 @@ func _process(_d: float) -> bool:
 					var moved := (ss.get_bone_global_pose(s).origin - ss.get_bone_global_rest(s).origin) * scale
 					g.origin = ds.get_bone_global_rest(i).origin + moved
 				glob[i] = g
-				var local := parent_g.affine_inverse() * g
+			_reach_hands(ss, ds, glob, arm_scale)
+			for i in tracks:
+				var p := ds.get_bone_parent(i)
+				var parent_g: Transform3D = glob[p] if p >= 0 else Transform3D()
+				var local: Transform3D = parent_g.affine_inverse() * glob[i]
 				anim.rotation_track_insert_key(tracks[i], time, local.basis.get_rotation_quaternion())
 				if i == hip_t:
 					anim.position_track_insert_key(pos_track, time, local.origin)
@@ -134,6 +150,63 @@ func _process(_d: float) -> bool:
 	_check(dst, ds, lib)
 	quit(0 if err == OK else 1)
 	return true
+
+
+## The operator's shoulders and arms are built differently from the mannequin's, so with the bone
+## directions copied the hands miss each other (they cross or pass through, never meet on the gun).
+## Each wrist is moved to where the source wrist is relative to the middle of the shoulders, scaled
+## by arm length, and the arm reaches it with two-bone IK, the elbow staying on its retargeted side.
+## The hand keeps its retargeted turn; the fingers ride along.
+func _reach_hands(ss: Skeleton3D, ds: Skeleton3D, glob: Dictionary, arm_scale: float) -> void:
+	var mid_s := (ss.get_bone_global_pose(ss.find_bone("DEF-upper_arm.L")).origin + ss.get_bone_global_pose(ss.find_bone("DEF-upper_arm.R")).origin) / 2.0
+	var mid_t: Vector3 = (glob[ds.find_bone("L_arm_015")].origin + glob[ds.find_bone("R_arm_039")].origin) / 2.0
+	for arm in [["L_arm_015", "L_elbow_016", "L_wrist_017", "DEF-hand.L"], ["R_arm_039", "R_elbow_040", "R_wrist_041", "DEF-hand.R"]]:
+		var a := ds.find_bone(arm[0])
+		var e := ds.find_bone(arm[1])
+		var w := ds.find_bone(arm[2])
+		var target := mid_t + (ss.get_bone_global_pose(ss.find_bone(arm[3])).origin - mid_s) * arm_scale
+		var pa: Vector3 = glob[a].origin
+		var pe: Vector3 = glob[e].origin
+		var pw: Vector3 = glob[w].origin
+		var l1 := pa.distance_to(pe)
+		var l2 := pe.distance_to(pw)
+		var to_t := target - pa
+		var dist := clampf(to_t.length(), absf(l1 - l2) + 0.001, l1 + l2 - 0.001)
+		var fwd := to_t.normalized()
+		var pole := (pe - pa) - fwd * (pe - pa).dot(fwd)  # elbow's side, square to the reach
+		if pole.length() < 0.001:
+			pole = Vector3.DOWN - fwd * Vector3.DOWN.dot(fwd)
+		pole = pole.normalized()
+		var cos_a := (l1 * l1 + dist * dist - l2 * l2) / (2.0 * l1 * dist)
+		var new_e := pa + (fwd * cos_a + pole * sqrt(maxf(0.0, 1.0 - cos_a * cos_a))) * l1
+		var new_w := pa + fwd * dist
+		var turn_a := _swing((pe - pa).normalized(), (new_e - pa).normalized())
+		glob[a] = Transform3D(turn_a * glob[a].basis, pa)
+		var fore := turn_a * (pw - pe).normalized()
+		glob[e] = Transform3D(_swing(fore, (new_w - new_e).normalized()) * turn_a * glob[e].basis, new_e)
+		# The wrist and everything under it keep their turn and move with the wrist.
+		var shift := new_w - pw
+		for i in glob:
+			if i == w or _under(ds, i, w):
+				glob[i] = Transform3D(glob[i].basis, glob[i].origin + shift)
+
+
+func _under(sk: Skeleton3D, i: int, top: int) -> bool:
+	var p := sk.get_bone_parent(i)
+	while p >= 0:
+		if p == top:
+			return true
+		p = sk.get_bone_parent(p)
+	return false
+
+
+func _arm_len(sk: Skeleton3D, arm: String, wrist: String) -> float:
+	var a := sk.find_bone(arm)
+	var e := sk.get_bone_children(a)[0]
+	var w := sk.find_bone(wrist)
+	var pa := sk.get_bone_global_rest(a).origin
+	var pe := sk.get_bone_global_rest(e).origin
+	return pa.distance_to(pe) + pe.distance_to(sk.get_bone_global_rest(w).origin)
 
 
 ## Plays walk and jump_start on the operator and checks the body stays a body: feet near the floor,
@@ -189,6 +262,32 @@ func _src_dir(ss: Skeleton3D, s: int) -> Vector3:
 		if d.length() > 0.001:
 			return d.normalized()
 	return ss.get_bone_global_rest(s).basis.y.normalized()
+
+
+func _is_finger(name: String) -> bool:
+	for f in FINGERS:
+		if name.contains("_" + f):
+			return true
+	return false
+
+
+## Rest vector from one bone to another, found by name prefix (operator bones carry a _NNN suffix).
+func _across(sk: Skeleton3D, from: String, to: String) -> Vector3:
+	var a := -1
+	var b := -1
+	for i in sk.get_bone_count():
+		var n := sk.get_bone_name(i)
+		if n.begins_with(from):
+			a = i
+		elif n.begins_with(to):
+			b = i
+	return (sk.get_bone_global_rest(b).origin - sk.get_bone_global_rest(a).origin).normalized()
+
+
+## Orthonormal frame with x along `dir` and y toward `side` (side made square to dir).
+func _frame(dir: Vector3, side: Vector3) -> Basis:
+	var z := dir.cross(side).normalized()
+	return Basis(dir, z.cross(dir), z)
 
 
 func _swing(from: Vector3, to: Vector3) -> Basis:
