@@ -56,6 +56,7 @@ var _sun_lit := 1.0
 var _sun_query := PhysicsRayQueryParameters3D.new()
 var _hip_fov := 75.0
 var _zoom := 1.0
+var _before_placing := []  # [position, yaw, pitch] on our side of the line, for coming back
 var _pose_timer := 0.0
 var _shove := Vector3.ZERO  # m/s from someone walking into us
 var _push_timer := 0.0
@@ -95,7 +96,7 @@ func _ready() -> void:
 	GameState.upgraded.connect(_update_counter.unbind(2))
 	GameState.loaded_changed.connect(_update_counter.unbind(1))
 	GameState.gold_changed.connect(_on_gold_changed)
-	GameState.placing_changed.connect(_update_counter.unbind(1))
+	GameState.placing_changed.connect(_on_placing)
 	_money.text = "$%d" % GameState.gold
 	GameState.vault_changed.connect(func(v: float) -> void: _vault.text = "Kasa $%d" % floori(v))
 	_vault.text = "Kasa $%d" % floori(GameState.vault)
@@ -230,6 +231,29 @@ func _process(delta: float) -> void:
 	_vm_camera.global_transform = _camera.global_transform
 	_vm_camera.fov = _camera.fov
 	_shade_viewmodel(dt)
+
+
+## Placement mode (B, or buying gear) takes us over the firing line, facing the target area;
+## leaving it brings us back to where we stood.
+func _on_placing(on: bool) -> void:
+	_update_counter()
+	if on and global_position.x < GameState.FIRING_LINE_X:
+		_before_placing = [global_position, _yaw, _pitch]
+		var zone := GameState.PLACE_ZONE
+		_teleport(Vector3(zone.position.x + 0.5, global_position.y, clampf(global_position.z, zone.position.y + 2.0, zone.end.y - 2.0)), -PI / 2.0, -0.3)
+	elif not on and global_position.x > GameState.FIRING_LINE_X and not _before_placing.is_empty():
+		_teleport(_before_placing[0], _before_placing[1], _before_placing[2])
+		_before_placing.clear()
+
+
+func _teleport(at: Vector3, yaw: float, pitch: float) -> void:
+	global_position = at
+	velocity = Vector3.ZERO
+	_yaw = yaw
+	_pitch = pitch
+	rotation.y = yaw
+	reset_physics_interpolation()
+	_place_head()
 
 
 func _place_head() -> void:
@@ -386,7 +410,7 @@ func _set_hand_count(n: int) -> void:
 
 
 func _update_counter() -> void:
-	_counter.text = "Elde: %d/%d\nŞarjör: %d/%d\nYığın: %s\n[Q] Geliştirmeler%s" % [GameState.carried, GameState.carry_capacity, GameState.loaded, GameState.mag_capacity, _thousands(GameState.pile), ("\nSINIRSIZ MERMİ (T)" if GameState.infinite_ammo else "") + ("\nYERLEŞTİRME MODU (B)" if GameState.player().placing else "")]
+	_counter.text = "Elde: %d/%d\nŞarjör: %d/%d\nYığın: %s\n[Q] Geliştirmeler%s" % [GameState.carried, GameState.carry_capacity, GameState.loaded, GameState.mag_capacity, _thousands(GameState.pile), ("\nSINIRSIZ MERMİ (T)" if GameState.infinite_ammo else "")]  # placement mode has its own banner (scripts/placement.gd)
 
 
 ## Money counter: the new amount, and a green pop when it went up.

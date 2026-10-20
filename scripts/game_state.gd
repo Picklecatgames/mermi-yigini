@@ -52,6 +52,8 @@ signal vault_changed(vault: float)
 signal gear_changed(stock: Dictionary)  # GEAR id -> bought, not placed yet
 ## Gear went up in the target area: number `n` in placement order (its node is Placed/Gear_<n>).
 signal gear_placed(n: int, id: String, pos: Vector3, yaw: float)
+## Placed piece `n` was taken down and went back to the stock; its number stays unused.
+signal gear_removed(n: int)
 ## Someone else's placement preview (scripts/placement.gd draws it faint); id "" when they stop.
 signal preview_received(peer: int, id: String, pos: Vector3, yaw: float)
 ## A moving target's own call, made on the host alone: which plate comes up, when a popper
@@ -139,7 +141,7 @@ const REQUESTS := {
 	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
 	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
-	&"request_place_gear": 3,
+	&"request_place_gear": 3, &"request_remove_gear": 1,
 }
 ## Where gear may stand: the target area past the firing line, clear of the east wall and the
 ## crate stands; at least PLACE_GAP from any target's origin.
@@ -149,7 +151,7 @@ const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
-	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed"]
+	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
 
@@ -260,7 +262,8 @@ func _ready() -> void:
 				if key_states[rank] == KeyState.TAKEN:
 					_event.rpc_id(id, &"key_taken", [rank, _holder_of(rank)])
 			for n in placed.size():  # before the cues: placed targets have state of their own
-				_event.rpc_id(id, &"gear_placed", [n] + placed[n])
+				if placed[n]:
+					_event.rpc_id(id, &"gear_placed", [n] + placed[n])
 			for t: Node in get_tree().get_nodes_in_group("target"):
 				if t.has_method("join_cues"):
 					for cue: Array in t.join_cues():
@@ -370,6 +373,20 @@ func request_place_gear(id: String, pos: Vector3, yaw: float, peer := 0) -> bool
 	placed.append([id, pos, yaw])
 	_world(&"gear_changed", [gear_stock])
 	_world(&"gear_placed", [placed.size() - 1, id, pos, yaw])
+	return true
+
+
+## Takes placed piece `n` down, back into the shared stock. Anyone may; the host decides.
+func request_remove_gear(n: int, peer := 0) -> bool:
+	if n < 0 or n >= placed.size() or placed[n] == null:
+		return false
+	if _send(&"request_remove_gear", [n], peer):
+		return true  # it goes when the host's gear_removed comes
+	var id: String = placed[n][0]
+	placed[n] = null
+	gear_stock[id] = gear_stock.get(id, 0) + 1
+	_world(&"gear_changed", [gear_stock])
+	_world(&"gear_removed", [n])
 	return true
 
 
@@ -871,9 +888,12 @@ func _event(event: StringName, args: Array) -> void:
 		&"gear_changed":
 			gear_stock = args[0]
 		&"gear_placed":
-			if args[0] != placed.size():
-				return  # already have it (a joiner's own copy can't happen, but stay idempotent)
-			placed.append(args.slice(1))
+			if placed.size() <= args[0]:
+				placed.resize(args[0] + 1)  # a joiner skips numbers taken down before it came
+			placed[args[0]] = args.slice(1)
+		&"gear_removed":
+			if args[0] < placed.size():
+				placed[args[0]] = null
 	if NODE_ARG.has(event):
 		# A node only the host has lands as null (spent shells are on no layer, so none yet).
 		var i: int = NODE_ARG[event]

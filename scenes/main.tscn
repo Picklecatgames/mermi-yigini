@@ -7,11 +7,6 @@
 [ext_resource type="Script" path="res://scripts/impacts.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/key_cache.gd" id="13"]
 [ext_resource type="Script" path="res://scripts/remote_players.gd" id="14"]
-[ext_resource type="PackedScene" path="res://scenes/steel_gong.tscn" id="9"]
-[ext_resource type="PackedScene" path="res://scenes/steel_rack.tscn" id="10"]
-[ext_resource type="PackedScene" path="res://scenes/popper_target.tscn" id="7"]
-[ext_resource type="PackedScene" path="res://scenes/plate_rack.tscn" id="11"]
-[ext_resource type="PackedScene" path="res://scenes/texas_star.tscn" id="12"]
 [ext_resource type="Script" path="res://scripts/placement.gd" id="15"]
 
 [node name="Main" type="Node3D" unique_id=603565990]
@@ -28,32 +23,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
 
 [node name="Dummy" parent="." instance=ExtResource("4")]
 position = Vector3(23, 0, 0)
-rotation = Vector3(0, -1.5708, 0)
-
-[node name="LockedTargets" type="Node3D" parent="."]
-
-[node name="SteelGong" parent="LockedTargets" instance=ExtResource("9")]
-position = Vector3(24, 0, 10)
-rotation = Vector3(0, -1.5708, 0)
-
-[node name="SteelRack" parent="LockedTargets" instance=ExtResource("10")]
-position = Vector3(24, 0, -11.5)
-rotation = Vector3(0, -1.5708, 0)
-
-[node name="PopperNorth" parent="LockedTargets" instance=ExtResource("7")]
-position = Vector3(23.5, 0, -7)
-rotation = Vector3(0, -1.5708, 0)
-
-[node name="PopperSouth" parent="LockedTargets" instance=ExtResource("7")]
-position = Vector3(23.5, 0, -5)
-rotation = Vector3(0, -1.5708, 0)
-
-[node name="PlateRack" parent="LockedTargets" instance=ExtResource("11")]
-position = Vector3(24, 0, -16.5)
-rotation = Vector3(0, -1.5708, 0)
-
-[node name="TexasStar" parent="LockedTargets" instance=ExtResource("12")]
-position = Vector3(24, 0, -21.5)
 rotation = Vector3(0, -1.5708, 0)
 
 [node name="Placed" type="Node3D" parent="."]

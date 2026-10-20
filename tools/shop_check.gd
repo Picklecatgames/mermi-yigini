@@ -41,7 +41,16 @@ func _initialize() -> void:
 	if not _ok(gs.gear_stock.get("dummy") == 2 and is_equal_approx(gs.vault, 10.0), "two dummies in stock, $40 out of the vault"): return
 	if not _ok(dummy.disabled and menu._cards["dummy"].stock.text == "Depoda 2", "button shuts, the card says 2 in stock"): return
 	if not _ok(not gs.request_buy_gear("texas_star") and not gs.request_buy_gear("nonsense"), "no buying past the vault or off the list"): return
-	menu.toggle()
+	# Put one up, take it down: it goes back to the stock, and its number is not reused.
+	if not _ok(gs.request_place_gear("dummy", Vector3(18, 0, 15), -PI / 2) and gs.gear_stock.dummy == 1, "a dummy goes up from the stock"): return
+	var placed: Node = main.get_node("Placed")
+	if not _ok(placed.has_node("Gear_0"), "it stands as Gear_0"): return
+	if not _ok(gs.request_remove_gear(0) and gs.gear_stock.dummy == 2 and not gs.request_remove_gear(0), "taken down once, back in the stock"): return
+	await process_frame
+	if not _ok(not placed.has_node("Gear_0"), "and gone from the floor"): return
+	if not _ok(gs.request_place_gear("dummy", Vector3(18, 0, 15), -PI / 2) and placed.has_node("Gear_1"), "the next one is Gear_1"): return
+	if menu.visible:
+		menu.toggle()
 	print("shop_check OK")
 	quit()
 

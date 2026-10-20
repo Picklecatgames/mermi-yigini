@@ -11,15 +11,16 @@ const INFO := {
 	"gold_bonus": ["Altın", "Her isabetin verdiği altına eklenir.", "+%d%%"],
 	"range_bonus": ["Uzak Atış", "Korkuluğun her metre gerisinden vuruşa ek altın.", "+%d%%/m"],
 }
-const GEAR_INFO := {  # what it is, gold per hit (the name is in GameState.GEAR)
-	"dummy": ["Çuval kukla. Kafası iki kat öder.", 1],
-	"steel_silhouette": ["İnsan boyu çelik; vurdukça sallanır.", 2],
-	"steel_gong": ["Yuvarlak gong, sesi bütün atölyeye yayılır.", 2],
-	"popper": ["Vurulunca devrilir, biraz sonra kalkar.", 3],
-	"steel_rack": ["Yan yana küçük çelik plakalar.", 4],
-	"plate_rack": ["Plakalar sırayla kalkar; kaçırma.", 7],
-	"texas_star": ["Dönen yıldız; plaka düştükçe hızlanır.", 12],
+const GEAR_INFO := {  # one line on what it is, gold per hit, difficulty 1-5 (name: GameState.GEAR)
+	"dummy": ["Klasik hedef kuklası. Kafaya vurana iki kat.", 1, 1],
+	"steel_gong": ["Her isabeti bütün atölye duyar.", 2, 1],
+	"steel_silhouette": ["İnsan boyu çelik. Vurdukça sallanır.", 2, 2],
+	"popper": ["Vur, devrilsin. Kalkmasını bekle.", 3, 2],
+	"steel_rack": ["Küçük plakalar, sabit el ister.", 4, 3],
+	"plate_rack": ["Plaka kalkar, kaçmadan vur. Refleks işi.", 7, 4],
+	"texas_star": ["Hızlı döner. Yalnız gerçek nişancılar için.", 12, 5],
 }
+const DIFFICULTY := [Color(0.35, 0.9, 0.45), Color(0.6, 0.9, 0.35), Color(1.0, 0.8, 0.3), Color(1.0, 0.55, 0.25), Color(1.0, 0.32, 0.3)]
 const BG := Color(0.07, 0.08, 0.1, 0.97)
 const SIDE := Color(0.045, 0.05, 0.065)
 const CARD := Color(0.11, 0.12, 0.15)
@@ -186,7 +187,7 @@ func _show_tab(index: int) -> void:
 		_pages[i].visible = on
 	_title.text = [GameState.display_name(), "Takımın teçhizatı"][index]
 	_subtitle.text = ["Bu geliştirmeler yalnızca senin için geçerlidir.",
-		"Ortak kasadan alınır, herkes için. Alınanlar depoya gider; yerleştirme yakında."][index]
+		"Ortak kasadan alınır, bütün takım kullanır. Kurulanları [B] ile düzenle."][index]
 	_refresh()
 
 
@@ -288,9 +289,38 @@ func _gear_card(id: String) -> Control:
 	chips.add_child(_chip("İsabet başı $%d" % GEAR_INFO[id][1], GREEN))
 	var stock := _chip("", DIM)
 	chips.add_child(stock)
-	var card := _card(id, body, func() -> bool: return GameState.request_buy_gear(id))
+	var hard: int = GEAR_INFO[id][2]
+	var diff := HBoxContainer.new()
+	diff.add_theme_constant_override("separation", 4)
+	body.add_child(diff)
+	var word := _label("ZORLUK", 12, DIM)
+	word.custom_minimum_size.x = 64
+	diff.add_child(word)
+	for i in 5:
+		var p := ColorRect.new()
+		p.custom_minimum_size = Vector2(26, 7)
+		p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		p.color = DIFFICULTY[hard - 1] if i < hard else OFF
+		diff.add_child(p)
+	var card := _card(id, body, func() -> bool:
+		if not GameState.request_buy_gear(id):
+			return false
+		_to_placing.call_deferred(id)  # after the "+1" pops: shut the workshop, go put it up
+		return true)
 	_cards[id]["stock"] = stock
 	return card
+
+
+## Just bought a piece: straight into placement mode with it in hand, over the firing line.
+func _to_placing(id: String) -> void:
+	await get_tree().create_timer(0.35).timeout
+	if visible:
+		toggle()
+	if not GameState.player().placing:
+		GameState.request_toggle_placing()
+	var placement := get_tree().get_first_node_in_group("placement")
+	if placement:
+		placement.focus(id)
 
 
 # --- state ------------------------------------------------------------------------------------

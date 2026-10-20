@@ -5,6 +5,7 @@ extends SceneTree
 
 func _initialize() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
+	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets; the game starts with one dummy
 	root.add_child(main)
 	var gs: Node = root.get_node("GameState")
 	var dummy: Node3D = main.get_node("Dummy")

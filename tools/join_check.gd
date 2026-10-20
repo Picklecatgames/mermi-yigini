@@ -21,6 +21,7 @@ var _log: Array[String] = []
 
 func _initialize() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
+	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets; the game starts with one dummy
 	root.add_child(main)
 	gs = root.get_node("GameState")
 	net = root.get_node("Net")
