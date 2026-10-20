@@ -9,6 +9,8 @@ extends SceneTree
 ## heights; the client lays its keys out from the host's seed onto the same spots; the plate rack
 ## raises the same plates, a popper the host knocks stands back up at the same moment and the Texas
 ## Star points the same way on both (both processes read the same wall clock to line these up).
+## Between players: the client shoots the host (no harm, no pay, the host's aim jumps), then
+## walks into it: it can't pass through, and the host gets shoved. Name tags take slot colours.
 
 const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the way
 const LOG := "user://net_check_client.log"
@@ -57,12 +59,22 @@ func _host() -> void:
 	# The dummy connected first, so by now it has reacted; a "+$" over it would be on show.
 	var labels: Array = main.get_node("Dummy")._pops._labels
 	gs.shot_landed.connect(func(peer: int, _at: Vector3, _n: Vector3, _d: Vector3, t: Node, gold: int, _w: bool, _c: int) -> void:
-		if peer == gs.local_peer():
-			return  # our own shot at the popper
+		if peer == gs.local_peer() or t == null:
+			return  # our own shot at the popper, the client's at us
 		var who: Node3D = rp.character(peer)
 		var sound: Node3D = main.get_node("Impacts")._shot_sounds.get(peer)
 		shots.append([peer, t, gold, labels.any(func(l: Label3D) -> bool: return l.visible),
-			who.muzzle_position() if who else Vector3.INF, sound.global_position if sound else Vector3.INF]))
+			who.muzzle_position() if who else Vector3.INF, sound.global_position if sound else Vector3.INF,
+			gs.player(peer).pos]))
+	var ff := []
+	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3) -> void:
+		ff.append([shooter, victim]))
+	var me: Node3D = main.get_node("Player")
+	var home := me.global_position
+	var tag_ok := [false]
+	gs.player_slots.connect(func(s: Dictionary) -> void:  # sent again when it leaves
+		for id: int in s:
+			tag_ok[0] = tag_ok[0] or (id != gs.local_peer() and gs.color_of(id) == gs.PLAYER_COLORS[1]))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
 	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
 		ProjectSettings.globalize_path("res://"), "-s", "res://tools/net_check.gd", "--", "--client"])
@@ -99,7 +111,12 @@ func _host() -> void:
 	if not _ok(muzzle.distance_to(main.get_node("Dummy").global_position + Vector3(-11, 1.1, 0)) < 1.0,
 			"the client's character stood where it fired from"): return
 	if not _ok(shots[0][5].distance_to(muzzle) < 0.001, "the shot rang out at that character's muzzle"): return
-	if not _ok(gs.player(cid).has_pose and gs.player(cid).pos.distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
+	if not _ok(shots[0][6].distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
+	if not _ok(tag_ok[0], "the client's tag takes slot 1's colour"): return
+	print("friendly fire: %s, our aim now pitch %.3f; pushed %.2f m" % [ff, me._pitch, me.global_position.distance_to(home)])
+	if not _ok(ff.size() == 1 and ff[0] == [cid, gs.local_peer()], "the client's round hit us"): return
+	if not _ok(me._pitch > 0.03, "and threw our aim up"): return
+	if not _ok(me.global_position.distance_to(home) > 0.3, "the client walking into us shoved us"): return
 	if not await _until(func() -> bool: return rp.character(cid) == null, "the client's character to go"): return
 	var p = gs.player(cid)
 	if not _ok(p.gold == 1 and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
@@ -170,6 +187,35 @@ func _client() -> void:
 	if not _ok(s[3] == 1 and s[4] == 1 and gs.gold == 1, "$1 paid, and it reached us"): return
 	gs.player().cooldown = 0.0
 	if not _ok(not gs.request_fire(from, dir), "empty gun stays quiet"): return
+	# Friendly fire: up close to the host on its spawn, shoot it, then walk into it.
+	var host_char: Node3D = rp.character(1)
+	if not _ok((host_char.get("_tag_box") as StandardMaterial3D).albedo_color.is_equal_approx(Color(gs.PLAYER_COLORS[0], 0.8)), "the host's tag is slot 0's colour"): return
+	gs.request_toggle_infinite_ammo()
+	if not await _until(gs.synced, "test mode"): return
+	var host_at := host_char.global_position
+	me.global_position = host_at + Vector3(0, 0, -2.5)
+	me._yaw = PI  # facing the host (+Z)
+	me.reset_physics_interpolation()
+	await create_timer(0.5).timeout
+	var ff := []
+	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3) -> void: ff.append([shooter, victim]))
+	gs.player().cooldown = 0.0
+	var eye: Vector3 = me.global_position + Vector3.UP * gs.EYE
+	if not _ok(gs.request_fire(eye, (host_at + Vector3.UP * 1.2 - eye).normalized()), "shot at the host"): return
+	if not await _until(func() -> bool: return ff.size() == 1, "the friendly fire event"): return
+	if not _ok(ff[0] == [gs.local_peer(), 1] and gs.gold == 1, "we hit the host, for nothing"): return
+	Input.action_press("move_forward")
+	var closest := INF
+	var t_push := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t_push < 1200:
+		await physics_frame
+		closest = minf(closest, Vector2(me.global_position.x - host_char.global_position.x, me.global_position.z - host_char.global_position.z).length())
+	Input.action_release("move_forward")
+	_log.append("walked into the host: closest %.2f m, host moved %.2f m" % [closest, host_char.global_position.distance_to(host_at)])
+	if not _ok(closest > 0.6, "the host's body blocks us"): return
+	if not _ok(host_char.global_position.distance_to(host_at) > 0.3, "and we shoved it"): return
+	gs.request_toggle_infinite_ammo()  # back to the empty gun the host checks for
+	if not await _until(gs.synced, "test mode off"): return
 	# Keep watching until the host's popper has gone down and up again and the rack has cycled.
 	if not await _until(func() -> bool: return Time.get_ticks_msec() - watch_from > 5000 \
 			and seen.popper.size() >= 3, "the popper to go down and stand up"): return
@@ -185,7 +231,7 @@ func _client() -> void:
 	var f := FileAccess.open(WORLD, FileAccess.WRITE)
 	f.store_string(JSON.stringify(seen))
 	f.close()
-	_log.append("client OK")
+	_log.append("client OK, latency %.3f s" % net.latency())
 	_write_log()
 	quit()
 
@@ -234,7 +280,9 @@ func _world_agrees() -> bool:
 	for s: Array in flips:
 		if not _ok(seen.popper.any(func(m: Array) -> bool: return m[1] == s[1] and absf(m[0] - s[0]) < 0.3),
 				"popper %s on the host at the same time" % ("down" if s[1] else "up")): return false
-	# Texas Star: where the host's star pointed at each moment the client looked.
+	# Texas Star: where the host's star pointed at each moment the client looked. Both processes
+	# share one CPU, and a frame stalled by the heap's slides shifts a sample by its length
+	# (~50 ms, 0.15 rad at 3 rad/s); a plate is 1.26 rad wide.
 	var star_worst := 0.0
 	for s: Array in theirs.star:
 		var near: Array = seen.star[0]
@@ -244,7 +292,7 @@ func _world_agrees() -> bool:
 		var host_at: float = near[1] - main.get_node("LockedTargets/TexasStar").SPIN * (s[0] - near[0])
 		star_worst = maxf(star_worst, absf(angle_difference(host_at, s[1])))
 	print("star: %d samples, largest difference %.3f rad" % [theirs.star.size(), star_worst])
-	return _ok(theirs.star.size() >= 20 and star_worst < 0.1, "the Texas Star points the same way on both")
+	return _ok(theirs.star.size() >= 20 and star_worst < 0.2, "the Texas Star points the same way on both")
 
 
 func _until(cond: Callable, what: String, secs := 30.0) -> bool:

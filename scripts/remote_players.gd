@@ -33,6 +33,11 @@ const FLASH_TIME := 0.05  # s
 const LABEL_HEIGHT := 2.1  # m above the feet
 ## Render layer 3: the world camera sees it, floor decals and bullet holes don't land on it.
 const BODY_LAYER := 4
+## The body other players bump into (player.tscn's capsule) and friendly fire hits.
+const BODY_RADIUS := 0.35
+const BODY_HEIGHT := 1.8
+const TAG_FONT := 32
+const TAG_PAD := Vector2(18, 8)  # px around the name
 
 var _chars := {}  # peer -> Character
 
@@ -89,6 +94,9 @@ class Character extends Node3D:
 	var _flash: Node3D
 	var _flash_left := 0.0
 	var _fx: Node3D
+	var _tag_box: StandardMaterial3D
+	## What others collide with and shoot at; carries the peer id as meta "peer".
+	var body: AnimatableBody3D
 
 	func _init(id: int) -> void:
 		peer = id
@@ -133,16 +141,57 @@ class Character extends Node3D:
 		_fx = MUZZLE_FX.instantiate()
 		_fx.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		add_child(_fx)
+		body = AnimatableBody3D.new()
+		body.sync_to_physics = false  # placed with the character every frame
+		body.set_meta("peer", peer)
+		var shape := CollisionShape3D.new()
+		shape.shape = CapsuleShape3D.new()
+		shape.shape.radius = BODY_RADIUS
+		shape.shape.height = BODY_HEIGHT
+		shape.position.y = BODY_HEIGHT * 0.5
+		body.add_child(shape)
+		add_child(body)
+		_name_tag()
+
+	## "Oyuncu N" in a box of the player's colour, the same size on screen at any distance, seen
+	## through walls and the heap so teammates stay findable.
+	func _name_tag() -> void:
 		var label := Label3D.new()
 		label.text = "Oyuncu %d" % peer  # ponytail: Steam name in Faz 6
 		label.position.y = LABEL_HEIGHT
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.no_depth_test = true  # teammates stay findable behind the heap
+		label.no_depth_test = true
 		label.fixed_size = true
 		label.pixel_size = 0.0012
-		label.font_size = 24
-		label.outline_size = 8
+		label.font_size = TAG_FONT
+		label.outline_size = 6
+		label.render_priority = 2  # over the box
+		label.outline_render_priority = 1
 		add_child(label)
+		var px := label.font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, TAG_FONT) if label.font 			else ThemeDB.fallback_font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, TAG_FONT)
+		var quad := QuadMesh.new()
+		quad.size = (Vector2(px.x, TAG_FONT) + TAG_PAD * 2.0) * label.pixel_size
+		_tag_box = StandardMaterial3D.new()
+		_tag_box.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_tag_box.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		_tag_box.fixed_size = true
+		_tag_box.no_depth_test = true
+		_tag_box.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_tag_box.render_priority = 0
+		quad.material = _tag_box
+		var box := MeshInstance3D.new()
+		box.mesh = quad
+		box.layers = BODY_LAYER
+		box.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		box.position.y = LABEL_HEIGHT
+		add_child(box)
+		_tint_tag()
+		GameState.player_slots.connect(_tint_tag.unbind(1))
+
+	func _tint_tag() -> void:
+		var c := GameState.color_of(peer)
+		c.a = 0.8
+		_tag_box.albedo_color = c
 
 	## Legs: a gait blend by speed inside a jump state machine. Spine up: the pistol pose, with the
 	## reload and the shot as one-shots over it. Advanced by hand (_process), so the pitch bend
