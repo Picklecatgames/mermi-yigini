@@ -32,6 +32,7 @@ const SHORT := Color(0.95, 0.45, 0.4)
 const OFF := Color(0.2, 0.22, 0.26)
 
 var _tab := 0
+var _frame: PanelContainer
 var _tabs: Array[Button] = []
 var _pages: Array[Control] = []
 var _title: Label
@@ -53,6 +54,7 @@ func _ready() -> void:
 	add_child(center)
 	var frame := PanelContainer.new()
 	frame.custom_minimum_size = Vector2(1060, 640)
+	_frame = frame
 	frame.add_theme_stylebox_override("panel", _box(BG, LINE, 2, 14, 0, Color(0, 0, 0, 0.5), 24))
 	center.add_child(frame)
 	var split := HBoxContainer.new()
@@ -167,6 +169,8 @@ func _tab_button(index: int, sub: String) -> Button:
 
 func _show_tab(index: int) -> void:
 	_tab = index
+	var screen := get_viewport().get_visible_rect().size  # small windows keep a margin round it
+	_frame.custom_minimum_size = Vector2(minf(1060.0, screen.x * 0.94), minf(640.0, screen.y * 0.9))
 	var titles := [GameState.display_name(), "Teçhizatlar"]
 	var accents := [GameState.color_of(GameState.local_peer()), GOLD]
 	for i in _tabs.size():
