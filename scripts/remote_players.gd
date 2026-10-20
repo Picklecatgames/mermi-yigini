@@ -36,8 +36,8 @@ const BODY_LAYER := 4
 ## The body other players bump into (player.tscn's capsule) and friendly fire hits.
 const BODY_RADIUS := 0.35
 const BODY_HEIGHT := 1.8
-const TAG_FONT := 32
-const TAG_PAD := Vector2(18, 8)  # px around the name
+const TAG_FONT := 24
+const TAG_PAD := Vector2(8, 2)  # px around the name
 
 var _chars := {}  # peer -> Character
 
@@ -162,7 +162,7 @@ class Character extends Node3D:
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.no_depth_test = true
 		label.fixed_size = true
-		label.pixel_size = 0.0012
+		label.pixel_size = 0.001
 		label.font_size = TAG_FONT
 		label.outline_size = 6
 		label.render_priority = 2  # over the box
