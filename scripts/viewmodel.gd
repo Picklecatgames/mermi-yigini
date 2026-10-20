@@ -85,6 +85,9 @@ const ADS_STEADY := 0.2    # share of sway, bob and breath left when aimed
 const ADS_RECOIL := 0.8    # share of the gun's kick when aimed (braced with both hands)
 const ADS_CLIPS := ["", "fire", "fire_last"]  # rest pose only: reloads and the draw drop the sights
 const SHELL_POOL := 20
+const TINK_EVERY := Vector2i(10, 15)  # inside a burst, one shell clinks every this many
+const TINK_GAP := 1.5   # s without a shot before the next one counts as a lone shot
+const TINK_TAIL := 0.3  # s after landing with no newer shot: it was the burst's last shell
 const MUZZLE_FX := preload("res://scenes/muzzle_fx.tscn")
 const MUZZLE_FX_POOL := 3
 const WISP_TIME := 3.5  # s for a hot barrel's smoke to thin out to nothing
@@ -125,6 +128,9 @@ var _bob := 0.0
 var _time := 0.0
 var _shells: Array[RigidBody3D] = []
 var _next_shell := 0
+var _shot_no := 0          # shells thrown so far; a landed shell checks whether it was the last
+var _last_eject_ms := -100000
+var _tink_in := 0          # shells left until the next one clinks inside a burst
 var _muzzle_fx: Array[Node3D] = []  # powder jet, curling smoke and sparks
 var _next_muzzle_fx := 0
 var _barrel_heat := 0.0  # 1 right after a shot, 0 when the barrel stops smoking
@@ -460,9 +466,26 @@ func _eject() -> void:
 	s.linear_velocity = inherit + cam.x * randf_range(1.0, 1.5) + cam.y * randf_range(1.2, 1.7) + cam.z * randf_range(0.0, 0.6)
 	s.angular_velocity = Vector3(randf_range(-30, 30), randf_range(-30, 30), randf_range(-30, 30))
 	s.set_meta("landed", false)
+	s.set_meta("audible", _shell_audible())
+	s.set_meta("shot", _shot_no)
 	s.angular_damp = 3.0
 	s.linear_damp = 0.0
 	s.visible = true
+
+
+## Shell drops, the way shooters thin them out: a lone shot always clinks, inside a burst only
+## every TINK_EVERY-th shell does, and the burst's last one clinks once firing stops. Every shell
+## clinking at 143 rounds a minute turns into a tiring high-pitched rattle.
+func _shell_audible() -> bool:
+	var now := Time.get_ticks_msec()
+	var lone := now - _last_eject_ms > TINK_GAP * 1000.0
+	_last_eject_ms = now
+	_shot_no += 1
+	_tink_in -= 1
+	if lone or _tink_in <= 0:
+		_tink_in = randi_range(TINK_EVERY.x, TINK_EVERY.y)
+		return true
+	return false
 
 
 func _make_shell() -> RigidBody3D:
@@ -479,8 +502,14 @@ func _make_shell() -> RigidBody3D:
 		if not s.get_meta("landed", true) and speed > 0.4:
 			s.set_meta("landed", true)
 			var t: AudioStreamPlayer3D = s.get_node("Tink")
-			t.volume_db = lerpf(-16.0, -8.0, clampf(speed / 4.0, 0.0, 1.0))
-			t.play())
+			t.volume_db = lerpf(-20.0, -12.0, clampf(speed / 4.0, 0.0, 1.0))
+			if s.get_meta("audible"):
+				t.play()
+			else:  # the burst's last shell: still no newer shot a moment after it lands
+				var shot: int = s.get_meta("shot")
+				get_tree().create_timer(TINK_TAIL).timeout.connect(func() -> void:
+					if shot == _shot_no:
+						t.play()))
 	s.add_collision_exception_with(body)
 	return s
 
