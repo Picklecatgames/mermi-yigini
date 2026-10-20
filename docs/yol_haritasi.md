@@ -73,5 +73,6 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 23. **Ana menü ve dünya oluşturma:** host et / katıl / ayarlar; oyuncu sayısına göre yığın büyüklüğü burada seçilir.
 24. **Kayıt:** dünya host'ta kaydedilir; kişisel durum Steam ID'ye göre saklanır.
 25. **60 dakikalık denge (1, 2 ve 4 oyuncuyla) + UI cilası + ses geçişi:** bütün sesler (reload, ayak, boş tetik, kovan) co-op'ta karakterin konumunda 3D. Yerleri hazır: ayak ve reload `remote_players.gd` karakter düğümünde, atış `muzzle_position()`'da.
+   - **Karakter ayrıştırma (karar 2026-10-20, en sona):** önce oyuncu sırasına göre otomatik kıyafet rengi (maske + shader, operator dokusunda tişört/pantolon/yelek bölgeleri, ağdan veri gitmez); sonra ana menüde renk seçimi (birkaç sayı, `request_*` ile host'a, `PlayerState`'te). Aksesuar ve farklı karakter demo sonrası.
 26. **Dışarıdan test:** 3–5 kişilik gruplar uzaktan, Steam üzerinden oynar.
 27. **Steam sayfası ve demo uygulaması:** mağaza sayfası, ekran görüntüleri, fragman, ayrı demo app ID; hedef bir Next Fest'e yetiştirmek.

@@ -53,7 +53,7 @@ streams_count = 1
 stream_0/stream = ExtResource("3")
 
 [sub_resource type="AudioStreamRandomizer" id="tink_rand"]
-random_pitch = 1.18
+random_pitch = 1.03
 random_volume_offset_db = 2.0
 streams_count = 5
 stream_0/stream = ExtResource("5")
