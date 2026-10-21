@@ -66,6 +66,8 @@ signal player_shot(shooter: int, victim: int, at: Vector3, dir: Vector3)
 signal player_slots(slots: Dictionary)
 ## Someone walked into the local player: shove it this way (m/s), on top of its own walking.
 signal pushed(vel: Vector3)
+## What `peer` holds now: an index into GUNS (0 is bare fists).
+signal gun_changed(peer: int, gun: int)
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -86,6 +88,16 @@ const UPGRADES := {
 	# Extra gold in percent for every metre the shooter stands behind the firing line, every target.
 	"range_bonus": {"values": [0, 1, 2, 3, 4, 5], "costs": [30, 80, 180, 350, 600]},
 }
+## What a player can hold, in the order the bar and the number keys list them (1 = the first gun);
+## everyone starts with bare fists. A gun without its model yet is not `ready`: nobody can draw it.
+## Shots, rounds and fire rate are the same for every gun for now (the weapon order comes later).
+const GUNS := [
+	{"id": "fists", "name": "Yumruk", "ready": true},
+	{"id": "deagle", "name": "Ağır Tabanca", "ready": true},
+	{"id": "uzi", "name": "Mikro SMG", "ready": true},
+	{"id": "scorpion", "name": "Kompakt SMG", "ready": true},
+	{"id": "minigun", "name": "Minigun", "ready": false},  # final, from a crate; model not in yet
+]
 ## Fixed, not an upgrade: the slide has finished its cycle and the recoil spring has settled.
 const FIRE_INTERVAL := 0.42  # s, ~143 rounds/min
 ## A weak spot pays this many times over: a collision shape in group "weak_spot" (the dummy's
@@ -141,7 +153,7 @@ const REQUESTS := {
 	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
 	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
-	&"request_place_gear": 3, &"request_remove_gear": 1,
+	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1,
 }
 ## Where gear may stand: the target area past the firing line, clear of the east wall and the
 ## crate stands; at least PLACE_GAP from any target's origin.
@@ -151,7 +163,7 @@ const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
-	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed"]
+	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
 
@@ -170,6 +182,7 @@ class PlayerState:
 	var combo_left := 0.0  # s until the body chain breaks; game time
 	var weak_left := 0.0  # s until the weak spot chain breaks
 	var placing := false  # placement mode: may cross the firing line
+	var gun := 0  # GUNS index in hand; 0 is bare fists
 	var infinite_ammo := false  # test mode (T)
 	var pos := Vector3.ZERO  # feet, from the last pose
 	var has_pose := false
@@ -264,6 +277,9 @@ func _ready() -> void:
 			for n in placed.size():  # before the cues: placed targets have state of their own
 				if placed[n]:
 					_event.rpc_id(id, &"gear_placed", [n] + placed[n])
+			for peer: int in _players:
+				if _players[peer].gun != 0 and peer != id:
+					_event.rpc_id(id, &"gun_changed", [peer, _players[peer].gun])
 			for t: Node in get_tree().get_nodes_in_group("target"):
 				if t.has_method("join_cues"):
 					for cue: Array in t.join_cues():
@@ -487,6 +503,8 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 ## Moves carried bullets into the gun up to its capacity; returns how many went in.
 func request_reload(peer := 0) -> int:
 	var p := player(peer)
+	if p.gun == 0:
+		return 0
 	var n := mini(mag_capacity_of(peer) - p.loaded, p.carried)
 	if n <= 0:
 		return 0
@@ -506,14 +524,32 @@ func request_toggle_placing(peer := 0) -> void:
 		placing_changed.emit(p.placing)
 
 
+## Puts away what is in hand and draws GUNS[`gun`]; the same one again goes back to bare fists.
+## Everyone sees it (gun_changed): the first-person arms and others' third-person hold follow it.
+func request_select_gun(gun: int, peer := 0) -> void:
+	var p := player(peer)
+	if gun < 0 or gun >= GUNS.size() or not GUNS[gun].ready or p.placing:
+		return
+	if gun == p.gun:
+		gun = 0
+	if _send(&"request_select_gun", [gun], peer):
+		p.gun = gun  # predicted; the host's gun_changed says the same a moment later
+		gun_changed.emit(local_peer(), gun)
+		return
+	p.gun = gun
+	_world(&"gun_changed", [local_peer() if peer == 0 else peer, gun])
+
+
 ## Test mode (T): the gun never runs dry, for trying the feel and effects. Per player.
 var infinite_ammo: bool:
 	get: return player().infinite_ammo
 	set(v): player().infinite_ammo = v
 
+const TEST_MONEY := 1_000_000_000  # what T tops gold and the vault up to
+
 
 ## Debug builds only. Switching it off puts back what was in the gun, so it never leaves free
-## rounds behind.
+## rounds behind. Switching it on also tops up gold and the vault, for trying the shop.
 func request_toggle_infinite_ammo(peer := 0) -> void:
 	if not OS.is_debug_build():
 		return
@@ -523,6 +559,13 @@ func request_toggle_infinite_ammo(peer := 0) -> void:
 	if p.infinite_ammo:
 		p.saved_loaded = p.loaded
 		_set_loaded(peer, mag_capacity_of(peer))
+		# ponytail: the money stays after T goes off; a test build only, so not worth undoing.
+		p.gold = maxi(p.gold, TEST_MONEY)
+		if _is_local(peer):
+			gold_changed.emit(p.gold)
+		if not Net.is_client:  # the vault is the host's
+			vault = maxf(vault, TEST_MONEY)
+			_world(&"vault_changed", [vault])
 	elif p.saved_loaded >= 0:
 		_set_loaded(peer, mini(p.saved_loaded, mag_capacity_of(peer)))
 		p.saved_loaded = -1
@@ -535,7 +578,7 @@ func request_toggle_infinite_ammo(peer := 0) -> void:
 func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var p := player(peer)
 	# Slack for frame timing on the caller, more for a remote one's network jitter.
-	if p.loaded <= 0 or p.cooldown > (0.02 if _is_local(peer) else NET_JITTER):
+	if p.gun == 0 or p.loaded <= 0 or p.cooldown > (0.02 if _is_local(peer) else NET_JITTER):
 		return false
 	# A remote round leaves from that player's synced eye, or not at all.
 	if not _is_local(peer) and not (p.has_pose and from.distance_to(p.pos + Vector3.UP * EYE) <= FIRE_FROM_SLACK):
@@ -686,6 +729,8 @@ func request_hello(token: String, peer := 0) -> void:
 		p.cooldown = 0.0
 		p.has_pose = false
 		_players[peer] = p  # the answer to this request (_state) carries it to the client
+		if p.gun != 0:
+			_world(&"gun_changed", [peer, p.gun])
 
 
 ## This machine's player token, made once and kept in user://.
@@ -777,12 +822,12 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	callv(method, args + [peer])
 	var p := player(peer)
-	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys)
+	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun)
 
 
 ## Client: the host's word on our own state, after request `seq`.
 @rpc("authority", "call_remote", "reliable")
-func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array) -> void:
+func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int) -> void:
 	_acked_seq = seq
 	if seq != _sent_seq:
 		return  # newer requests are still on their way; their answer will have it all
@@ -804,6 +849,9 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 	if p.placing != placing:
 		p.placing = placing
 		placing_changed.emit(placing)
+	if p.gun != gun:  # a pick the host turned down, or the gun we had before rejoining
+		p.gun = gun
+		gun_changed.emit(local_peer(), gun)
 
 
 ## The local player's body, ~20 times a second (player.gd). Online it goes to the host, which
@@ -894,6 +942,10 @@ func _event(event: StringName, args: Array) -> void:
 		&"gear_removed":
 			if args[0] < placed.size():
 				placed[args[0]] = null
+		&"gun_changed":
+			if args[0] == local_peer():
+				return  # our own: predicted, and settled by the host's answer (_state)
+			player(args[0]).gun = args[1]
 	if NODE_ARG.has(event):
 		# A node only the host has lands as null (spent shells are on no layer, so none yet).
 		var i: int = NODE_ARG[event]

@@ -1,8 +1,8 @@
 extends SceneTree
-## Another player's character holding the pistol, photographed from several sides, for checking the
-## grip (fingers round the grip, the left hand under the right) without playing:
+## Another player's character holding each gun (and bare-handed), photographed from several sides,
+## for checking the grip (fingers round the grip, the left hand on the gun) without playing:
 ##   Godot.exe --path . --position -10000,-10000 --resolution 960x720 -s res://tools/grip_shot.gd
-## Saves user://grip_<view>.png (the folder is printed). Needs a window: headless does not draw.
+## Saves user://grip_<gun>_<view>.png (the folder is printed). Needs a window: headless does not draw.
 
 ## view -> [camera position, look-at point], metres, the character at the origin facing -Z.
 const VIEWS := {
@@ -36,17 +36,27 @@ func _initialize() -> void:
 	await process_frame
 	await _hold(0.8)
 	print("pictures in ", OS.get_user_data_dir())
-	for v: String in VIEWS:
-		cam.look_at_from_position(VIEWS[v][0], VIEWS[v][1])
+	var gs := root.get_node("GameState")
+	for g in gs.GUNS.size():
+		if not gs.GUNS[g].ready:
+			continue
+		var id: String = gs.GUNS[g].id
+		gs.gun_changed.emit(7, g)
+		await _hold(0.3)
+		for v: String in VIEWS:
+			cam.look_at_from_position(VIEWS[v][0], VIEWS[v][1])
+			await _hold(0.15)
+			await RenderingServer.frame_post_draw
+			root.get_texture().get_image().save_png("user://grip_%s_%s.png" % [id, v])
+		if g == 0:
+			continue
+		# Close on the right side of the grip and trigger, wherever the gun ended up.
+		var c = mgr.character(7)
+		var at: Vector3 = c._muzzle.global_position - (c._gun.global_basis.z.normalized()) * 0.14
+		cam.look_at_from_position(at + Vector3(0.45, 0.03, 0.0), at)
 		await _hold(0.15)
 		await RenderingServer.frame_post_draw
-		root.get_texture().get_image().save_png("user://grip_%s.png" % v)
-	# Close on the right side of the grip and trigger, wherever the gun ended up.
-	var gun: Vector3 = mgr.character(7)._gun.global_position
-	cam.look_at_from_position(gun + Vector3(0.35, 0.03, 0.0), gun)
-	await _hold(0.15)
-	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png("user://grip_trigger.png")
+		root.get_texture().get_image().save_png("user://grip_%s_trigger.png" % id)
 	quit()
 
 

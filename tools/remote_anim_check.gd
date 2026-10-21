@@ -1,8 +1,9 @@
 extends SceneTree
 ## Headless check of another player's third-person character (scripts/remote_players.gd):
 ##   Godot.exe --headless --path . -s res://tools/remote_anim_check.gd
-## Feeds it poses like the network would and checks that it stands, aims where the player looks,
-## jogs, jumps, lands with a crouch, reloads and fires.
+## Feeds it poses like the network would and checks that it stands, holds every gun with both hands
+## and aims it where the player looks, jogs, jumps, lands with a crouch, reloads and fires; and that
+## bare-handed it holds nothing.
 
 var mgr: Node3D
 var ok := true
@@ -13,11 +14,19 @@ func _initialize() -> void:
 	root.add_child(mgr)
 	await process_frame
 	var p := Vector3.ZERO
+	var gs := root.get_node("GameState")
 	await _hold(p, 0.0, 0, false, 0.5)
-	_check("ground", 0.0, "stands", func(c) -> bool: return c.speed < 0.1 and _foot(c) < 0.15)
-	_check("", -1.0, "both hands on the gun", func(c) -> bool: return _left_off_gun(c) < 0.5)
-	await _hold(p, 0.7, 0, false, 0.4)
-	_check("ground", 0.7, "aims up with the look", func(c) -> bool: return c.muzzle_position().y > 1.7)
+	_check("ground", -1.0, "stands bare-handed, no gun", func(c) -> bool: return c.speed < 0.1 and _foot(c) < 0.15 and not c._gun.visible)
+	for g in range(1, gs.GUNS.size()):
+		if not gs.GUNS[g].ready:
+			continue
+		gs.gun_changed.emit(7, g)
+		await _hold(p, 0.0, 0, false, 0.3)
+		_check("", -1.0, "%s: both hands on the gun (%.1f cm off)" % [gs.GUNS[g].id, _left_off_gun(mgr.character(7))], func(c) -> bool: return _left_off_gun(c) < 0.5)
+		_check("ground", 0.0, "%s: aims ahead" % gs.GUNS[g].id, func(c) -> bool: return c._gun.visible)
+		await _hold(p, 0.7, 0, false, 0.4)
+		_check("ground", 0.7, "%s: aims up with the look" % gs.GUNS[g].id, func(c) -> bool: return c.muzzle_position().y > 1.7)
+		await _hold(p, 0.0, 0, false, 0.3)
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 800:
 		p.z -= 5.0 * 0.05

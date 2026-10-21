@@ -11,6 +11,9 @@ func _initialize() -> void:
 	var dummy: Node3D = main.get_node("Dummy")
 	for i in 3:
 		await physics_frame
+	assert(not gs.request_fire(Vector3.ZERO, Vector3.FORWARD), "bare fists fire nothing")
+	gs.request_select_gun(1)
+	assert(gs.player().gun == 1, "number key 1 draws the first gun")
 	gs.infinite_ammo = true
 	gs.player().loaded = 1
 	gs.player().levels["combo_cap"] = 4  # x20; the cap itself is checked further down

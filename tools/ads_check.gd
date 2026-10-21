@@ -1,5 +1,7 @@
 extends SceneTree
-## Headless check that aiming puts the rear notch and the front post on the view axis:
+## Headless check that aiming puts each gun's rear and front sight on the view axis (the guns
+## without aim clips of their own; scripts/viewmodel.gd SETS rear / front), and that one aimed shot
+## flips the front sight up fast and brings it back before the next:
 ##   Godot.exe --headless --path . -s res://tools/ads_check.gd
 
 
@@ -10,44 +12,49 @@ func _initialize() -> void:
 	var vm: Node3D = load("res://scenes/viewmodel.tscn").instantiate()
 	vm.set_process(false)
 	cam.add_child(vm)
-	var anim: AnimationPlayer = vm.get_node("Model/AnimationPlayer")
-	anim.play("allanims")  # _ready started the draw; a section clamps seeks to itself
-	anim.seek(vm.CLIPS["settle"][1], true)
-	anim.advance(0.0)
-	vm.transform = Transform3D(Basis(vm._ads_rot), vm._ads_pos)
-	var talon: Node3D = vm.get_node("Model").find_child("Talon", true, false)
-	var rear := cam.to_local(talon.to_global(vm.REAR_SIGHT))
-	var front := cam.to_local(talon.to_global(vm.FRONT_SIGHT))
-	var muzzle := cam.to_local(talon.to_global(vm.MUZZLE))
-	print("rear ", rear, " front ", front, " muzzle ", muzzle, " hip ", vm.position)
-	var ok := absf(rear.x) < 1e-4 and absf(rear.y) < 1e-4 and absf(front.x) < 1e-4 and absf(front.y) < 1e-4 \
-		and absf(rear.z + vm.ADS_EYE) < 1e-4 and front.z < rear.z
-	# Every clip aiming can follow must end in the same pose, or the sights would wander.
-	for t: float in [0.0, 0.433, 2.833, 3.3, 6.433]:
-		anim.seek(t, true)
+	var gs: Node = root.get_node("GameState")
+	var ok := true
+	for g in gs.GUNS.size():
+		var set: Dictionary = vm.SETS.get(gs.GUNS[g].id, {})
+		if not set.has("rear"):
+			continue
+		vm._want_gun = g
+		vm._swap()
+		var anim: AnimationPlayer = vm.get_node("Model/AnimationPlayer")
+		var sk: Skeleton3D = vm._skel
+		var bone := sk.find_bone(set.bone)
+		var on_axis := func(at: Vector3) -> Vector3:
+			return cam.to_local(sk.global_transform * sk.get_bone_global_pose(bone) * at)
+		anim.play(set.clips + "Idle")  # the pose the sights were measured in
+		anim.seek(0.0, true)
 		anim.advance(0.0)
-		var r := cam.to_local(talon.to_global(vm.REAR_SIGHT))
-		var f := cam.to_local(talon.to_global(vm.FRONT_SIGHT))
-		var off := maxf(Vector2(r.x, r.y).length(), Vector2(f.x, f.y).length())
-		print("t=%.3f off-axis %.2f mm" % [t, off * 1000.0])
-		ok = ok and off < 0.0005
-	# One shot while aimed: the post must snap up fast, then come back onto the notch.
-	anim.seek(vm.CLIPS["settle"][1], true)
-	anim.advance(0.0)
-	vm.aim = 1.0
-	vm._add_kick(1.0)
-	var peak := 0.0
-	var peak_t := 0.0
-	var tilt := 0.0
-	for i in 50:  # 0.42 s at 120 fps, one shot interval
-		vm._sway_and_bob(1.0 / 120.0)
-		var r := cam.to_local(talon.to_global(vm.REAR_SIGHT))
-		var f := cam.to_local(talon.to_global(vm.FRONT_SIGHT))
-		tilt = atan2(f.y - r.y, r.z - f.z)  # post above the notch, rad
-		if tilt > peak:
-			peak = tilt
-			peak_t = (i + 1) / 120.0
-	print("flip peak %.1f deg at %d ms, left after one interval %.2f deg" % [rad_to_deg(peak), peak_t * 1000.0, rad_to_deg(tilt)])
-	ok = ok and peak > 0.05 and peak_t < 0.07 and absf(tilt) < 0.005
+		vm.transform = Transform3D(Basis(vm._ads_rot), vm._ads_pos)
+		var rear: Vector3 = on_axis.call(set.rear)
+		var front: Vector3 = on_axis.call(set.front)
+		var muzzle: Vector3 = on_axis.call(set.muzzle)
+		print("%s: rear %s front %s muzzle %s" % [gs.GUNS[g].id, rear, front, muzzle])
+		var good := absf(rear.x) < 1e-4 and absf(rear.y) < 1e-4 and absf(front.x) < 1e-4 and absf(front.y) < 1e-4 \
+			and absf(rear.z + float(set.ads_eye)) < 1e-4 and front.z < rear.z and muzzle.z < front.z + 0.05
+		vm.aim = 1.0
+		vm._add_kick(1.0)
+		var peak := 0.0
+		var peak_t := 0.0
+		var tilt := 0.0
+		for i in 50:  # 0.42 s at 120 fps, one shot interval
+			vm._sway_and_bob(1.0 / 120.0)
+			var r: Vector3 = on_axis.call(set.rear)
+			var f: Vector3 = on_axis.call(set.front)
+			tilt = atan2(f.y - r.y, r.z - f.z)  # front sight above the rear, rad
+			if tilt > peak:
+				peak = tilt
+				peak_t = (i + 1) / 120.0
+		print("  flip peak %.1f deg at %d ms, left after one interval %.2f deg" % [rad_to_deg(peak), peak_t * 1000.0, rad_to_deg(tilt)])
+		good = good and peak > 0.05 and peak_t < 0.07 and absf(tilt) < 0.005
+		vm.aim = 0.0
+		vm._push = 0.0
+		vm._push_vel = 0.0
+		vm._kick = 0.0
+		vm._kick_vel = 0.0
+		ok = ok and good
 	print("ADS_OK" if ok else "ADS_FAIL")
 	quit(0 if ok else 1)

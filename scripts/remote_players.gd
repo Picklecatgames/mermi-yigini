@@ -1,24 +1,27 @@
 extends Node3D
-## Everyone else in the session, as third-person characters (the bumstrum operator with the heavy
-## pistol in both hands). One per peer whose pose arrives; gone when that peer leaves. The local
+## Everyone else in the session, as third-person characters (the bumstrum operator with the gun
+## they hold in both hands, or bare-handed). One per peer whose pose arrives; gone when that peer leaves. The local
 ## player never gets one. Poses come ~20 times a second (GameState.pose_received) and are drawn
 ## DELAY behind, between the two snapshots around that moment, so the body glides instead of
 ## stepping or jittering with the network.
 ##
 ## Animation (assets/characters/animations/operator_anims.res, Quaternius UAL baked onto the
 ## operator by tools/retarget_ual.gd): the legs walk, jog or sprint with how fast the body moves
-## and jump when the pose says it is off the ground; from the spine up it holds the pistol, and
-## plays the reload when the player reloads and the shot when they fire. The look pitch bends spine
-## and chest on top of that, so arms, gun and head aim where the player looks; the gun rides the
-## right wrist, and both hands close round it as the first-person hands do (_grip).
+## and jump when the pose says it is off the ground; from the spine up it holds the gun in a pistol
+## stance, and plays the reload when the player reloads and the shot when they fire. The look pitch
+## bends spine and chest on top of that, so arms, gun and head aim where the player looks; the gun
+## rides the right wrist, and both hands close round it as the first-person hands do (_grip).
+## Bare fists: no gun, the arms swing with the legs. The gun is the first-person one: the same arms
+## rig (assets/weapons/arms) posed at the gun's Idle with the arms hidden, so every gun the player
+## can draw is there and the grip comes from where its first-person hands are.
 # ponytail: one forward cycle for every direction; strafing and walking backwards slide sideways.
 # A directional BlendSpace2D needs strafe clips (UAL has them) when it bothers anyone.
 
 const MODEL := preload("res://assets/characters/operator/operator.gltf")
 const ANIMS := preload("res://assets/characters/animations/operator_anims.res")
-const GUN := preload("res://assets/weapons/heavy_pistol/heavy_pistol.gltf")
+const ARMS := preload("res://assets/weapons/arms/arms.gltf")
 const MUZZLE_FX := preload("res://scenes/muzzle_fx.tscn")
-const VIEWMODEL := preload("res://scripts/viewmodel.gd")  # MUZZLE, in the gun's own (Talon) space
+const VIEWMODEL := preload("res://scripts/viewmodel.gd")  # SETS: each gun's mesh, clips, bone, muzzle
 const DELAY := 0.1  # s behind the newest pose: two snapshots in hand even when one is late
 const KEEP := 0.6   # s of snapshots kept
 const UNIT := 0.01  # the model is in centimetres
@@ -28,6 +31,8 @@ const MOVING := 0.5  # m/s; slower than this lands standing (the full crouch), f
 ## Hand bones, parents first, each with "L_"/"R_" in front; the operator's 4th (tip) segment stays as animated.
 const HAND := ["wrist", "thumb1", "thumb2", "thumb3", "point1", "point2", "point3", "middle1", "middle2",
 	"middle3", "ring1", "ring2", "ring3", "pink1", "pink2", "pink3"]
+## The same fingers on the first-person (Rigify) arms: "R_point2" is "DEF-f_index.02.R".
+const FP_FINGER := {"thumb": "thumb", "point": "f_index", "middle": "f_middle", "ring": "f_ring", "pink": "f_pinky"}
 const LEFT_LET_GO := 0.2  # s for the left hand to leave the gun for a reload, and to come back
 const SPINE_SHARE := 0.35  # of the pitch; the chest takes the rest, so arms and gun aim with all of it
 const PITCH_MAX := 1.2  # rad either way; beyond it the torso would fold
@@ -87,8 +92,20 @@ class Character extends Node3D:
 	var _model: Node3D
 	var _skel: Skeleton3D
 	var _tree: AnimationTree
-	var _gun: Node3D
+	var _gun: Node3D  # holds the first-person rig, in the operator's units (cm)
+	var _fp_skel: Skeleton3D
+	var _fp_anim: AnimationPlayer
+	var _muzzle: Node3D
+	var gun := 0  # GameState.GUNS index shown; 0 is bare fists
+	var _hand_hold: Transform3D  # the right wrist in the pistol stance, before the pitch bend
 	var _gun_in_hand: Transform3D  # the gun relative to the right wrist bone, as the clips move it
+	## How far the gun comes back toward the body (cm, its own -Z): the pistol stance holds the arms
+	## out straight, and on a gun whose support hand sits ahead of the grip the left one would fall
+	## short; the right arm bends to the grip instead (_grip).
+	var _pull := 0.0
+	var _right_wrist_on_gun: Vector3
+	var _left_shoulder: Vector3  # the left arm's root in the pistol stance, and how far it reaches
+	var _left_reach := 0.0
 	var _hand := {}  # "R_point1" etc. -> bone
 	var _on_gun := {}  # "R_point1" etc. -> that bone's turn in gun space, from the first-person grip
 	var _left_wrist_on_gun: Vector3
@@ -127,37 +144,28 @@ class Character extends Node3D:
 		_model.add_child(_tree)
 		_tree.advance(0.0)  # in the pistol pose now, to fit the gun to the hand
 		_hips_hold = _skel.get_bone_global_pose(_skel.get_bone_parent(_spine)).basis
-		# The heavy pistol on its own: the first-person model's gun part. Its arms only lend their
-		# grip: where each hand bone sits on the gun in the rest pose.
-		var whole: Node3D = GUN.instantiate()
-		add_child(whole)
-		_gun = whole.find_child("Talon", true, false)
-		var on_gun := _grip_points(whole)
-		_gun.get_parent().remove_child(_gun)
-		remove_child(whole)
-		whole.free()
-		_model.add_child(_gun)
-		# Hand bones turned in gun space as the first-person hands are: line each one's own frame
-		# (along the bone, rolled by the palm's width) up with the first-person bone's.
-		var rest := {}
+		_hand_hold = _skel.get_bone_global_pose(_wrist)
 		for side in ["L", "R"]:
 			for h: String in HAND:
-				var key: String = side + "_" + h
-				_hand[key] = _find(_skel, key)
-				rest[key] = _skel.get_bone_global_rest(_hand[key]).origin
-				if h.ends_with("3"):  # the operator's tips: its last segments' own line
-					rest[key.left(-1) + "4"] = _skel.get_bone_global_rest(_find(_skel, key.left(-1) + "4")).origin
-		var own := _frames(rest)
-		var theirs := _frames(on_gun)
-		for key: String in _hand:
-			var r := _skel.get_bone_global_rest(_hand[key]).basis.orthonormalized()
-			_on_gun[key] = theirs[key] * own[key].inverse() * r
-		_left_wrist_on_gun = on_gun["L_wrist"]
-		_on_gun_at = on_gun
-		_hand_scale = on_gun["R_wrist"].distance_to(on_gun["R_middle1"]) / (rest["R_wrist"] as Vector3).distance_to(rest["R_middle1"])
-		# Aimed straight ahead (the model's +Z), the right wrist where the first-person one is.
-		var hand := _skel.get_bone_global_pose(_wrist)
-		_gun_in_hand = hand.affine_inverse() * Transform3D(Basis(), hand.origin - on_gun["R_wrist"])
+				_hand[side + "_" + h] = _find(_skel, side + "_" + h)
+		var elbow := _skel.get_bone_parent(_hand["L_wrist"])
+		var upper := _skel.get_bone_parent(elbow)
+		var at_elbow := _skel.get_bone_global_pose(elbow).origin
+		_left_shoulder = _skel.get_bone_global_pose(upper).origin
+		_left_reach = _left_shoulder.distance_to(at_elbow) + at_elbow.distance_to(_skel.get_bone_global_pose(_hand["L_wrist"]).origin)
+		# The first-person arms with every gun on them, scaled up to the operator's centimetres; only
+		# the gun in hand shows, and the arms only lend their grip.
+		_gun = Node3D.new()
+		_model.add_child(_gun)
+		var rig: Node3D = ARMS.instantiate()
+		rig.scale = Vector3.ONE / UNIT
+		_gun.add_child(rig)
+		_fp_skel = rig.find_child("Skeleton3D", true, false)
+		_fp_anim = rig.find_child("AnimationPlayer", true, false)
+		(_fp_skel.get_node("Mesh") as Node3D).visible = false
+		VIEWMODEL.load_clips(_fp_anim, _fp_skel)
+		_muzzle = Node3D.new()
+		_gun.add_child(_muzzle)
 		# Off the floor paint's layer: its decals (cull_mask 1) were printing onto boots and legs.
 		for v: VisualInstance3D in _model.find_children("*", "VisualInstance3D", true, false):
 			v.layers = BODY_LAYER
@@ -170,6 +178,10 @@ class Character extends Node3D:
 			_flash.visible = false
 			_flash.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 			add_child(_flash)
+		_show_gun(GameState.player(peer).gun)
+		GameState.gun_changed.connect(func(who: int, g: int) -> void:
+			if who == peer:
+				_show_gun(g))
 		_fx = MUZZLE_FX.instantiate()
 		_fx.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		add_child(_fx)
@@ -184,6 +196,55 @@ class Character extends Node3D:
 		body.add_child(shape)
 		add_child(body)
 		_name_tag()
+
+	## Shows GameState.GUNS[`g`] in the hands and fits the hands to it: the first-person rig posed at
+	## the gun's Idle, its hands' joints on the gun are where the operator's go (_grip). Bare fists
+	## hide it and let the arms swing with the legs.
+	func _show_gun(g: int) -> void:
+		gun = g
+		_gun.visible = g != 0
+		_tree.set("parameters/mix/blend_amount", 0.0 if g == 0 else 1.0)
+		if g == 0:
+			for side in ["L", "R"]:  # the grip shrank them to the first-person hand's size
+				_skel.set_bone_pose_scale(_hand[side + "_wrist"], Vector3.ONE)
+			return
+		var set: Dictionary = VIEWMODEL.SETS[GameState.GUNS[g].id]
+		for each: Dictionary in VIEWMODEL.SETS.values():
+			if each.mesh != "":
+				(_fp_skel.get_node(NodePath(each.mesh)) as Node3D).visible = each == set
+		_fp_anim.play(set.clips + "Idle")
+		_fp_anim.seek(0.0, true)
+		_fp_anim.advance(0.0)
+		_fp_anim.pause()  # held still: the operator's own clips move the hands
+		_gun.transform = Transform3D()
+		var to_gun := _gun.global_transform.affine_inverse() * _fp_skel.global_transform
+		var on_gun := {}
+		for key: String in _hand:
+			on_gun[key] = to_gun * _fp_skel.get_bone_global_pose(_fp_skel.find_bone(_fp_name(key))).origin
+		var bone := _fp_skel.find_bone(set.bone)
+		_muzzle.position = to_gun * (_fp_skel.get_bone_global_pose(bone) * (set.muzzle as Vector3))
+		# Hand bones turned in gun space as the first-person hands are: line each one's own frame
+		# (along the bone, rolled by the palm's width) up with the first-person bone's.
+		var rest := {}
+		for key: String in _hand:
+			rest[key] = _skel.get_bone_global_rest(_hand[key]).origin
+			if key.ends_with("3"):  # the operator's tips: its last segments' own line
+				rest[key.left(-1) + "4"] = _skel.get_bone_global_rest(_find(_skel, key.left(-1) + "4")).origin
+		var own := _frames(rest)
+		var theirs := _frames(on_gun)
+		for key: String in _hand:
+			var r := _skel.get_bone_global_rest(_hand[key]).basis.orthonormalized()
+			_on_gun[key] = theirs[key] * own[key].inverse() * r
+		_left_wrist_on_gun = on_gun["L_wrist"]
+		_right_wrist_on_gun = on_gun["R_wrist"]
+		_on_gun_at = on_gun
+		_hand_scale = on_gun["R_wrist"].distance_to(on_gun["R_middle1"]) / (rest["R_wrist"] as Vector3).distance_to(rest["R_middle1"])
+		# Aimed straight ahead (the model's +Z), the right wrist where the first-person one is.
+		_gun_in_hand = _hand_hold.affine_inverse() * Transform3D(Basis(), _hand_hold.origin - on_gun["R_wrist"])
+		# Back toward the body only as far as the left hand needs to reach its place (cm).
+		_pull = 0.0
+		while _pull < 40.0 and _left_shoulder.distance_to(_hand_hold * _gun_in_hand * Transform3D(Basis(), Vector3(0.0, 0.0, -_pull)) * _left_wrist_on_gun) > _left_reach * 0.97:
+			_pull += 0.5
 
 	## "Oyuncu N" in a box of the player's colour, the same size on screen at any distance, seen
 	## through walls and the heap so teammates stay findable.
@@ -352,17 +413,20 @@ class Character extends Node3D:
 		_tree.advance(delta)
 		_pitch = lerpf(_pitch, clampf(lerpf(a[3], b[3], f), -PITCH_MAX, PITCH_MAX), 1.0 - exp(-delta * 20.0))
 		_bend(_pitch)
-		_gun.transform = _skel.get_bone_global_pose(_wrist) * _gun_in_hand
-		_grip(delta)
+		if gun != 0:
+			_gun.transform = _skel.get_bone_global_pose(_wrist) * _gun_in_hand * Transform3D(Basis(), Vector3(0.0, 0.0, -_pull))
+			_grip(delta)
 		if _flash:
 			_flash.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 			_flash_left -= delta
 			_flash.visible = _flash_left > 0.0
 		visible = true
 
-	## Where this character's rounds visibly leave its gun.
+	## Where this character's rounds visibly leave its gun (bare-handed: the right hand).
 	func muzzle_position() -> Vector3:
-		return _gun.global_transform * VIEWMODEL.MUZZLE
+		if gun == 0:
+			return _model.global_transform * _skel.get_bone_global_pose(_wrist).origin
+		return _muzzle.global_position
 
 	## A round left this player's gun: the shot clip, the flash and the powder jet at the muzzle.
 	func shoot() -> void:
@@ -391,6 +455,8 @@ class Character extends Node3D:
 		var reloading: bool = _tree.get("parameters/reload/active")
 		_left_hold = move_toward(_left_hold, 0.0 if reloading else 1.0, delta / LEFT_LET_GO)
 		var gun := _gun.transform
+		if _pull > 0.0:
+			_reach(_wrist, gun * _right_wrist_on_gun)
 		_hold("R", gun, 1.0)
 		if _left_hold > 0.0:
 			var w := _hand["L_wrist"] as int
@@ -445,19 +511,13 @@ class Character extends Node3D:
 		_skel.set_bone_pose_rotation(arm, (shoulder.inverse() * arm_g).get_rotation_quaternion())
 		_skel.set_bone_pose_rotation(elbow, (arm_g.inverse() * fore).get_rotation_quaternion())
 
-	## Where each hand bone of the first-person arms sits on the gun (Talon space) in the rest pose
-	## every first-person clip ends in. `whole` (the first-person model) is in the tree.
-	func _grip_points(whole: Node3D) -> Dictionary:
-		var sk: Skeleton3D = whole.find_children("*", "Skeleton3D", true, false)[0]
-		var ap: AnimationPlayer = whole.find_children("*", "AnimationPlayer", true, false)[0]
-		ap.play("allanims")
-		ap.seek(VIEWMODEL.CLIPS["settle"][1], true)
-		var to_gun := _gun.global_transform.affine_inverse() * sk.global_transform
-		var at := {}
-		for side in ["L", "R"]:
-			for h: String in HAND:
-				at[side + "_" + h] = to_gun * sk.get_bone_global_pose(_find(sk, side + "_" + h)).origin
-		return at
+	## The first-person arms' bone for one of ours: "R_wrist" is "DEF-hand.R", "L_point2" "DEF-f_index.02.L".
+	static func _fp_name(key: String) -> String:
+		var side := key.left(1)
+		var h := key.substr(2)
+		if h == "wrist":
+			return "DEF-hand." + side
+		return "DEF-%s.0%s.%s" % [FP_FINGER[h.left(-1)], h.right(1), side]
 
 	## A bone by name without its numeric suffix ("R_thumb3" finds "R_thumb3_00").
 	static func _find(sk: Skeleton3D, key: String) -> int:

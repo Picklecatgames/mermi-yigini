@@ -1,67 +1,50 @@
 extends Node3D
-## First-person pistol. The model ships one baked clip; we play sections of it and add what
-## it lacks: muzzle flash, smoke, ejected shells, sounds, sway, bob and a view kick.
-## Lives under its own camera on render layer 2, so it never clips into walls.
+## First-person arms and gun. One pair of arms (assets/weapons/arms, tools/build_arms.py) holds every
+## gun: the guns are meshes on the same rig, each with its own clips ("<Gun>_Fire" ...), so switching
+## swaps the mesh and the clip set and the gloves never change. Bare fists play their own clips on the
+## same arms. We add what the clips lack: muzzle flash, smoke, ejected shells, sounds, sway, bob and
+## a view kick. Lives under its own camera on render layer 2, so it never clips into walls.
+# ponytail: no reload sounds yet (real recordings come from the user, synced to each Reload clip).
 
 signal kicked(amount: float)
 
 const LAYER := 2
-## Sections of the model's single "allanims" clip, in seconds, cut where the pose is at rest.
-## Reloads follow the usual rule: with a round chambered only the magazine changes; when empty the
-## slide stays locked back through the swap, then the off hand slingshots it home once; with the
-## slide closed on an empty chamber (fresh gun) the off hand racks it once after the swap.
-const CLIPS := {
-	"fire": [0.0, 0.433], "fire_last": [2.833, 3.3], "draw": [5.4, 6.433], "inspect": [7.333, 8.266],
-	"reload": [0.433, 1.8],         # magazine swap; the clip's own slide work after it is cut
-	"settle": [2.8, 2.833],         # rest pose, eased into from the cut
-	"reload_empty": [3.3, 4.53],    # swap with the slide locked; cut before the slide catch drops it
-	"slingshot": [5.65, 6.433],     # draw's tail: off hand reaches over, grips the slide, lets go
-	"rack": [5.5, 6.433],           # the same, but the hand also pulls a closed slide all the way back
+## Per GameState.GUNS id. eye: the set's camera in our glTF space (y up, looking +Z), printed by
+## build_arms.py; the clips were framed for it. bone: the gun's own bone; muzzle / port (ejection) and
+## rear / front (sights, aimed by moving the whole rig) are in its space, read off the meshes at Idle.
+## fov: the clips were framed for a ~34 mm lens (~33° tall); at the game's 75° the cut-off sleeves come
+## into view. aim_clips: the set has its own Aim_In / Aim_Out, so aiming is the clip's job.
+## Fists: an FBX on a body with shorter arms; ours keep their length, so the eye sits where theirs
+## would over our shoulders (theirs: 1.4069 m over 1.2516 m shoulders).
+const SETS := {
+	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 50.0},
+	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
+		"muzzle": Vector3(-0.0006, 0.0099, 0.111), "port": Vector3(-0.0202, 0.0184, -0.037),
+		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32},
+	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
+		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true},
+	"scorpion": {"mesh": "CZScorpion", "clips": "Scorpion_", "bone": "Scorpion Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
+		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339),
+		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34},
 }
-const NEXT := {"reload": "settle", "reload_empty": "slingshot"}
-const BLEND := {"settle": 0.35, "slingshot": 0.2, "rack": 0.2}  # s; these start away from the previous pose
-## The clip moves the slide on its own in these and drags the hammer and slide stop with it
-## (they are keyed to the slide), so those tracks are switched off and the parts held where they
-## are: a locked-back slide keeps the hammer cocked through the whole reload, a tactical reload
-## moves none of them. Slingshot closes all three together the instant the hand lets go.
-const SLIDE_HELD := ["reload", "settle", "reload_empty", "slingshot"]
-const HELD_PARTS := ["slide", "hammer", "slidecatch"]
-## s into a section where the palm leaves the slide: from there the slide slams home on its spring
-## instead of following the clip's slow linear key (draw and rack pull it back with the clip first).
-const LET_GO := {"slingshot": 0.39, "rack": 0.54, "draw": 0.64}
-## Rack blends in from the swap; a blend reads the slide from the previous section even with its
-## track off (the reload clip has it back), so the parts stay held until the blend is over.
-const HELD_UNTIL := {"rack": 0.21}
-const SLIDE_SLAM := 0.04        # s for the recoil spring to drive the slide home (real: 20-40 ms)
-const SLIDE_SLAM_JOLT := 0.22   # share of a shot's kick the gun takes when the slide slams home
-## When the slide or magazine hits something inside a section (s from its start, read off the
-## clip's slide and clip tracks), minus how far into each sample its loudest click sits.
-const SLIDE_BACK := preload("res://assets/weapons/heavy_pistol/sounds/slide_back.wav")
-const SLIDE_RELEASE := preload("res://assets/weapons/heavy_pistol/sounds/slide_release.wav")
-const MAG_OUT := preload("res://assets/weapons/heavy_pistol/sounds/mag_out.wav")
-const MAG_ENTER := preload("res://assets/weapons/heavy_pistol/sounds/mag_enter.wav")
-const MAG_SEAT := preload("res://assets/weapons/heavy_pistol/sounds/mag_seat.wav")
-const CLIP_SOUNDS := {
-	"reload": [[0.34, MAG_OUT], [1.06, MAG_ENTER], [1.25, MAG_SEAT]],
-	"reload_empty": [[0.27, MAG_OUT], [0.99, MAG_ENTER], [1.19, MAG_SEAT]],
-	"draw": [[0.4, SLIDE_BACK], [0.65, SLIDE_RELEASE]],
-	"rack": [[0.3, SLIDE_BACK], [0.55, SLIDE_RELEASE]],
-	"slingshot": [[0.13, SLIDE_BACK], [0.40, SLIDE_RELEASE]],
-}
-## Model-space points (cm, gun points +Z): barrel end and ejection port (shooter's right).
-const MUZZLE := Vector3(0.0, 7.4, 22.8)
-const REAR_SIGHT := Vector3(0.0, 11.022, -2.467)    # top of the rear blades, at the notch (read off the mesh)
-const FRONT_SIGHT := Vector3(-0.031, 10.699, 24.64)  # top of the front post
-const PORT := Vector3(-2.6, 8.8, 5.0)
+const FISTS := preload("res://assets/weapons/arms/fists.gltf")
+## Our section names (the player reports them to others) -> the set's clips.
+const CLIPS := {"fire": "Fire", "reload": "Reload", "reload_empty": "Reload_Empty", "draw": "Equip", "holster": "Unequip"}
+const PUNCHES := ["Punch", "Punch_2"]  # fists' "fire", taking turns
+const CLIP_BLEND := 0.08  # s
+## The sets' Fire clips kick on their own; our spring adds this share on top (all of it when aimed
+## through an aim clip, where the Fire clip is not played).
+const CLIP_KICK := 0.35
+## The guns' roughness maps are made for a lit studio; in the dark hall the lamp streaks spread into a
+## dull sheen. A share of it sharpens them into the glints of oiled steel.
+const GUN_ROUGHNESS := 0.7
+const RUN_SPEED := 6.5  # m/s; faster plays Run instead of Walk
 ## Recoil is a spring on the whole rig: a shot gives it a kick of speed, it flies up and back and
 ## swings home on its own momentum with one small dip, so the kick and the return are one motion.
-## The clip's own fire recoil is linear and starts canted, so in fire sections only the gun's
-## moving parts (FIRE_PARTS) are animated. Shot spacing is GameState.fire_interval (fixed);
-## holding the trigger fires at that rate.
-## Recoil: the hand is shoved back and the gun flips up around the wrist (RECOIL_PIVOT, below and
-## behind the grip), so the muzzle rises most. The push springs back with one small dip past aim;
-## the gun follows the push through a stiff spring, so the flip snaps up in ~40 ms and eases home.
-const RECOIL_PIVOT := Vector3(0.0, 2.0, -8.0)  # Talon space: the wrist
+## Shot spacing is GameState.fire_interval (fixed); holding the trigger fires at that rate.
+## Recoil: the hand is shoved back and the gun flips up around the grip (the gun bone), so the
+## muzzle rises most. The push springs back with one small dip past aim; the gun follows the push
+## through a stiff spring, so the flip snaps up in ~40 ms and eases home.
 const RECOIL_PITCH := 0.15   # rad of muzzle flip at the peak of one shot from rest
 const RECOIL_BACK := 0.035   # m toward the camera at the peak
 const RECOIL_UP := 0.01      # m
@@ -71,9 +54,8 @@ const RECOIL_DAMPING := 0.55  # below 1 leaves one small dip past aim
 const RECOIL_SNAP := 90.0    # rad/s, how stiffly the gun follows the push
 const RECOIL_PEAK := 0.75    # peak of the snap spring after a unit push (simulated; RECOIL_SNAP 90, 0.38 s settle)
 const RECOIL_SETTLE := 0.45  # s to settle at slow fire rates; faster ones settle before the next shot
-const FIRE_PARTS := ["Talon/slide", "Talon/hammer", "Talon/trigger", "Talon/slidecatch", "Talon/clip", "R_point"]  # R_point: the trigger finger
 const FIRE_BUFFER := 0.15    # s an early click waits for the gun to be ready
-const RELOAD_BUFFER := 0.6   # s an R pressed during a shot or a settle waits for the gun
+const RELOAD_BUFFER := 0.6   # s an R pressed during a shot waits for the gun
 const KICK := 0.035        # rad of view climb per shot
 const SWAY := 0.000008     # m per px/s of mouse speed
 const SWAY_MAX := 0.018
@@ -104,10 +86,9 @@ const SPREAD_RECOVER := 0.015 # rad/s
 const SPREAD_ADS := 0.15      # share left when aimed
 const BREATH := Vector2(0.0008, 0.0012)  # m; the model's own idle clip bobs too fast
 const ADS_TIME := 0.18     # s to bring the sights up (and to drop them)
-const ADS_EYE := 0.22      # m from the eye to the rear sight when aimed
 const ADS_STEADY := 0.2    # share of sway, bob and breath left when aimed
 const ADS_RECOIL := 0.8    # share of the gun's kick when aimed (braced with both hands)
-const ADS_CLIPS := ["", "fire", "fire_last"]  # rest pose only: reloads and the draw drop the sights
+const ADS_CLIPS := ["", "fire"]  # rest pose only: reloads and the draw drop the sights
 ## Placing gear the gun goes away: it dips around the wrist and sinks out of view, then hides;
 ## the arms are one rig, so any pose that keeps them on screen leaves a hand hanging in the air.
 const LOW_ROT := Vector3(-0.5, 0.0, 0.15)  # euler (pitch, yaw, roll) at the bottom
@@ -123,15 +104,18 @@ const WISP_TIME := 3.5  # s for a hot barrel's smoke to thin out to nothing
 const FLASH_TIME := 0.05  # s
 
 var body: CharacterBody3D  # set via setup(); drives bob and keeps shells off the capsule
+## Vertical fov (degrees) the gun's own camera draws it at, before the aim zoom; 0 follows the
+## player's camera. A gun animated for a narrower lens shows its cut-off sleeves wider than that.
+var view_fov := 0.0
 
+## GameState.GUNS index in hand (-1 before the first draw), and its SETS entry.
+var gun := -1
+var _kit := {}
+var _want_gun := 0  # drawn once the one in hand is put away
 var _clip := ""
-var _clip_id := 0  # bumps on every section, so a cut-short section's sounds don't fire late
-var _slide: Node3D
-var _slide_track := -1
-var _slide_home: Vector3  # closed (forward) slide position
-var _held := {}  # HELD_PARTS name -> [node, track, rest value (position or quaternion)]
-var _slide_locked := false
-var _rack_after := false  # this reload went into an empty chamber with the slide closed
+var _punch := 0
+var _aim_pose := false  # aim_clips: holding Aim_In's end
+var _attach: BoneAttachment3D  # rides the gun bone: muzzle and ejection port hang off it
 var _since_fire := 10.0
 var _want_fire := 0.0  # s left on a buffered click
 var _want_reload := 0.0
@@ -149,9 +133,7 @@ var _kick := 0.0  # the gun following the push: 1 = peak of one shot from rest
 var _kick_vel := 0.0
 var _kick_yaw := 0.0
 var _kick_roll := 0.0
-var _pivot: Vector3  # RECOIL_PIVOT in our own space
-var _rig_tracks: Array[int] = []  # everything but FIRE_PARTS, muted while firing
-var _rest: Vector3
+var _pivot: Vector3  # the grip in our own space: recoil and sway turn about it
 var _sway := Vector3.ZERO
 var _sway_target := Vector3.ZERO
 var _mouse := Vector2.ZERO  # mouse travel since the last frame
@@ -184,8 +166,9 @@ var _world_flash: OmniLight3D  # the gun lives in its own world; this one lights
 
 @onready var _model: Node3D = $Model
 @onready var _anim: AnimationPlayer = $Model/AnimationPlayer
-@onready var _muzzle := _marker(MUZZLE)
-@onready var _port := _marker(PORT)
+@onready var _skel: Skeleton3D = _model.find_child("Skeleton3D", true, false)
+@onready var _muzzle := Node3D.new()
+@onready var _port := Node3D.new()
 @onready var _flash: Node3D = $Flash
 @onready var _flash_light: OmniLight3D = $Flash/Light
 @onready var _shot_sound: AudioStreamPlayer3D = $ShotSound
@@ -196,7 +179,6 @@ var _world_flash: OmniLight3D  # the gun lives in its own world; this one lights
 
 
 func _ready() -> void:
-	_rest = position
 	add_to_group("first_person_gun")
 	# The import auto-generates LODs and the arms are skinned: Godot judges their distance off the
 	# rest pose and draws the hands as a coarse blob. The gun is always at arm's length; full detail.
@@ -229,42 +211,115 @@ func _ready() -> void:
 			(v as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_flash.visible = false
 	_anim.animation_finished.connect(_on_clip_finished.unbind(1))
-	_slide = _model.find_child("slide", true, false)
-	var a := _anim.get_animation("allanims")
-	_slide_track = a.find_track(_anim.get_node(_anim.root_node).get_path_to(_slide), Animation.TYPE_POSITION_3D)
-	_slide_home = a.position_track_interpolate(_slide_track, CLIPS["settle"][0])
-	var root := _anim.get_node(_anim.root_node)
-	for part in HELD_PARTS:
-		var node: Node3D = _model.find_child(part, true, false)
-		var path := root.get_path_to(node)
-		var pos := a.find_track(path, Animation.TYPE_POSITION_3D)
-		var rot := a.find_track(path, Animation.TYPE_ROTATION_3D)
-		var t := pos if pos >= 0 else rot
-		var rest: Variant = a.position_track_interpolate(t, CLIPS["settle"][0]) if pos >= 0 else a.rotation_track_interpolate(t, CLIPS["settle"][0])
-		_held[part] = [node, t, rest]
-	for t in a.get_track_count():
-		var path := str(a.track_get_path(t))
-		if not FIRE_PARTS.any(func(part: String) -> bool: return part in path):
-			_rig_tracks.append(t)
-	_anim.play("allanims")
-	_anim.seek(CLIPS["settle"][1], true)  # the rest pose every aimable clip ends in
+	_attach = BoneAttachment3D.new()
+	_skel.add_child(_attach)
+	_attach.add_child(_muzzle)
+	_attach.add_child(_port)
+	load_clips(_anim, _skel)
+	for g: Dictionary in GameState.GUNS:
+		assert(not g.ready or SETS.has(g.id), "GameState.GUNS %s is ready but has no SETS entry" % g.id)
+	for each: Dictionary in SETS.values():
+		if each.mesh != "":
+			var mi: MeshInstance3D = _skel.get_node(NodePath(each.mesh))
+			for i in mi.mesh.get_surface_count():
+				var steel := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
+				steel.roughness *= GUN_ROUGHNESS
+				mi.set_surface_override_material(i, steel)
+
+
+## The sets' clips only key the bones they move; a bone left out would keep the last clip's pose
+## (a gun's pose under the fists). Each clip gets every bone: its own set's rest turn, our rest
+## place and size (the fists' shorter arms keep our length). The fists' clips come from their own
+## file onto the same arms. Shared by every copy of the arms (the remote players' too); done once.
+static func load_clips(anim: AnimationPlayer, skel: Skeleton3D) -> void:
+	var lib := anim.get_animation_library("")
+	if lib.has_meta("filled"):
+		return
+	lib.set_meta("filled", true)
+	var fists: Node = FISTS.instantiate()
+	var their: Skeleton3D = fists.find_child("Skeleton3D", true, false)
+	var their_lib := (fists.find_child("AnimationPlayer", true, false) as AnimationPlayer).get_animation_library("")
+	for n in their_lib.get_animation_list():
+		lib.add_animation(n, their_lib.get_animation(n))
+	var at := str(anim.get_node(anim.root_node).get_path_to(skel)) + ":"
+	for n in lib.get_animation_list():
+		var a := lib.get_animation(n)
+		var rest_of := their if n.begins_with("Fists_") else skel
+		for b in skel.get_bone_count():
+			var bone := skel.get_bone_name(b)
+			var path := NodePath(at + bone)
+			var rb := rest_of.find_bone(bone)
+			var rot := (rest_of.get_bone_rest(rb) if rb >= 0 else skel.get_bone_rest(b)).basis.get_rotation_quaternion()
+			for kind: int in [Animation.TYPE_POSITION_3D, Animation.TYPE_ROTATION_3D, Animation.TYPE_SCALE_3D]:
+				if a.find_track(path, kind) >= 0:
+					continue
+				var t := a.add_track(kind)
+				a.track_set_path(t, path)
+				match kind:
+					Animation.TYPE_POSITION_3D: a.position_track_insert_key(t, 0.0, skel.get_bone_rest(b).origin)
+					Animation.TYPE_ROTATION_3D: a.rotation_track_insert_key(t, 0.0, rot)
+					Animation.TYPE_SCALE_3D: a.scale_track_insert_key(t, 0.0, skel.get_bone_rest(b).basis.get_scale())
+		# Only these loop; any other clip must end, or the gun would wait on it forever.
+		var loops := n.ends_with("_Idle") or n.ends_with("_Walk") or n.ends_with("_Run")
+		a.loop_mode = Animation.LOOP_LINEAR if loops else Animation.LOOP_NONE
+	fists.free()
+
+
+## Puts the one in hand away (its Unequip clip) and draws GameState.GUNS[`i`]; the player calls
+## it when the gun in hand changes (GameState.gun_changed).
+func equip(i: int) -> void:
+	_want_gun = i
+	if gun == -1:
+		_swap()
+	elif _clip != "holster" and _want_gun != gun:
+		_play("holster")
+
+
+## Shows the wanted gun's mesh on the arms and stands the arms where its clips were framed.
+func _swap() -> void:
+	gun = _want_gun
+	_kit = SETS[GameState.GUNS[gun].id]
+	for each: Dictionary in SETS.values():
+		if each.mesh != "":
+			(_skel.get_node(NodePath(each.mesh)) as Node3D).visible = each == _kit
+	var eye: Vector3 = _kit.eye
+	_model.transform = Transform3D(Basis(Vector3.UP, PI), Basis(Vector3.UP, PI) * -eye)
+	view_fov = _kit.fov
+	_attach.bone_name = _kit.bone
+	_muzzle.position = _kit.get("muzzle", Vector3.ZERO)
+	_port.position = _kit.get("port", Vector3.ZERO)
+	_aim_pose = false
+	_want_fire = 0.0  # a click or R from before the swap is not for this gun
+	_want_reload = 0.0
+	_anim.play(_kit.clips + "Idle")
+	_anim.seek(0.0, true)
 	_anim.advance(0.0)  # seek alone does not pose the rig before the first frame
 	_measure_sights()
 	_play("draw")
 
 
-## Aiming moves and turns the gun so the line from the rear notch over the front post runs down
-## the view axis, blades level: the post then sits exactly on the screen centre, where shots land.
+## Where `at` (in the gun bone's space) is now, in our own space.
+func _on_gun(at: Vector3) -> Vector3:
+	var bone := _skel.find_bone(_kit.bone)
+	return global_transform.affine_inverse() * (_skel.global_transform * _skel.get_bone_global_pose(bone) * at)
+
+
+## Aiming moves and turns the whole rig so the line from the rear sight over the front one runs down
+## the view axis, level: the front sight then sits exactly on the screen centre, where shots land.
+## Sets with their own aim clips (aim_clips) and the fists leave the rig where it is.
 func _measure_sights() -> void:
-	var inv := global_transform.affine_inverse()
-	var rear := inv * _marker(REAR_SIGHT).global_position
-	_pivot = inv * _marker(RECOIL_PIVOT).global_position
-	var front := inv * _marker(FRONT_SIGHT).global_position
-	var up := inv.basis * (_model.find_child("Talon", true, false) as Node3D).global_basis.y
+	_pivot = _on_gun(Vector3.ZERO)
+	_ads_pos = Vector3.ZERO
+	_ads_rot = Quaternion.IDENTITY
+	if not _kit.has("rear"):
+		return
+	var rear := _on_gun(_kit.rear)
+	var front := _on_gun(_kit.front)
+	var up := _on_gun(_kit.rear + Vector3.UP) - rear
 	var z := (rear - front).normalized()  # the gun's own back
 	var x := up.cross(z).normalized()
 	_ads_rot = Basis(x, z.cross(x), z).get_rotation_quaternion().inverse()
-	_ads_pos = Vector3(0.0, 0.0, -ADS_EYE) - _ads_rot * rear
+	_ads_pos = Vector3(0.0, 0.0, -float(_kit.ads_eye)) - _ads_rot * rear
 
 
 ## Called by the player once it is ready: shells and smoke live in its level, on layer 1.
@@ -339,7 +394,7 @@ func _process(delta: float) -> void:
 		elif Input.is_action_just_pressed("reload"):
 			_want_reload = RELOAD_BUFFER
 	_was_captured = captured
-	var want_aim := captured and live and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
+	var want_aim := captured and live and gun > 0 and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
 	_aim_lin = move_toward(_aim_lin, 1.0 if want_aim else 0.0, delta / ADS_TIME)
 	aim = smoothstep(0.0, 1.0, _aim_lin)
 	_want_fire -= delta
@@ -358,6 +413,7 @@ func _process(delta: float) -> void:
 		if _flash_left <= 0.0 and _flash_frames <= 0:
 			_flash.visible = false
 			_world_flash.visible = false
+	_rest_clip()
 	_flash.global_transform = _muzzle.global_transform.orthonormalized()
 	# World-up, a centimetre past the bore so the plume starts at the opening, not inside the slide.
 	var ahead := -(get_parent() as Node3D).global_basis.z
@@ -370,17 +426,22 @@ func _process(delta: float) -> void:
 
 
 func _can_fire() -> bool:
-	return (_clip == "" or _clip == "fire") and _since_fire >= GameState.fire_interval
+	if gun == 0:
+		return _clip == ""  # a punch plays out before the next
+	return gun > 0 and (_clip == "" or _clip == "fire") and _since_fire >= GameState.fire_interval
 
 
 func fire() -> void:
 	if not _can_fire():
 		return
+	if gun == 0:  # bare fists throw a punch, nothing leaves
+		_punch = (_punch + 1) % PUNCHES.size()
+		_play("fire")
+		return
 	if GameState.loaded <= 0:
 		if _dry_armed:
 			_dry_armed = false
-			if not _slide_locked:  # slide back: the trigger is dead, nothing to click
-				_dry_sound.play()
+			_dry_sound.play()
 		if GameState.carried > 0:
 			reload()
 		return
@@ -390,76 +451,40 @@ func fire() -> void:
 	if not GameState.request_fire(cam.global_position, cam.global_basis * Basis.from_euler(Vector3(off.y, off.x, 0.0)) * Vector3.FORWARD):
 		return
 	_bloom += SPREAD_SHOT
-	_add_kick(1.0)
 	_kick_yaw = randf_range(-1.0, 1.0)
 	_kick_roll = randf_range(-1.0, 1.0)
-	_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * FIRE_JIGGLE
 	_since_fire = 0.0
-	_slide_locked = GameState.loaded == 0
-	_play("fire_last" if _slide_locked else "fire")
+	# Aimed through an aim clip, the gun stays on the sights: only the spring kicks, the Fire clip
+	# is hip-fired and would drop them.
+	if _aim_pose:
+		_add_kick(ADS_RECOIL)
+	else:
+		_add_kick(CLIP_KICK)
+		_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * FIRE_JIGGLE
+		_play("fire")
 	_effects()
 	kicked.emit(KICK * randf_range(0.8, 1.2))
 
 
 func _can_reload() -> bool:
-	return _clip == "" or _clip == "inspect"
+	return gun > 0 and _clip == ""
 
 
 func reload() -> void:
 	if not _can_reload():
 		return
-	var chamber_empty := GameState.loaded == 0
+	var empty := GameState.loaded == 0
 	if GameState.request_reload() == 0:
 		return
-	_rack_after = chamber_empty and not _slide_locked
-	_play("reload_empty" if _slide_locked else "reload")
-	_slide_locked = false
+	_play("reload_empty" if empty else "reload")
 
 
 func _play(clip: String) -> void:
 	_clip = clip
-	_clip_id += 1
-	var a := _anim.get_animation("allanims")
-	for t in _rig_tracks:
-		a.track_set_enabled(t, clip != "fire" and clip != "fire_last")
-	for part in _held:
-		a.track_set_enabled(_held[part][1], clip not in SLIDE_HELD and not HELD_UNTIL.has(clip))
-	var c: Array = CLIPS[clip]
-	# settle is a held pose; stretch it over its blend or the blend gets cut off when it ends
-	var speed: float = (c[1] - c[0]) / BLEND[clip] if clip == "settle" else 1.0
-	_anim.play_section("allanims", c[0], c[1], BLEND.get(clip, -1.0), speed)
-	if not BLEND.has(clip):
-		_anim.seek(c[0], true)  # same name twice in a row (a fast second shot) would not restart
-	var id := _clip_id
-	if HELD_UNTIL.has(clip):
-		get_tree().create_timer(HELD_UNTIL[clip]).timeout.connect(func() -> void:
-			if id == _clip_id:
-				for part in _held:  # the slide stop only rises on an empty magazine, never in a rack
-					a.track_set_enabled(_held[part][1], part != "slidecatch"))
-	if LET_GO.has(clip):
-		get_tree().create_timer(LET_GO[clip]).timeout.connect(func() -> void:
-			if id == _clip_id:
-				_slam_slide())
-	for cue in CLIP_SOUNDS.get(clip, []):
-		get_tree().create_timer(cue[0]).timeout.connect(func() -> void:
-			if id == _clip_id:
-				var p := _mag_sound if cue[1] in [MAG_OUT, MAG_ENTER, MAG_SEAT] else _slide_sound
-				p.stream = cue[1]
-				p.pitch_scale = randf_range(0.97, 1.03)
-				p.play())
-
-
-## The recoil spring drives the slide home, accelerating all the way (ease in), hammer and slide
-## stop riding with it; the gun jolts when it hits.
-func _slam_slide() -> void:
-	var a := _anim.get_animation("allanims")
-	for part in _held:
-		a.track_set_enabled(_held[part][1], false)  # the clip let them follow the hand back; now they are ours
-	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	for part in _held:
-		var h: Array = _held[part]
-		tw.tween_property(h[0], "position" if h[2] is Vector3 else "quaternion", h[2], SLIDE_SLAM)
-	tw.chain().tween_callback(_add_kick.bind(SLIDE_SLAM_JOLT))
+	_aim_pose = false
+	var name: String = PUNCHES[_punch] if gun == 0 and clip == "fire" else CLIPS[clip]
+	_anim.play(_kit.clips + name, CLIP_BLEND)
+	_anim.seek(0.0, true)  # a second shot before the first ends restarts it
 
 
 ## Shoves the hand so the gun alone would peak at `amount` (1 = one shot).
@@ -467,22 +492,32 @@ func _add_kick(amount: float) -> void:
 	_push += amount / RECOIL_PEAK
 
 
-## Every section ends in the rest pose (or slide-back when empty), so the gun just holds it.
+## Back to Idle / Walk / Run (_rest_clip); a finished put-away draws the next gun.
 func _on_clip_finished() -> void:
-	if _clip == "reload" and _rack_after:
-		_rack_after = false
-		_play("rack")
-	elif NEXT.has(_clip):
-		_play(NEXT[_clip])
+	if _clip == "holster":
+		_swap()
 	else:
 		_clip = ""
 
 
-func _marker(at: Vector3) -> Node3D:
-	var m := Node3D.new()
-	m.position = at
-	_model.find_child("Talon", true, false).add_child(m)
-	return m
+## At rest: Aim_In / Aim_Out on the right button (aim_clips), else Idle, Walk or Run by speed.
+func _rest_clip() -> void:
+	if _clip != "" or _kit.is_empty():
+		return
+	if _kit.get("aim_clips", false):
+		var want_aim := _aim_lin > 0.0
+		if want_aim != _aim_pose:
+			_aim_pose = want_aim
+			_anim.play(_kit.clips + ("Aim_In" if want_aim else "Aim_Out"), CLIP_BLEND)
+			return
+		if _aim_pose or (_anim.is_playing() and _anim.current_animation == _kit.clips + "Aim_Out"):
+			return
+	var speed := Vector2(body.velocity.x, body.velocity.z).length() if body else 0.0
+	var idle := "Idle"
+	if body and body.is_on_floor() and speed > 0.5:
+		idle = "Run" if speed > RUN_SPEED else "Walk"
+	if _anim.current_animation != _kit.clips + idle:
+		_anim.play(_kit.clips + idle, 0.25)
 
 
 func _effects() -> void:
@@ -636,7 +671,7 @@ func _sway_and_bob(delta: float) -> void:
 	visible = _lowered < 0.98
 	var lb := Basis.from_euler(LOW_ROT * _lowered)
 	var low := Transform3D(lb, _pivot - lb * _pivot + LOW_POS * _lowered)
-	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _rest.lerp(_ads_pos, aim) + _base) * low * jelly * recoil
+	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _ads_pos * aim + _base) * low * jelly * recoil
 
 
 ## Spring frequency: settles (to ~2%) in RECOIL_SETTLE, or before the next shot if that is sooner.

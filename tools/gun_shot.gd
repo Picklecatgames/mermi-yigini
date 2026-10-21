@@ -1,7 +1,8 @@
 extends SceneTree
-## Plays the pistol through draw, shots, reloads and saves screenshots, for checking the
-## viewmodel without playing:
+## Draws each gun (and bare fists) in first person and photographs it at rest, aimed, firing and
+## mid-reload, for checking the viewmodel without playing:
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/gun_shot.gd
+## Saves user://gun_<gun>_<shot>.png (the folder is printed). Needs a window: headless does not draw.
 
 
 func _initialize() -> void:
@@ -12,45 +13,63 @@ func _initialize() -> void:
 	var vm: Node3D = player.get_node("ViewmodelView/SubViewport/Camera/Viewmodel")
 	player.rotation.y = deg_to_rad(20)  # pile off to the side, wall and floor in view
 	await process_frame  # GameState needs the tree's multiplayer before player()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE  # the player grabs it; the real mouse must not turn the view
 	gs.player().levels["magazine"] = 6
-	gs.player().carried = 20
-	await _wait(1.3)
-	_save("idle")
-	vm.reload()
-	await _wait(0.9)
-	_save("reload_mid")
-	await _wait(2.2)
+	gs.player().carried = 200
+	print("pictures in ", OS.get_user_data_dir())
+	await _wait(1.5)
+	await _save("fists_idle")
 	vm.fire()
-	await process_frame
-	await process_frame
-	_save("fire_flash")
-	await _wait(0.12)
-	_save("fire_shell")
-	await _wait(0.5)
-	for i in 3:
+	await _wait(0.25)
+	await _save("fists_punch")
+	for g in range(1, gs.GUNS.size()):
+		if not gs.GUNS[g].ready:
+			continue
+		var id: String = gs.GUNS[g].id
+		gs.request_select_gun(g)
+		while vm.gun != g or vm.clip != "":  # put away, drawn
+			await process_frame
+		await _wait(0.6)
+		await _save(id + "_idle")
+		vm.reload()
+		await _wait(0.9)
+		await _save(id + "_reload_mid")
+		while vm.clip != "":
+			await process_frame
+		gs.player().cooldown = 0.0
+		vm._since_fire = 10.0
 		vm.fire()
-		await _wait(0.3)
-	_save("smoke")
-	await _wait(3.0)
-	player.get_node("Head").rotation.x = -0.9
-	await _wait(0.3)
-	_save("shells_floor")
-	var shell: Node3D = vm._shells.filter(func(x): return x.visible)[0]
-	var close := Camera3D.new()
-	main.add_child(close)
-	close.near = 0.005
-	close.look_at_from_position(shell.global_position + Vector3(0.12, 0.06, 0.0), shell.global_position)
-	close.make_current()
-	player.get_node("ViewmodelView").visible = false
-	await _wait(0.3)
-	_save("shell_close")
-	player.get_node("ViewmodelView").visible = true
-	player.get_node("Head/Camera3D").make_current()
-	player.get_node("Head").rotation.x = 0.0
-	player.position = Vector3(0, 0, 27.4)  # nose to the south wall
-	player.rotation.y = PI
-	await _wait(0.4)
-	_save("wall")
+		await process_frame
+		await process_frame
+		await _save(id + "_fire_flash")
+		await _wait(0.12)
+		await _save(id + "_fire_shell")
+		while vm.clip != "":
+			await process_frame
+		# Aimed: the right button needs a captured mouse, so the sights are brought up by hand.
+		vm.set_process(false)
+		vm.aim = 1.0
+		vm._aim_lin = 1.0
+		vm._rest_clip()  # Aim_In where the set has it, else Idle under the sights
+		var t0 := Time.get_ticks_msec()
+		var last := t0
+		while Time.get_ticks_msec() - t0 < 900:  # by time: off screen it draws a few hundred frames a second
+			vm._sway_and_bob((Time.get_ticks_msec() - last) / 1000.0)
+			last = Time.get_ticks_msec()
+			await process_frame
+		await _save(id + "_aimed")
+		vm.aim = 0.0
+		vm._aim_lin = 0.0
+		vm._aim_pose = false
+		vm.set_process(true)
+		await _wait(0.5)
+	# The same gun by the heap's spots and in a dark corner: the hall's nearest lights light it.
+	for spot: Array in [["lit", Vector3(-2.5, 0.0, 6.5), PI], ["dark", Vector3(-24.0, 0.0, 22.0), 0.6]]:
+		player.global_position = spot[1]
+		player._yaw = spot[2]
+		player.reset_physics_interpolation()
+		await _wait(0.8)
+		await _save("scorpion_" + spot[0])
 	quit()
 
 
@@ -59,5 +78,5 @@ func _wait(s: float) -> void:
 
 
 func _save(shot_name: String) -> void:
+	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png("user://gun_%s.png" % shot_name)
-	print("saved ", ProjectSettings.globalize_path("user://gun_%s.png" % shot_name))

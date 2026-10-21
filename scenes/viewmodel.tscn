@@ -1,21 +1,21 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/viewmodel.gd" id="1"]
-[ext_resource type="PackedScene" path="res://assets/weapons/heavy_pistol/heavy_pistol.gltf" id="2"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_1.wav" id="shot_1"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_2.wav" id="shot_2"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_3.wav" id="shot_3"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_4.wav" id="shot_4"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_5.wav" id="shot_5"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_6.wav" id="shot_6"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_7.wav" id="shot_7"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shot_8.wav" id="shot_8"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/dry.wav" id="4"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shell_1.wav" id="5"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shell_2.wav" id="6"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shell_3.wav" id="7"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shell_4.wav" id="9"]
-[ext_resource type="AudioStream" path="res://assets/weapons/heavy_pistol/sounds/shell_5.wav" id="10"]
+[ext_resource type="PackedScene" path="res://assets/weapons/arms/arms.gltf" id="2"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_1.wav" id="shot_1"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_2.wav" id="shot_2"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_3.wav" id="shot_3"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_4.wav" id="shot_4"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_5.wav" id="shot_5"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_6.wav" id="shot_6"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_7.wav" id="shot_7"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shot_8.wav" id="shot_8"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/dry.wav" id="4"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_1.wav" id="5"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_2.wav" id="6"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_3.wav" id="7"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_4.wav" id="9"]
+[ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_5.wav" id="10"]
 [ext_resource type="ArrayMesh" path="res://assets/bullet/shell_45.res" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/smoke_trail.tscn" id="11"]
 
@@ -91,11 +91,9 @@ streams_count = 1
 stream_0/stream = ExtResource("4")
 
 [node name="Viewmodel" type="Node3D"]
-position = Vector3(0.075, -0.175, -0.29)
 script = ExtResource("1")
 
 [node name="Model" parent="." instance=ExtResource("2")]
-transform = Transform3D(-0.01, 0, 0, 0, 0.01, 0, 0, 0, -0.01, 0, 0, 0)
 
 [node name="Flash" type="Node3D" parent="."]
 

@@ -11,6 +11,8 @@ extends SceneTree
 ## Star points the same way on both (both processes read the same wall clock to line these up).
 ## Between players: the client shoots the host (no harm, no pay, the host's aim jumps), then
 ## walks into it: it can't pass through, and the host gets shoved. Name tags take slot colours.
+## Guns: the host draws the UZI before the client joins and the client, bare-handed at first, the
+## Deagle; each sees the other's character holding the right one.
 
 const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the way
 const LOG := "user://net_check_client.log"
@@ -49,6 +51,7 @@ func _host() -> void:
 	# Taken before anyone joins: the client will reach for the same bullet and must lose it.
 	if gs.request_pick_up_loose(0) != 1:
 		return _fail("host takes loose bullet 0")
+	gs.request_select_gun(2)  # the UZI, before anyone is there to see it
 	var client_id := [0]
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void:
 		client_id[0] = id
@@ -62,6 +65,10 @@ func _host() -> void:
 	var paid := [gs.vault / gs.VAULT_SHARE]  # gold paid so far, by anyone (the vault takes its share of each)
 	gs.shot_landed.connect(func(_p: int, _a: Vector3, _n: Vector3, _d: Vector3, _t: Node, gold: int, _w: bool, _c: int) -> void:
 		paid[0] += gold)
+	var topped := [0.0]  # what the client's T added to the vault on top of the hits
+	gs.vault_changed.connect(func(v: float) -> void:
+		if v >= gs.TEST_MONEY and topped[0] == 0.0:
+			topped[0] = v - paid[0] * gs.VAULT_SHARE)
 	gs.shot_landed.connect(func(peer: int, _at: Vector3, _n: Vector3, _d: Vector3, t: Node, gold: int, _w: bool, _c: int) -> void:
 		if peer == gs.local_peer() or t == null:
 			return  # our own shot at the popper, the client's at us
@@ -69,7 +76,7 @@ func _host() -> void:
 		var sound: Node3D = main.get_node("Impacts")._shot_sounds.get(peer)
 		shots.append([peer, t, gold, labels.any(func(l: Label3D) -> bool: return l.visible),
 			who.muzzle_position() if who else Vector3.INF, sound.global_position if sound else Vector3.INF,
-			gs.player(peer).pos]))
+			gs.player(peer).pos, _holding(who)]))
 	var ff := []
 	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3) -> void:
 		ff.append([shooter, victim]))
@@ -116,6 +123,7 @@ func _host() -> void:
 			"the client's character stood where it fired from"): return
 	if not _ok(shots[0][5].distance_to(muzzle) < 0.001, "the shot rang out at that character's muzzle"): return
 	if not _ok(shots[0][6].distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
+	if not _ok(shots[0][7] == "Deagle", "the client's character fired holding the Deagle (%s)" % shots[0][7]): return
 	if not _ok(tag_ok[0], "the client's tag takes slot 1's colour"): return
 	print("friendly fire: %s, our aim now pitch %.3f; pushed %.2f m" % [ff, me._pitch, me.global_position.distance_to(home)])
 	if not _ok(ff.size() == 1 and ff[0] == [cid, gs.local_peer()], "the client's round hit us"): return
@@ -123,9 +131,9 @@ func _host() -> void:
 	if not _ok(me.global_position.distance_to(home) > 0.3, "the client walking into us shoved us"): return
 	if not await _until(func() -> bool: return rp.character(cid) == null, "the client's character to go"): return
 	var p = gs._saved.values()[0] if gs._saved.size() == 1 else null  # under the client's token
-	if not _ok(p != null and p.gold == 1 and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
+	if not _ok(p != null and p.gold == gs.TEST_MONEY and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
 	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return
-	if not _ok(paid[0] >= 1 and is_equal_approx(gs.vault, paid[0] * gs.VAULT_SHARE), "every paid $ put its share in the vault (%.2f of $%.0f)" % [gs.vault, paid[0]]): return
+	if not _ok(paid[0] >= 1 and topped[0] > 0.0 and is_equal_approx(gs.vault, topped[0] + paid[0] * gs.VAULT_SHARE), "every paid $ put its share in the vault (%.2f of $%.0f)" % [gs.vault, paid[0]]): return
 	print("net_check OK")
 	quit()
 
@@ -148,6 +156,12 @@ func _client() -> void:
 	var rp: Node = main.get_node("RemotePlayers")
 	if not await _until(func() -> bool: return rp.character(1) != null and rp.character(1).visible, "the host's character"): return
 	if not _ok(rp.character(1).global_position.distance_to(spawns[0].global_position) < 0.5, "it stands on the host's spawn"): return
+	# Guns: the host drew the UZI before we came; we are bare-handed until we draw ours.
+	if not _ok(_holding(rp.character(1)) == "UZI", "the host's character holds the UZI (%s)" % _holding(rp.character(1))): return
+	if not _ok(gs.player().gun == 0 and not gs.request_fire(me.global_position, Vector3.FORWARD) and gs.request_reload() == 0, "bare fists: nothing to fire or load"): return
+	gs.request_select_gun(1)
+	if not await _until(gs.synced, "answer to drawing the Deagle"): return
+	if not _ok(gs.player().gun == 1, "the host let us draw it"): return
 	# Walk up to the line to shoot from there; our pose follows us to the host.
 	me.global_position = Vector3(12, 0, 0)
 	me.reset_physics_interpolation()
@@ -212,7 +226,7 @@ func _client() -> void:
 	var eye: Vector3 = me.global_position + Vector3.UP * gs.EYE
 	if not _ok(gs.request_fire(eye, (host_at + Vector3.UP * 1.2 - eye).normalized()), "shot at the host"): return
 	if not await _until(func() -> bool: return ff.size() == 1, "the friendly fire event"): return
-	if not _ok(ff[0] == [gs.local_peer(), 1] and gs.gold == 1, "we hit the host, for nothing"): return
+	if not _ok(ff[0] == [gs.local_peer(), 1] and gs.gold == gs.TEST_MONEY, "we hit the host, for nothing"): return
 	Input.action_press("move_forward")
 	var closest := INF
 	var t_push := Time.get_ticks_msec()
@@ -243,6 +257,16 @@ func _client() -> void:
 	_log.append("client OK, latency %.3f s" % net.latency())
 	_write_log()
 	quit()
+
+
+## The gun mesh a remote character shows, "" bare-handed.
+func _holding(who: Node) -> String:
+	if who == null or not who._gun.visible:
+		return ""
+	for m: Node3D in who._fp_skel.get_children():
+		if m is MeshInstance3D and m.visible and m.name != "Mesh":
+			return m.name
+	return "?"
 
 
 func _sample() -> void:

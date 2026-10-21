@@ -24,6 +24,14 @@ const KICK_OMEGA := 28.0     # rad/s; peak at 1 / KICK_OMEGA ≈ 36 ms
 const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
 const SUN_SHADE_SPEED := 6.0  # 1/s, how fast the gun's sun fades in and out of shade
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
+## The gun's world copies the hall's lights nearest the player (both worlds share coordinates), so
+## the steel glints under a lamp and goes dark away from them. This many of each kind, re-picked
+## this often; the key light dims with how lit the spot is.
+const VM_SPOTS := 6
+const VM_OMNIS := 2
+const VM_LIGHT_PICK := 0.25  # s
+const KEY_ENERGY := 2.2
+const KEY_DARK := 0.35  # share of the key light left far from any lamp
 const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
 const AIR_SHOWN := 0.1  # s off the ground before others see a jump (not every bump and step)
 ## Walking into another player shoves them with this share of your speed into them; you stay
@@ -35,6 +43,7 @@ const SHOVE_DECAY := 6.0  # 1/s: a shove dies out in about half a second
 const FF_CLIMB := Vector2(0.05, 0.1)
 const FF_YAW := 0.09
 const FF_KICK := 0.06  # rad of view jolt on top
+const PLACEMENT := preload("res://scripts/placement.gd")  # its HUD box and label helpers
 
 var _grab_timer := 0.0
 var _yaw := 0.0
@@ -52,6 +61,12 @@ var _vm_sun: DirectionalLight3D
 var _world_sun: DirectionalLight3D
 var _vm_env: Environment
 var _vm_ambient := 1.0
+var _hall_lights: Array[Light3D] = []  # every lamp, spot and glow in the level
+var _vm_spots: Array[SpotLight3D] = []  # their stand-ins in the gun's world
+var _vm_omnis: Array[OmniLight3D] = []
+var _vm_key: DirectionalLight3D
+var _light_pick := 0.0
+var _lit := 1.0  # how lit the player's spot is, smoothed: 0 dark, 1 under a lamp
 var _sun_lit := 1.0
 var _sun_query := PhysicsRayQueryParameters3D.new()
 var _hip_fov := 75.0
@@ -61,6 +76,7 @@ var _pose_timer := 0.0
 var _shove := Vector3.ZERO  # m/s from someone walking into us
 var _push_timer := 0.0
 var _yaw_climb := 0.0  # rad of sideways aim still to add (friendly fire)
+var _gun_bar: HBoxContainer  # GameState.GUNS after the fists, number keys 1-4
 
 @onready var _head: Node3D = $Head
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
@@ -105,6 +121,12 @@ func _ready() -> void:
 	_viewmodel.kicked.connect(func(a: float) -> void:
 		_climb += a * KICK_CLIMB
 		_recoil_vel += a * (1.0 - KICK_CLIMB) * KICK_OMEGA * exp(1.0))  # peak = v / (w·e)
+	_viewmodel.equip(GameState.player().gun)
+	_build_gun_bar()
+	GameState.gun_changed.connect(func(peer: int, gun: int) -> void:
+		if peer == GameState.local_peer():
+			_viewmodel.equip(gun)
+			_update_gun_bar())
 	for i in FLY_POOL:
 		var b: Node3D = BULLET.instantiate()
 		b.visible = false
@@ -145,9 +167,9 @@ func _go_to_spawn(index: int) -> void:
 ## What other machines show this player doing.
 func _act() -> int:
 	var clip: String = _viewmodel.clip
-	if clip.begins_with("fire"):
+	if clip == "fire" and GameState.player().gun != 0:
 		return GameState.Act.SHOOTING
-	if clip.begins_with("reload") or clip in ["settle", "slingshot", "rack"]:
+	if clip.begins_with("reload"):
 		return GameState.Act.RELOADING
 	return GameState.Act.WALKING if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.1 else GameState.Act.IDLE
 
@@ -160,7 +182,18 @@ func _setup_viewmodel_world() -> void:
 	# after it entered the tree, and the arms would lose their skin binding (bind pose).
 	_vm_env = get_world_3d().environment.duplicate()
 	_vm_env.background_mode = Environment.BG_CLEAR_COLOR
-	_vm_env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	# The hall has no sky (closed and dark), so the gun gets a dim warm ambient of its own, roughly
+	# what the lamps would bounce onto it; otherwise it renders black.
+	_vm_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_vm_env.ambient_light_color = Color(0.55, 0.53, 0.5)
+	_vm_env.ambient_light_energy = 0.8  # flat light shows no normal map: kept low, the key light below shapes
+	# Metal shows what it reflects, and with nothing to reflect the guns rendered black. The hall it
+	# stands in (materials/viewmodel_sky.gdshader: LED battens on a dark roof, lit concrete) stands in
+	# for it, only in the reflections; the background stays clear.
+	var sky := ShaderMaterial.new()
+	sky.shader = preload("res://materials/viewmodel_sky.gdshader")
+	_vm_env.sky = Sky.new()
+	_vm_env.sky.sky_material = sky
 	_vm_env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	_vm_env.ssao_enabled = false
 	_vm_env.ssil_enabled = false
@@ -178,12 +211,94 @@ func _setup_viewmodel_world() -> void:
 		_vm_sun.layers = 0xFFFFF
 		_vm_view.add_child(_vm_sun)
 		_vm_sun.global_basis = _world_sun.global_basis
-	# Lamps under the roof are not in this world; a weak warm top light stands in for them.
+	# The ceiling battens are not in this world; a soft top light the colour of theirs stands in.
 	var fill := DirectionalLight3D.new()
-	fill.light_color = Color(1.0, 0.9, 0.76)
-	fill.light_energy = 0.35
+	fill.light_color = Color(1.0, 0.95, 0.88)
+	fill.light_energy = 1.0
 	fill.rotation = Vector3(-PI / 2.0 + 0.3, 0.4, 0.0)
 	_vm_view.add_child(fill)
+	# Key light riding the gun's camera, from above and behind the left shoulder, so stitching, edges,
+	# engraving and the normal maps read whichever way the player looks; a top light alone left the
+	# side of the gun and the backs of the gloves in flat ambient.
+	var key := DirectionalLight3D.new()
+	_vm_key = key
+	key.light_color = Color(1.0, 0.96, 0.9)
+	key.light_energy = KEY_ENERGY
+	key.light_specular = 1.2
+	key.rotation = Vector3(-0.65, 0.4, 0.0)
+	_vm_camera.add_child(key)
+	# Rim light from ahead and to the right, back toward the camera: a thin bright line on the edges
+	# of slides, sights and knuckles that lifts them off the dark hall.
+	var rim := DirectionalLight3D.new()
+	rim.light_color = Color(0.85, 0.9, 1.0)
+	rim.light_energy = 0.9
+	rim.light_specular = 2.0
+	rim.rotation = Vector3(-0.35, PI - 0.6, 0.0)
+	_vm_camera.add_child(rim)
+	for l: Light3D in get_parent().find_children("*", "Light3D", true, false):
+		if (l is SpotLight3D or l is OmniLight3D) and not is_ancestor_of(l):
+			_hall_lights.append(l)
+	for i in VM_SPOTS:
+		_vm_spots.append(SpotLight3D.new())
+	for i in VM_OMNIS:
+		_vm_omnis.append(OmniLight3D.new())
+	for l: Light3D in _vm_spots + _vm_omnis:
+		l.shadow_enabled = false
+		l.visible = false
+		l.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+		_vm_view.add_child(l)
+
+
+## Moves the gun world's stand-in lights onto the hall lights nearest the eye, and dims the key
+## light by how much light reaches it from them.
+func _mirror_lights(dt: float) -> void:
+	_light_pick -= dt
+	if _light_pick > 0.0 or _vm_spots.is_empty():
+		_vm_key.light_energy = KEY_ENERGY * lerpf(KEY_DARK, 1.0, _lit)
+		return
+	_light_pick = VM_LIGHT_PICK
+	var eye := _camera.global_position
+	var near := _hall_lights.filter(func(l: Light3D) -> bool: return is_instance_valid(l) and l.is_visible_in_tree())
+	near.sort_custom(func(a: Light3D, b: Light3D) -> bool: return _light_at(a, eye) > _light_at(b, eye))
+	var spots := near.filter(func(l: Light3D) -> bool: return l is SpotLight3D)
+	var omnis := near.filter(func(l: Light3D) -> bool: return l is OmniLight3D)
+	var lit := 0.0
+	for i in _vm_spots.size():
+		lit += _copy_light(_vm_spots[i], spots[i] if i < spots.size() else null, eye)
+	for i in _vm_omnis.size():
+		lit += _copy_light(_vm_omnis[i], omnis[i] if i < omnis.size() else null, eye)
+	_lit = lerpf(_lit, clampf(lit, 0.0, 1.0), 0.5)
+
+
+## How much of light `l` reaches `eye`, roughly: energy over the share of its range left, inside a spot's cone.
+func _light_at(l: Light3D, eye: Vector3) -> float:
+	var range_ := (l as SpotLight3D).spot_range if l is SpotLight3D else (l as OmniLight3D).omni_range
+	var to := eye - l.global_position
+	var f := clampf(1.0 - to.length() / range_, 0.0, 1.0)
+	if l is SpotLight3D and to.length() > 0.01:
+		var off := rad_to_deg((-l.global_basis.z).angle_to(to))
+		f *= clampf(1.0 - (off - (l as SpotLight3D).spot_angle) / 15.0, 0.0, 1.0)
+	return l.light_energy * f * f
+
+
+func _copy_light(to: Light3D, from: Light3D, eye: Vector3) -> float:
+	to.visible = from != null
+	if not from:
+		return 0.0
+	to.global_transform = from.global_transform
+	to.light_color = from.light_color
+	to.light_energy = from.light_energy
+	to.light_specular = maxf(from.light_specular, 1.0)
+	if to is SpotLight3D:
+		var s := from as SpotLight3D
+		(to as SpotLight3D).spot_range = s.spot_range
+		(to as SpotLight3D).spot_angle = s.spot_angle
+		(to as SpotLight3D).spot_attenuation = s.spot_attenuation
+		(to as SpotLight3D).spot_angle_attenuation = s.spot_angle_attenuation
+	else:
+		(to as OmniLight3D).omni_range = (from as OmniLight3D).omni_range
+		(to as OmniLight3D).omni_attenuation = (from as OmniLight3D).omni_attenuation
+	return _light_at(from, eye)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -201,6 +316,42 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_toggle_placing()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
+		# 1 draws the first gun; the key of the one in hand puts it away (bare fists).
+		GameState.request_select_gun(event.physical_keycode - KEY_1 + 1)
+
+
+## Bottom centre: one slot per gun, the one in hand lit; a gun not in yet is dimmed. Test bar
+## until guns come off the table and out of crates.
+func _build_gun_bar() -> void:
+	_gun_bar = HBoxContainer.new()
+	_gun_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_gun_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_gun_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_gun_bar.offset_bottom = -64  # above placement's stock reminder
+	_gun_bar.add_theme_constant_override("separation", 10)
+	_gun_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$HUD.add_child(_gun_bar)
+	for i in range(1, GameState.GUNS.size()):
+		var slot := PanelContainer.new()
+		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		row.add_child(PLACEMENT._label(str(i), 15, Color(1, 1, 1, 0.6)))
+		row.add_child(PLACEMENT._label(GameState.GUNS[i].name, 18, Color.WHITE))
+		slot.add_child(row)
+		_gun_bar.add_child(slot)
+	_update_gun_bar()
+
+
+func _update_gun_bar() -> void:
+	for i in _gun_bar.get_child_count():
+		var on := i + 1 == GameState.player().gun
+		var box: StyleBoxFlat = PLACEMENT._box(Color(0.05, 0.06, 0.08, 0.82 if on else 0.55), Color(PLACEMENT.GOLD, 0.9) if on else Color(1, 1, 1, 0.2), 16, 8)
+		box.set_border_width_all(2 if on else 1)
+		var slot: PanelContainer = _gun_bar.get_child(i)
+		slot.add_theme_stylebox_override("panel", box)
+		slot.modulate = Color.WHITE if on else Color(1, 1, 1, 0.7 if GameState.GUNS[i + 1].ready else 0.3)
 
 
 func _process(delta: float) -> void:
@@ -229,14 +380,20 @@ func _process(delta: float) -> void:
 	_crosshair.queue_redraw()
 	_hit_marker.center = _crosshair.offset
 	_vm_camera.global_transform = _camera.global_transform
-	_vm_camera.fov = _camera.fov
+	var vm_fov: float = _viewmodel.view_fov
+	_vm_camera.fov = _camera.fov if vm_fov == 0.0 else rad_to_deg(2.0 * atan(tan(deg_to_rad(vm_fov) * 0.5) / _zoom))
 	_shade_viewmodel(dt)
+	_mirror_lights(dt)
+	if _viewmodel._want_gun != GameState.player().gun:  # e.g. after leaving: local_peer() changed
+		_viewmodel.equip(GameState.player().gun)
+		_update_gun_bar()
 
 
 ## Placement mode (B, or buying gear) takes us over the firing line, facing the target area;
 ## leaving it brings us back to where we stood.
 func _on_placing(on: bool) -> void:
 	_update_counter()
+	_gun_bar.visible = not on  # placement has its own key row down there
 	if on and global_position.x < GameState.FIRING_LINE_X:
 		_before_placing = [global_position, _yaw, _pitch]
 		var zone := GameState.PLACE_ZONE
@@ -410,7 +567,7 @@ func _set_hand_count(n: int) -> void:
 
 
 func _update_counter() -> void:
-	_counter.text = "Elde: %d/%d\nŞarjör: %d/%d\nYığın: %s\n[Q] Geliştirmeler%s" % [GameState.carried, GameState.carry_capacity, GameState.loaded, GameState.mag_capacity, _thousands(GameState.pile), ("\nSINIRSIZ MERMİ (T)" if GameState.infinite_ammo else "")]  # placement mode has its own banner (scripts/placement.gd)
+	_counter.text = "Elde: %d/%d\nŞarjör: %d/%d\nYığın: %s\n[Q] Geliştirmeler%s" % [GameState.carried, GameState.carry_capacity, GameState.loaded, GameState.mag_capacity, _thousands(GameState.pile), ("\nSINIRSIZ MERMİ + PARA (T)" if GameState.infinite_ammo else "")]  # placement mode has its own banner (scripts/placement.gd)
 
 
 ## Money counter: the new amount, and a green pop when it went up.
