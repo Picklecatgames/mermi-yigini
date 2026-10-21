@@ -108,11 +108,11 @@ const ADS_EYE := 0.22      # m from the eye to the rear sight when aimed
 const ADS_STEADY := 0.2    # share of sway, bob and breath left when aimed
 const ADS_RECOIL := 0.8    # share of the gun's kick when aimed (braced with both hands)
 const ADS_CLIPS := ["", "fire", "fire_last"]  # rest pose only: reloads and the draw drop the sights
-## Low ready, held while placing gear: euler (pitch, yaw, roll) around the wrist and a shift, in
-## the gun's frame. Muzzle down and in across the body, the hand a little lower and nearer.
-const LOW_ROT := Vector3(-0.35, 0.9, 0.45)
-const LOW_POS := Vector3(-0.03, 0.11, 0.02)  # m
-const LOW_TIME := 0.3  # s down, and back up
+## Placing gear the gun goes away: it dips around the wrist and sinks out of view, then hides;
+## the arms are one rig, so any pose that keeps them on screen leaves a hand hanging in the air.
+const LOW_ROT := Vector3(-0.5, 0.0, 0.15)  # euler (pitch, yaw, roll) at the bottom
+const LOW_POS := Vector3(0.0, -0.3, 0.05)  # m, down and a little back
+const LOW_TIME := 0.25  # s down, and back up
 const SHELL_POOL := 20
 const TINK_EVERY := Vector2i(10, 15)  # inside a burst, one shell clinks every this many
 const TINK_GAP := 1.5   # s without a shot before the next one counts as a lone shot
@@ -632,7 +632,8 @@ func _sway_and_bob(delta: float) -> void:
 	# In the gun's own frame, around the wrist: when aimed the front post jumps above the notch.
 	var flip := Basis.from_euler(Vector3(RECOIL_PITCH, RECOIL_YAW * _kick_yaw, RECOIL_ROLL * _kick_roll) * kick)
 	var recoil := Transform3D(flip, _pivot - flip * _pivot + Vector3(0.0, RECOIL_UP, RECOIL_BACK) * kick)
-	# Low ready: around the wrist the muzzle drops and turns in across the body, the hand sinks.
+	# Put away for placing: the muzzle dips and the whole rig sinks below the screen.
+	visible = _lowered < 0.98
 	var lb := Basis.from_euler(LOW_ROT * _lowered)
 	var low := Transform3D(lb, _pivot - lb * _pivot + LOW_POS * _lowered)
 	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _rest.lerp(_ads_pos, aim) + _base) * low * jelly * recoil
