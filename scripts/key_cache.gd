@@ -20,11 +20,11 @@ extends Node3D
 
 const PILE := preload("res://scripts/pile.gd")
 ## Rank order, most common first: [name, tier]. Models: assets/props/keys/key_NN.glb
-## (tools/build_keys.py). What each one opens is decided with the crates.
+## (tools/build_keys.py). Key N opens crate N (scripts/chests.gd; 1-7 were picked to match theirs).
 ## The 6th opens the mid-game weapon, the 12th the minigun.
 const KEYS := [
-	["Kapı Anahtarı", 0], ["Paslı Anahtar", 0], ["Kahve Halka", 0], ["Madalyonlu Anahtar", 0],
-	["Pirinç Anahtar", 1], ["Kum Adamı Anahtarı", 1], ["Kara Baklava", 1], ["Demir İskelet", 1],
+	["Asma Kilit Anahtarı", 0], ["Paslı Anahtar", 0], ["Kara Demir Anahtar", 0], ["İşlemeli Anahtar", 0],
+	["Antika Anahtar", 1], ["Kafatası Anahtarı", 1], ["Buhar Anahtarı", 1], ["Demir İskelet", 1],
 	["Viktorya Anahtarı", 1], ["Rulmanlı Anahtar", 2], ["Altın Düğüm", 2], ["Dişli Anahtar", 2],
 ]
 const TIER_NAMES := ["SIRADAN", "NADİR", "EFSANEVİ"]

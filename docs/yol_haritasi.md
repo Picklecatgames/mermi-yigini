@@ -78,15 +78,17 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 12. **Kovan → fırın → külçe:** kovanı kim toplarsa onun; fırın dünya yapısı (ortak); külçe kişisel mi ortak mı bu adımda karar.
    - **Kovan toplama (kullanıcı isteği, 2026-10-20):** yerdeki kovan para kaynağı olacağı için belirgin olmalı: çevresinde ince bir kontur/parıltı çizgisi, uzaktan seçilir. Oyuncu bakıp E ile eline alır. El kapasitesi başta 1 kovan, gelişme ağacından 10'a çıkar. Sonra ağaca toplayıcılar bağlanır: kova → süpürge → robot süpürge (kovanı yerden kendisi toplar). Co-op: kovan şimdi süs ve yerel (her makinede ayrı fizik); para olunca host'ta sayılan bir dünya nesnesine dönmeli (konumu, kimin aldığı olay olarak).
 13. **Kasa duvarı + anahtar–kasa eşlemesi:** anahtarı yürüyen oyuncu alır (host'ta ilk gelen), kasa açılınca özellik herkese açılır, açılış töreni herkesin ekranında oynar.
-   - Başlandı (2026-10-22): 1–7. seviye kasaları kaidelerde (`scripts/chests.gd`, `tools/build_chests.py`); 1, 2, 3, 5, 6, 7. kasaların anahtarları indirildi. Kalanlar: 4. kasanın anahtarı ve 8–12. kasalar, anahtarların anahtar setine işlenmesi (Kum Adamı çıkacak), açılma ve tören.
+   - Başlandı (2026-10-22): 1–7. seviye kasaları kaidelerde (`scripts/chests.gd`, `tools/build_chests.py`); 1–7. anahtarlar kasalarına göre değişti (`tools/build_keys.py`, Kum Adamı çıktı). Kalanlar: 8–12. kasalar, açılma ve tören.
 14. **Mermi tipi altyapısı + tracer:** tip oyuncunun şarjöründe taşınır. Tracer: mor, hızlı; vurunca hedefin sağ arkasında ışık olarak belirip tekrar vurur; yankı vuruşlarını host zamanlar, herkes görür; yankı sayısı upgrade ağacı.
 
 ## Faz 4: Otomasyon ve orta oyun (~25 sa)
 
+Taret ve bant için kılavuz, adım listesi ve yapılmayacaklar: `taret_bant_kilavuzu.md` (2026-10-22).
+
 15. **İlk taret:** ortak kasadan alınır, külçeyle gelişir, zincire girmez. Hedef seçimi ve atış host'ta, istemciye yalnız atış olayları.
 16. **Bantlar + robot taşıyıcı:** host simüle eder; bant kazısı `bullets_taken` olayıyla yayılır, anahtarlar bandın kazdığı yerden fırlar.
 17. **Kalan mermi tipleri, birer birer:** seken, bölünme, delici, yanıcı, patlayıcı. Sekme hedefleri ve bölünme zarı host'ta.
-18. **Orta oyun silahı (6. anahtar, Kum Adamı):** silah henüz seçilmedi. Saçma dağılımı host'ta hesaplanır.
+18. **Orta oyun silahı (6. anahtar, Kafatası):** silah henüz seçilmedi. Saçma dağılımı host'ta hesaplanır.
 
 ## Faz 5: Final (~15 sa)
 

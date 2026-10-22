@@ -1,48 +1,54 @@
-# Blender (5.x, background): the twelve crate keys, from nine Sketchfab downloads (all CC-BY-4.0,
-# credits in CLAUDE.md), cut down for a game: each key on its own, decimated to a triangle budget,
+# Blender (5.x, background): the twelve crate keys, from Sketchfab downloads (credits in
+# docs/ayrintilar.md), cut down for a game: each key on its own, decimated to a triangle budget,
 # textures shrunk, scaled to a length by tier and centred, written to <out>/key_NN.glb in rank
-# order (common first). The "Keys" pack holds four keys in one mesh; they are split apart by
-# position.
-# Run: blender -b --factory-startup -P tools/build_keys.py -- <unzipped downloads dir> <out_dir>
-#   <unzipped downloads dir> has one folder per zip (door_key, key, key__1_, key__2_, keys,
-#   medieval_gold_key, old_key, sandman_key, victorian_key), each with its scene.gltf.
+# order (common first). Key N opens crate N (assets/props/chests, chosen to match). The "Keys" pack
+# holds four keys in one mesh; they are split apart by position.
+# Run: blender -b --factory-startup -P tools/build_keys.py -- <downloads dir> <out_dir> [ranks]
+#   <downloads dir> holds keyN.glb (Sketchfab "glb" downloads, keys 1-7) and one unzipped folder per
+#   older zip (key, victorian_key, key__2_, medieval_gold_key, old_key) with its scene.gltf.
+#   [ranks]: e.g. "1-7" builds only those.
 import bpy, bmesh, math, os, sys
 from mathutils import Vector, Matrix
 
-SRC, OUT = sys.argv[sys.argv.index("--") + 1:][:2]
+ARGS = sys.argv[sys.argv.index("--") + 1:]
+SRC, OUT = ARGS[:2]
+ONLY = range(int(ARGS[2].split("-")[0]), int(ARGS[2].split("-")[-1]) + 1) if len(ARGS) > 2 else range(1, 13)
 os.makedirs(OUT, exist_ok=True)
 
 # Long side of the finished key, m, and texture size, by tier.
 TIERS = {"common": (0.08, 512), "rare": (0.10, 512), "legendary": (0.13, 1024)}
-# rank: (folder, which key of a multi-key mesh counted left to right or None, tier, triangle budget)
-# Key 3 has no textures (flat brown) and a shaft that is a broken, hundred-ring tube no decimator
-# survives; it is voxel-remeshed into a clean shell first (REMESH).
+# rank: (source, which key of a multi-key mesh counted left to right or None, tier, triangle budget)
+# 2026-10-22: 1-7 replaced to match their crates (the Sandman key went); 8-12 as before.
 KEYS = [
-    ("door_key", None, "common", 1200),
-    ("keys", 0, "common", 1200),
-    ("key__1_", None, "common", 1200),  # REMESH
-    ("keys", 3, "common", 1200),
-    ("keys", 1, "rare", 1500),
-    ("sandman_key", None, "rare", 1500),  # opens the mid-game weapon
-    ("keys", 2, "rare", 1500),
+    ("key1", None, "common", 1200),  # a padlock set: only the key is kept (MESH)
+    ("key2", None, "common", 1200),
+    ("key3", None, "common", 1200),
+    ("key4", None, "common", 1500),
+    ("key5", None, "rare", 2000),
+    ("key6", None, "rare", 4000),  # a skull: the face needs the triangles; opens the mid-game weapon
+    ("key7", None, "rare", 2500),
     ("key", None, "rare", 1500),
     ("victorian_key", None, "rare", 2000),
     ("key__2_", None, "legendary", 2500),
     ("medieval_gold_key", None, "legendary", 2500),
     ("old_key", None, "legendary", 2500),  # opens the minigun
 ]
-
-
+# source: the one mesh (by its glTF mesh name's start) that is the key.
+MESH = {"key1": "Key_Padlock"}
 REMESH = {"key__1_"}
 # Bow came out at the bottom after standing up: turned over.
-FLIP = {"key__2_"}
+FLIP = {"key__2_", "key1"}
 # Modelled lying diagonally: turned upright along their principal axis.
 ALIGN = {"old_key"}
 
 
 def load(folder):
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    bpy.ops.import_scene.gltf(filepath=os.path.join(SRC, folder, "scene.gltf"))
+    glb = os.path.join(SRC, folder + ".glb")
+    bpy.ops.import_scene.gltf(filepath=glb if os.path.exists(glb) else os.path.join(SRC, folder, "scene.gltf"))
+    for o in list(bpy.context.scene.objects):
+        if folder in MESH and o.type == "MESH" and not o.data.name.startswith(MESH[folder]):
+            bpy.data.objects.remove(o)
     meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
     for o in meshes:  # bake the Sketchfab node chain into the mesh, drop the empties
         o.data = o.data.copy()
@@ -108,6 +114,8 @@ def pick(o, index):
 
 
 for rank, (folder, index, tier, budget) in enumerate(KEYS, 1):
+    if rank not in ONLY:
+        continue
     o = load(folder)
     weld(o)
     if index is not None:
