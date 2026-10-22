@@ -52,7 +52,6 @@ func build(parent: Node) -> void:
 	_shooters_side()
 	_flanks()
 	_bay_detail()
-	_graffiti()
 	_posters()
 	_overhead()
 
@@ -116,7 +115,6 @@ func _bay_mouth() -> void:
 		b.add(red, root)
 		_flag(Vector3(27.45, 0, s * 13.9))
 		_sandbags(Vector3(28.75, 0, s * 11.55), 3, 3, 0.0)  # inside the mouth, against the bay walls
-		_sign(["DİKKAT", "SEKME TEHLİKESİ"], Vector3(29.6, 2.0, s * 11.95), _wall(-s), Vector2(0.9, 0.5), true)
 		_sign(["KUM SETİ", "GİRMEYİNİZ"], Vector3(39.2, 2.0, s * 11.95), _wall(-s), Vector2(0.9, 0.5), true)
 
 
@@ -302,7 +300,6 @@ func _armour_corner() -> void:
 	b._prop(root, MODELS + "cement_bag/cement_bag_1k.gltf", Vector3(24.4, 0, 27.4), 1.2)
 	b._prop(root, MODELS + "cement_bag/cement_bag_1k.gltf", Vector3(24.5, 0.16, 27.35), 1.4)
 	_sandbags(Vector3(27.0, 0, 26.9), 3, 3, PI / 2)
-	_paper(["HURDA", "KULLANMAYIN!"], Vector3(19.2, 2.1, 27.955), _wall(-1.0), Vector2(0.7, 0.45), 0.06)
 
 
 func _helmet(at: Vector3, yaw: float) -> void:
@@ -373,17 +370,10 @@ func _shooters_side() -> void:
 	warm.omni_range = 6.0
 	warm.light_volumetric_fog_energy = 0.3
 	b.add(warm, root)
-	# Brass sweeping by the railing's south end, and the crew's scoreboard.
+	# Brass sweeping by the railing's south end.
 	b._prop(root, MODELS + "metal_trash_can/metal_trash_can_1k.gltf", Vector3(13.35, 0, 26.9), 0.2)
 	b._prop(root, MODELS + "plastic_broom/plastic_broom_1k.gltf", Vector3(13.55, 0, 27.6), 0.0, 1.0, Basis(Vector3.RIGHT, 0.18))
 	b._prop(root, MODELS + "dustpan/dustpan_1k.gltf", Vector3(12.9, 0, 27.55), 0.8)
-	_sign(["BOŞ KOVAN", "TOPLAMA ALANI"], Vector3(13.2, 1.75, 27.97), _wall(-1.0), Vector2(0.8, 0.4), false)
-	var board := Vector3(7.6, 1.65, 27.95)
-	b.block(Vector3(1.8, 1.1, 0.03), board, _flat(Color(0.07, 0.1, 0.08), 0.95), root)
-	b.block(Vector3(1.9, 1.2, 0.02), board + Vector3(0, 0, 0.02), wood, root)
-	var chalk: Label3D = b._range_label("SKOR TABLOSU\nZeynep ....... 3.115\nAli ............ 1.240\nMert .......... 87\nEmre .......... ???", 26, Color(0.92, 0.92, 0.88, 0.8), b.SPRAY)
-	chalk.transform = Transform3D(_wall(-1.0), board + Vector3(0, 0, -0.018))
-	b.add(chalk, root)
 	b._prop(root, MODELS + "standing_chalkboard_01/standing_chalkboard_01_1k.gltf", Vector3(5.6, 0, 27.0), PI + 0.3)
 
 
@@ -476,41 +466,17 @@ func _hole(holes: Array, at: Vector3, normal: Vector3) -> void:
 	b.add(d, root)
 
 
-# --- the crew's spray paint ------------------------------------------------------------------
-
-func _graffiti() -> void:
-	# Big pieces up on the concrete above the lining, small tags low; three colours.
-	var orange := Color(1.0, 0.42, 0.12)
-	var white := Color(0.95, 0.95, 0.92)
-	var green := Color(0.49, 1.0, 0.31)
-	_spray("100.000.000'DAN 0'A", Vector3(21.0, 3.25, -27.96), _wall(1.0), 190, orange, -0.04)
-	_spray("BİZ BİTİRİRİZ", Vector3(19.5, 3.35, 27.96), _wall(-1.0), 150, white, 0.03)
-	_spray("IIII  IIII  IIII  III", Vector3(24.4, 2.95, 27.96), _wall(-1.0), 110, white, -0.02)
-	_spray("KOMBO ÖLMESİN", Vector3(27.96, 3.2, -18.5), _wall_east(), 120, Color(0.95, 0.15, 0.1), 0.05)
-	_spray("KAFA x2, UNUTMA", Vector3(27.96, 3.15, 18.5), _wall_east(), 110, green, -0.04)
-	_spray("YIĞIN BİTER, BİZ BİTMEYİZ", Vector3(36.5, 3.25, -11.96), _wall(1.0), 95, white, 0.02)
-	_spray("ANAHTAR YIĞININ DİBİNDE", Vector3(37.0, 3.2, 11.96), _wall(-1.0), 85, orange, -0.03)
-	_spray("Ali buradaydı", Vector3(9.0, 0.7, 27.96), _wall(-1.0), 60, green, 0.1)
-	_spray("Y-7", Vector3(13.7, 0.45, -27.96), _wall(1.0), 90, orange, -0.08)
-
-
-func _spray(text: String, at: Vector3, face: Basis, size: int, colour: Color, roll: float) -> void:
-	var l: Label3D = b._range_label(text, size, Color(colour, 0.88), b.SPRAY)
-	l.outline_size = int(size * 0.12)  # overspray haze round the strokes
-	l.outline_modulate = Color(colour, 0.14)
-	l.transform = Transform3D(face * Basis(Vector3.BACK, roll), at)
-	b.add(l, root)
-
-
-# --- posters: the crew's jokes and the old rules, on the shooters' side -------------------------
+# --- posters: odd old public-information prints the crew taped up, on the shooters' side --------
 
 func _posters() -> void:
-	_paper(["POLİGON KURALLARI", "1. Silah daima hedefe", "2. Hattı geçme", "3. Kulaklık, gözlük", "4. Kovanı topla", "5. Yığına tırmanma"], Vector3(5.5, 1.6, -27.97), _wall(1.0), Vector2(0.7, 1.0), 0.02)
-	_paper(["MERMİ İSRAF EDİLMEZ", "...ATEŞ EDİLİR"], Vector3(3.8, 1.7, -27.97), _wall(1.0), Vector2(0.6, 0.85), -0.03, true)
-	_paper(["KAYIP!", "1 ADET ANAHTAR", "ÖDÜLLÜDÜR"], Vector3(4.6, 1.6, 27.97), _wall(-1.0), Vector2(0.55, 0.75), 0.05)
-	_paper(["DİKKAT", "YIĞIN KAYABİLİR", "(45°)"], Vector3(3.6, 1.65, 27.97), _wall(-1.0), Vector2(0.55, 0.7), -0.02)
-	_paper(["HAFTANIN ATICISI", "_________"], Vector3(12.0, 2.6, 27.97), _wall(-1.0), Vector2(0.6, 0.8), 0.03, true)
-	_sign(["SİLAH DAİMA", "HEDEFE"], Vector3(7.2, 2.4, -27.97), _wall(1.0), Vector2(1.0, 0.5), false)
+	_poster("fly_bomber", Vector3(3.8, 1.7, -27.97), _wall(1.0), 0.9, -0.03)
+	_poster("john_not_dull", Vector3(5.5, 1.65, -27.97), _wall(1.0), 0.95, 0.02)
+	_poster("dont_mix_em", Vector3(7.3, 1.75, -27.97), _wall(1.0), 0.85, -0.015)
+	_poster("firecrackers", Vector3(3.4, 1.65, 27.97), _wall(-1.0), 0.8, -0.02)
+	_poster("six_out_of_ten", Vector3(4.6, 1.6, 27.97), _wall(-1.0), 0.75, 0.04)
+	_poster("oops", Vector3(7.6, 1.7, 27.97), _wall(-1.0), 0.85, 0.01)
+	_poster("heat_ruins_ammo", Vector3(12.0, 2.5, 27.97), _wall(-1.0), 0.6, 0.03)
+	_poster("black_widow", Vector3(19.2, 2.15, 27.955), _wall(-1.0), 0.55, 0.05)
 	_sign(["ATIŞ VAR", "GİRİLMEZ"], Vector3(12.6, 2.3, -27.97), _wall(1.0), Vector2(0.8, 0.5), true)
 	_sign(["ATIŞ VAR", "GİRİLMEZ"], Vector3(12.6, 2.3, 27.97), _wall(-1.0), Vector2(0.8, 0.5), true)
 
@@ -583,17 +549,33 @@ func _paper(lines: Array, at: Vector3, face: Basis, size: Vector2, roll: float, 
 	m.roughness = 0.9
 	if target:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR  # burnt-through holes
-	var xf := Transform3D(face * Basis(Vector3.BACK, roll), at)
-	b.add(_mesh(_quad(size), m, xf), root)
-	for c in [Vector2(-1, 1), Vector2(1, 1), Vector2(-1, -1), Vector2(1, -1)]:  # tape
-		b.add(_mesh(_quad(Vector2(0.09, 0.035)), _flat(Color(0.85, 0.82, 0.7, 0.85), 0.6),
-			xf * Transform3D(Basis(Vector3.BACK, c.x * c.y * 0.6), Vector3(c.x * size.x * 0.46, c.y * size.y * 0.46, 0.002))), root)
+	var xf := _taped(m, at, face, size, roll)
 	if lines.is_empty():
 		return
 	var area := Vector2(size.x * 0.85, size.y * (0.3 if target else 0.75))  # the target takes the bottom
 	var l: Label3D = b._range_label("\n".join(lines), _fit(lines, area), Color(0.1, 0.09, 0.08, 0.92), b.STENCIL)
 	l.transform = xf * Transform3D(Basis(), Vector3(0, size.y * (0.3 if target else 0.0), 0.003))
 	b.add(l, root)
+
+
+## A printed poster from assets/env/posters, `height` m tall, taped on like the papers.
+func _poster(file: String, at: Vector3, face: Basis, height: float, roll: float) -> void:
+	var tex: Texture2D = load("res://assets/env/posters/%s.jpg" % file)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.albedo_color = Color(0.9, 0.87, 0.8)  # aged under the hall's dust
+	m.roughness = 0.85
+	_taped(m, at, face, Vector2(height * tex.get_width() / tex.get_height(), height), roll)
+
+
+## A sheet of `m` with tape on its corners; returns its transform.
+func _taped(m: Material, at: Vector3, face: Basis, size: Vector2, roll: float) -> Transform3D:
+	var xf := Transform3D(face * Basis(Vector3.BACK, roll), at)
+	b.add(_mesh(_quad(size), m, xf), root)
+	for c in [Vector2(-1, 1), Vector2(1, 1), Vector2(-1, -1), Vector2(1, -1)]:  # tape
+		b.add(_mesh(_quad(Vector2(0.09, 0.035)), _flat(Color(0.85, 0.82, 0.7, 0.85), 0.6),
+			xf * Transform3D(Basis(Vector3.BACK, c.x * c.y * 0.6), Vector3(c.x * size.x * 0.46, c.y * size.y * 0.46, 0.002))), root)
+	return xf
 
 
 ## The font size that fits `lines` of stencil inside `area` (m) at _range_label's pixel size.

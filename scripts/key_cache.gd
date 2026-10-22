@@ -60,7 +60,6 @@ var _depth := {}  # rank -> m below the starting surface
 var _shown := {}  # rank -> Node3D while exposed
 var _check := 0.0
 var _toast: Label
-var _count: Label
 var _toast_tween: Tween
 var _reveal := AudioStreamPlayer3D.new()
 var _take := AudioStreamPlayer.new()
@@ -223,32 +222,20 @@ func _on_taken(rank: int, peer: int) -> void:
 	_say("ANAHTAR: %s · %s" % [KEYS[rank - 1][0], TIER_NAMES[tier]], TIER_COLORS[tier])
 	if _take.stream:
 		_take.play()
-	_count.text = "Anahtarlar: %d/%d" % [GameState.player().keys.size(), KEYS.size()]
 
 
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
 	add_child(hud)
-	_toast = Label.new()
+	# The count lives in the HUD under the heap (scripts/hud.gd); this is only the news.
+	_toast = UiStyle.label("", 26, UiStyle.MEDIUM, UiStyle.WHITE, 2)
 	_toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_toast.offset_left = -400.0
-	_toast.offset_right = 400.0
-	_toast.offset_top = 90.0
+	_toast.offset_left = -500.0
+	_toast.offset_right = 500.0
+	_toast.offset_top = 130.0  # under the heap's lines (up to 1440p's HUD scale)
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_toast.add_theme_font_size_override("font_size", 30)
-	_toast.add_theme_constant_override("outline_size", 8)
-	_toast.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
 	_toast.modulate.a = 0.0
 	hud.add_child(_toast)
-	_count = Label.new()
-	_count.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_count.offset_left = 16.0
-	_count.offset_top = -44.0
-	_count.add_theme_font_size_override("font_size", 20)
-	_count.add_theme_constant_override("outline_size", 6)
-	_count.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	_count.text = "Anahtarlar: 0/%d" % KEYS.size()
-	hud.add_child(_count)
 
 
 func _say(text: String, color: Color) -> void:

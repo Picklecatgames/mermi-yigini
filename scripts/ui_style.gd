@@ -14,8 +14,25 @@ const CAPTION_TRACK := 2  # px between letters of the small labels
 const LIGHT := 300
 const REGULAR := 400
 const MEDIUM := 500
+const BASE_HEIGHT := 1080.0  # px, the screen height the sizes here are drawn for
 
 static var _faces := {}  # [weight, tracking] -> FontVariation
+
+
+## Keeps a screen-wide control over the whole screen as the window changes, scaled past
+## BASE_HEIGHT so text keeps its size on 1440p and 4K (never shrunk below 1).
+static func fit_screen(c: Control) -> void:
+	var vp := c.get_viewport()
+	var fit := func() -> void:
+		if not is_instance_valid(c):
+			return
+		var s := vp.get_visible_rect().size
+		var k := maxf(1.0, s.y / BASE_HEIGHT)
+		c.scale = Vector2.ONE * k
+		c.position = Vector2.ZERO
+		c.size = s / k
+	vp.size_changed.connect(fit)
+	fit.call()
 
 
 ## Inter at `weight`, figures all one width (numbers don't jitter as they count), `track` px

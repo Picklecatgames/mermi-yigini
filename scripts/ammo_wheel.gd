@@ -27,8 +27,8 @@ var _note: Control
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiStyle.fit_screen(self)
 	_dim = ColorRect.new()  # the view goes quiet behind the choice
 	_dim.color = Color(0, 0, 0, 0.45)
 	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -191,7 +191,7 @@ func note(id: String) -> void:
 	n.add_child(_centred(UiStyle.label(GameState.SPECIALS[id].desc, 13, UiStyle.REGULAR, UiStyle.DIM)))
 	n.add_child(_centred(UiStyle.caption("R basılı tut  ·  seç")))
 	add_child(n)
-	n.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	n.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	n.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	n.offset_top = 70  # under the heap's line
 	n.modulate.a = 0.0
