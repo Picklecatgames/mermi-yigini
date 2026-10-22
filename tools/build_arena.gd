@@ -17,7 +17,7 @@ const COLUMN_H := 8.95
 const BAYS: Array[float] = [-27.85, -21.0, -14.0, -7.0, 0.0, 7.0, 14.0, 21.0, 27.85]
 const LAMP_SPAN := 24.0  # ceiling battens from -LAMP_SPAN to +LAMP_SPAN along each truss
 const LAMP_STEP := 6.0
-const LAMP_ENERGY := 0.9  # dim working light: the heap's own spots must stay the brightest thing
+const LAMP_ENERGY := 1.4  # dim working light: the heap's own spots must stay the brightest thing
 const LAMP_HEAP_CLEAR := 9.0  # m round the heap with no battens, so it stands in its own light
 const DECALS := "res://materials/env/decals/"
 # The abandoned roof (2026-10-22): skylight panels broken out (x0, z0, x1, z1) and sheets rusted
@@ -194,7 +194,7 @@ func _environment() -> void:
 	env.background_color = Color.BLACK
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR  # faint fill: the roof and corners never go pitch black
 	env.ambient_light_color = Color(0.62, 0.6, 0.56)
-	env.ambient_light_energy = 0.22
+	env.ambient_light_energy = 0.3
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED  # the probe below covers it
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
@@ -209,7 +209,7 @@ func _environment() -> void:
 	env.glow_enabled = true
 	env.glow_intensity = 0.5
 	env.glow_bloom = 0.04
-	env.glow_hdr_threshold = 1.3
+	env.glow_hdr_threshold = 1.6  # lenses and bulbs bloom, brass speculars do not
 	env.volumetric_fog_enabled = true  # dust in the air: the lamp cones and spot beams show in it
 	env.volumetric_fog_density = 0.0025  # a light haze; thicker turned every beam into a grey wedge
 	env.volumetric_fog_albedo = Color(0.92, 0.9, 0.86)
@@ -391,8 +391,8 @@ func _sun(roof: Node3D) -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.transform = Transform3D(Basis.looking_at(SUN_DIR.normalized(), Vector3.FORWARD), Vector3(0, 20, 0))
-	sun.light_color = Color(1.0, 0.95, 0.86)
-	sun.light_energy = 1.35
+	sun.light_color = Color(0.82, 0.9, 1.0)  # cold daylight: the abandonment, against the crew's warm lamps
+	sun.light_energy = 0.95
 	sun.light_volumetric_fog_energy = 0.0  # the fog ignores the roof's shadow: shafts are drawn (sun_shaft.gdshader)
 	sun.light_cull_mask = 1  # not the gun's layer
 	sun.shadow_enabled = true
@@ -436,8 +436,10 @@ func _lamps() -> void:
 			# Years abandoned: half the hall's tubes dead, some failing, some hanging off one chain.
 			# The range side still has its own working circuit. Pools of light, not a grid.
 			var wear := absi(hash(Vector2i(roundi(x * 3.0), roundi(z * 7.0)))) % 10
-			if downrange:
-				wear = 9 if wear < 8 else wear
+			if Vector2(x - HEAP.x, z - HEAP.z).length() < 17.0 or (x > -3.0 and x < GS.FIRING_LINE_X):
+				wear = 9 if wear < 8 else wear  # where players dig and build, the crew keeps the tubes working
+			if downrange:  # its own circuit, kept up better: one in six dead or failing
+				wear = 9 if wear < 4 else (wear if wear in [4, 5] else 9)
 			if not near_spot:  # the stage spots' clamps sit on these chords
 				var lamp := Node3D.new()
 				lamp.position = Vector3(x, y, z)
@@ -475,12 +477,12 @@ func _lamps() -> void:
 					spot.set_script(FLICKER)
 				spot.position.y = -0.1
 				spot.rotation.x = -PI / 2
-				spot.light_color = RANGE_LIGHT if downrange else Color(1.0, 0.95, 0.88)  # neutral-warm 4000 K
+				spot.light_color = RANGE_LIGHT if downrange else Color(1.0, 0.9, 0.78)  # old tungsten-warm 3500 K: only the daylight is cold
 				spot.light_energy = LAMP_ENERGY * (1.6 if downrange else 1.0)
 				spot.spot_range = 14.0
 				spot.spot_attenuation = 0.6
-				spot.spot_angle = 75.0
-				spot.spot_angle_attenuation = 0.9  # soft falloff: neighbours blend, no rings on the floor
+				spot.spot_angle = 55.0
+				spot.spot_angle_attenuation = 1.6  # pools of light on the floor, dark between
 				spot.light_volumetric_fog_energy = 0.25  # a faint haze under each tube, so the roof is air, not a void
 				spot.shadow_enabled = false
 				add(spot, lamp)
@@ -497,7 +499,18 @@ const HEAP_AIM := HEAP + Vector3(0, 2.4, 0)  # a third up the ~7 m heap
 func _heap_spot() -> void:
 	for i in HEAP_SPOTS.size():
 		var at := HEAP_SPOTS[i] + Vector3(0, BOTTOM - CHORD / 2 - 0.05, 0)
-		_stage_spot("HeapSpot%d" % (i + 1), at, HEAP_AIM, 36.0, 11.0, 0.0, 1.0, 1.8)  # no beams: in the hall they read as solid grey wedges
+		_stage_spot("HeapSpot%d" % (i + 1), at, HEAP_AIM, 36.0, 8.0, 0.0, 1.0, 1.8)  # no beams: in the hall they read as solid grey wedges
+	# The pile is a big gold reflector: a warm bounce off it keeps the floor round its foot, where
+	# players dig, out of the black.
+	var bounce := OmniLight3D.new()
+	bounce.name = "HeapBounce"
+	bounce.position = HEAP + Vector3(0, 0.6, 0)
+	bounce.light_color = Color(1.0, 0.72, 0.4)
+	bounce.light_energy = 3.0
+	bounce.omni_range = 14.0
+	bounce.omni_attenuation = 1.2
+	bounce.light_volumetric_fog_energy = 0.0
+	add(bounce)
 
 
 ## A theatre spot hanging from a truss at `at`, aimed at `aim`, with a visible beam cone.
@@ -613,7 +626,7 @@ func _final_spots() -> void:
 	var target := chest_pos(CHEST_COUNT - 1) + Vector3(0, 0.6, 0)
 	for z in [-14.0, -21.0]:
 		var at := Vector3(CHEST_X, BOTTOM - CHORD / 2 - 0.05, z)
-		_stage_spot("FinalSpot%d" % int(absf(z)), at, target, 22.0, 60.0, 0.4, 1.4, 1.6)
+		_stage_spot("FinalSpot%d" % int(absf(z)), at, target, 22.0, 6.0, 0.1, 1.4, 1.6)  # was 60 / 0.4: the brightest thing in the hall, lighting an empty square
 
 
 ## A halo round crate `level`'s stand that grows up the row: a soft glow pooled on the floor and a
@@ -837,7 +850,7 @@ func _dust() -> void:
 	look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	look.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	look.vertex_color_use_as_albedo = true
-	look.albedo_color = Color(1.0, 0.95, 0.85, 0.25)
+	look.albedo_color = Color(1.0, 0.95, 0.85, 0.12)
 	look.roughness = 1.0
 	speck.material = look
 	var fade := Gradient.new()
@@ -847,7 +860,7 @@ func _dust() -> void:
 	fade.add_point(0.8, Color.WHITE)
 	var ramp := GradientTexture1D.new()
 	ramp.gradient = fade
-	for zone in [[HEAP + Vector3(0, 3.5, 0), Vector3(12, 3.5, 12)], [Vector3(24, 2.5, 0), Vector3(10, 2.5, 12)]]:
+	for zone in [[HEAP + Vector3(0, 3.5, 0), Vector3(12, 3.5, 12)]]:  # the range one starred its black roof
 		var drift := ParticleProcessMaterial.new()
 		drift.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 		drift.emission_box_extents = zone[1]
@@ -866,7 +879,7 @@ func _dust() -> void:
 		var p := GPUParticles3D.new()
 		p.name = "Dust"
 		p.position = zone[0]
-		p.amount = 900
+		p.amount = 350  # 900 sprinkled the dark roof with "stars"
 		p.lifetime = 24.0
 		p.preprocess = 24.0
 		p.process_material = drift
@@ -1008,10 +1021,22 @@ func _lining(parent: Node, along_x: bool, face: float, inward: float, from: floa
 		var t := s
 		while e - t > 0.05:
 			var w := minf(W, e - t)
-			var c := t + w / 2.0
+			var c := t + w / 2.0  # sheets overlap 2 cm at the joints: no light gap to the wall behind
 			var at := Vector3(c, H / 2.0, depth) if along_x else Vector3(depth, H / 2.0, c)
-			var size := Vector3(w - 0.01, H, T) if along_x else Vector3(T, H, w - 0.01)
-			block(size, at, ply[randi() % ply.size()], parent)
+			var size := Vector3(w + 0.02, H, T) if along_x else Vector3(T, H, w + 0.02)
+			var fate := randf()
+			if fate < 0.07:  # long gone: the concrete shows, with the screw holes
+				t += w
+				continue
+			var basis := Basis()
+			if fate < 0.13:  # screws rusted out below: it hangs off one top corner
+				var ang := randf_range(0.06, 0.16) * (1.0 if randf() < 0.5 else -1.0)
+				var plane := Vector3(signf(ang) * w / 2.0, H / 2.0, 0)  # the corner still holding, in sheet terms
+				var axis := Vector3.BACK if along_x else Vector3.RIGHT
+				var corner := at + (plane if along_x else Vector3(0, plane.y, plane.x))
+				basis = Basis(axis, ang)
+				at = corner + basis * (at - corner) + (Vector3(0, 0, inward * 0.04) if along_x else Vector3(inward * 0.04, 0, 0))
+			block(size, at, ply[randi() % ply.size()], parent, basis)
 			t += w
 		var mid := (s + e) / 2.0
 		var lip := face + inward * 0.04
@@ -1135,18 +1160,30 @@ func _bay(parent: Node, ply: Array[Material], steel: Material, dark: Material) -
 ## The backstop: sand heaped against the bay's back wall, a lumpy slope from BERM_TOE up to
 ## BERM_TOP, its toe wandering a little; a convex wedge for the rounds to land in.
 func _berm(parent: Node) -> void:
-	const NX := 28
-	const NZ := 72
+	const NX := 56
+	const NZ := 144
 	var noise := FastNoiseLite.new()
 	noise.seed = 3
 	noise.frequency = 0.35
 	noise.fractal_octaves = 4
 	var crest := BAY_END - 0.7
+	# Years of rounds: craters packed where the targets stood (mid face, centre), rain gullies down
+	# the face, and sand slumped out over the toe.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 404
+	var craters: Array[Vector4] = []  # x, z, radius, depth
+	for i in 70:
+		craters.append(Vector4(rng.randf_range(BERM_TOE + 1.2, crest - 0.3), rng.randfn(0.0, 4.0), rng.randf_range(0.12, 0.4), rng.randf_range(0.05, 0.14)))
 	var height := func(x: float, z: float) -> float:
-		var toe := BERM_TOE + noise.get_noise_1d(z * 0.6 + 50.0) * 0.6
+		var toe := BERM_TOE - 0.35 + noise.get_noise_1d(z * 0.6 + 50.0) * 0.9
 		var t := clampf((x - toe) / (crest - toe), 0.0, 1.0)
 		var h := BERM_TOP * t * t * (3.0 - 2.0 * t)  # soft toe, steep face, rounded shoulder
-		return h + noise.get_noise_2d(x * 1.0, z * 1.0) * 0.12 * minf(h * 2.0, 1.0) - 0.03
+		h += noise.get_noise_2d(x * 1.0, z * 1.0) * 0.12 * minf(h * 2.0, 1.0) - 0.03
+		h -= maxf(noise.get_noise_1d(z * 2.6 + 9.0), 0.0) * 0.35 * t * (1.0 - t) * 4.0 * 0.5  # gullies
+		for c: Vector4 in craters:
+			var d2 := (Vector2(x, z) - Vector2(c.x, c.y)).length_squared() / (c.z * c.z)
+			h += c.w * (0.45 * exp(-(d2 - 1.6) * (d2 - 1.6) * 2.0) - exp(-d2 * 1.4)) * minf(h * 3.0, 1.0)
+		return h
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var x0 := BERM_TOE - 0.8
@@ -1328,9 +1365,10 @@ func _range_marks(parent: Node) -> void:
 			var wall_z: float = s * (27.95 if x < 28.0 else BAY_HALF - 0.035)
 			var turn := Basis(Vector3.UP, PI if s > 0 else 0.0)  # the board's front looks into the room
 			block(Vector3(1.0, 0.5, 0.02), Vector3(x, 1.75, wall_z - s * 0.01), yellow, parent, turn)
-			var plaque := _range_label("%d m" % d, 100, Color(0.05, 0.05, 0.05))
+			var plaque := _range_label("%d m" % d, 100, Color(0.05, 0.05, 0.05, 0.82))
 			plaque.transform = Transform3D(turn, Vector3(x, 1.75, wall_z - s * 0.022))
 			add(plaque, parent)
+			sign_grime(parent, Vector3(x, 1.75, wall_z - s * 0.02), Vector3(0, 0, -s), Vector2(1.0, 0.5))
 
 
 func _range_label(text: String, size: int, colour: Color, font: Font = null) -> Label3D:
@@ -1387,7 +1425,7 @@ func _chest_stands() -> void:
 		glow.position = Vector3(0, top + 2.4, 0)
 		glow.rotation.x = -PI / 2
 		glow.light_color = Color(0.85, 0.92, 1.0).lerp(Color(1.0, 0.8, 0.45), float(i) / last)
-		glow.light_energy = 0.5 * pow(1.4, i)  # 0.5 at level 1, 14 at level 11
+		glow.light_energy = 1.0 * pow(1.33, i)  # 1 at level 1, 17 at level 11: the first ones no longer vanish
 		glow.spot_range = 7.0
 		glow.spot_angle = 16.0 + 1.2 * i
 		glow.spot_angle_attenuation = 0.4
@@ -1645,6 +1683,39 @@ func _wall_grime(parent: Node, rng: RandomNumberGenerator) -> void:
 			f.transform = Transform3D(into, face + b * Vector3(run[0], 0, 0) + Vector3(0, 0.45, 0))
 			f.cull_mask = 1
 			add(f, parent)
+
+
+## Age on a sign `size` m facing `out`: dust and grime over the board, sun-bleached patches,
+## rust run from its two top bolts down the wall below.
+func sign_grime(parent: Node, at: Vector3, out: Vector3, size: Vector2) -> void:
+	var noise := FastNoiseLite.new()
+	noise.seed = 52
+	noise.frequency = 0.03
+	noise.fractal_octaves = 4
+	var tex := _decal_tex("sign_grime", 256, 512, func(img: Image) -> void:
+		for y in 512:
+			for x in 256:
+				var n := noise.get_noise_2d(x, y)
+				var c := Color(0, 0, 0, 0)
+				if y < 256:  # the board (row 0 is its top)
+					var edge := minf(minf(x, 255 - x), minf(y, 255 - y))
+					var a := clampf(0.25 + n * 0.8, 0.0, 1.0) * 0.55 + 0.35 * smoothstep(40.0, 0.0, edge)
+					c = Color(0.16, 0.13, 0.09, a) if n > -0.15 else Color(0.8, 0.78, 0.7, 0.3)
+				for bolt in [22.0, 234.0]:  # rust run from the bolts, down past the board
+					var dx := absf(x - bolt - sin(y * 0.05) * 3.0)
+					if y > 14 and dx < 5.0 + y * 0.012:
+						var run := (1.0 - (y - 14) / 498.0) * smoothstep(5.0 + y * 0.012, 0.0, dx)
+						c = c.blend(Color(0.4, 0.17, 0.06, run * (0.6 + 0.4 * n)))
+				img.set_pixel(x, y, c))
+	var up := Vector3.UP
+	var basis := Basis(out.cross(up), out, -up)  # decal +Y out of the wall, texture top up
+	var d := Decal.new()
+	d.texture_albedo = tex
+	d.size = Vector3(size.x * 1.04, 0.12, size.y * 2.08)
+	d.transform = Transform3D(basis, at - Vector3(0, size.y * 0.52, 0))
+	d.modulate = Color(1, 1, 1, randf_range(0.7, 1.0))
+	d.cull_mask = 1
+	add(d, parent)
 
 
 func _decal(parent: Node, tex: Texture2D, pos: Vector3, yaw: float, size: Vector3) -> Decal:

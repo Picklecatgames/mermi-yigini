@@ -66,9 +66,12 @@ func _bay_mouth() -> void:
 	var header := Node3D.new()  # hidden from the placement overview: from above it floats over the bay
 	header.name = "Header"
 	b.add(header, root)
-	b.block(Vector3(0.03, 0.95, 8.4), at, _flat(YELLOW, 0.55), header)
+	header.transform = Transform3D(Basis(Vector3.RIGHT, 0.012), Vector3.ZERO).translated_local(Vector3.ZERO)  # one end's bolt gone: it sags
+	b.block(Vector3(0.03, 0.95, 8.4), at, _flat(YELLOW.lerp(Color(0.7, 0.66, 0.55), 0.35), 0.75), header)
+	for k in 4:  # dust, fading and rust over the board, a run under each bolt pair
+		b.sign_grime(header, at + Vector3(-0.02, 0, -3.15 + k * 2.1), Vector3(-1, 0, 0), Vector2(2.1, 0.95))
 	b.block(Vector3(0.035, 0.08, 8.4), at + Vector3(0, -0.44, 0), _flat(INK, 0.6), header)
-	var title: Label3D = b._range_label("POLİGON 7 · YIĞIN BÖLÜĞÜ", 150, INK, b.STENCIL)
+	var title: Label3D = b._range_label("POLİGON 7 · YIĞIN BÖLÜĞÜ", 150, Color(INK, 0.78), b.STENCIL)
 	title.pixel_size = 0.0028
 	title.transform = Transform3D(face, at + Vector3(-0.02, 0.08, 0.55))
 	b.add(title, header)
@@ -359,7 +362,10 @@ func _shooters_side() -> void:
 	b._prop(root, MODELS + "spray_paint_bottles/spray_paint_bottles_1k.gltf", bench + Vector3(1.25, 0.925, 0.2), 0.7)
 	b._prop(root, MODELS + "can_rusted/can_rusted_1k.gltf", bench + Vector3(-0.35, 0.925, 0.25), 0.0)
 	var cable := Vector3(10.9, 0, 26.9)
-	b.block(Vector3(0.01, 4.1, 0.01), cable + Vector3(0, 5.75, 0), _flat(INK, 0.8), root)
+	# Hung off a unistrut bracket bolted to the wall, its two plates screwed under the rail.
+	b.block(Vector3(1.5, 0.05, 0.05), cable + Vector3(0, 3.73, 0), _flat(INK, 0.6), root)
+	for sx in [-0.7, 0.7]:
+		b.block(Vector3(0.05, 0.05, 0.85), cable + Vector3(sx, 3.73, 0.43), _flat(INK, 0.6), root)
 	var cage: Node3D = (load(MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf") as PackedScene).instantiate()
 	cage.position = cable + Vector3(0, 3.7, 0)
 	b.add(cage, root)
@@ -498,7 +504,8 @@ func _board(at: Vector3, face: Basis, posters: Array) -> void:
 		var m := _aged_poster(posters[i])
 		var tex: Texture2D = m.albedo_texture
 		var size := Vector2(h * tex.get_width() / tex.get_height(), h)
-		var p: Vector3 = at + face * slots[i] + out * z
+		var sx := clampf(slots[i].x, -1.75 + size.x / 2.0, 1.75 - size.x / 2.0)  # never past the frame
+		var p: Vector3 = at + face * Vector3(sx, slots[i].y, 0) + out * z
 		if i == 2:  # this one's bottom pins are gone: it hangs off the board from the top
 			var hinge := p + face * Vector3(0, size.y / 2.0, 0)
 			var xf := Transform3D(face * Basis(Vector3.RIGHT, -0.32) * Basis(Vector3.BACK, 0.05), hinge)
@@ -560,8 +567,10 @@ func _wall_east() -> Basis:
 ## An official sign: a yellow board with black stencil lines, or a white one with a red header
 ## strip when `danger` (the first line goes in the strip).
 func _sign(lines: Array, at: Vector3, face: Basis, size: Vector2, danger: bool) -> void:
+	face = face * Basis(Vector3.BACK, rng.randf_range(-0.05, 0.05))  # a bolt or two gone slack
 	var out := face * Vector3(0, 0, 1)
-	b.block(Vector3(size.x, size.y, 0.015), at + out * 0.0075, _flat(Color(0.94, 0.93, 0.9) if danger else YELLOW, 0.5), root, face)
+	b.block(Vector3(size.x, size.y, 0.015), at + out * 0.0075, _flat((Color(0.94, 0.93, 0.9) if danger else YELLOW).lerp(Color(0.75, 0.72, 0.62), 0.3), 0.7), root, face)
+	b.sign_grime(root, at + out * 0.016, out, size)
 	var body: Array = lines
 	var y := 0.0
 	if danger:

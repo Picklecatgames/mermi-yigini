@@ -6,7 +6,7 @@ extends RefCounted
 ##     dust drifts at the wall feet, pigeon droppings under the trusses, leaks and moss down the
 ##     walls, a few old tags near the doors.
 ##   Light, one meaning per colour: cold daylight through the holes (abandoned), sodium tripods
-##     and caged bulbs on the crew's generator (alive), red army beacons still turning on their
+##     and caged bulbs on the crew's generator (alive), the army's red caged emergency lamps still lit on their
 ##     battery, green exit signs.
 ##   The crew: a camp in the north-west corner (container office, desk, stove, generator), their
 ##     covered car by the jammed loading door in the south wall, cables back to the generator.
@@ -17,7 +17,6 @@ const MODELS := "res://assets/env/models/"
 const DECALS := "res://materials/env/decals/"
 const ACG := "res://assets/env/decals/"
 const SODIUM := Color(1.0, 0.6, 0.3)
-const BEACON := preload("res://scripts/beacon.gd")
 const DOOR_X := -6.0  # the loading door's centre in the south wall (build_arena _walls skips that panel)
 const GENERATOR := Vector3(-16.6, 0, -26.9)
 
@@ -46,11 +45,13 @@ func build() -> void:
 	_floor_decay()
 	_wall_decay()
 	_loading_door()
-	_doors()
+	_leftovers()
 	_camp()
 	_heap_lights()
 	_beacons()
 	_overhead()
+	_range_wear()
+	_crew_work()
 
 
 # --- sun shafts ---------------------------------------------------------------------------------
@@ -141,27 +142,28 @@ func _motes(xf: Transform3D, size: Vector3) -> void:
 
 ## Standing water: darker, mirror-smooth (SSR), a damp ring round it.
 func _puddle(at: Vector3, size: float, yaw: float) -> void:
+	var v := rng.randi() % 3  # three shapes, so no two puddles are the same splat
 	var noise := FastNoiseLite.new()
-	noise.seed = 3
+	noise.seed = [3, 7, 11][v]
 	noise.frequency = 0.012
 	noise.fractal_octaves = 4
 	var shape := func(x: int, y: int) -> float:
 		return 1.0 - Vector2(x - 256, y - 256).length() / 256.0 + noise.get_noise_2d(x, y) * 0.55
-	var water: Texture2D = b._decal_tex("puddle", 512, 512, func(img: Image) -> void:
+	var water: Texture2D = b._decal_tex("puddle_%d" % v, 512, 512, func(img: Image) -> void:
 		for y in 512:
 			for x in 512:
 				var s: float = shape.call(x, y)
 				var a := clampf(s * 5.0, 0.0, 1.0)  # the water, crisp edged
 				var damp := clampf(s * 2.0 + 0.5, 0.0, 1.0) * 0.55  # the wet ring
 				img.set_pixel(x, y, Color(0.02, 0.022, 0.025, maxf(a, damp))))
-	var orm: Texture2D = b._decal_tex("puddle_orm", 512, 512, func(img: Image) -> void:
+	var orm: Texture2D = b._decal_tex("puddle_orm_%d" % v, 512, 512, func(img: Image) -> void:
 		for y in 512:
 			for x in 512:
 				var s: float = shape.call(x, y)
 				img.set_pixel(x, y, Color(1.0, lerpf(0.5, 0.1, clampf(s * 5.0, 0.0, 1.0)), 0.0)))
 	var d: Decal = b._decal(root, water, at, yaw, Vector3(size, 0.6, size * rng.randf_range(0.6, 0.9)))
 	d.texture_orm = orm
-	d.albedo_mix = 0.3
+	d.albedo_mix = 0.12  # water hardly darkens: it is the mirror that shows it
 
 
 # --- floor --------------------------------------------------------------------------------------
@@ -302,7 +304,19 @@ func _on_wall(tex: Texture2D, side: int, along: float, y: float, size: Vector2) 
 	var d := Decal.new()
 	d.texture_albedo = tex
 	d.size = Vector3(size.x, 0.5, size.y)
-	d.transform = Transform3D(basis * Basis(Vector3.RIGHT, -PI / 2), basis * Vector3(along, 0, 28.0) + Vector3(0, y, 0))
+	# Turned half round its own +Y as well: texture row 0 at the top, not mirrored.
+	d.transform = Transform3D(basis * Basis(Vector3.RIGHT, -PI / 2) * Basis(Vector3.UP, PI), basis * Vector3(along, 0, 28.0) + Vector3(0, y, 0))
+	d.cull_mask = 1
+	b.add(d, root)
+	return d
+
+
+## A decal on any wall face at `at` looking along `out`, texture top up.
+func _on_face(tex: Texture2D, at: Vector3, out: Vector3, size: Vector2) -> Decal:
+	var d := Decal.new()
+	d.texture_albedo = tex
+	d.size = Vector3(size.x, 0.3, size.y)
+	d.transform = Transform3D(Basis(out.cross(Vector3.UP), out, Vector3.DOWN), at)
 	d.cull_mask = 1
 	b.add(d, root)
 	return d
@@ -401,8 +415,9 @@ func _save_tex(img: Image, path: String) -> Texture2D:
 
 # --- doors --------------------------------------------------------------------------------------
 
-## The loading door in the south wall: a roller shutter jammed 0.7-1.1 m open, daylight on the
-## yard outside and a fan of it laid across the dusty floor. The wall's collision still runs across.
+## The loading door in the south wall: a roller shutter run down for good, only lines of daylight
+## through its sprung slats and under its warped bottom edge (2026-10-22: open, with the bright
+## yard behind, it said "crawl out here"). The wall's collision runs across it anyway.
 func _loading_door() -> void:
 	var z := 28.15
 	var paint: Material = b.worn("metal_plate_02", "shutter_paint", {"tint": Color(0.55, 0.62, 0.66), "tex_size": 1.2,
@@ -412,86 +427,81 @@ func _loading_door() -> void:
 		b.block(Vector3(0.16, 4.0, 0.36), Vector3(DOOR_X + s * 2.0, 2.0, z), frame, root)
 	b.block(Vector3(4.3, 0.55, 0.6), Vector3(DOOR_X, 3.78, z - 0.1), frame, root)  # the roll box
 	# Slats down to a crooked bottom edge: one guide broke, the left side dropped lower.
-	const LEFT := 0.7
-	const RIGHT := 1.1
+	const LEFT := 0.03
+	const RIGHT := 0.14
 	var tilt := atan2(RIGHT - LEFT, 3.85)
 	var y := 3.45
+	var k := 0
 	while y > (LEFT + RIGHT) / 2.0 + 0.05:
-		var bend := clampf((1.9 - y) / 0.9, 0.0, 1.0)  # straight high up, crooked near the bottom
-		var slat: MeshInstance3D = b.block(Vector3(3.85, 0.095, 0.04), Vector3(DOOR_X, y, z + 0.02), paint, root, Basis(Vector3.BACK, -tilt * bend))
+		var bend := clampf((1.2 - y) / 1.0, 0.0, 1.0)  # straight high up, crooked near the bottom
+		var gap := 0.0  # slits shimmered like scan lines: the light comes in under the edge only
+		var slat: MeshInstance3D = b.block(Vector3(3.85, 0.106 - gap, 0.04), Vector3(DOOR_X, y, z + 0.02), paint, root, Basis(Vector3.BACK, -tilt * bend))
+		k += 1
 		slat.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 		y -= 0.1
 	b.block(Vector3(3.9, 0.05, 0.07), Vector3(DOOR_X, (LEFT + RIGHT) / 2.0, z + 0.02), frame, root, Basis(Vector3.BACK, -tilt))
-	# The yard: dry ground in the daylight, a bright haze beyond.
-	var yard := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(30, 14)
-	yard.mesh = pm
-	yard.material_override = b.pbr_box("dry_ground_01", 3.0, Color(0.9, 0.88, 0.84), true, "yard_ground")
-	yard.position = Vector3(DOOR_X, 0.0, z + 7.2)
-	b.add(yard, root)
-	var haze := MeshInstance3D.new()
+	# Daylight outside, seen only through the slits: a bright plane right behind the shutter.
+	var day := MeshInstance3D.new()
 	var q := QuadMesh.new()
-	q.size = Vector2(40, 6)
-	haze.mesh = q
-	var hm := StandardMaterial3D.new()
-	hm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	hm.albedo_color = Color(0.92, 0.94, 0.96)
-	haze.material_override = hm
-	haze.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	haze.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	haze.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(DOOR_X, 3.0, z + 14.0))
-	b.add(haze, root)
+	q.size = Vector2(4.2, 4.0)
+	day.mesh = q
+	var dm := StandardMaterial3D.new()
+	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dm.albedo_color = Color(0.9, 0.93, 0.97)
+	day.material_override = dm
+	day.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	day.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	day.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(DOOR_X, 2.0, z + 0.35))
+	b.add(day, root)
 	var spill := SpotLight3D.new()  # the bright yard throws light in under the door
-	spill.transform = Transform3D(Basis.looking_at(Vector3(0, -0.12, -1)), Vector3(DOOR_X, 0.55, z + 3.5))
+	spill.transform = Transform3D(Basis.looking_at(Vector3(0, -0.05, -1)), Vector3(DOOR_X, 0.1, z + 1.2))
 	spill.light_color = Color(1.0, 0.96, 0.9)
-	spill.light_energy = 14.0
+	spill.light_energy = 3.0
 	spill.spot_range = 16.0
 	spill.spot_angle = 60.0
 	spill.spot_angle_attenuation = 1.2
-	spill.light_volumetric_fog_energy = 2.0
+	spill.light_volumetric_fog_energy = 0.6
 	spill.shadow_enabled = true
 	b.add(spill, root)
-	_exit_sign(Vector3(DOOR_X, 4.55, z - 0.16), PI)
 	var d: Decal = b._decal(root, _drift_tex(), Vector3(DOOR_X, 0, z - 1.2), PI, Vector3(5.5, 0.6, 2.8))
 	d.modulate = Color(1, 1, 1, 0.95)  # grit blown in under it
 
 
-## Steel personnel doors, shut for good, each under a green exit sign.
-func _doors() -> void:
-	var paint: Material = load("res://materials/env/paint_olive.tres")
-	var frame: Material = load("res://materials/env/range_steel_dark.tres")
-	for door in [[Vector3(-12.0, 0, -28.0), 0.0], [Vector3(-28.0, 0, 21.0), PI / 2]]:
-		var at: Vector3 = door[0]
-		var face := Basis(Vector3.UP, door[1])
-		var out := face * Vector3(0, 0, 1)
-		b.block(Vector3(1.2, 2.2, 0.06), at + out * 0.03 + Vector3(0, 1.1, 0), dark, root, face)
-		b.block(Vector3(1.04, 2.08, 0.05), at + out * 0.06 + Vector3(0, 1.05, 0), paint, root, face)
-		for s in [-1.0, 1.0]:
-			b.block(Vector3(0.07, 2.25, 0.1), at + out * 0.05 + face * Vector3(s * 0.6, 1.12, 0), frame, root, face)
-		b.block(Vector3(1.3, 0.07, 0.1), at + out * 0.05 + Vector3(0, 2.25, 0), frame, root, face)
-		b.block(Vector3(0.8, 0.04, 0.05), at + out * 0.11 + Vector3(0, 1.0, 0), steel, root, face)  # push bar
-		_exit_sign(at + out * 0.1 + Vector3(0, 2.6, 0), door[1])
+## Where the hall's two side doors were planned: the army's leftovers instead. North a steel rack
+## that gave way, its crates spilled; west a stack of old target boards leaning on the wall.
+func _leftovers() -> void:
+	var rack: String = MODELS + "worn_metal_rack/worn_metal_rack_1k.gltf"
+	b._prop(root, rack, Vector3(-12.6, 0, -27.55), 0.05)
+	b._prop(root, rack, Vector3(-11.1, 0.05, -26.9), 0.35, 1.0, Basis(Vector3.RIGHT, -0.5) * Basis(Vector3.FORWARD, 0.12))  # collapsed onto it
+	var mil: String = MODELS + "old_military_crate/old_military_crate_1k.gltf"
+	var ammo: String = MODELS + "ammo_box/ammo_box_1k.gltf"
+	b._prop(root, mil, Vector3(-10.4, 0, -26.2), 0.6)
+	b._prop(root, mil, Vector3(-9.7, 0.12, -26.6), 2.1, 1.0, Basis(Vector3.FORWARD, 0.4))
+	for p in [Vector3(-11.6, 0, -25.9), Vector3(-10.9, 0, -25.5), Vector3(-12.2, 0, -26.4)]:
+		b._prop(root, ammo, p, rng.randf() * TAU)
+	b._prop(root, MODELS + "old_gas_mask/old_gas_mask_1k.gltf", Vector3(-11.3, 0, -25.2), 1.2)
+	# Target boards: plywood frames with old paper targets, slid down the wall one on another.
+	var ply: Material = load("res://materials/env/plywood_1.tres")
+	var paper := StandardMaterial3D.new()
+	paper.albedo_texture = load(DECALS + "poster_target.res")
+	paper.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	paper.roughness = 0.9
+	for k in 5:
+		var lean := 0.16 + k * 0.05
+		var z := 20.0 + k * 0.32 + rng.randf_range(-0.05, 0.05)
+		var face := Basis(Vector3.UP, PI / 2) * Basis(Vector3.RIGHT, -lean)  # front looks east, top on the wall
+		var at := Vector3(-28.0 + 0.62 * sin(lean) + 0.05 + k * 0.035, 0.6 * cos(lean), z)
+		b.block(Vector3(0.9, 1.2, 0.018), at, ply, root, face)
+		b.add(_mesh(_quad_mesh(Vector2(0.62, 0.85)), paper, Transform3D(face, at + face * Vector3(0, 0.05, 0.011))), root)
+	var body := StaticBody3D.new()
+	b.add(body, root)
+	b.collide(Vector3(0.6, 1.2, 1.7), Vector3(-27.6, 0.6, 20.7), body)
 
 
-func _exit_sign(at: Vector3, yaw: float) -> void:
-	var face := Basis(Vector3.UP, yaw)
-	var out := face * Vector3(0, 0, 1)
-	b.block(Vector3(0.46, 0.2, 0.08), at, dark, root, face)
-	var lit: MeshInstance3D = b.block(Vector3(0.42, 0.16, 0.01), at + out * 0.042, _glow(Color(0.1, 0.85, 0.35), 0.9), root, face)
-	lit.gi_mode = GeometryInstance3D.GI_MODE_DISABLED  # else SDFGI paints the whole wall green
-	var l: Label3D = b._range_label("ACİL ÇIKIŞ", 44, Color(0.92, 1.0, 0.94), b.STENCIL)
-	l.transform = Transform3D(face, at + out * 0.049)
-	l.shaded = false
-	l.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	b.add(l, root)
-	var glow := OmniLight3D.new()
-	glow.position = at + out * 0.25
-	glow.light_color = Color(0.2, 1.0, 0.45)
-	glow.light_energy = 0.3
-	glow.omni_range = 2.0
-	glow.light_volumetric_fog_energy = 0.3
-	b.add(glow, root)
+func _quad_mesh(size: Vector2) -> QuadMesh:
+	var q := QuadMesh.new()
+	q.size = size
+	return q
 
 
 # --- the crew's camp ----------------------------------------------------------------------------
@@ -535,7 +545,7 @@ func _camp() -> void:
 		b._prop(root, can, p, rng.randf_range(-0.4, 0.4))
 	b._prop(root, MODELS + "metal_jerrycan_green/metal_jerrycan_green_1k.gltf", Vector3(-17.9, 0, -27.5), 0.2)
 	b._prop(root, m.call("power_box_01"), Vector3(-17.0, 1.5, -27.93), 0.0)
-	_beacon(GENERATOR + Vector3(0.3, 0.72, 0.1), Color(1.0, 0.55, 0.08), 1.6)
+	_lamp(Vector3(-17.0, 2.35, -27.95), Vector3(0, 0, 1), Color(1.0, 0.55, 0.12), 1.4)  # amber: the generator is on
 	# Crates of sorted brass the crew stacked on pallets along the west wall.
 	var crate: String = MODELS + "wooden_military_crate/wooden_military_crate_1k.gltf"
 	var ammo: String = MODELS + "ammo_box/ammo_box_1k.gltf"
@@ -594,7 +604,7 @@ func _stencil_on(text: String, at: Vector3, face: Basis, size: int, colour: Colo
 ## raking across the brass, against the cold shaft from above.
 func _heap_lights() -> void:
 	var heap: Vector3 = b.HEAP
-	var aim := heap + Vector3(0, 1.6, 0)
+	var aim := heap + Vector3(0, 0.7, 0)  # low: the cones graze the floor round the foot too
 	_tripod(heap + Vector3(-7.4, 0, -9.6), aim, 2)
 	_tripod(heap + Vector3(-7.6, 0, 9.4), aim, 2)
 	_tripod(heap + Vector3(5.3, 0, 11.6), aim + Vector3(0, 1.0, 0), 1)
@@ -635,9 +645,9 @@ func _tripod(at: Vector3, aim: Vector3, heads: int) -> void:
 		spot.light_color = SODIUM
 		spot.light_energy = 7.0 if heads > 1 else 5.0
 		spot.spot_range = 22.0
-		spot.spot_angle = 38.0
+		spot.spot_angle = 48.0
 		spot.spot_angle_attenuation = 1.3
-		spot.light_volumetric_fog_energy = 0.9
+		spot.light_volumetric_fog_energy = 0.5
 		spot.shadow_enabled = h == 0
 		b.add(spot, head)
 
@@ -696,54 +706,50 @@ func _tube(path: PackedVector3Array, r: float) -> ArrayMesh:
 	return st.commit()
 
 
-# --- red beacons --------------------------------------------------------------------------------
+# --- red emergency lamps ------------------------------------------------------------------------
 
-## The army's emergency beacons, still turning on their battery: the hall's red mood light.
+## The army's emergency lamps, still lit on their battery: caged bulkheads with red glass, the
+## hall's red mood light washing down the walls. None by the loading door: that reads as "exit".
 func _beacons() -> void:
-	var red := Color(1.0, 0.08, 0.04)
-	_beacon(Vector3(-27.75, 5.0, -0.6), red, 3.0, Vector3(1, 0, 0))   # behind the crate stands
-	_beacon(Vector3(27.6, 4.6, -13.4), red, 3.0, Vector3(-1, 0, 0))  # the range bay's mouth
-	_beacon(Vector3(27.6, 4.6, 13.4), red, 3.0, Vector3(-1, 0, 0))
-	_beacon(Vector3(-1.5, 4.6, 27.75), red, 2.6, Vector3(0, 0, -1))  # beside the loading door
-	_beacon(Vector3(1.0, 4.6, -27.75), red, 2.6, Vector3(0, 0, 1))
+	# Only where the army needed one: the range's mouth, the loading door, the stores wall.
+	var red := Color(1.0, 0.1, 0.05)
+	_lamp(Vector3(-27.98, 4.6, -0.6), Vector3(1, 0, 0), red, 2.0)   # behind the crate stands
+	_lamp(Vector3(27.8, 4.4, -13.4), Vector3(-1, 0, 0), red, 2.0)   # the range bay's mouth
+	_lamp(Vector3(27.8, 4.4, 13.4), Vector3(-1, 0, 0), red, 2.0)
 
 
-## A rotating beacon: a bracket off the wall (`out` from it), a glowing dome, a turning pair of
-## spots sweeping the walls. With `out` zero it stands on whatever it is put on.
-func _beacon(at: Vector3, colour: Color, energy: float, out := Vector3.ZERO) -> void:
-	if out != Vector3.ZERO:
-		b.block(Vector3(0.05, 0.05, 0.05) + out.abs() * 0.24, at - out * 0.12 + Vector3(0, -0.05, 0), dark, root)
-	b.block(Vector3(0.14, 0.06, 0.14), at, dark, root)
-	var dome := MeshInstance3D.new()
-	var s := SphereMesh.new()
-	s.radius = 0.07
-	s.height = 0.16
-	dome.mesh = s
-	dome.material_override = _glow(colour, 4.0)
-	dome.position = at + Vector3(0, 0.09, 0)
-	dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	dome.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-	b.add(dome, root)
-	var spin := Node3D.new()
-	spin.set_script(BEACON)
-	spin.position = at + Vector3(0, 0.09, 0)
-	b.add(spin, root)
-	for yaw in [0.0, PI]:
-		var spot := SpotLight3D.new()
-		spot.rotation = Vector3(-0.08, yaw, 0)
-		spot.light_color = colour
-		spot.light_energy = energy
-		spot.spot_range = 18.0
-		spot.spot_angle = 22.0
-		spot.spot_angle_attenuation = 0.8
-		spot.light_volumetric_fog_energy = 1.6
-		b.add(spot, spin)
+## Poly Haven's caged wall lamp on a wall facing `out`, its glass glowing `colour`, a soft light
+## pooling round it and a wide spot washing down the wall.
+func _lamp(at: Vector3, out: Vector3, colour: Color, energy: float) -> void:
+	var lamp: Node3D = (load(MODELS + "industrial_wall_lamp/industrial_wall_lamp_1k.gltf") as PackedScene).instantiate()
+	lamp.transform = Transform3D(Basis(Vector3.UP.cross(out), Vector3.UP, out), at)
+	b.add(lamp, root)
+	for mi: MeshInstance3D in lamp.find_children("*", "MeshInstance3D", true, false):
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		for i in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
+			if m.resource_name.contains("glass") or m.emission_enabled:
+				m.albedo_color = m.albedo_color * colour
+				m.emission_enabled = true
+				m.emission = colour
+				m.emission_energy_multiplier = 3.0
+			mi.set_surface_override_material(i, m)
 	var glow := OmniLight3D.new()
-	glow.position = at + Vector3(0, 0.12, 0)
+	glow.position = at + out * 0.3
 	glow.light_color = colour
-	glow.light_energy = 0.6
+	glow.light_energy = energy * 0.35
 	glow.omni_range = 2.2
+	glow.light_volumetric_fog_energy = 0.8
 	b.add(glow, root)
+	var wash := SpotLight3D.new()
+	wash.transform = Transform3D(Basis.looking_at(out * 0.35 + Vector3.DOWN), at + out * 0.25)
+	wash.light_color = colour
+	wash.light_energy = energy * 0.8
+	wash.spot_range = 9.0
+	wash.spot_angle = 40.0
+	wash.spot_angle_attenuation = 1.2
+	wash.light_volumetric_fog_energy = 1.2
+	b.add(wash, root)
 
 
 # --- overhead -----------------------------------------------------------------------------------
@@ -817,3 +823,293 @@ func _glow(colour: Color, energy: float) -> StandardMaterial3D:
 	m.emission = colour
 	m.emission_energy_multiplier = energy
 	return m
+
+
+# --- the range ----------------------------------------------------------------------------------
+
+## The range's own years: water swollen up the foot of the plywood with a tide line, sand slumped
+## out of the backstop over the rubber, and dusty boot prints worn from the railing to where the
+## targets stood and back.
+func _range_wear() -> void:
+	var fl: float = b.GS.FIRING_LINE_X
+	var tide := _tide_tex()
+	var faces := []  # [from, to, fixed coordinate, along_x, out]
+	for s in [-1.0, 1.0]:
+		faces.append([fl + 0.3, 27.6, s * 27.96, true, Vector3(0, 0, -s)])
+		faces.append([s * b.BAY_HALF, s * 27.6, 27.96, false, Vector3(-1, 0, 0)])
+		faces.append([28.4, b.BAY_END - 0.2, s * (b.BAY_HALF - 0.04), true, Vector3(0, 0, -s)])
+	for f in faces:
+		var lo := minf(f[0], f[1])
+		var hi := maxf(f[0], f[1])
+		var t := lo
+		while t < hi - 0.5:
+			var w := minf(rng.randf_range(2.0, 4.5), hi - t)
+			var h := rng.randf_range(0.5, 1.1)
+			var c := t + w / 2.0
+			var at := Vector3(c, h / 2.0, f[2]) if f[3] else Vector3(f[2], h / 2.0, c)
+			var d := _on_face(tide, at, f[4], Vector2(w, h))
+			d.modulate = Color(1, 1, 1, rng.randf_range(0.55, 0.95))
+			t += w + rng.randf_range(-0.3, 0.8)
+	# Sand slumped out over the rubber at the backstop's toe.
+	var spill := _sand_tex()
+	for z in [-8.0, -2.5, 3.0, 8.5]:
+		var d: Decal = b._decal(root, spill, Vector3(b.BERM_TOE - 0.6, 0, z + rng.randf_range(-1.0, 1.0)), PI / 2 + rng.randf_range(-0.15, 0.15), Vector3(6.5, 0.6, 2.6))
+		d.modulate = Color(1, 1, 1, rng.randf_range(0.7, 1.0))
+	# Boot prints out to the target lines and back.
+	var prints := _prints_tex()
+	for path in [[Vector2(fl + 0.5, -19.0), Vector2(22.5, -17.5)], [Vector2(fl + 0.5, -9.0), Vector2(24.0, -7.0)],
+			[Vector2(fl + 0.5, 2.0), Vector2(23.0, 1.0)], [Vector2(fl + 0.5, 11.0), Vector2(21.5, 13.5)],
+			[Vector2(fl + 0.5, 20.0), Vector2(24.5, 19.0)], [Vector2(23.0, 1.0), Vector2(39.0, -1.5)],
+			[Vector2(24.0, -7.0), Vector2(38.5, 4.0)]]:
+		for back in [0.0, 1.0]:
+			var a: Vector2 = path[0]
+			var c: Vector2 = path[1]
+			if back > 0:  # the way back wanders off the way out
+				a += Vector2(rng.randf_range(-0.6, 0.6), rng.randf_range(-1.2, 1.2))
+			var side := (c - a).orthogonal().normalized() * (0.35 if back > 0 else -0.35)
+			var dir := (c - a)
+			var n := int(ceilf(dir.length() / 6.0))
+			for k in n:  # 6 m strips of prints
+				var p0 := a + dir * (float(k) / n) + side
+				var p1 := a + dir * (float(k + 1) / n) + side
+				var mid := (p0 + p1) / 2.0
+				var yaw: float = atan2(dir.x, dir.y) + PI * back
+				var d: Decal = b._decal(root, prints, Vector3(mid.x, 0, mid.y), yaw, Vector3(0.5, 0.4, p0.distance_to(p1)))
+				d.modulate = Color(1, 1, 1, rng.randf_range(0.08, 0.2))
+
+
+func _tide_tex() -> Texture2D:
+	var noise := FastNoiseLite.new()
+	noise.seed = 23
+	noise.frequency = 0.02
+	noise.fractal_octaves = 4
+	return b._decal_tex("tide_line", 512, 128, func(img: Image) -> void:
+		for y in 128:
+			for x in 512:
+				var line := 18.0 + 22.0 * (noise.get_noise_1d(x * 0.7) + 0.5)  # the tide line's height from the top
+				var ends := smoothstep(0.0, 60.0, minf(x, 511 - x))
+				var a := 0.0
+				var c := Color(0.2, 0.13, 0.07)
+				if y > line:
+					a = 0.45 + 0.3 * (y - line) / (128.0 - line) + 0.2 * noise.get_noise_2d(x, y)
+				var rim := absf(y - line)
+				if rim < 3.0:  # the dark ring the water left
+					a = maxf(a, 0.8 * (1.0 - rim / 3.0))
+					c = Color(0.12, 0.07, 0.03)
+				img.set_pixel(x, y, Color(c, clampf(a, 0.0, 1.0) * ends)))
+
+
+func _sand_tex() -> Texture2D:
+	var noise := FastNoiseLite.new()
+	noise.seed = 88
+	noise.frequency = 0.025
+	noise.fractal_octaves = 5
+	return b._decal_tex("sand_spill", 512, 256, func(img: Image) -> void:
+		for y in 256:
+			for x in 512:
+				var thick := pow(y / 255.0, 0.8)  # row 255 at the backstop
+				var ends := smoothstep(0.0, 120.0, minf(x, 511 - x))
+				var n := noise.get_noise_2d(x, y)
+				var a := clampf(thick * 1.3 + n * 0.8 - 0.25, 0.0, 1.0) * ends
+				img.set_pixel(x, y, Color(Color(0.62, 0.55, 0.42).lerp(Color(0.5, 0.44, 0.33), n + 0.5), a)))
+
+
+func _prints_tex() -> Texture2D:
+	var noise := FastNoiseLite.new()
+	noise.seed = 15
+	noise.frequency = 0.06
+	return b._decal_tex("boot_prints", 64, 1024, func(img: Image) -> void:
+		img.fill(Color(0, 0, 0, 0))
+		var k := 0
+		var y := 20.0
+		var r := RandomNumberGenerator.new()
+		r.seed = 5
+		while y < 1000.0:  # 6 m strip: a step every ~0.4 m, left and right, uneven, some scuffed out
+			var cx := (20.0 if k % 2 == 0 else 44.0) + r.randf_range(-4.0, 4.0)
+			if r.randf() < 0.25:
+				y += r.randf_range(58.0, 80.0)
+				k += 1
+				continue
+			for py in range(-30, 31):
+				for px in range(-10, 11):
+					var heel := py > 14
+					var e := Vector2(px / (7.0 if heel else 9.0), (py - (22.0 if heel else -6.0)) / (8.0 if heel else 22.0)).length()
+					if e < 1.0 and (heel or py < 6):
+						var tread := 0.6 if posmod(py, 5) < 3 else 0.25
+						var q := Vector2i(int(cx) + px, int(y) + py)
+						if q.y >= 0 and q.y < 1024:
+							img.set_pixelv(q, Color(0.5, 0.48, 0.44, tread * clampf(0.7 + noise.get_noise_2d(q.x, q.y), 0.0, 1.0)))
+			y += r.randf_range(58.0, 80.0)
+			k += 1)
+
+
+# --- the crew at work ---------------------------------------------------------------------------
+
+## What the crew does here, in sight of the heap: a sieve table on the north wall where they sift
+## the brass for keys, buckets of it, a wheelbarrow; the board on the office where the keys will
+## hang (twelve hooks, all empty); spades left by the work lights; sagging roof insulation; the
+## army's cameras still on two columns; the army's boxes on the west shelves.
+func _crew_work() -> void:
+	var m := func(n: String) -> String: return MODELS + n + "/" + n + "_1k.gltf"
+	var brass := _bullet_mesh()
+	# Sieve table: a steel frame at 0.85 m, a tilted mesh tray, a mound of sifted brass under it.
+	var at := Vector3(-5.6, 0, -27.25)
+	for sx in [-0.75, 0.75]:
+		for sz in [-0.4, 0.4]:
+			b.block(Vector3(0.04, 0.85, 0.04), at + Vector3(sx, 0.425, sz), steel, root)
+	var mesh_mat := StandardMaterial3D.new()
+	mesh_mat.albedo_texture = _sieve_tex()
+	mesh_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	mesh_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh_mat.metallic = 0.7
+	mesh_mat.roughness = 0.5
+	var tray := Basis(Vector3.RIGHT, 0.17)
+	b.add(_mesh(_quad_mesh(Vector2(1.6, 0.9)), mesh_mat, Transform3D(tray * Basis(Vector3.RIGHT, -PI / 2), at + Vector3(0, 0.9, 0))), root)
+	for e in [[Vector3(0, 0, -0.45), Vector3(1.64, 0.06, 0.04)], [Vector3(0, 0, 0.45), Vector3(1.64, 0.06, 0.04)],
+			[Vector3(-0.8, 0, 0), Vector3(0.04, 0.06, 0.9)], [Vector3(0.8, 0, 0), Vector3(0.04, 0.06, 0.9)]]:
+		b.block(e[1], at + Vector3(0, 0.9, 0) + tray * e[0], steel, root, tray)
+	_brass_pile(brass, at + Vector3(0, 0, 0.1), 0.55, 0.22, 420)
+	_brass_pile(brass, at + Vector3(0.2, 0.93, -0.05), 0.35, 0.06, 90, tray)  # some still on the mesh
+	var body := StaticBody3D.new()
+	b.add(body, root)
+	b.collide(Vector3(1.6, 0.95, 0.9), at + Vector3(0, 0.475, 0), body)
+	# Buckets, two full of brass and two empty; a wheelbarrow, handles toward the heap.
+	for bk in [[Vector3(-4.3, 0, -27.4), true], [Vector3(-3.85, 0, -26.95), false], [Vector3(-7.0, 0, -27.5), true], [Vector3(-7.4, 0, -27.0), false]]:
+		_bucket(bk[0], bk[1], brass)
+	_wheelbarrow(Vector3(-8.4, 0, -26.3), PI - 0.5, brass)
+	# The key board on the office: twelve numbered hooks, all empty until the heap gives them up.
+	var board_at := Vector3(-21.4, 1.55, -25.31)
+	b.block(Vector3(1.1, 0.6, 0.02), board_at, load("res://materials/env/plywood_2.tres"), root)
+	var title: Label3D = b._range_label("ANAHTARLAR", 40, Color(0.08, 0.08, 0.08, 0.85), b.STENCIL)
+	title.position = board_at + Vector3(0, 0.22, 0.012)
+	b.add(title, root)
+	for i in 12:
+		var hook := board_at + Vector3(-0.42 + (i % 6) * 0.168, 0.04 - (i / 6) * 0.25, 0.012)
+		b.block(Vector3(0.012, 0.012, 0.05), hook + Vector3(0, 0, 0.025), steel, root)
+		var n: Label3D = b._range_label(str(i + 1), 22, Color(0.08, 0.08, 0.08, 0.8), b.STENCIL)
+		n.position = hook + Vector3(0, -0.065, 0.001)
+		b.add(n, root)
+	# Spades left by the work lights.
+	var spade: String = m.call("rusted_spade_01")
+	for sp in [[Vector3(-16.0, 0.5, -9.15), 0.4], [Vector3(-16.2, 0.5, 9.85), 2.0], [Vector3(-3.4, 0.5, 12.0), 2.6]]:
+		b._prop(root, spade, sp[0], sp[1], 1.0, Basis(Vector3.RIGHT, 0.32))
+	b._prop(root, MODELS + "rubber_boots/rubber_boots_1k.gltf", Vector3(-15.5, 0, -10.2), 0.8)
+	# The army's cameras, still on two columns, watching the heap; a cut cable under each.
+	var cam: String = m.call("security_camera_01")
+	for c in [Vector3(27.55, 5.0, -27.55), Vector3(-27.55, 5.0, 27.55)]:
+		var yaw := atan2(-(-9.0 - c.x), -(0.0 - c.z))
+		b._prop(root, cam, c, yaw)
+		b.block(Vector3(0.012, 0.6, 0.012), c + Vector3(0, -0.4, 0), cord, root, Basis(Vector3.FORWARD, 0.15))
+	# The west shelves were bare: the army's boxes left on them.
+	var box: String = m.call("cardboard_box_01")
+	var ammo: String = MODELS + "ammo_box/ammo_box_1k.gltf"
+	for z in [-6.0, -4.8, 4.8, 6.0]:
+		for level in [0.42, 1.12]:
+			if rng.randf() < 0.75:
+				b._prop(root, box if rng.randf() < 0.5 else ammo, Vector3(-27.4, level, z + rng.randf_range(-0.1, 0.1)), PI / 2 + rng.randf_range(-0.3, 0.3))
+	_insulation()
+
+
+## Foil-faced roof insulation come loose between the purlins, hanging in sagging flaps.
+func _insulation() -> void:
+	var over := Node3D.new()
+	over.name = "Insulation"
+	b.add(over, root)
+	var foil := StandardMaterial3D.new()
+	foil.albedo_color = Color(0.55, 0.53, 0.5)
+	foil.metallic = 0.6
+	foil.roughness = 0.45
+	foil.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var noise := FastNoiseLite.new()
+	noise.seed = 12
+	noise.frequency = 0.9
+	for spot in [Vector2(-20, -18), Vector2(-2, -4), Vector2(8, 11), Vector2(20, 24), Vector2(-14, 21), Vector2(3, -22), Vector2(-24, 4), Vector2(13, -9), Vector2(-4, 19), Vector2(22, -14)]:
+		var x: float = spot.x
+		var top: float = b.top_chord(x) + 0.05
+		var drop := rng.randf_range(0.7, 1.6)
+		var w := rng.randf_range(0.9, 1.4)
+		var pt := func(u: int, v: int) -> Vector3:  # pinned at the top, sagging, crumpled
+			var fu := float(u) / 6.0
+			var fv := float(v) / 10.0
+			var crumple := noise.get_noise_2d(u * 1.3 + x, v * 1.3) * 0.12
+			return Vector3((fu - 0.5) * w, -fv * drop, sin(fv * PI * 0.8) * 0.25 + crumple)
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for u in 6:
+			for v in 10:
+				var a: Vector3 = pt.call(u, v)
+				var c: Vector3 = pt.call(u + 1, v)
+				var d: Vector3 = pt.call(u, v + 1)
+				var e: Vector3 = pt.call(u + 1, v + 1)
+				for q in [a, c, e, a, e, d]:
+					st.add_vertex(q)
+		st.generate_normals()
+		b.add(_mesh(st.commit(), foil, Transform3D(Basis(Vector3.UP, rng.randf() * TAU), Vector3(x, top, spot.y))), over)
+	b.overhead(over)
+
+
+func _bullet_mesh() -> Mesh:
+	var scene: Node = (load("res://assets/bullet/bullet_9mm_lod.glb") as PackedScene).instantiate()
+	var mesh: Mesh = (scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
+	scene.free()
+	return mesh
+
+
+## A low mound of loose rounds: `count` lying every which way within `radius`, up to `height`.
+func _brass_pile(mesh: Mesh, at: Vector3, radius: float, height: float, count: int, tilt := Basis()) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = mesh
+	mm.instance_count = count
+	for i in count:
+		var r := radius * sqrt(rng.randf())
+		var a := rng.randf() * TAU
+		var y := height * (1.0 - r / radius) * rng.randf()
+		var basis := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, PI / 2 + rng.randf_range(-0.4, 0.4))
+		mm.set_instance_transform(i, Transform3D(tilt * basis, tilt * Vector3(cos(a) * r, y + 0.01, sin(a) * r)))
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.position = at
+	b.add(mmi, root)
+
+
+func _bucket(at: Vector3, full: bool, brass: Mesh) -> void:
+	var lathe: ArrayMesh = preload("res://tools/range_dressing.gd")._lathe([Vector2(0.0, 0.0), Vector2(0.0, 0.13), Vector2(0.32, 0.16), Vector2(0.33, 0.165)], 20)
+	var pail := StandardMaterial3D.new()
+	pail.albedo_color = Color(0.55, 0.57, 0.58)
+	pail.metallic = 0.8
+	pail.roughness = 0.45
+	pail.cull_mode = BaseMaterial3D.CULL_DISABLED
+	b.add(_mesh(lathe, pail, Transform3D(Basis(Vector3.RIGHT, -PI / 2), at)), root)
+	if full:
+		_brass_pile(brass, at + Vector3(0, 0.27, 0), 0.14, 0.06, 60)
+
+
+func _wheelbarrow(at: Vector3, yaw: float, brass: Mesh) -> void:
+	var basis := Basis(Vector3.UP, yaw)
+	var tray: Material = load("res://materials/env/paint_olive.tres")
+	var tb := basis * Basis(Vector3.RIGHT, 0.08)
+	b.block(Vector3(0.62, 0.04, 0.85), at + basis * Vector3(0, 0.42, 0), tray, root, tb)
+	for e in [[Vector3(-0.31, 0.13, 0), Vector3(0.03, 0.26, 0.85)], [Vector3(0.31, 0.13, 0), Vector3(0.03, 0.26, 0.85)],
+			[Vector3(0, 0.13, -0.42), Vector3(0.62, 0.26, 0.03)], [Vector3(0, 0.13, 0.42), Vector3(0.62, 0.26, 0.03)]]:
+		b.block(e[1], at + basis * (Vector3(0, 0.42, 0) + e[0]), tray, root, tb)
+	var wheel := CylinderMesh.new()
+	wheel.top_radius = 0.19
+	wheel.bottom_radius = 0.19
+	wheel.height = 0.08
+	b.add(_mesh(wheel, dark, Transform3D(basis * Basis(Vector3.FORWARD, PI / 2), at + basis * Vector3(0, 0.19, -0.55))), root)
+	for sx in [-0.25, 0.25]:
+		_rod(root, at + basis * Vector3(sx, 0.19, -0.55), at + basis * Vector3(sx * 1.2, 0.55, 0.95), 0.016)
+		_rod(root, at + basis * Vector3(sx, 0.4, 0.3), at + basis * Vector3(sx, 0.0, 0.35), 0.014)
+	_brass_pile(brass, at + basis * Vector3(0, 0.46, 0), 0.26, 0.12, 160)
+	var body := StaticBody3D.new()
+	b.add(body, root)
+	b.collide(Vector3(0.7, 0.7, 1.5), at + Vector3(0, 0.35, 0), body, basis)
+
+
+func _sieve_tex() -> Texture2D:
+	return b._decal_tex("sieve_mesh", 128, 128, func(img: Image) -> void:
+		for y in 128:
+			for x in 128:
+				var wire := x % 8 < 2 or y % 8 < 2
+				img.set_pixel(x, y, Color(0.35, 0.34, 0.32, 1.0) if wire else Color(0, 0, 0, 0)))

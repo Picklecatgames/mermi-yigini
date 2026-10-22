@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cg7ynvvwmllkx"
-path="res://.godot/imported/modular_chainlink_fence_1k.gltf-c192de5f41563e8282f61e8cace0999b.scn"
+uid="uid://6nhdcokuiqxc"
+path="res://.godot/imported/industrial_wall_lamp_1k.gltf-27a3a4a437e72b934a651e0030e18ea0.scn"
 
 [deps]
 
-source_file="res://assets/env/models/modular_chainlink_fence/modular_chainlink_fence_1k.gltf"
-dest_files=["res://.godot/imported/modular_chainlink_fence_1k.gltf-c192de5f41563e8282f61e8cace0999b.scn"]
+source_file="res://assets/env/models/industrial_wall_lamp/industrial_wall_lamp_1k.gltf"
+dest_files=["res://.godot/imported/industrial_wall_lamp_1k.gltf-27a3a4a437e72b934a651e0030e18ea0.scn"]
 
 [params]
 

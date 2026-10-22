@@ -7,7 +7,7 @@ render_mode blend_add, unshaded, cull_front, depth_draw_never, depth_test_disabl
 // stopped at the scene's depth, so the beam has real thickness and things in it cut it. Soft
 // ragged edges, drifting dust streaks, bright under the roof and thinning toward the floor.
 
-uniform vec3 color : source_color = vec3(1.0, 0.96, 0.88);
+uniform vec3 color : source_color = vec3(0.85, 0.92, 1.0);
 uniform float strength = 0.08;     // per metre of beam the ray crosses
 uniform float floor_fade = 0.45;   // brightness left at the bottom
 uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;
