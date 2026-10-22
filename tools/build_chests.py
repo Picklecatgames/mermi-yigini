@@ -1,7 +1,8 @@
 # Blender (5.x, background): the crates on the chest stands, from Sketchfab downloads (credits in
 # docs/ayrintilar.md), made ready for a game: every part baked and joined into one mesh (no welding:
 # the split normals stay), decimated only past a triangle budget, textures kept up to 4K in their own
-# format, the long side along X and the front (lock side) toward glTF +Z, centred with its bottom on the origin and scaled to 1 m wide. The game sizes each one by its level
+# format, the long side along X and the front (lock side) toward glTF +Z, centred with its bottom
+# on the origin and scaled to 1 m wide. The game sizes each one by its level
 # (scripts/chests.gd), so the reward grows down the row. A preview of each, seen from the front, goes
 # next to it (<name>_front.png) to check the turn.
 # Run: blender -b --factory-startup -P tools/build_chests.py -- <downloads dir> <out_dir>
@@ -16,7 +17,7 @@ TEX = 4096     # largest texture side kept: the crates are the reward, seen up c
 BUDGET = 40000  # triangles
 # level: extra turn about the up axis (degrees) after the long side is laid along X, so the
 # front faces +Z; read off the previews.
-TURN = {1: 180, 2: 180, 3: 180, 6: 180}
+TURN = {1: 180, 2: 180, 3: 180, 5: 180, 6: 180}
 # level: materials of what came with the model but is not the chest (a sand dune, a book; steam cards).
 DROP = {4: {"sand"}, 7: {"Props", "Steam"}}  # 7 keeps the gold spilled at its feet
 # Sat tilted 19° on its dune: the chest's own turn is dropped, glTF's Y-up turn kept.
@@ -30,7 +31,8 @@ CLOSE = {5}
 def close_lid(o):
     # The lid is the mesh's highest island. Islands are found on a welded copy (the mesh itself
     # stays unwelded, its normals as made) and mapped back by position; the lid is split off, turned
-    # about the hinge (its back bottom edge) to where it sits flattest on the box, and joined again.
+    # about the hinge (its back bottom edge) till its flat underside faces down, set on the box's
+    # rim and joined again.
     import bmesh
     from mathutils.kdtree import KDTree
     bm = bmesh.new()
@@ -84,20 +86,32 @@ def close_lid(o):
     bpy.ops.mesh.separate(type="SELECTED")
     bpy.ops.object.mode_set(mode="OBJECT")
     cap = [p for p in bpy.context.selected_objects if p != o][0]
-    box_top = max(v.co.z for v in o.data.vertices)
+    lo, hi = bounds(o)
+    # The hinge runs along the box's long side; the lid swings across the short one (s).
+    axis, s = ("X", 1) if hi.x - lo.x > hi.y - lo.y else ("Y", 0)
     vs = [v.co.copy() for v in cap.data.vertices]
     low = min(v.z for v in vs)
-    hinge = max((v for v in vs if v.z < low + 0.05), key=lambda v: abs(v.y))  # back, at the bottom
-    best = None
-    for deg in range(-150, 151):
-        r = Matrix.Translation(hinge) @ Matrix.Rotation(math.radians(deg), 4, "X") @ Matrix.Translation(-hinge)
-        z = [(r @ v).z for v in vs]
-        if min(z) < box_top - 0.04 * (max(z) - min(z) + 1e-6) - 0.01:
-            continue  # would sink into the box
-        if best is None or max(z) - min(z) < best[0]:
-            best = (max(z) - min(z), r, deg)
-    print("  lid shut by %d degrees" % best[2])
-    cap.data.transform(best[1])
+    # Shut, the lid's flat underside faces straight down. Open, it faces down and to the front;
+    # the hinge is at the bottom on the other side.
+    # The underside is the biggest flat area facing down (the dome's back faces down too).
+    flats = {}
+    for p in cap.data.polygons:
+        if p.normal.z < -0.5:
+            k = tuple(round(c * 20) for c in p.normal)
+            flats[k] = flats.get(k, 0.0) + p.area
+    under = Vector(max(flats, key=flats.get))
+    deg = math.degrees(math.atan2(under[s], -under.z))
+    bottom = [v for v in vs if v.z < low + 0.05]
+    hinge = (min if under[s] > 0 else max)(bottom, key=lambda v: v[s])
+    # A right-hand turn about +Y lowers +X, about +X it lifts +Y.
+    turn = -deg if axis == "X" else deg
+    r = Matrix.Translation(hinge) @ Matrix.Rotation(math.radians(turn), 4, axis) @ Matrix.Translation(-hinge)
+    print("  lid shut by %d degrees" % turn)
+    cap.data.transform(r)
+    # Its underside down on the box's rim (the hinge straps hang lower, at the back).
+    cap.data.update()
+    flat = [p.center.z for p in cap.data.polygons if p.normal.z < -0.98]
+    cap.data.transform(Matrix.Translation((0, 0, hi.z - sum(flat) / len(flat))))
     bpy.ops.object.select_all(action="DESELECT")
     o.select_set(True)
     cap.select_set(True)
