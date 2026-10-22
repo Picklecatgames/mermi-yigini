@@ -4,8 +4,9 @@ extends Control
 ## found in it.
 ## Bottom left: the magazine big, the hand under a rule. Bottom right, its mirror: gold big, the
 ## team vault under a rule. Bottom centre: the guns, the one in hand underlined, and above them a
-## special round's state (loaded, or how many in the pocket) and the way to the workshop
-## ("q · geliştirmeler", in the accent when the gold reaches an upgrade). Listens to GameState itself.
+## special round's state (loaded, or how many in the pocket). Top right: the way to the workshop,
+## a big Q in a 1 px key outline beside "geliştirmeler", all in the accent when the gold reaches
+## an upgrade. Listens to GameState itself.
 
 const KeyCache := preload("res://scripts/key_cache.gd")
 const MARGIN := Vector2(30, 24)  # px from the screen's edges
@@ -24,6 +25,8 @@ var _gold: Label
 var _vault: Label
 var _special: Label
 var _can_buy: Label
+var _q: Label
+var _q_key: StyleBoxFlat
 var _guns: HBoxContainer
 var _test: Label
 
@@ -99,8 +102,6 @@ func _build_middle() -> void:
 	var col := _column(Control.PRESET_CENTER_BOTTOM, HORIZONTAL_ALIGNMENT_CENTER)
 	col.offset_bottom = -MARGIN.y
 	col.add_theme_constant_override("separation", 10)
-	_can_buy = _centred(UiStyle.caption(""))
-	col.add_child(_can_buy)
 	_special = UiStyle.caption("")
 	_special.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_special)
@@ -117,6 +118,28 @@ func _build_middle() -> void:
 		gun.add_child(UiStyle.line(0, UiStyle.WHITE))
 		gun.add_child(_centred(UiStyle.caption(str(i))))
 		_guns.add_child(gun)
+	var corner := _column(Control.PRESET_TOP_RIGHT, HORIZONTAL_ALIGNMENT_RIGHT)
+	corner.offset_right = -MARGIN.x
+	corner.offset_top = MARGIN.y
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	corner.add_child(row)
+	_can_buy = UiStyle.caption("")
+	_can_buy.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(_can_buy)
+	var key := PanelContainer.new()  # a key's outline, not a filled button (UiStyle)
+	key.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_q_key = StyleBoxFlat.new()
+	_q_key.draw_center = false
+	_q_key.set_border_width_all(1)
+	_q_key.set_content_margin_all(0)
+	key.add_theme_stylebox_override("panel", _q_key)
+	key.custom_minimum_size = Vector2(52, 52)
+	_q = _centred(UiStyle.label("Q", 30, UiStyle.MEDIUM))
+	_q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	key.add_child(_q)
+	row.add_child(key)
 
 
 ## Everything from GameState as it is now.
@@ -154,8 +177,10 @@ func refresh() -> void:
 	var can := GameState.UPGRADES.keys().any(func(id: String) -> bool:
 		var costs: Array = GameState.UPGRADES[id].costs
 		return p.levels[id] < costs.size() and GameState.gold >= costs[p.levels[id]])
-	_can_buy.text = "q  ·  geliştirme alınabilir" if can else "q  ·  geliştirmeler"
+	_can_buy.text = "geliştirme alınabilir" if can else "geliştirmeler"
 	_can_buy.add_theme_color_override("font_color", UiStyle.ACCENT if can else UiStyle.DIM)
+	_q.add_theme_color_override("font_color", UiStyle.ACCENT if can else UiStyle.WHITE)
+	_q_key.border_color = UiStyle.ACCENT if can else Color(1, 1, 1, 0.6)
 	_test.visible = GameState.infinite_ammo
 
 

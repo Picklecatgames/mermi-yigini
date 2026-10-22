@@ -58,6 +58,9 @@ const CLIP_BLEND := 0.08  # s
 ## The guns' roughness maps are made for a lit studio; in the dark hall the lamp streaks spread into a
 ## dull sheen. A share of it sharpens them into the glints of oiled steel.
 const GUN_ROUGHNESS := 0.7
+## Full metal has no diffuse: in the dark hall it only mirrors darkness and the gun drew as a black
+## cut-out. Part of it takes the key light and ambient again, so the texture's detail shows.
+const GUN_METALLIC := 0.45
 const RUN_SPEED := 6.5  # m/s; faster plays Run instead of Walk
 ## Recoil is a spring on the whole rig: a shot gives it a kick of speed, it flies up and back and
 ## swings home on its own momentum with one small dip, so the kick and the return are one motion.
@@ -266,6 +269,7 @@ func _ready() -> void:
 			for i in mi.mesh.get_surface_count():
 				var steel := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
 				steel.roughness *= GUN_ROUGHNESS
+				steel.metallic *= GUN_METALLIC
 				mi.set_surface_override_material(i, steel)
 
 
