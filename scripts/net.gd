@@ -46,6 +46,8 @@ func _ready() -> void:
 		_label.add_theme_constant_override("outline_size", 4)
 		layer.add_child(_label)
 		add_child(layer)
+	if OS.is_debug_build():
+		add_child(preload("res://scripts/cheat_menu.gd").new())
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--host":
 			host()

@@ -72,6 +72,7 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
    - **Teçhizat kartları:** kısa tanıtım cümlesi, isabet başı altın ve 5'lik zorluk çubuğu (kukla 1 … Texas Star 5). Fiyatlar denge turunda.
    - Kalanlar: önizleme, yeşil alan ve tuş şeridi oyunda gözle denenmedi (Beckett Lite tuşa basamıyor). Kurulan parça taşınamaz, satılamaz (kaldırılınca depoya döner). Parçaların gerçek boyutuna göre çakışma yok (yalnız merkez mesafesi). Kayıt (Faz 6) kurulu parçaları da saklamalı.
 11. **Hile menüsü (x10 hız, para ekle) + ilk 15 dakikanın denge turu:** yalnız host açar, yalnız debug build'de. Denge 1 ve 2 oyuncuyla ölçülür.
+   - Panel yapıldı (2026-10-22): F9 denge paneli, ayrıntı `ayrintilar.md`. Kalan: ilk 15 dakikanın denge turu.
 
 ## Faz 3: İkinci para ve kasalar (~15 sa)
 
