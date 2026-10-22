@@ -27,8 +27,8 @@ var _note: Control
 
 
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiStyle.fit_screen(self)
 	_dim = ColorRect.new()  # the view goes quiet behind the choice
 	_dim.color = Color(0, 0, 0, 0.45)
 	_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

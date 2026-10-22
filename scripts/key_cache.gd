@@ -227,11 +227,12 @@ func _on_taken(rank: int, peer: int) -> void:
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
 	add_child(hud)
-	_toast = UiStyle.label("", 22, UiStyle.MEDIUM)  # the count stands under the heap's line (hud.gd)
-	_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_toast.offset_left = -400.0
-	_toast.offset_right = 400.0
-	_toast.offset_top = 110.0
+	# The count lives in the HUD under the heap (scripts/hud.gd); this is only the news.
+	_toast = UiStyle.label("", 26, UiStyle.MEDIUM, UiStyle.WHITE, 2)
+	_toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_toast.offset_left = -500.0
+	_toast.offset_right = 500.0
+	_toast.offset_top = 130.0  # under the heap's lines (up to 1440p's HUD scale)
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.modulate.a = 0.0
 	hud.add_child(_toast)
