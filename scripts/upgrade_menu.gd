@@ -1,97 +1,121 @@
 extends CanvasLayer
-## The workshop, toggled with Q (Esc also closes). Two tabs on the left: the player's own upgrades
-## (GameState.UPGRADES, paid from their gold) and the team's gear (GameState.GEAR, targets paid
-## from the shared vault). Each card shows what the next level gives and how close the money is.
-## The game keeps running behind it (co-op).
+## The workshop, toggled with Q (Esc also closes), in UiStyle: no boxes, text on the dimmed view.
+## Top: the player's gold on the left, the team vault mirrored on the right, the two tabs between
+## them (the player's own upgrades, GameState.UPGRADES, paid from their gold; the team's gear,
+## GameState.GEAR, paid from the vault). Under a rule, five columns of cards, each standing under
+## its own thin rule. An upgrade card walks a track of its levels (bought lit, the next one in the
+## accent, beating); a gear card turns its target's model. Whatever the money reaches is bright,
+## its price line and "al" in the accent; the rest wait faded. Buying sweeps the accent along the
+## card's rule, lights the new level and swells the new value. The game keeps running behind it.
 
 const INFO := {
-	"carry": ["El Kapasitesi", "Yığından bir seferde taşıdığın mermi.", "%d"],
-	"magazine": ["Şarjör", "Tek doldurmada şarjöre sığan mermi.", "%d"],
-	"combo_cap": ["Kombo Tavanı", "Zincirle ulaşabileceğin en yüksek çarpan.", "x%d"],
-	"gold_bonus": ["Altın", "Her isabetin verdiği altına eklenir.", "+%d%%"],
-	"range_bonus": ["Uzak Atış", "Korkuluğun her metre gerisinden vuruşa ek altın.", "+%d%%/m"],
+	"carry": ["El Kapasitesi", "%d"],
+	"magazine": ["Şarjör", "%d"],
+	"combo_cap": ["Kombo Tavanı", "x%d"],
+	"gold_bonus": ["Altın", "+%d%%"],
+	"range_bonus": ["Uzak Atış", "+%d%%/m"],
 }
-const GEAR_INFO := {  # one line on what it is, gold per hit, difficulty 1-5 (name: GameState.GEAR)
-	"dummy": ["Klasik hedef kuklası. Kafaya vurana iki kat.", 1, 1],
-	"steel_gong": ["Her isabeti bütün atölye duyar.", 2, 1],
-	"steel_silhouette": ["İnsan boyu çelik. Vurdukça sallanır.", 2, 2],
-	"popper": ["Vur, devrilsin. Kalkmasını bekle.", 3, 2],
-	"steel_rack": ["Küçük plakalar, sabit el ister.", 4, 3],
-	"plate_rack": ["Plaka kalkar, kaçmadan vur. Refleks işi.", 7, 4],
-	"texas_star": ["Hızlı döner. Yalnız gerçek nişancılar için.", 12, 5],
-	"convoy": ["Üç popper arka arkaya. Öndekini devir, arkadaki açılsın.", 3, 2],
-	"barrel": ["Vurunca patlar; çevresindeki her hedef de öder. Ortaya koy.", 5, 2],
-	"scarecrow": ["Vurunca tutuşur, yanarken saniyede $1 akıtır.", 1, 1],
-	"armored_dummy": ["10 isabetlik zırh para vermez; kıran ×10 alır.", 10, 3],
-	"pendulum": ["Sallanır. Dipte vurana $8, uçta $2.", 8, 4],
-	"twin_gong": ["İki gong aynı anda vurulursa ikisi de ×5. İki kişilik.", 2, 4],
-	"gold_dummy": ["Ara sıra çıkar, kaçar. Vuruş başına $10.", 10, 4],
-	"ricochet": ["Plakaya vur, mermi duvarın arkasındaki poppera seksin: ×3.", 9, 5],
+const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
+	"dummy": [1, 1],
+	"steel_gong": [2, 1],
+	"steel_silhouette": [2, 2],
+	"popper": [3, 2],
+	"steel_rack": [4, 3],
+	"plate_rack": [7, 4],
+	"texas_star": [12, 5],
+	"convoy": [3, 2],
+	"barrel": [5, 2],
+	"scarecrow": [1, 1],
+	"armored_dummy": [10, 3],
+	"pendulum": [8, 4],
+	"twin_gong": [2, 4],
+	"gold_dummy": [10, 4],
+	"ricochet": [9, 5],
 }
-const DIFFICULTY := [Color(0.35, 0.9, 0.45), Color(0.6, 0.9, 0.35), Color(1.0, 0.8, 0.3), Color(1.0, 0.55, 0.25), Color(1.0, 0.32, 0.3)]
-const BG := Color(0.07, 0.08, 0.1, 0.97)
-const SIDE := Color(0.045, 0.05, 0.065)
-const CARD := Color(0.11, 0.12, 0.15)
-const CARD_HOVER := Color(0.14, 0.155, 0.19)
-const LINE := Color(0.2, 0.22, 0.27)
-const GREEN := Color(0.33, 1.0, 0.42)
-const GOLD := Color(1.0, 0.8, 0.3)
-const DIM := Color(0.6, 0.63, 0.69)
-const SHORT := Color(0.95, 0.45, 0.4)
-const OFF := Color(0.2, 0.22, 0.26)
+const HUD := preload("res://scripts/hud.gd")  # its dotted numbers
+const COLUMNS := 5
+const CARD_W := 188.0  # px
+const MODEL_H := 120.0  # px, a gear card's turning model
+const MAX_SIZE := Vector2(1180, 680)  # px; small windows keep a margin round it
+const SIDE_W := 220.0  # px, the gold and the vault: equal so the tabs sit in the middle
+const WAITING := 0.55  # a card the money does not reach yet
 
 var _tab := 0
-var _frame: PanelContainer
+var _frame: VBoxContainer
 var _tabs: Array[Button] = []
 var _pages: Array[Control] = []
-var _title: Label
 var _subtitle: Label
 var _money: Label
 var _vault: Label
-var _cards := {}  # id -> {card, bar, need, button, and level/value/next/pips or stock}
+var _gold_shown := 0.0  # what the gold figure reads while it counts to the real one
+var _models_built := false
+var _cards := {}  # id -> {card, meter, need, button, ready, and level/value/next/track or stock/model}
+
+
+## A level track: one mark per level on a thin line; bought ones lit, the next one in the accent
+## and beating, the rest faint. `flash` (1 just after a buy) swells the newest mark.
+class Track extends Control:
+	var levels := 1
+	var level := 0
+	var flash := 0.0:
+		set(v):
+			flash = v
+			queue_redraw()
+
+	func _init(n: int) -> void:
+		levels = n
+		custom_minimum_size = Vector2(0, 14)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _process(_delta: float) -> void:
+		if level < levels and is_visible_in_tree():
+			queue_redraw()  # the next mark beats
+
+	func _draw() -> void:
+		var y := roundf(size.y / 2.0)
+		var at := func(i: int) -> float: return roundf(3.0 + (size.x - 6.0) * i / maxf(levels - 1, 1))
+		draw_rect(Rect2(0, y, size.x, 1), UiStyle.LINE)
+		if level > 0:
+			draw_rect(Rect2(0, y, at.call(level - 1), 1), UiStyle.WHITE)
+		var beat := 0.55 + 0.45 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
+		for i in levels:
+			var x: float = at.call(i)
+			var s := 4.0
+			var c := Color(1, 1, 1, 0.35)
+			if i < level:
+				s = 6.0 + (8.0 * flash if i == level - 1 else 0.0)
+				c = UiStyle.WHITE.lerp(UiStyle.ACCENT, flash) if i == level - 1 else UiStyle.WHITE
+			elif i == level:
+				s = 8.0
+				c = Color(UiStyle.ACCENT, beat)
+			draw_rect(Rect2(x - s / 2.0, y - s / 2.0 + 0.5, s, s).abs(), c)
 
 
 func _ready() -> void:
 	layer = 5
 	visible = false
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.72)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
-	var frame := PanelContainer.new()
-	frame.custom_minimum_size = Vector2(1060, 640)
-	_frame = frame
-	frame.add_theme_stylebox_override("panel", _box(BG, LINE, 2, 14, 0, Color(0, 0, 0, 0.5), 24))
-	center.add_child(frame)
-	var split := HBoxContainer.new()
-	split.add_theme_constant_override("separation", 0)
-	frame.add_child(split)
-	split.add_child(_sidebar())
-	var content := MarginContainer.new()
-	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	for side in ["left", "right", "top", "bottom"]:
-		content.add_theme_constant_override("margin_" + side, 26)
-	split.add_child(content)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 6)
-	content.add_child(col)
-	_title = _label("", 30, Color.WHITE)
-	col.add_child(_title)
-	_subtitle = _label("", 15, DIM)
-	col.add_child(_subtitle)
-	var gap := Control.new()
-	gap.custom_minimum_size.y = 12
-	col.add_child(gap)
+	_frame = VBoxContainer.new()
+	_frame.add_theme_constant_override("separation", 14)
+	center.add_child(_frame)
+	_frame.add_child(_header())
+	_frame.add_child(UiStyle.line())
+	_subtitle = _centred(UiStyle.caption(""))
+	_frame.add_child(_subtitle)
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(stack)
+	_frame.add_child(stack)
 	_pages.append(_page(GameState.UPGRADES.keys(), _upgrade_card))
 	_pages.append(_page(GameState.GEAR.keys(), _gear_card))
 	for p in _pages:
 		stack.add_child(p)
+	_frame.add_child(_centred(UiStyle.caption("q  ·  kapat")))
 	GameState.gold_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
 	GameState.vault_changed.connect(_refresh.unbind(1))
@@ -107,71 +131,76 @@ func _input(event: InputEvent) -> void:
 
 func toggle() -> void:
 	visible = not visible
+	var hud := get_node_or_null("../HUD") as CanvasLayer  # the player's: its top line would cross the tabs
+	if hud:
+		hud.visible = not visible
 	# The placement overview keeps its cursor when the workshop closes over it.
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or GameState.player().placing else Input.MOUSE_MODE_CAPTURED
 	if visible:
+		_gold_shown = GameState.gold
 		_show_tab(_tab)
+
+
+## What the money reaches beats softly: its "al" breathes in the accent.
+func _process(_delta: float) -> void:
+	if not visible:
+		return
+	var a := 0.72 + 0.28 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
+	for c: Dictionary in _cards.values():
+		(c.button as Control).modulate.a = a if c.ready else 1.0
 
 
 # --- layout -----------------------------------------------------------------------------------
 
-func _sidebar() -> Control:
-	var side := PanelContainer.new()
-	side.custom_minimum_size.x = 270
-	var sb := _box(SIDE, Color.TRANSPARENT, 0, 0, 20)
-	sb.corner_radius_top_left = 14
-	sb.corner_radius_bottom_left = 14
-	side.add_theme_stylebox_override("panel", sb)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
-	side.add_child(col)
-	col.add_child(_label("ATÖLYE", 14, DIM))
-	col.add_child(_tab_button(0, "Kişisel geliştirmeler"))
-	col.add_child(_tab_button(1, "Takımın ortak kasasından"))
-	var fill := Control.new()
-	fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(fill)
-	var wallet := PanelContainer.new()
-	wallet.add_theme_stylebox_override("panel", _box(Color(1, 1, 1, 0.03), LINE, 1, 10, 14))
-	col.add_child(wallet)
-	var w := VBoxContainer.new()
-	w.add_theme_constant_override("separation", 2)
-	wallet.add_child(w)
-	w.add_child(_label("PARAN", 12, DIM))
-	_money = _label("", 30, GREEN)
-	w.add_child(_money)
-	w.add_child(_label("ORTAK KASA", 12, DIM))
-	_vault = _label("", 22, GOLD)
-	w.add_child(_vault)
-	var hint := _label("[Q] Kapat", 13, DIM)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(hint)
-	return side
-
-
-## Title and accent are set in _show_tab: the player's name and colour arrive after joining.
-func _tab_button(index: int, sub: String) -> Button:
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(0, 74)
-	b.focus_mode = Control.FOCUS_NONE  # mouse only: Space must keep jumping
+## Gold | tabs | vault, the two sides mirrored like the HUD's corners.
+func _header() -> Control:
 	var row := HBoxContainer.new()
-	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", 12)
-	b.add_child(row)
-	var bar := ColorRect.new()
-	bar.name = "Bar"
-	bar.custom_minimum_size.x = 5
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(bar)
-	var text := VBoxContainer.new()
-	text.alignment = BoxContainer.ALIGNMENT_CENTER
-	text.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(text)
-	var t := _label("", 21, Color.WHITE)
-	t.name = "Title"
-	text.add_child(t)
-	text.add_child(_label(sub, 13, DIM))
+	row.add_child(_wallet("altın", false))
+	var tabs := HBoxContainer.new()
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
+	tabs.add_theme_constant_override("separation", 44)
+	row.add_child(tabs)
+	tabs.add_child(_tab_button(0))
+	tabs.add_child(_tab_button(1))
+	row.add_child(_wallet("takım kasası", true))
+	return row
+
+
+func _wallet(caption: String, right: bool) -> VBoxContainer:
+	var col := VBoxContainer.new()
+	col.custom_minimum_size.x = SIDE_W
+	col.add_theme_constant_override("separation", 0)
+	var align := HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
+	var c := UiStyle.caption(caption)
+	c.horizontal_alignment = align
+	col.add_child(c)
+	var big := UiStyle.label("", 36, UiStyle.LIGHT)
+	big.horizontal_alignment = align
+	col.add_child(big)
+	if right:
+		_vault = big
+	else:
+		_money = big
+	return col
+
+
+## A tab is its name in text, underlined when open. Names are set in _show_tab: the player's
+## name arrives after joining.
+func _tab_button(index: int) -> Button:
+	var b := _flat_button()
+	b.custom_minimum_size.y = 32
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER  # the header row is as tall as the big numbers
+	var title := UiStyle.label("", 20, UiStyle.MEDIUM)
+	title.name = "Title"
+	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	title.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	b.add_child(title)
+	var under := UiStyle.line(0, UiStyle.WHITE)
+	under.name = "Under"
+	under.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	under.offset_top = -1
+	b.add_child(under)
 	b.pressed.connect(_show_tab.bind(index))
 	_tabs.append(b)
 	return b
@@ -179,145 +208,190 @@ func _tab_button(index: int, sub: String) -> Button:
 
 func _show_tab(index: int) -> void:
 	_tab = index
-	var screen := get_viewport().get_visible_rect().size  # small windows keep a margin round it
-	_frame.custom_minimum_size = Vector2(minf(1060.0, screen.x * 0.94), minf(640.0, screen.y * 0.9))
-	var titles := [GameState.display_name(), "Teçhizatlar"]
-	var accents := [GameState.color_of(GameState.local_peer()), GOLD]
+	var screen := get_viewport().get_visible_rect().size
+	_frame.custom_minimum_size = Vector2(minf(MAX_SIZE.x, screen.x * 0.92), minf(MAX_SIZE.y, screen.y * 0.9))
+	var titles := [GameState.display_name(), "Teçhizat"]
 	for i in _tabs.size():
 		var on := i == index
-		var normal := _box(Color(1, 1, 1, 0.07) if on else Color.TRANSPARENT, Color.TRANSPARENT, 0, 8)
-		_tabs[i].add_theme_stylebox_override("normal", normal)
-		_tabs[i].add_theme_stylebox_override("hover", _box(Color(1, 1, 1, 0.1) if on else Color(1, 1, 1, 0.04), Color.TRANSPARENT, 0, 8))
-		_tabs[i].add_theme_stylebox_override("pressed", normal)
-		(_tabs[i].find_child("Bar", true, false) as ColorRect).color = accents[i] if on else Color(accents[i], 0.15)
 		var title := _tabs[i].find_child("Title", true, false) as Label
 		title.text = titles[i]
-		title.modulate = Color.WHITE if on else Color(1, 1, 1, 0.6)
+		_tabs[i].custom_minimum_size.x = title.get_minimum_size().x
+		_tabs[i].modulate.a = 1.0 if on else 0.45
+		(_tabs[i].find_child("Under", true, false) as Control).visible = on
 		_pages[i].visible = on
-	_title.text = [GameState.display_name(), "Takımın teçhizatı"][index]
-	_subtitle.text = ["Bu geliştirmeler yalnızca senin için geçerlidir.",
-		"Ortak kasadan alınır, bütün takım kullanır. Kurulanları [B] ile düzenle."][index]
+	_subtitle.text = ["yalnız senin için  ·  altınınla", "ortak kasadan  ·  bütün takım kullanır  ·  b ile kur"][index]
+	if index == 1 and not _models_built:  # built on first look: fifteen small worlds
+		_models_built = true
+		for id in GameState.GEAR:
+			(_cards[id].model as Control).add_child(_model_view(id))
 	_refresh()
 
 
 func _page(ids: Array, make: Callable) -> Control:
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var center := CenterContainer.new()
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL  # a short page sits in the middle
+	scroll.add_child(center)
 	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	grid.add_theme_constant_override("h_separation", 14)
-	grid.add_theme_constant_override("v_separation", 14)
-	scroll.add_child(grid)
+	grid.columns = COLUMNS
+	grid.add_theme_constant_override("h_separation", 30)
+	grid.add_theme_constant_override("v_separation", 30)
+	center.add_child(grid)
 	for id in ids:
 		grid.add_child(make.call(id))
 	return scroll
 
 
-## A card's frame, its hover glow and its buy row; the caller fills in the middle.
-func _card(id: String, body: Control, buy: Callable) -> PanelContainer:
-	var card := PanelContainer.new()
-	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.custom_minimum_size = Vector2(0, 168)
-	card.add_theme_stylebox_override("panel", _box(CARD, LINE, 1, 10, 16))
-	card.mouse_entered.connect(func() -> void: (card.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = CARD_HOVER)
-	card.mouse_exited.connect(func() -> void: (card.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = CARD)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 8)
-	card.add_child(col)
-	col.add_child(body)
+## A card: its rule on top, the caller's middle, a line toward the price, what is missing and "al".
+func _card(id: String, body: Control, buy: Callable) -> VBoxContainer:
+	var card := VBoxContainer.new()
+	card.custom_minimum_size.x = CARD_W
+	card.add_theme_constant_override("separation", 8)
+	var rule := UiStyle.line()
+	card.add_child(rule)
+	card.add_child(body)
+	var meter := UiStyle.meter(CARD_W)
+	card.add_child(meter)
 	var foot := HBoxContainer.new()
-	foot.add_theme_constant_override("separation", 12)
-	col.add_child(foot)
-	var left := VBoxContainer.new()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.alignment = BoxContainer.ALIGNMENT_CENTER
-	left.add_theme_constant_override("separation", 3)
-	foot.add_child(left)
-	var bar := ProgressBar.new()
-	bar.show_percentage = false
-	bar.custom_minimum_size.y = 6
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_theme_stylebox_override("background", _box(OFF, Color.TRANSPARENT, 0, 3))
-	bar.add_theme_stylebox_override("fill", _box(GREEN, Color.TRANSPARENT, 0, 3))
-	left.add_child(bar)
-	var need := _label("", 13, DIM)
-	left.add_child(need)
-	var button := Button.new()
-	button.custom_minimum_size = Vector2(150, 44)
-	button.focus_mode = Control.FOCUS_NONE
-	button.add_theme_font_size_override("font_size", 17)
+	card.add_child(foot)
+	var need := UiStyle.caption("")
+	need.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	need.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	foot.add_child(need)
+	var button := _flat_button()
+	button.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM))
+	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_color_override("font_hover_color", UiStyle.WHITE)
+	button.add_theme_color_override("font_pressed_color", UiStyle.WHITE)
+	button.add_theme_color_override("font_disabled_color", Color(UiStyle.DIM, 0.6))
 	button.pressed.connect(func() -> void:
 		if buy.call():
-			_celebrate(card))
+			_celebrate(id, rule))
 	foot.add_child(button)
-	_cards[id] = {"card": card, "bar": bar, "need": need, "button": button}
+	_cards[id] = {"card": card, "meter": meter, "need": need, "button": button, "ready": false}
 	return card
 
 
 func _upgrade_card(id: String) -> Control:
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 6)
-	var top := HBoxContainer.new()
-	body.add_child(top)
-	var title := _label(INFO[id][0], 22, Color.WHITE)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(title)
-	var level := _label("", 13, DIM)
-	top.add_child(level)
-	body.add_child(_label(INFO[id][1], 14, DIM))
+	var level := UiStyle.caption("")
+	body.add_child(level)
+	body.add_child(UiStyle.label(INFO[id][0], 18, UiStyle.MEDIUM))
 	var values := HBoxContainer.new()
 	values.add_theme_constant_override("separation", 10)
 	body.add_child(values)
-	var value := _label("", 26, Color.WHITE)
+	var value := UiStyle.label("", 30, UiStyle.LIGHT)
 	values.add_child(value)
-	var next := _label("", 26, GREEN)
+	var next := UiStyle.label("", 18, UiStyle.LIGHT, UiStyle.ACCENT)
+	next.size_flags_vertical = Control.SIZE_SHRINK_END
 	values.add_child(next)
-	var pips := HBoxContainer.new()
-	pips.add_theme_constant_override("separation", 4)
-	for i in GameState.UPGRADES[id].costs.size():  # one pip per level to buy
-		var p := ColorRect.new()
-		p.custom_minimum_size = Vector2(0, 7)
-		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pips.add_child(p)
-	body.add_child(pips)
+	var track := Track.new(GameState.UPGRADES[id].costs.size())
+	body.add_child(track)
 	var card := _card(id, body, func() -> bool: return GameState.request_buy_upgrade(id))
-	_cards[id].merge({"level": level, "value": value, "next": next, "pips": pips})
+	_cards[id].merge({"level": level, "value": value, "next": next, "track": track})
 	return card
 
 
 func _gear_card(id: String) -> Control:
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 6)
-	body.add_child(_label(GameState.GEAR[id].name, 22, Color.WHITE))
-	body.add_child(_label(GEAR_INFO[id][0], 14, DIM))
-	var chips := HBoxContainer.new()
-	chips.add_theme_constant_override("separation", 8)
-	body.add_child(chips)
-	chips.add_child(_chip("İsabet başı $%d" % GEAR_INFO[id][1], GREEN))
-	var stock := _chip("", DIM)
-	chips.add_child(stock)
-	var hard: int = GEAR_INFO[id][2]
-	var diff := HBoxContainer.new()
-	diff.add_theme_constant_override("separation", 4)
-	body.add_child(diff)
-	var word := _label("ZORLUK", 12, DIM)
-	word.custom_minimum_size.x = 64
-	diff.add_child(word)
-	for i in 5:
-		var p := ColorRect.new()
-		p.custom_minimum_size = Vector2(26, 7)
-		p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		p.color = DIFFICULTY[hard - 1] if i < hard else OFF
-		diff.add_child(p)
+	var model := Control.new()  # its turning model comes in on the first look (_show_tab)
+	model.custom_minimum_size = Vector2(CARD_W, MODEL_H)
+	model.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body.add_child(model)
+	var hard: int = GEAR_INFO[id][1]
+	var diff := _pips(5)
+	for i in hard:
+		(diff.get_child(i) as ColorRect).color = UiStyle.WHITE
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 10)
+	top.add_child(UiStyle.caption("zorluk"))
+	diff.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	diff.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	top.add_child(diff)
+	body.add_child(top)
+	body.add_child(UiStyle.label(GameState.GEAR[id].name, 18, UiStyle.MEDIUM))
+	var values := HBoxContainer.new()
+	values.add_theme_constant_override("separation", 10)
+	body.add_child(values)
+	var value := UiStyle.label("$%d" % GEAR_INFO[id][0], 30, UiStyle.LIGHT)
+	values.add_child(value)
+	var per := UiStyle.caption("isabet başı")
+	per.size_flags_vertical = Control.SIZE_SHRINK_END
+	values.add_child(per)
+	var stock := UiStyle.caption("")
+	body.add_child(stock)
 	var card := _card(id, body, func() -> bool:
 		if not GameState.request_buy_gear(id):
 			return false
-		_to_placing.call_deferred(id)  # after the "+1" pops: shut the workshop, go put it up
+		_to_placing.call_deferred(id)  # after the "+1" floats up: shut the workshop, go put it up
 		return true)
-	_cards[id]["stock"] = stock
+	_cards[id].merge({"stock": stock, "model": model, "value": value})
 	return card
+
+
+## The piece turning slowly on its own, lit like the round picker's rounds: a copy of its meshes
+## (with their own materials) in a little world of its own, framed to fit.
+func _model_view(id: String) -> SubViewportContainer:
+	var holder := SubViewportContainer.new()
+	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	holder.stretch = true
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var vp := SubViewport.new()
+	vp.own_world_3d = true
+	vp.transparent_bg = true
+	vp.msaa_3d = Viewport.MSAA_4X
+	holder.add_child(vp)
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.6, 0.58, 0.55)
+	var key := DirectionalLight3D.new()
+	key.rotation = Vector3(-0.6, 0.6, 0.0)
+	key.light_energy = 1.6
+	vp.add_child(key)
+	var rim := DirectionalLight3D.new()
+	rim.rotation = Vector3(-0.3, PI - 0.4, 0.0)
+	rim.light_energy = 0.8
+	vp.add_child(rim)
+	var turn := Node3D.new()
+	vp.add_child(turn)
+	# Many pieces build their meshes in _ready: the original enters the tree a moment, hidden and
+	# still, and is freed at once (as placement.gd's see-through copy does).
+	var src: Node3D = load(GameState.GEAR[id].scene).instantiate()
+	src.process_mode = Node.PROCESS_MODE_DISABLED
+	src.visible = false
+	add_child(src)
+	var box := AABB()
+	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
+		if not m.mesh:
+			continue
+		var copy := MeshInstance3D.new()
+		copy.mesh = m.mesh
+		copy.transform = src.global_transform.affine_inverse() * m.global_transform
+		copy.material_override = m.material_override
+		for s in m.get_surface_override_material_count():
+			copy.set_surface_override_material(s, m.get_surface_override_material(s))
+		turn.add_child(copy)
+		var b := copy.transform * m.mesh.get_aabb()
+		box = b if box.size == Vector3.ZERO else box.merge(b)
+	src.free()
+	for c: Node3D in turn.get_children():  # its middle on the turning axis
+		c.position -= Vector3(box.get_center().x, 0.0, box.get_center().z)
+	var cam := Camera3D.new()
+	cam.fov = 30.0
+	cam.environment = env
+	var reach := maxf(box.size.y, Vector2(box.size.x, box.size.z).length() * 0.8)
+	var far := reach * 0.5 / tan(deg_to_rad(cam.fov * 0.5)) * 1.25
+	var eye := Vector3(0, box.get_center().y + far * 0.25, far)
+	cam.transform = Transform3D(Basis.looking_at(Vector3(0, box.get_center().y, 0) - eye), eye)
+	vp.add_child(cam)
+	turn.create_tween().set_loops().tween_property(turn, "rotation:y", TAU, 9.0).from(0.0)
+	return holder
 
 
 ## Just bought a piece: straight into placement mode with it in hand, over the firing line.
@@ -335,117 +409,120 @@ func _to_placing(id: String) -> void:
 # --- state ------------------------------------------------------------------------------------
 
 func _refresh() -> void:
-	_money.text = "$%d" % GameState.gold
-	_vault.text = "$%d" % floori(GameState.vault)
+	if visible and roundi(_gold_shown) != GameState.gold:  # the figure counts to it
+		create_tween().tween_method(func(v: float) -> void:
+			_gold_shown = v
+			_money.text = HUD._dotted(roundi(v)), _gold_shown, float(GameState.gold), 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	else:
+		_gold_shown = GameState.gold
+		_money.text = HUD._dotted(GameState.gold)
+	_vault.text = HUD._dotted(floori(GameState.vault))
 	for id in GameState.UPGRADES:
 		var c: Dictionary = _cards[id]
 		var level: int = GameState.player().levels[id]
 		var values: Array = GameState.UPGRADES[id].values
 		var costs: Array = GameState.UPGRADES[id].costs
 		var maxed := level >= costs.size()
-		(c.level as Label).text = "SEVİYE %d / %d" % [level, costs.size()]
-		for i in (c.pips as Control).get_child_count():
-			((c.pips as Control).get_child(i) as ColorRect).color = (GOLD if maxed else GREEN) if i < level else OFF
-		(c.value as Label).text = INFO[id][2] % values[level]
-		(c.next as Label).text = "" if maxed else "→  " + INFO[id][2] % values[level + 1]
-		_price(c, 0 if maxed else costs[level], GameState.gold, maxed, GREEN)
+		(c.level as Label).text = "seviye %d / %d" % [level, costs.size()]
+		(c.track as Track).level = level
+		(c.track as Track).queue_redraw()
+		(c.value as Label).text = INFO[id][1] % values[level]
+		(c.next as Label).text = "" if maxed else "→  " + INFO[id][1] % values[level + 1]
+		_price(c, 0 if maxed else costs[level], GameState.gold, maxed)
 	for id in GameState.GEAR:
 		var c: Dictionary = _cards[id]
 		var n: int = GameState.gear_stock.get(id, 0)
-		(c.stock as Label).text = "Depoda %d" % n
-		(c.stock as Label).modulate = Color.WHITE if n > 0 else Color(1, 1, 1, 0.5)
-		_price(c, GameState.GEAR[id].cost, floori(GameState.vault), false, GOLD)
+		(c.stock as Label).text = "depoda %d" % n
+		(c.stock as Label).add_theme_color_override("font_color", UiStyle.WHITE if n > 0 else UiStyle.DIM)
+		_price(c, GameState.GEAR[id].cost, floori(GameState.vault), false)
 
 
-## Bar toward the price, what is still missing, and the button: lit when it can be bought.
-func _price(c: Dictionary, cost: int, have: int, maxed: bool, accent: Color) -> void:
-	var bar: ProgressBar = c.bar
+## The line toward the price, what is still missing, and "al". When the money reaches it the
+## card is bright and its line, "hazır" and "al" turn to the accent; short of it the card fades.
+func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	var need: Label = c.need
 	var b: Button = c.button
-	(((c.card as Control).get_theme_stylebox("panel")) as StyleBoxFlat).border_color = GOLD if maxed else LINE
-	var fill := bar.get_theme_stylebox("fill") as StyleBoxFlat
+	var lit := (c.meter as Control).get_child(0) as ColorRect
+	b.visible = not maxed
+	c.ready = false
 	if maxed:
-		bar.max_value = 1
-		bar.value = 1
-		fill.bg_color = GOLD
-		need.text = "En üst seviye"
-		need.modulate = GOLD
-		b.text = "MAKS"
-		b.disabled = true
-		_style_button(b, GOLD, false)
+		UiStyle.set_meter(c.meter, 1.0)
+		lit.color = UiStyle.WHITE
+		need.text = "en üst seviye"
+		need.add_theme_color_override("font_color", UiStyle.DIM)
+		(c.card as Control).modulate.a = 1.0
 		return
-	bar.max_value = cost
-	bar.value = mini(have, cost)
+	UiStyle.set_meter(c.meter, float(have) / cost)
 	var ok := have >= cost
-	fill.bg_color = accent if ok else Color(accent, 0.55)
-	need.text = "Hazır!" if ok else "$%d eksik" % (cost - have)
-	need.modulate = accent if ok else SHORT
-	b.text = "$%d  AL" % cost
+	c.ready = ok
+	lit.color = UiStyle.ACCENT if ok else UiStyle.WHITE
+	need.text = "hazır" if ok else "$%d eksik" % (cost - have)
+	need.add_theme_color_override("font_color", UiStyle.ACCENT if ok else UiStyle.DIM)
+	b.text = "al  $%d" % cost
 	b.disabled = not ok
-	_style_button(b, accent, ok)
+	b.add_theme_color_override("font_color", UiStyle.ACCENT if ok else UiStyle.WHITE)
+	(c.card as Control).modulate.a = 1.0 if ok else WAITING
 
 
-func _style_button(b: Button, accent: Color, lit: bool) -> void:
-	var bg := accent if lit else Color(0.15, 0.16, 0.19)
-	b.add_theme_stylebox_override("normal", _box(bg, Color.TRANSPARENT, 0, 8))
-	b.add_theme_stylebox_override("hover", _box(bg.lightened(0.15), Color.TRANSPARENT, 0, 8))
-	b.add_theme_stylebox_override("pressed", _box(bg.darkened(0.15), Color.TRANSPARENT, 0, 8))
-	b.add_theme_stylebox_override("disabled", _box(bg, Color(accent, 0.35), 1, 8))
-	b.add_theme_color_override("font_color", Color(0.05, 0.06, 0.07))
-	b.add_theme_color_override("font_hover_color", Color(0.05, 0.06, 0.07))
-	b.add_theme_color_override("font_pressed_color", Color(0.05, 0.06, 0.07))
-	b.add_theme_color_override("font_disabled_color", accent if b.text == "MAKS" else DIM)
-
-
-## A purchase: the card flashes and swells, and "+1" floats up off it.
-func _celebrate(card: Control) -> void:
-	card.pivot_offset = card.size / 2.0
-	card.scale = Vector2.ONE * 1.05
-	card.modulate = Color(1.5, 1.7, 1.5)
-	var t := create_tween().set_parallel()
-	t.tween_property(card, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t.tween_property(card, "modulate", Color.WHITE, 0.35)
-	var up := _label("+1 SEVİYE" if _tab == 0 else "+1 DEPOYA", 26, GREEN if _tab == 0 else GOLD)
-	up.add_theme_constant_override("outline_size", 8)
-	up.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+## A purchase: the accent sweeps along the card's rule, the new level's mark swells and settles,
+## the value swells, and "+1" floats up.
+func _celebrate(id: String, rule: Control) -> void:
+	var c: Dictionary = _cards[id]
+	var sweep := ColorRect.new()
+	sweep.color = UiStyle.ACCENT
+	sweep.size = Vector2(0, 1)
+	sweep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rule.add_child(sweep)
+	var s := sweep.create_tween()
+	s.tween_property(sweep, "size:x", rule.size.x, 0.28).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	s.tween_property(sweep, "modulate:a", 0.0, 0.5)
+	s.tween_callback(sweep.queue_free)
+	if c.has("track"):
+		var track: Track = c.track
+		track.create_tween().tween_property(track, "flash", 0.0, 0.6).from(1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var value: Label = c.value
+	value.pivot_offset = Vector2(0, value.size.y * 0.7)
+	value.scale = Vector2.ONE * 1.3
+	value.modulate = UiStyle.ACCENT
+	var v := value.create_tween().set_parallel()
+	v.tween_property(value, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	v.tween_property(value, "modulate", Color.WHITE, 0.6)
+	var card: Control = c.card
+	var up := UiStyle.label("+1 seviye" if _tab == 0 else "+1 depoya", 15, UiStyle.MEDIUM, UiStyle.ACCENT)
 	up.top_level = true  # floats free of the card's container layout
 	card.add_child(up)
-	up.global_position = card.global_position + Vector2(card.size.x * 0.5 - 60, 6)
+	up.global_position = card.global_position + Vector2(0, -22)
 	var f := up.create_tween().set_parallel()
-	f.tween_property(up, "global_position:y", up.global_position.y - 46, 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	f.tween_property(up, "global_position:y", up.global_position.y - 30, 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	f.tween_property(up, "modulate:a", 0.0, 0.5).set_delay(0.25)
 	f.chain().tween_callback(up.queue_free)
 
 
 # --- helpers ----------------------------------------------------------------------------------
 
-func _chip(text: String, color: Color) -> Label:
-	var l := _label(text, 13, color)
-	var sb := _box(Color(color, 0.1), Color(color, 0.35), 1, 6)
-	sb.content_margin_left = 8
-	sb.content_margin_right = 8
-	sb.content_margin_top = 2
-	sb.content_margin_bottom = 2
-	l.add_theme_stylebox_override("normal", sb)
-	return l
+## A row of short 2 px marks, unlit (difficulty).
+func _pips(count: int) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for i in count:
+		var p := UiStyle.line(0, UiStyle.LINE)
+		p.custom_minimum_size.y = 2
+		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(p)
+	return row
 
 
-static func _box(bg: Color, border: Color, width: int, radius: int, margin := 0, shadow := Color.TRANSPARENT, shadow_size := 0) -> StyleBoxFlat:
-	var b := StyleBoxFlat.new()
-	b.bg_color = bg
-	b.border_color = border
-	b.set_border_width_all(width)
-	b.set_corner_radius_all(radius)
-	b.set_content_margin_all(margin)
-	b.shadow_color = shadow
-	b.shadow_size = shadow_size
+## A button that is only its text: no frame, no fill, mouse only (Space must keep jumping).
+static func _flat_button() -> Button:
+	var b := Button.new()
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	for s in ["normal", "hover", "pressed", "disabled", "focus"]:
+		b.add_theme_stylebox_override(s, StyleBoxEmpty.new())
 	return b
 
 
-static func _label(text: String, size: int, color: Color) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", color)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+func _centred(l: Label) -> Label:
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return l

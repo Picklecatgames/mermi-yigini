@@ -27,16 +27,16 @@ var _note: Control
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dim = ColorRect.new()  # the view goes quiet behind the choice
 	_dim.color = Color(0, 0, 0, 0.45)
-	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dim.visible = false
 	add_child(_dim)
 	_picker = VBoxContainer.new()
-	_picker.set_anchors_preset(Control.PRESET_CENTER)
+	_picker.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_picker.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_picker.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_picker.add_theme_constant_override("separation", 22)
@@ -74,6 +74,8 @@ func open() -> void:
 		_row.add_child(column(id, GameState.carried + GameState.loaded if id == "" else p.specials.count(id)))
 	_pick = maxi(_ids.find(p.armed), 0)
 	_travel = 0.0
+	if is_instance_valid(_note):  # it would stand over the columns
+		_note.queue_free()
 	_picker.visible = true
 	_dim.visible = true
 	_light()
@@ -191,9 +193,9 @@ func note(id: String) -> void:
 	n.add_child(_centred(UiStyle.label(GameState.SPECIALS[id].desc, 13, UiStyle.REGULAR, UiStyle.DIM)))
 	n.add_child(_centred(UiStyle.caption("R basılı tut  ·  seç")))
 	add_child(n)
-	n.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	n.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	n.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	n.offset_top = 70  # under the heap's line
+	n.offset_top = 96  # under the heap's line and the key count
 	n.modulate.a = 0.0
 	var t := n.create_tween()
 	t.tween_property(n, "modulate:a", 1.0, 0.2)
