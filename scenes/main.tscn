@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://scripts/key_cache.gd" id="13"]
 [ext_resource type="Script" path="res://scripts/remote_players.gd" id="14"]
 [ext_resource type="Script" path="res://scripts/placement.gd" id="15"]
+[ext_resource type="Script" path="res://scripts/chests.gd" id="16"]
 
 [node name="Main" type="Node3D" unique_id=603565990]
 
@@ -17,6 +18,9 @@
 
 [node name="Keys" type="Node3D" parent="."]
 script = ExtResource("13")
+
+[node name="Chests" type="Node3D" parent="."]
+script = ExtResource("16")
 
 [node name="Player" parent="." instance=ExtResource("3")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
