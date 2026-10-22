@@ -102,8 +102,9 @@ const GUNS := [
 	{"id": "uzi", "name": "Mikro SMG", "ready": true, "interval": 0.125, "auto": true, "mag": 4},
 	{"id": "scorpion", "name": "Kompakt SMG", "ready": true, "interval": 0.1, "auto": true, "mag": 5},
 	# Final, from the 12th crate. Spins up before the first round and ramps up to this rate (the
-	# first-person gun paces it; the host holds it to the top rate).
-	{"id": "minigun", "name": "Minigun", "ready": true, "interval": 0.05, "auto": true, "mag": 30},
+	# first-person gun paces it; the host holds it to the top rate). crate: shut until that crate
+	# opens (gun_open).
+	{"id": "minigun", "name": "Minigun", "ready": true, "interval": 0.05, "auto": true, "mag": 30, "crate": 12},
 ]
 ## A weak spot pays this many times over: a collision shape in group "weak_spot" (the dummy's
 ## head), or where the target's `is_weak(at)` says so (a popper's round head).
@@ -533,7 +534,7 @@ func request_toggle_placing(peer := 0) -> void:
 ## Everyone sees it (gun_changed): the first-person arms and others' third-person hold follow it.
 func request_select_gun(gun: int, peer := 0) -> void:
 	var p := player(peer)
-	if gun < 0 or gun >= GUNS.size() or not GUNS[gun].ready or p.placing:
+	if gun < 0 or gun >= GUNS.size() or not gun_open(gun, peer) or p.placing:
 		return
 	if gun == p.gun:
 		gun = 0
@@ -549,6 +550,12 @@ func request_select_gun(gun: int, peer := 0) -> void:
 		gun_changed.emit(local_peer(), gun)  # predicted; the host's answer (_state) settles it
 		return
 	_world(&"gun_changed", [local_peer() if peer == 0 else peer, gun])
+
+
+## Whether GUNS[`gun`] can be drawn. A crate gun stays shut until its crate opens; crates are not
+## in yet (yol haritası 13), so for now only test mode (T, debug builds) opens them.
+func gun_open(gun: int, peer := 0) -> bool:
+	return GUNS[gun].ready and (not GUNS[gun].has("crate") or player(peer).infinite_ammo)
 
 
 ## Test mode (T): the gun never runs dry, for trying the feel and effects. Per player.
@@ -580,6 +587,8 @@ func request_toggle_infinite_ammo(peer := 0) -> void:
 	elif p.saved_loaded >= 0:
 		_set_loaded(peer, mini(p.saved_loaded, mag_capacity_of(peer)))
 		p.saved_loaded = -1
+	if not gun_open(p.gun, peer):  # T off with a crate gun in hand: it goes back
+		request_select_gun(0, peer)
 	if _is_local(peer):
 		loaded_changed.emit(player(peer).loaded)
 

@@ -90,6 +90,7 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 ## Faz 5: Final (~15 sa)
 
 19. **Minigun (12. anahtar, Dişli):** herkese açılır; yüksek atış hızında ağ yükü için atışlar paketlenir (ör. 50 ms'de bir toplu olay).
+   - Erken yapılanlar (2026-10-22): model, klipler, ısınma/hızlanma/yavaşlama, kilit (`gun_open`, şimdilik T açar), nişansız sağ tık, yavaşlatma; ayrıntı `ayrintilar.md` → Minigun, kontrol `tools/minigun_check.gd`. Kalanlar: kasaya bağlamak (13. adım), atış paketleme, sesler, kısa reload/equip, 3. şahısta dönen namlu.
 20. **Kilometre taşları (99M/90M/50M/10M/1M) ve son mermi töreni:** son mermiyi alan oyuncu gonga atar, herkesin ekranında.
 21. **Co-op iletişimi:** ping ve emote ikonları (CLAUDE.md kuralı: konuşma animasyonu yok).
 

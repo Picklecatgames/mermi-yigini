@@ -37,14 +37,17 @@ const SETS := {
 		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339),
 		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34,
 		"clip_fire": false, "move": 0.75, "kick": 0.26, "climb": 0.0071, "yaw": 0.0089, "bloom": 0.0013, "jiggle": 0.22, "flash": 0.65},
-	# Held at the hip, no sights: the aim button spins the barrels up without firing. spin: the
-	# barrels take the Fire_Start clip to get up to speed (no round before that), the rate then
-	# ramps from first to GameState's interval over ramp s; let go and they run down in the
-	# Fire_Stop clip, and pressing again picks up from the speed they still have. walk: share of
-	# walking speed left while they turn. Heaviest to move with, lightest kick per round.
+	# Held at the hip, no sights: the aim button spins the barrels up without firing. spin: we turn
+	# the barrel bone ourselves (axis in its space, speed rad/s: the set's Fire clip turns them at
+	# ~675°/s), so they keep turning over Idle, Walk and Sprint. They get up to speed in up s (Fire_Start
+	# takes ~0.6 s), no round before that; the rate then ramps from first to GameState's interval
+	# over ramp s of firing. Let go and they run down in down s (Fire_Stop: 1.3 s); pressing again
+	# picks up from the speed they still have. walk: share of walking speed left while they turn
+	# (no sprint); rumble: the gun's shake at full speed. Heaviest to move with, lightest kick per round.
 	"minigun": {"mesh": "Minigun", "clips": "Minigun_", "bone": "Minigun_M-134_Body", "eye": Vector3(-0.0082, 1.4235, 0.0212), "fov": 50.0,
 		"muzzle": Vector3(0.0, 0.9167, -0.0359), "port": Vector3(0.126, 0.124, -0.025), "run": "Sprint", "no_aim": true,
-		"spin": {"ramp": 1.5, "first": 0.16, "walk": 0.5, "rumble": 0.25},
+		"spin": {"bone": "Minigun_M-134_Guns", "axis": Vector3.DOWN, "speed": 11.8, "up": 0.6, "down": 1.3,
+			"ramp": 1.5, "first": 0.16, "walk": 0.5, "rumble": 0.25},
 		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
@@ -139,10 +142,12 @@ var _clip := ""
 var _punch := 0
 var _burst := 0  # rounds in the current burst
 ## Spinning guns (SETS spin): barrel speed 0 stopped → 1 up to speed, the fire rate's ramp 0 → 1,
-## and which spin clip plays ("" none, "up", "turn", "down").
+## and how far the barrels have turned (rad).
 var spin := 0.0
 var _ramp := 0.0
-var _spin_clip := ""
+var _barrel := 0.0
+var walk_share: float:  # of walking speed, while barrels turn (the player reads it)
+	get: return lerpf(1.0, float(_kit.spin.walk), spin) if _kit.has("spin") else 1.0
 var _aim_pose := false  # aim_clips: holding Aim_In's end
 var _attach: BoneAttachment3D  # rides the gun bone: muzzle and ejection port hang off it
 var _since_fire := 10.0
@@ -245,6 +250,7 @@ func _ready() -> void:
 	_flash.visible = false
 	_flash_light.light_cull_mask = 1 << (LAYER - 1)  # the hall gets its own flash (_world_flash)
 	_anim.animation_finished.connect(_on_clip_finished.unbind(1))
+	_anim.mixer_applied.connect(_turn_barrels)
 	_attach = BoneAttachment3D.new()
 	_skel.add_child(_attach)
 	_attach.add_child(_muzzle)
@@ -295,7 +301,7 @@ static func load_clips(anim: AnimationPlayer, skel: Skeleton3D) -> void:
 					Animation.TYPE_ROTATION_3D: a.rotation_track_insert_key(t, 0.0, rot)
 					Animation.TYPE_SCALE_3D: a.scale_track_insert_key(t, 0.0, skel.get_bone_rest(b).basis.get_scale())
 		# Only these loop; any other clip must end, or the gun would wait on it forever.
-		var loops := n.ends_with("_Idle") or n.ends_with("_Walk") or n.ends_with("_Run")
+		var loops := n.ends_with("_Idle") or n.ends_with("_Walk") or n.ends_with("_Run") or n.ends_with("_Sprint")
 		a.loop_mode = Animation.LOOP_LINEAR if loops else Animation.LOOP_NONE
 	fists.free()
 
@@ -324,6 +330,8 @@ func _swap() -> void:
 	_muzzle.position = _kit.get("muzzle", Vector3.ZERO)
 	_port.position = _kit.get("port", Vector3.ZERO)
 	_aim_pose = false
+	spin = 0.0
+	_ramp = 0.0
 	_want_fire = 0.0  # a click or R from before the swap is not for this gun
 	_want_reload = 0.0
 	_anim.play(_kit.clips + "Idle")
@@ -444,6 +452,10 @@ func _process(delta: float) -> void:
 			_want_reload = RELOAD_BUFFER
 	_was_captured = captured
 	var want_aim := captured and live and gun > 0 and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
+	if _kit.has("spin"):
+		_spin(delta, want_aim)
+	if _kit.get("no_aim", false):
+		want_aim = false  # no sights (the minigun's aim button only turns the barrels)
 	_aim_lin = move_toward(_aim_lin, 1.0 if want_aim else 0.0, delta / ADS_TIME)
 	aim = smoothstep(0.0, 1.0, _aim_lin)
 	_want_fire -= delta
@@ -483,10 +495,38 @@ func _wisp_follow() -> void:
 	_wisp_pm.gravity = up * 0.08  # hot gas rises slowly
 
 
+## Barrels turn while the trigger or the aim button is held at rest (a reload or a draw lets
+## them run down). Up to speed, holding the trigger ramps the rate; let go, the ramp falls back.
+func _spin(delta: float, aim_held: bool) -> void:
+	var s: Dictionary = _kit.spin
+	var firing := _want_fire > 0.0 or Input.is_action_pressed("fire") and _was_captured
+	var turning := (firing or aim_held) and _clip in ADS_CLIPS and _low_lin == 0.0
+	spin = move_toward(spin, 1.0 if turning else 0.0, delta / float(s.up if turning else s.down))
+	_ramp = move_toward(_ramp, 1.0 if firing and spin == 1.0 else 0.0, delta / float(s.ramp))
+	_barrel = fmod(_barrel + spin * float(s.speed) * delta, TAU)
+	_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * float(s.rumble) * spin * delta * 60.0
+
+
+## After the clip has posed the rig: the barrels' turn on top of it.
+func _turn_barrels() -> void:
+	if _kit.has("spin") and _barrel != 0.0:
+		var b := _skel.find_bone(_kit.spin.bone)
+		_skel.set_bone_pose_rotation(b, _skel.get_bone_pose_rotation(b) * Quaternion(_kit.spin.axis, _barrel))
+
+
+## s between rounds now: the gun's own, or a spinning gun's ramp toward it.
+func _interval() -> float:
+	if _kit.has("spin"):
+		return lerpf(float(_kit.spin.first), GameState.fire_interval, _ramp)
+	return GameState.fire_interval
+
+
 func _can_fire() -> bool:
 	if gun == 0:
 		return _clip == ""  # a punch plays out before the next
-	return gun > 0 and (_clip == "" or _clip == "fire") and _since_fire >= GameState.fire_interval
+	if _kit.has("spin") and spin < 1.0:
+		return false  # no round until the barrels are up to speed
+	return gun > 0 and (_clip == "" or _clip == "fire") and _since_fire >= _interval()
 
 
 func fire() -> void:
@@ -509,7 +549,7 @@ func fire() -> void:
 	if not GameState.request_fire(cam.global_position, cam.global_basis * Basis.from_euler(Vector3(off.y, off.x, 0.0)) * Vector3.FORWARD):
 		return
 	# A burst: rounds within two intervals of each other; the Scorpion wanders more the longer it runs.
-	_burst = _burst + 1 if _since_fire < GameState.fire_interval * 2.0 else 0
+	_burst = _burst + 1 if _since_fire < _interval() * 2.0 else 0
 	_bloom += float(_kit.bloom)
 	_kick_yaw = randf_range(-1.0, 1.0)
 	_kick_roll = randf_range(-1.0, 1.0)
@@ -575,7 +615,7 @@ func _rest_clip() -> void:
 	# Firing on the run drops the Run carry (muzzle up) for Walk: the gun levels, the bob still swings it.
 	var shooting := _since_fire < 0.35
 	if body and body.is_on_floor() and speed > 0.5:
-		idle = "Run" if speed > RUN_SPEED and not shooting else "Walk"
+		idle = _kit.get("run", "Run") if speed > RUN_SPEED and not shooting else "Walk"
 	if _anim.current_animation != _kit.clips + idle:
 		_anim.play(_kit.clips + idle, 0.1 if shooting else 0.25)
 

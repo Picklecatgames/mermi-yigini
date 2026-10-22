@@ -204,6 +204,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("infinite_ammo"):
 		GameState.request_toggle_infinite_ammo()
+		_update_gun_bar()  # test mode opens the crate guns
 	elif event.is_action_pressed("placement_mode"):
 		GameState.request_toggle_placing()
 	elif event.is_action_pressed("throw"):
@@ -243,7 +244,7 @@ func _update_gun_bar() -> void:
 		box.set_border_width_all(2 if on else 1)
 		var slot: PanelContainer = _gun_bar.get_child(i)
 		slot.add_theme_stylebox_override("panel", box)
-		slot.modulate = Color.WHITE if on else Color(1, 1, 1, 0.7 if GameState.GUNS[i + 1].ready else 0.3)
+		slot.modulate = Color.WHITE if on else Color(1, 1, 1, 0.7 if GameState.gun_open(i + 1) else 0.3)
 
 
 func _process(delta: float) -> void:
@@ -319,7 +320,9 @@ func _physics_process(delta: float) -> void:
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
-	var speed: float = SPRINT_SPEED if Input.is_action_pressed("sprint") and _viewmodel.aim == 0.0 else SPEED * lerpf(1.0, ADS_WALK, _viewmodel.aim)
+	# Turning minigun barrels hold you back too, and you can't sprint with them (viewmodel walk_share).
+	var walk: float = _viewmodel.walk_share
+	var speed: float = SPRINT_SPEED if Input.is_action_pressed("sprint") and _viewmodel.aim == 0.0 and walk == 1.0 else SPEED * lerpf(1.0, ADS_WALK, _viewmodel.aim) * walk
 	_shove = _shove * exp(-SHOVE_DECAY * delta)
 	velocity.x = dir.x * speed + _shove.x
 	velocity.z = dir.z * speed + _shove.z
