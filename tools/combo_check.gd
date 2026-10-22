@@ -167,5 +167,34 @@ func _initialize() -> void:
 	col = pl.move_and_collide(Vector3(3, 0, 0), true)
 	assert(col == null or col.get_collider().name != "FiringLine", "placement mode lets them through")
 	gs.request_toggle_placing()
+	# Moving costs accuracy, and stopping wins it back within a quarter second.
+	var vm: Node3D = pl.get_node("ViewmodelView/SubViewport/Camera/Viewmodel")
+	vm.set_process(false)
+	var settle := func(v: Vector3, frames: int) -> float:
+		for i in frames:
+			pl.velocity = v
+			vm._sway_and_bob(1.0 / 60.0)
+		return vm.spread
+	var still: float = settle.call(Vector3.ZERO, 60)
+	var walking: float = settle.call(Vector3(5, 0, 0), 12)
+	var stopped: float = settle.call(Vector3.ZERO, 15)
+	print("spread still %.4f, walking %.4f, 0.25 s after stopping %.4f rad" % [still, walking, stopped])
+	assert(pl.is_on_floor() and still < 0.004 and walking > 0.018 and stopped < walking * 0.3, "moving costs accuracy, stopping wins it back")
+	vm.set_process(true)
+	# Guns: each one up the order fires faster; an SMG's magazine is the upgrade times its own; a
+	# round before the gun is ready again is refused; switching guns puts the magazine back in hand.
+	for i in range(2, gs.GUNS.size()):
+		assert(gs.GUNS[i].interval < gs.GUNS[i - 1].interval, "%s fires faster than %s" % [gs.GUNS[i].id, gs.GUNS[i - 1].id])
+	gs.infinite_ammo = false
+	gs.player().levels["magazine"] = 2
+	gs.request_select_gun(2)
+	assert(gs.player().gun == 2 and gs.mag_capacity == gs.upgrade_value("magazine") * gs.GUNS[2].mag, "the UZI's magazine")
+	gs.player().carried = 10
+	gs.request_reload()
+	var in_mag: int = gs.loaded
+	gs.player().cooldown = 0.0
+	assert(gs.request_fire(close, Vector3(1, 0, 0)) and not gs.request_fire(close, Vector3(1, 0, 0)), "one round per interval")
+	gs.request_select_gun(3)
+	assert(gs.loaded == 0 and gs.carried == 10 - in_mag + in_mag - 1, "the UZI's rounds went back into the hand")
 	print("combo_check OK")
 	quit()

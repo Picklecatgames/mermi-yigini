@@ -7,10 +7,12 @@ func _init() -> void:
 		assert(r.get_stream(i).get_length() > 0.3)
 	var s := (load("res://scenes/player.tscn") as PackedScene).get_state()
 	var heard := false
+	var own := false
 	for n in s.get_node_count():
 		if s.get_node_name(n) == "SubViewport":
 			for p in s.get_node_property_count(n):
 				heard = heard or (s.get_node_property_name(n, p) == "audio_listener_enable_3d" and s.get_node_property_value(n, p))
-	assert(heard, "viewmodel SubViewport has its own world but no 3D listener: gun sounds go silent")
+				own = own or (s.get_node_property_name(n, p) == "own_world_3d" and s.get_node_property_value(n, p))
+	assert(heard == own, "viewmodel SubViewport: a world of its own needs a 3D listener, a shared one must not have one (every shot twice)")
 	print("OK")
 	quit()

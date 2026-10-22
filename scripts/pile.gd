@@ -10,7 +10,7 @@ extends StaticBody3D
 # (tools/net_check.gd compares them). Joining mid-game needs _h sent once (Faz 1/8).
 
 const BULLET_VOLUME := 3.8e-6  # m³ per 9mm cartridge incl. gaps in a loose heap
-const SLOPE := 0.577           # tan(30°), angle of repose
+const SLOPE := 1.0             # tan(45°), angle of repose: steeper than real brass, so the heap stands tall (~7 m, under the 8 m truss)
 const BULLET_SCALE := 0.03     # model is ~2.9 units long -> 29 mm, shown 3x like the heap texture
 const LUMP := 0.15             # m of height noise on the starting heap
 const CELL := 0.125            # m per height field cell

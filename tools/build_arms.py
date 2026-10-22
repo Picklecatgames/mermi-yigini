@@ -12,7 +12,7 @@
 # Fists (2023) ships an FBX only, on a different body with the same Rigify bones: its clips go to
 # fists.gltf (DEF bones only, our bone set), and the game plays them on these arms.
 # Prints each set's eye (its camera, in our glTF space: y up, looking +Z) for scripts/guns.gd.
-# Run: ... -- <out_dir> UZI=<dir> Deagle=<dir> Scorpion=<dir> Fists=<dir>   (UZI first: its set has every arms map)
+# Run: ... -- <out_dir> UZI=<dir> Deagle=<dir> Scorpion=<dir> Minigun=<dir> Fists=<dir>   (UZI first: its set has every arms map)
 import bpy, bmesh, glob, math, os, re, sys
 
 MAX_SIZE = 4096  # the sources are 4K; the gun fills half the screen, 2K blurred the detail
@@ -32,6 +32,12 @@ GUNS = {
     # The Scorpion's maps carry its Substance project's name; they are its real textures.
     "Scorpion": {"mesh": "CZScorpion", "sets": {
         "CZScorpion": tuple("low_sp_TT_checker_4096x4096_UV_GRID_%s.jpeg" % m for m in ("BaseCo", "Metall", "Roughn", "Normal")) + (None,),
+    }},
+    # The Minigun set's gun is a material on its own arms' mesh (the arms are someone else's, not
+    # used): its faces are split off and named for the gun. Its clips drive the same Rigify controls
+    # with the hands tied to the gun, so they play on our arms as they are.
+    "Minigun": {"mesh": "Arms", "name": "Minigun", "sets": {
+        "Minigun_Mtl": ("Minigun_Mtl_BaseColor.png", "Minigun_Mtl_Metallic.png", "Minigun_Mtl_Roughness.png", "Minigun_Mtl_Normal.png", None),
     }},
     "UZI": {"mesh": "UZI", "sets": {
         "UZI": ("UZI_Base_color.png", "UZI_Metallic.png", "UZI_Roughness.png", "UZI_Normal_OpenGL.png", None),
@@ -196,6 +202,25 @@ def eye(gun, cam, src_rig):
     print("EYE %s: Vector3(%.4f, %.4f, %.4f) lens %.2f mm" % (gun, p.x, p.z, -p.y, cam.data.lens))
 
 
+def untied(r, bone, action):
+    """`bone`'s pose (armature space) on `action`'s first frame with its Child Of ties off."""
+    pb = r.pose.bones[bone]
+    ties_ = [c for c in pb.constraints if c.type == "CHILD_OF"]
+    was = [c.mute for c in ties_]
+    for c in ties_:
+        c.mute = True
+    if r.animation_data is None:
+        r.animation_data_create()
+    r.animation_data.action = action
+    bpy.context.scene.frame_set(int(action.frame_range[0]))
+    bpy.context.view_layer.update()
+    m = r.evaluated_get(bpy.context.evaluated_depsgraph_get()).pose.bones[bone].matrix.copy()
+    for c, w in zip(ties_, was):
+        c.mute = w
+    r.animation_data.action = None
+    return m
+
+
 def prefix_actions(actions, gun):
     for a in actions:
         a.name = gun + "_" + plain(a.name)
@@ -228,6 +253,7 @@ for gun, d in sets[1:]:
         dst.objects = ["rig", mesh_name, "Camera"]
         dst.actions = list(src.actions)
     src_rig, gun_mesh, cam = dst.objects
+    gun_mesh.name = GUNS[gun].get("name", gun_mesh.name)
     for o in (src_rig, cam, gun_mesh):  # in the scene, so their world matrices are evaluated
         bpy.context.scene.collection.objects.link(o)
     bpy.context.view_layer.update()
@@ -255,6 +281,7 @@ for gun, d in sets[1:]:
     for b in src_rig.data.bones:  # parents first: data.bones lists them that way
         if b.name in ours:
             eb = rig.data.edit_bones.new(ours[b.name])
+            eb.tail = (0.0, 0.0, b.length)  # a new bone has no length, and no direction for matrix to turn
             eb.matrix = b.matrix_local
             eb.length = b.length
             eb.use_deform = b.use_deform
@@ -268,6 +295,7 @@ for gun, d in sets[1:]:
                 nc.target = rig
                 nc.subtarget = ours.get(nc.subtarget, nc.subtarget)
     ties[gun] = []
+    first = dst.actions[0]
     for pb in src_rig.pose.bones:
         if gun_bone(pb.name):
             continue
@@ -277,6 +305,11 @@ for gun, d in sets[1:]:
                 nc.name = gun + " " + c.name
                 nc.target = rig
                 nc.subtarget = ours[c.subtarget]
+                # A set with other arms (the Minigun's) has its hand controls elsewhere before the tie
+                # takes them: the tie's inverse is made for that, so it is moved by the difference
+                # (measured with the ties off, on the set's first clip). Same arms: no difference.
+                if hasattr(nc, "inverse_matrix"):
+                    nc.inverse_matrix = c.inverse_matrix @ untied(src_rig, pb.name, first) @ untied(rig, pb.name, first).inverted()
                 ties[gun].append((pb.name, nc.name, c.influence))
                 for a in dst.actions:
                     for fc in fcurves(a):

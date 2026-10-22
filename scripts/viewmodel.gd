@@ -6,7 +6,7 @@ extends Node3D
 ## a view kick. Lives under its own camera on render layer 2, so it never clips into walls.
 # ponytail: no reload sounds yet (real recordings come from the user, synced to each Reload clip).
 
-signal kicked(amount: float)
+signal kicked(amount: float, yaw: float)  # rad of view climb, and of sideways throw
 
 const LAYER := 2
 ## Per GameState.GUNS id. eye: the set's camera in our glTF space (y up, looking +Z), printed by
@@ -16,32 +16,49 @@ const LAYER := 2
 ## into view. aim_clips: the set has its own Aim_In / Aim_Out, so aiming is the clip's job.
 ## Fists: an FBX on a body with shorter arms; ours keep their length, so the eye sits where theirs
 ## would over our shoulders (theirs: 1.4069 m over 1.2516 m shoulders).
+## How each one shoots (GameState.GUNS has the rate): move is its share of the moving penalty (the
+## heavy pistol worst, the Scorpion best); kick is the spring's push per round, climb and
+## yaw the view's rise and sideways throw per round (rad), bloom the spread each round adds, jiggle
+## the random wobble, flash the muzzle flash's size. clip_fire plays the set's Fire clip on every
+## round; the SMGs fire 8-10 a second, where restarting a 0.3 s clip only stutters, so they kick
+## on the spring alone, which settles inside one interval: a steady buzz that climbs. The Deagle
+## is one heavy shove and flip; the UZI's heavy open bolt a regular, mostly vertical thump; the
+## Scorpion lighter per round, faster, and the more it fires the more it wanders sideways.
 const SETS := {
 	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 50.0},
 	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
 		"muzzle": Vector3(-0.0006, 0.0099, 0.111), "port": Vector3(-0.0202, 0.0184, -0.037),
-		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32},
+		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
+		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0},
 	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
-		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true},
+		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true,
+		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75},
 	"scorpion": {"mesh": "CZScorpion", "clips": "Scorpion_", "bone": "Scorpion Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
 		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339),
-		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34},
+		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34,
+		"clip_fire": false, "move": 0.75, "kick": 0.26, "climb": 0.0071, "yaw": 0.0089, "bloom": 0.0013, "jiggle": 0.22, "flash": 0.65},
+	# Held at the hip, no sights: the aim button spins the barrels up without firing. spin: the
+	# barrels take the Fire_Start clip to get up to speed (no round before that), the rate then
+	# ramps from first to GameState's interval over ramp s; let go and they run down in the
+	# Fire_Stop clip, and pressing again picks up from the speed they still have. walk: share of
+	# walking speed left while they turn. Heaviest to move with, lightest kick per round.
+	"minigun": {"mesh": "Minigun", "clips": "Minigun_", "bone": "Minigun_M-134_Body", "eye": Vector3(-0.0082, 1.4235, 0.0212), "fov": 50.0,
+		"muzzle": Vector3(0.0, 0.9167, -0.0359), "port": Vector3(0.126, 0.124, -0.025), "run": "Sprint", "no_aim": true,
+		"spin": {"ramp": 1.5, "first": 0.16, "walk": 0.5, "rumble": 0.25},
+		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
 ## Our section names (the player reports them to others) -> the set's clips.
 const CLIPS := {"fire": "Fire", "reload": "Reload", "reload_empty": "Reload_Empty", "draw": "Equip", "holster": "Unequip"}
 const PUNCHES := ["Punch", "Punch_2"]  # fists' "fire", taking turns
 const CLIP_BLEND := 0.08  # s
-## The sets' Fire clips kick on their own; our spring adds this share on top (all of it when aimed
-## through an aim clip, where the Fire clip is not played).
-const CLIP_KICK := 0.35
 ## The guns' roughness maps are made for a lit studio; in the dark hall the lamp streaks spread into a
 ## dull sheen. A share of it sharpens them into the glints of oiled steel.
 const GUN_ROUGHNESS := 0.7
 const RUN_SPEED := 6.5  # m/s; faster plays Run instead of Walk
 ## Recoil is a spring on the whole rig: a shot gives it a kick of speed, it flies up and back and
 ## swings home on its own momentum with one small dip, so the kick and the return are one motion.
-## Shot spacing is GameState.fire_interval (fixed); holding the trigger fires at that rate.
+## Shot spacing is GameState.fire_interval, the gun's own; held, an automatic one fires at that rate.
 ## Recoil: the hand is shoved back and the gun flips up around the grip (the gun bone), so the
 ## muzzle rises most. The push springs back with one small dip past aim; the gun follows the push
 ## through a stiff spring, so the flip snaps up in ~40 ms and eases home.
@@ -56,7 +73,6 @@ const RECOIL_PEAK := 0.75    # peak of the snap spring after a unit push (simula
 const RECOIL_SETTLE := 0.45  # s to settle at slow fire rates; faster ones settle before the next shot
 const FIRE_BUFFER := 0.15    # s an early click waits for the gun to be ready
 const RELOAD_BUFFER := 0.6   # s an R pressed during a shot waits for the gun
-const KICK := 0.035        # rad of view climb per shot
 const SWAY := 0.000008     # m per px/s of mouse speed
 const SWAY_MAX := 0.018
 const BOB_AMP := Vector2(0.01, 0.007)
@@ -78,10 +94,17 @@ const FIRE_JIGGLE := Vector3(0.6, 0.8, 1.1)  # rad/s of random wobble a shot add
 ## Where the shot goes follows a share of the jelly, and spreads from the hip while moving or
 ## shooting fast; standing still (or aimed) it stays dead on. The crosshair draws both.
 const AIM_FOLLOW := 0.35      # share of the gun's sway the shot (and the dot) takes
-## Kept small: the ring only hints that the shot can drift (about 2-4 px at 1080p).
-const SPREAD_MOVE := 0.0024   # rad cone half-angle at walking speed, hip
-const SPREAD_AIR := 0.0056    # rad in the air
-const SPREAD_SHOT := 0.0032   # rad a shot adds, fading at SPREAD_RECOVER
+## Shooting fast blooms the cone (SETS bloom); it fades at SPREAD_RECOVER.
+## Moving costs accuracy (2026-10-22; it used to cost almost none, so walking and shooting lost
+## nothing): the cone widens with ground speed, wider still sprinting and in the air, and once the
+## feet stop the hands settle back in STEADY_TIME. Stop, aim, fire is the rhythm that pays, and
+## tapping the opposite key to stop dead pays sooner. Aimed, MOVE_ADS of it is left (and the player
+## walks slower, player.gd ADS_WALK). Each gun takes its own share of it (SETS move).
+const SPREAD_MOVE := 0.026    # rad cone half-angle at walking speed (5 m/s), hip; ~1.5°
+const SPREAD_AIR := 0.05      # rad in the air
+const STEADY_TIME := 0.2      # s for the hands to settle once the feet stop
+const UNSTEADY_TIME := 0.05   # s for moving to throw the aim off
+const MOVE_ADS := 0.4         # share of the movement spread left when aimed
 const SPREAD_RECOVER := 0.015 # rad/s
 const SPREAD_ADS := 0.15      # share left when aimed
 const BREATH := Vector2(0.0008, 0.0012)  # m; the model's own idle clip bobs too fast
@@ -100,7 +123,7 @@ const TINK_GAP := 1.5   # s without a shot before the next one counts as a lone 
 const TINK_TAIL := 0.3  # s after landing with no newer shot: it was the burst's last shell
 const MUZZLE_FX := preload("res://scenes/muzzle_fx.tscn")
 const MUZZLE_FX_POOL := 3
-const WISP_TIME := 3.5  # s for a hot barrel's smoke to thin out to nothing
+const WISP_TIME := 1.6  # s for a hot barrel's smoke to thin out to nothing
 const FLASH_TIME := 0.05  # s
 
 var body: CharacterBody3D  # set via setup(); drives bob and keeps shells off the capsule
@@ -114,6 +137,12 @@ var _kit := {}
 var _want_gun := 0  # drawn once the one in hand is put away
 var _clip := ""
 var _punch := 0
+var _burst := 0  # rounds in the current burst
+## Spinning guns (SETS spin): barrel speed 0 stopped → 1 up to speed, the fire rate's ramp 0 → 1,
+## and which spin clip plays ("" none, "up", "turn", "down").
+var spin := 0.0
+var _ramp := 0.0
+var _spin_clip := ""
 var _aim_pose := false  # aim_clips: holding Aim_In's end
 var _attach: BoneAttachment3D  # rides the gun bone: muzzle and ejection port hang off it
 var _since_fire := 10.0
@@ -148,6 +177,7 @@ var _fall_speed := 0.0  # m/s down on the last airborne frame
 var aim_offset := Vector2.ZERO  # rad (yaw left, pitch up) the shot leaves the screen centre by
 var spread := 0.0  # rad, cone half-angle of the next shot
 var _bloom := 0.0  # rad of spread from recent shots
+var _unsteady := 0.0  # rad of spread from moving, settling after the feet stop
 var _was_on_floor := true
 var _bob := 0.0
 var _time := 0.0
@@ -159,6 +189,7 @@ var _tink_in := 0          # shells left until the next one clinks inside a burs
 var _muzzle_fx: Array[Node3D] = []  # powder jet, curling smoke and sparks
 var _next_muzzle_fx := 0
 var _barrel_heat := 0.0  # 1 right after a shot, 0 when the barrel stops smoking
+var _wisp_pm: ParticleProcessMaterial
 var _flash_left := 0.0
 var _flash_frames := 0
 var _dry_armed := true  # an empty gun clicks once per trigger pull, not once per frame held
@@ -183,20 +214,22 @@ func _ready() -> void:
 	# The import auto-generates LODs and the arms are skinned: Godot judges their distance off the
 	# rest pose and draws the hands as a coarse blob. The gun is always at arm's length; full detail.
 	get_viewport().mesh_lod_threshold = 0.0
-	# Barrel smoke lives in the world (both worlds share coordinates): swing the gun and the
-	# threads stay behind, bend and curl, instead of being glued to the screen.
-	_wisp.local_coords = false
+	# Barrel smoke lives in the camera's space: left in the world the threads hung in the air for
+	# seconds; stuck to the gun bone the whole plume swung with the gun and cut through it. Here it
+	# keeps on screen as the view turns, the gun swings out of it, and each frame the emitter is put
+	# on the muzzle tip (_wisp_follow), so new smoke always leaves the opening and rises world-up.
+	_wisp.local_coords = true
 	_wisp.amount = 36  # many faint, fine threads braid into one plume, like the reference
-	_wisp.lifetime = 3.2
-	_wisp.trail_lifetime = 1.4
+	_wisp.lifetime = 1.2
+	_wisp.trail_lifetime = 0.5
 	var pm := _wisp.process_material.duplicate() as ParticleProcessMaterial
 	pm.initial_velocity_min = 0.06
 	pm.initial_velocity_max = 0.12
-	pm.gravity = Vector3(0, 0.12, 0)  # hot gas rises slowly
-	pm.inherit_velocity_ratio = 0.12  # a flick of the gun drags the fresh smoke a little
-	pm.turbulence_noise_strength = 2.2
+	pm.inherit_velocity_ratio = 0.0  # a turning view would throw it sideways through the gun
+	pm.turbulence_noise_strength = 1.4  # curls, but doesn't blow back down the barrel
 	pm.turbulence_noise_scale = 0.9
 	_wisp.process_material = pm
+	_wisp_pm = pm
 	var ribbon := (_wisp.draw_pass_1 as RibbonTrailMesh).duplicate() as RibbonTrailMesh
 	ribbon.size *= 0.8
 	var mat := ribbon.material.duplicate() as ShaderMaterial
@@ -210,11 +243,13 @@ func _ready() -> void:
 		if v is GeometryInstance3D:  # else a gun shadow floats in front of the player
 			(v as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_flash.visible = false
+	_flash_light.light_cull_mask = 1 << (LAYER - 1)  # the hall gets its own flash (_world_flash)
 	_anim.animation_finished.connect(_on_clip_finished.unbind(1))
 	_attach = BoneAttachment3D.new()
 	_skel.add_child(_attach)
 	_attach.add_child(_muzzle)
 	_attach.add_child(_port)
+	_wisp.reparent.call_deferred(get_parent(), false)  # the camera; still setting up its children
 	load_clips(_anim, _skel)
 	for g: Dictionary in GameState.GUNS:
 		assert(not g.ready or SETS.has(g.id), "GameState.GUNS %s is ready but has no SETS entry" % g.id)
@@ -363,9 +398,23 @@ func _prewarm() -> void:
 	_barrel_heat = 0.01  # drawn for a frame or two at near-zero alpha, then off
 
 
-## Where shots visibly leave the gun, in world coordinates (both worlds share them).
+## Where shots visibly leave the gun: tracers and the world's flash start here.
 func muzzle_position() -> Vector3:
-	return _muzzle.global_position
+	return in_view(_muzzle.global_position)
+
+
+## The gun is drawn by its own camera at its own fov (view_fov), narrower than the player's: a point
+## on it shows on screen somewhere else than the same point seen by the player's camera, nearer the
+## centre, so a tracer from the true muzzle seemed to come out of the hand. This is the point the
+## player's camera shows at the gun's spot on screen, at the same depth.
+func in_view(at: Vector3) -> Vector3:
+	var own := get_parent() as Camera3D
+	var theirs := body.get_node("Head/Camera3D") as Camera3D if body else null
+	if not theirs or is_equal_approx(own.fov, theirs.fov):
+		return at
+	var k := tan(deg_to_rad(theirs.fov) * 0.5) / tan(deg_to_rad(own.fov) * 0.5)
+	var local := own.global_transform.affine_inverse() * at
+	return own.global_transform * Vector3(local.x * k, local.y * k, local.z)
 
 
 func _play_fx(f: Node3D) -> void:
@@ -389,7 +438,7 @@ func _process(delta: float) -> void:
 	_lowered = smoothstep(0.0, 1.0, _low_lin)
 	var live := _low_lin == 0.0
 	if captured and _was_captured and live:
-		if Input.is_action_pressed("fire"):
+		if Input.is_action_just_pressed("fire") or (Input.is_action_pressed("fire") and GameState.GUNS[maxi(gun, 0)].auto):
 			_want_fire = FIRE_BUFFER
 		elif Input.is_action_just_pressed("reload"):
 			_want_reload = RELOAD_BUFFER
@@ -415,14 +464,23 @@ func _process(delta: float) -> void:
 			_world_flash.visible = false
 	_rest_clip()
 	_flash.global_transform = _muzzle.global_transform.orthonormalized()
-	# World-up, a centimetre past the bore so the plume starts at the opening, not inside the slide.
-	var ahead := -(get_parent() as Node3D).global_basis.z
-	_wisp.global_transform = Transform3D(Basis(), _muzzle.global_position + ahead * 0.012)
 	if _barrel_heat > 0.0:  # the barrel cools: the thread thins out over WISP_TIME
 		_barrel_heat = maxf(_barrel_heat - delta / WISP_TIME, 0.0)
 		_wisp.amount_ratio = _barrel_heat
 		_wisp.emitting = _barrel_heat > 0.0
 	_sway_and_bob(delta)
+	if _barrel_heat > 0.0:
+		_wisp_follow()
+
+
+## Puts the smoke's emitter on the muzzle tip as the gun sits this frame, in the camera's space,
+## a little past the opening so it never starts inside the barrel; it rises world-up.
+func _wisp_follow() -> void:
+	var to_cam := (get_parent() as Node3D).global_transform.affine_inverse()
+	_wisp_pm.emission_shape_offset = to_cam * (_muzzle.global_transform * Vector3(0.0, 0.0, 0.015))
+	var up := (to_cam.basis * Vector3.UP).normalized()
+	_wisp_pm.direction = up
+	_wisp_pm.gravity = up * 0.08  # hot gas rises slowly
 
 
 func _can_fire() -> bool:
@@ -450,20 +508,20 @@ func fire() -> void:
 	var off := aim_offset + cone
 	if not GameState.request_fire(cam.global_position, cam.global_basis * Basis.from_euler(Vector3(off.y, off.x, 0.0)) * Vector3.FORWARD):
 		return
-	_bloom += SPREAD_SHOT
+	# A burst: rounds within two intervals of each other; the Scorpion wanders more the longer it runs.
+	_burst = _burst + 1 if _since_fire < GameState.fire_interval * 2.0 else 0
+	_bloom += float(_kit.bloom)
 	_kick_yaw = randf_range(-1.0, 1.0)
 	_kick_roll = randf_range(-1.0, 1.0)
 	_since_fire = 0.0
-	# Aimed through an aim clip, the gun stays on the sights: only the spring kicks, the Fire clip
-	# is hip-fired and would drop them.
-	if _aim_pose:
-		_add_kick(ADS_RECOIL)
-	else:
-		_add_kick(CLIP_KICK)
-		_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * FIRE_JIGGLE
+	_add_kick(float(_kit.kick) * (ADS_RECOIL if aim > 0.5 else 1.0))
+	_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * FIRE_JIGGLE * float(_kit.jiggle)
+	# Aimed through an aim clip, the gun stays on the sights: the Fire clip is hip-fired and would drop them.
+	if _kit.clip_fire and not _aim_pose:
 		_play("fire")
 	_effects()
-	kicked.emit(KICK * randf_range(0.8, 1.2))
+	var wander := 1.0 + minf(_burst, 20) * 0.08
+	kicked.emit(float(_kit.climb) * randf_range(0.8, 1.2), float(_kit.yaw) * randf_range(-1.0, 1.0) * wander)
 
 
 func _can_reload() -> bool:
@@ -514,20 +572,22 @@ func _rest_clip() -> void:
 			return
 	var speed := Vector2(body.velocity.x, body.velocity.z).length() if body else 0.0
 	var idle := "Idle"
+	# Firing on the run drops the Run carry (muzzle up) for Walk: the gun levels, the bob still swings it.
+	var shooting := _since_fire < 0.35
 	if body and body.is_on_floor() and speed > 0.5:
-		idle = "Run" if speed > RUN_SPEED else "Walk"
+		idle = "Run" if speed > RUN_SPEED and not shooting else "Walk"
 	if _anim.current_animation != _kit.clips + idle:
-		_anim.play(_kit.clips + idle, 0.25)
+		_anim.play(_kit.clips + idle, 0.1 if shooting else 0.25)
 
 
 func _effects() -> void:
 	_flash.visible = true
 	var quads: Node3D = $Flash/Quads
 	quads.rotation.z = randf() * TAU
-	quads.scale = Vector3(randf_range(0.85, 1.3), randf_range(0.85, 1.3), randf_range(0.9, 1.5))
+	quads.scale = Vector3(randf_range(0.85, 1.3), randf_range(0.85, 1.3), randf_range(0.9, 1.5)) * float(_kit.flash)
 	_flash_light.light_energy = randf_range(4.0, 6.0)
 	# Same coordinates in both worlds: the gun camera copies the player camera every frame.
-	_world_flash.global_position = _muzzle.global_position
+	_world_flash.global_position = muzzle_position()
 	_world_flash.light_energy = _flash_light.light_energy
 	_world_flash.omni_range = 8.0
 	_world_flash.visible = true
@@ -536,7 +596,7 @@ func _effects() -> void:
 	_shot_sound.play()
 	var fx := _muzzle_fx[_next_muzzle_fx]
 	_next_muzzle_fx = (_next_muzzle_fx + 1) % MUZZLE_FX_POOL
-	fx.global_transform = _muzzle.global_transform.orthonormalized()
+	fx.global_transform = _muzzle.global_transform.orthonormalized().translated_local(Vector3(0.0, 0.0, 0.015))  # past the opening
 	_play_fx(fx)
 	_barrel_heat = 1.0
 	_wisp.amount_ratio = 1.0
@@ -551,7 +611,7 @@ func _eject() -> void:
 	s.freeze = false  # first: Jolt drops velocities set on a frozen (static) body
 	s.sleeping = false
 	var cam := get_viewport().get_camera_3d().global_basis
-	s.global_transform = Transform3D(Basis(cam.x, PI / 2.0) * cam, _port.global_position)
+	s.global_transform = Transform3D(Basis(cam.x, PI / 2.0) * cam, in_view(_port.global_position))
 	s.reset_physics_interpolation()  # a teleport, not a move: don't draw it sliding from the floor
 	var inherit := body.velocity if body else Vector3.ZERO
 	s.linear_velocity = inherit + cam.x * randf_range(1.0, 1.5) + cam.y * randf_range(1.2, 1.7) + cam.z * randf_range(0.0, 0.6)
@@ -660,7 +720,8 @@ func _sway_and_bob(delta: float) -> void:
 	var move := 0.0
 	if body:
 		move = SPREAD_AIR if not body.is_on_floor() else SPREAD_MOVE * minf(Vector2(body.velocity.x, body.velocity.z).length() / 5.0, 1.6)
-	spread = (move + _bloom) * lerpf(1.0, SPREAD_ADS, aim)
+	_unsteady = lerpf(_unsteady, move, 1.0 - exp(-dt / (UNSTEADY_TIME if move > _unsteady else STEADY_TIME / 3.0)))
+	spread = _unsteady * float(_kit.get("move", 1.0)) * lerpf(1.0, MOVE_ADS, aim) + _bloom * lerpf(1.0, SPREAD_ADS, aim)
 	var jb := Basis.from_euler(_jelly_rot * steady)
 	var jelly := Transform3D(jb, _pivot - jb * _pivot + _jelly_pos * steady)
 	var kick := _kick * lerpf(1.0, ADS_RECOIL, aim)

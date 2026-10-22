@@ -32,7 +32,8 @@ const TIER_COLORS := [Color(0.85, 0.9, 1.0), Color(0.35, 0.65, 1.0), Color(1.0, 
 ## m below the starting surface, by rank. Commons by hand in the first twenty minutes, rares once
 ## belts dig, legendaries in the last quarter hour.
 # ponytail: placeholder until the 60-minute balance pass; min_bullets() shows what each costs.
-const DEPTHS := [0.035, 0.042, 0.05, 0.058, 0.45, 0.51, 0.57, 0.63, 0.70, 1.75, 2.0, 2.3]
+# ×∛3 since the 45° heap (2026-10-21): its narrower funnel costs a third, so the same rounds reach 1.44× deeper.
+const DEPTHS := [0.05, 0.06, 0.072, 0.084, 0.65, 0.735, 0.82, 0.91, 1.01, 2.52, 2.88, 3.31]
 const JITTER := 0.08       # ± fraction of a key's depth, so no two games match
 const FLOOR_GAP := 0.15    # m of heap kept under a key: never on the bare floor
 const SPACING := 1.5       # m between keys
@@ -40,7 +41,7 @@ const SPACING := 1.5       # m between keys
 ## reachable by hand from the floor, and the same dig there costs a fraction of one higher up
 ## the heap, where everything above slides in (tools/keys_check.gd: ~1,000-3,000 rounds from
 ## 6 m out, 11,000-15,000 at 3.4-5.4 m).
-const RING := [[6.0, 7.8], [0.0, 8.5], [0.0, 8.5]]
+const RING := [[5.0, 6.5], [0.0, 7.1], [0.0, 7.1]]
 const CHECK_INTERVAL := 0.2  # s between looks at buried keys
 const PICK_RADIUS := 1.2   # m from a walker's feet
 const HOVER := 0.08        # m an exposed key floats over the surface
@@ -67,7 +68,8 @@ var _take := AudioStreamPlayer.new()
 
 ## Least rounds that must leave the heap before a key `depth` m down can be reached.
 static func min_bullets(depth: float) -> int:
-	return int(PI * depth * depth * depth / PILE.BULLET_VOLUME)
+	# Funnel down to `depth` at the angle of repose: V = π·r²·D / 3 with r = D / SLOPE.
+	return int(PI * depth * depth * depth / (3.0 * PILE.SLOPE * PILE.SLOPE * PILE.BULLET_VOLUME))
 
 
 func _ready() -> void:

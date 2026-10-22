@@ -1,0 +1,9 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_diff_2k.jpg" id="1_bigxv"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_arm_2k.jpg" id="2_qmxdd"]
+
+[resource]
+albedo_color = Color(0.09, 0.09, 0.1, 1)
+albedo_texture = ExtResource("1_bigxv")
+orm_texture = ExtResource("2_qmxdd")

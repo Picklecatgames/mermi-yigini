@@ -1,0 +1,32 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://materials/concrete.gdshader" id="1_oujdm"]
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_diff.jpg" id="2_y5cje"]
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_ao.jpg" id="3_50otf"]
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_nor_gl.jpg" id="4_b4tot"]
+[ext_resource type="Texture2D" path="res://materials/concrete/concrete_rough.jpg" id="5_yvb4m"]
+
+[sub_resource type="FastNoiseLite" id="noise_stain"]
+seed = 21
+frequency = 0.008
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="tex_stain"]
+noise = SubResource("noise_stain")
+seamless = true
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_oujdm")
+shader_parameter/albedo_tex = ExtResource("2_y5cje")
+shader_parameter/normal_tex = ExtResource("4_b4tot")
+shader_parameter/rough_tex = ExtResource("5_yvb4m")
+shader_parameter/ao_tex = ExtResource("3_50otf")
+shader_parameter/stain_tex = SubResource("tex_stain")
+shader_parameter/tint = Color(1.05, 1.03, 1, 1)
+shader_parameter/brightness = null
+shader_parameter/tex_size = 1.2
+shader_parameter/stain_scale = null
+shader_parameter/normal_strength = null
+shader_parameter/slab_size = null
+shader_parameter/seam_width = 0.0

@@ -20,8 +20,9 @@ const SMOLDER_POOL := 8
 const SMOLDER_TIME := 1.4  # s from a faint wisp to nothing
 const TRAIL_SHADER := preload("res://materials/bullet_trail.gdshader")
 const SMOKE_NOISE := preload("res://materials/smoke_noise.tres")
-const TRAIL_POOL := 8
-const TRAIL_TIME := 0.35  # s: a brief streak, gone before you can walk into it
+const TRAIL_POOL := 16  # the SMGs fire up to 10 a second
+const TRAIL_TIME := 0.3  # s: a brief streak, gone before you can walk into it
+const ROUND_SPEED := 400.0  # m/s the tracer races out at (a 9 mm round flies ~380)
 const TRAIL_SKIP := 0.9  # m: other players' shots start this far along, roughly at their muzzle
 
 var _fx: Array[Node3D] = []
@@ -216,6 +217,7 @@ func _trail(from: Vector3, to: Vector3) -> void:
 	var y := x.cross(Vector3.UP if absf(x.normalized().y) < 0.95 else Vector3.RIGHT).normalized()
 	m.global_transform = Transform3D(Basis(x, y, x.normalized().cross(y)), (from + to) * 0.5)
 	(m.material_override as ShaderMaterial).set_shader_parameter("length_m", span.length())
+	(m.material_override as ShaderMaterial).set_shader_parameter("head", 0.0)
 	_trail_life[i] = 0.0
 	m.visible = true
 
@@ -225,7 +227,9 @@ func _process(delta: float) -> void:
 		if _trail_life[i] >= 1.0:
 			continue
 		_trail_life[i] = minf(_trail_life[i] + delta / TRAIL_TIME, 1.0)
-		(_trails[i].material_override as ShaderMaterial).set_shader_parameter("life", _trail_life[i])
+		var mat := _trails[i].material_override as ShaderMaterial
+		mat.set_shader_parameter("life", _trail_life[i])
+		mat.set_shader_parameter("head", _trail_life[i] * TRAIL_TIME * ROUND_SPEED)
 		_trails[i].visible = _trail_life[i] < 1.0
 	for i in SMOLDER_POOL:
 		if _heat[i] <= 0.0:

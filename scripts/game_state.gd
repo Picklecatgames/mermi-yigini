@@ -90,16 +90,21 @@ const UPGRADES := {
 }
 ## What a player can hold, in the order the bar and the number keys list them (1 = the first gun);
 ## everyone starts with bare fists. A gun without its model yet is not `ready`: nobody can draw it.
-## Shots, rounds and fire rate are the same for every gun for now (the weapon order comes later).
+## Each step up empties the heap faster: interval is s between rounds (fixed, not an upgrade),
+## auto fires while the button is held (else one round per click), mag multiplies the Şarjör
+## upgrade (a 7-round SMG would spend more time reloading than firing). Real rates: the Uzi
+## ~600 rounds/min, the Scorpion EVO 3 ~1150; here 480 and 600 (2026-10-22: both cut back, a
+## Scorpion at 800 emptied the heap too easily).
+## How each one kicks is the first-person gun's (scripts/viewmodel.gd SETS).
 const GUNS := [
-	{"id": "fists", "name": "Yumruk", "ready": true},
-	{"id": "deagle", "name": "Ağır Tabanca", "ready": true},
-	{"id": "uzi", "name": "Mikro SMG", "ready": true},
-	{"id": "scorpion", "name": "Kompakt SMG", "ready": true},
-	{"id": "minigun", "name": "Minigun", "ready": false},  # final, from a crate; model not in yet
+	{"id": "fists", "name": "Yumruk", "ready": true, "interval": 0.42, "auto": false, "mag": 0},
+	{"id": "deagle", "name": "Ağır Tabanca", "ready": true, "interval": 0.42, "auto": false, "mag": 1},
+	{"id": "uzi", "name": "Mikro SMG", "ready": true, "interval": 0.125, "auto": true, "mag": 4},
+	{"id": "scorpion", "name": "Kompakt SMG", "ready": true, "interval": 0.1, "auto": true, "mag": 5},
+	# Final, from the 12th crate. Spins up before the first round and ramps up to this rate (the
+	# first-person gun paces it; the host holds it to the top rate).
+	{"id": "minigun", "name": "Minigun", "ready": true, "interval": 0.05, "auto": true, "mag": 30},
 ]
-## Fixed, not an upgrade: the slide has finished its cycle and the recoil spring has settled.
-const FIRE_INTERVAL := 0.42  # s, ~143 rounds/min
 ## A weak spot pays this many times over: a collision shape in group "weak_spot" (the dummy's
 ## head), or where the target's `is_weak(at)` says so (a popper's round head).
 const WEAK_MULT := 2
@@ -117,7 +122,7 @@ const SHOT_MASK := 1  # world layer: walls, floor, heap, dummies
 const FIRING_LINE_X := 14.0
 ## Physics layer of the railing: it stops players (mask), never rounds (SHOT_MASK).
 const FENCE_LAYER := 4
-## A client's shots reach the host up to this much closer together than FIRE_INTERVAL
+## A client's shots reach the host up to this much closer together than its gun's interval
 ## (network jitter); the host lets them through rather than eat a round the client already fired.
 const NET_JITTER := 0.15  # s
 ## The eye above the feet (player.gd EYE): where a player's rounds leave from.
@@ -225,9 +230,9 @@ var carry_capacity: int:
 	get: return carry_capacity_of(0)
 var mag_capacity: int:
 	get: return mag_capacity_of(0)
-## Seconds between shots.
+## Seconds between shots of the gun in hand.
 var fire_interval: float:
-	get: return FIRE_INTERVAL
+	get: return GUNS[player().gun].interval
 
 
 ## Offline this is 1, the same id the host has in co-op.
@@ -256,7 +261,7 @@ func carry_capacity_of(peer: int) -> int:
 
 
 func mag_capacity_of(peer: int) -> int:
-	return upgrade_value("magazine", peer)
+	return upgrade_value("magazine", peer) * GUNS[player(peer).gun].mag
 
 
 func _ready() -> void:
@@ -532,11 +537,17 @@ func request_select_gun(gun: int, peer := 0) -> void:
 		return
 	if gun == p.gun:
 		gun = 0
-	if _send(&"request_select_gun", [gun], peer):
-		p.gun = gun  # predicted; the host's gun_changed says the same a moment later
-		gun_changed.emit(local_peer(), gun)
-		return
+	var sent := _send(&"request_select_gun", [gun], peer)
+	# Each gun has its own magazine: what was in the last one goes back into the hand.
+	if p.loaded > 0 and not p.infinite_ammo:
+		_set_carried(peer, p.carried + p.loaded)
+		_set_loaded(peer, 0)
 	p.gun = gun
+	if p.infinite_ammo:
+		_set_loaded(peer, mag_capacity_of(peer))
+	if sent:
+		gun_changed.emit(local_peer(), gun)  # predicted; the host's answer (_state) settles it
+		return
 	_world(&"gun_changed", [local_peer() if peer == 0 else peer, gun])
 
 
@@ -577,13 +588,15 @@ func request_toggle_infinite_ammo(peer := 0) -> void:
 ## how much it paid is decided in one place.
 func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var p := player(peer)
-	# Slack for frame timing on the caller, more for a remote one's network jitter.
-	if p.gun == 0 or p.loaded <= 0 or p.cooldown > (0.02 if _is_local(peer) else NET_JITTER):
+	# Slack for frame timing on the caller, more for a remote one's network jitter, never so much
+	# that a client could fire faster than its gun does.
+	var interval: float = GUNS[p.gun].interval
+	if p.gun == 0 or p.loaded <= 0 or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
 		return false
 	# A remote round leaves from that player's synced eye, or not at all.
 	if not _is_local(peer) and not (p.has_pose and from.distance_to(p.pos + Vector3.UP * EYE) <= FIRE_FROM_SLACK):
 		return false
-	p.cooldown = FIRE_INTERVAL
+	p.cooldown = interval
 	if not p.infinite_ammo:
 		_set_loaded(peer, p.loaded - 1)
 	# A client's gun kicks and flashes now; where the round went comes back as shot_landed.

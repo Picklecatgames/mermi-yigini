@@ -18,6 +18,7 @@
     "watch@claude-video": false,
     "disciplines@awesome-gamedev-agent-skills": true,
     "session-report@claude-plugins-official": true,
-    "i-have-adhd@i-have-adhd": true
+    "i-have-adhd@i-have-adhd": true,
+    "claude-mem@thedotmack": true
   }
 }

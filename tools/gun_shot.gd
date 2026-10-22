@@ -63,6 +63,24 @@ func _initialize() -> void:
 		vm._aim_pose = false
 		vm.set_process(true)
 		await _wait(0.5)
+	# Strafing with the UZI held down: tracers must race out of the muzzle, not trail in from the side.
+	player.global_position = Vector3(10.0, 0.0, -4.0)
+	player._yaw = -PI / 2.0
+	player._pitch = 0.0
+	player.reset_physics_interpolation()
+	gs.request_select_gun(2)
+	while vm.gun != 2 or vm.clip != "":
+		await process_frame
+	gs.player().loaded = 28
+	Input.action_press("move_right")
+	var t1 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t1 < 900:
+		gs.player().cooldown = 0.0
+		if vm._since_fire >= gs.fire_interval:
+			vm.fire()
+		await process_frame
+	await _save("uzi_strafe_fire")
+	Input.action_release("move_right")
 	# The same gun by the heap's spots and in a dark corner: the hall's nearest lights light it.
 	for spot: Array in [["lit", Vector3(-2.5, 0.0, 6.5), PI], ["dark", Vector3(-24.0, 0.0, 22.0), 0.6]]:
 		player.global_position = spot[1]

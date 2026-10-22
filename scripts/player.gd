@@ -22,16 +22,8 @@ const FLY_POOL := 16       # bullets in flight at most: GRAB_TIME / GRAB_REPEAT 
 ## View kick: a critically damped spring, so the climb takes a few frames instead of one.
 const KICK_OMEGA := 28.0     # rad/s; peak at 1 / KICK_OMEGA ≈ 36 ms
 const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
-const SUN_SHADE_SPEED := 6.0  # 1/s, how fast the gun's sun fades in and out of shade
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
-## The gun's world copies the hall's lights nearest the player (both worlds share coordinates), so
-## the steel glints under a lamp and goes dark away from them. This many of each kind, re-picked
-## this often; the key light dims with how lit the spot is.
-const VM_SPOTS := 6
-const VM_OMNIS := 2
-const VM_LIGHT_PICK := 0.25  # s
-const KEY_ENERGY := 2.2
-const KEY_DARK := 0.35  # share of the key light left far from any lamp
+const ADS_WALK := 0.6  # share of walking speed left aimed: aiming while moving is allowed, slowly
 const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
 const AIR_SHOWN := 0.1  # s off the ground before others see a jump (not every bump and step)
 ## Walking into another player shoves them with this share of your speed into them; you stay
@@ -57,18 +49,7 @@ var _recoil := 0.0  # rad of view kick
 var _recoil_vel := 0.0
 var _fly: Array[Node3D] = []
 var _next_fly := 0
-var _vm_sun: DirectionalLight3D
-var _world_sun: DirectionalLight3D
 var _vm_env: Environment
-var _vm_ambient := 1.0
-var _hall_lights: Array[Light3D] = []  # every lamp, spot and glow in the level
-var _vm_spots: Array[SpotLight3D] = []  # their stand-ins in the gun's world
-var _vm_omnis: Array[OmniLight3D] = []
-var _vm_key: DirectionalLight3D
-var _light_pick := 0.0
-var _lit := 1.0  # how lit the player's spot is, smoothed: 0 dark, 1 under a lamp
-var _sun_lit := 1.0
-var _sun_query := PhysicsRayQueryParameters3D.new()
 var _hip_fov := 75.0
 var _zoom := 1.0
 var _before_placing := []  # [position, yaw, pitch] on our side of the line, for coming back
@@ -89,7 +70,6 @@ var _gun_bar: HBoxContainer  # GameState.GUNS after the fists, number keys 1-4
 @onready var _vault: Label = $HUD/Vault
 @onready var _crosshair: Control = $HUD/Crosshair
 @onready var _hit_marker: Control = $HUD/HitMarker
-@onready var _vm_view: SubViewport = $ViewmodelView/SubViewport
 @onready var _vm_camera: Camera3D = $ViewmodelView/SubViewport/Camera
 @onready var _viewmodel: Node3D = $ViewmodelView/SubViewport/Camera/Viewmodel
 
@@ -104,8 +84,6 @@ func _ready() -> void:
 	_head.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # placed per frame
 	_vm_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_reach.add_exception(self)
-	_sun_query.collision_mask = 1
-	_sun_query.exclude = [get_rid()]
 	GameState.pile_changed.connect(_update_counter.unbind(1))
 	GameState.carried_changed.connect(_update_counter.unbind(1))
 	GameState.carried_changed.connect(func(c: int) -> void: _set_hand_count(mini(c, HAND_MAX)))
@@ -118,8 +96,9 @@ func _ready() -> void:
 	_vault.text = "Kasa $%d" % floori(GameState.vault)
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
-	_viewmodel.kicked.connect(func(a: float) -> void:
+	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
 		_climb += a * KICK_CLIMB
+		_yaw_climb += yaw
 		_recoil_vel += a * (1.0 - KICK_CLIMB) * KICK_OMEGA * exp(1.0))  # peak = v / (w·e)
 	_viewmodel.equip(GameState.player().gun)
 	_build_gun_bar()
@@ -174,22 +153,19 @@ func _act() -> int:
 	return GameState.Act.WALKING if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.1 else GameState.Act.IDLE
 
 
-## The gun is drawn in its own world: it does not need the shed, and sharing the shed's world
-## made its viewport render the whole sun shadow map a second time every frame. The sun is
-## copied over without shadows and fades out when the player stands in shade.
+## The gun shares the hall's world, drawn by its own camera (its layer only, at its own fov) over
+## the player's view: the hall's lamps, the heap's spots and the reflection probe light it, so
+## steel glints under a lamp and goes dark away from them. Its viewport draws no shadows
+## (player.tscn) and its camera's environment leaves out what would cost a second time or haze
+## it: SDFGI, fog, SSAO, and glow, which halos the gun over the clear background.
 func _setup_viewmodel_world() -> void:
-	# own_world_3d is set in player.tscn: switching it here would move the gun to a new world
-	# after it entered the tree, and the arms would lose their skin binding (bind pose).
 	_vm_env = get_world_3d().environment.duplicate()
 	_vm_env.background_mode = Environment.BG_CLEAR_COLOR
-	# The hall has no sky (closed and dark), so the gun gets a dim warm ambient of its own, roughly
-	# what the lamps would bounce onto it; otherwise it renders black.
 	_vm_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	_vm_env.ambient_light_color = Color(0.55, 0.53, 0.5)
-	_vm_env.ambient_light_energy = 0.8  # flat light shows no normal map: kept low, the key light below shapes
-	# Metal shows what it reflects, and with nothing to reflect the guns rendered black. The hall it
-	# stands in (materials/viewmodel_sky.gdshader: LED battens on a dark roof, lit concrete) stands in
-	# for it, only in the reflections; the background stays clear.
+	_vm_env.ambient_light_energy = 0.55  # roughly what the lamps bounce onto it
+	# Outside the probe's box the steel reflects this instead (materials/viewmodel_sky.gdshader:
+	# LED battens on a dark roof, lit concrete); never drawn, the background stays clear.
 	var sky := ShaderMaterial.new()
 	sky.shader = preload("res://materials/viewmodel_sky.gdshader")
 	_vm_env.sky = Sky.new()
@@ -197,108 +173,24 @@ func _setup_viewmodel_world() -> void:
 	_vm_env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	_vm_env.ssao_enabled = false
 	_vm_env.ssil_enabled = false
-	_vm_env.sdfgi_enabled = false  # the gun has no world around it to bounce off, and fog would haze it
+	_vm_env.sdfgi_enabled = false
 	_vm_env.volumetric_fog_enabled = false
-	_vm_env.glow_enabled = false  # glow over a transparent background halos the gun's outline
-	_vm_ambient = _vm_env.ambient_light_energy
+	_vm_env.glow_enabled = false
 	_vm_camera.environment = _vm_env
-	_world_sun = get_parent().find_child("Sun", true, false) as DirectionalLight3D
-	if _world_sun:
-		_vm_sun = DirectionalLight3D.new()
-		_vm_sun.light_color = _world_sun.light_color
-		_vm_sun.light_energy = _world_sun.light_energy
-		_vm_sun.shadow_enabled = false
-		_vm_sun.layers = 0xFFFFF
-		_vm_view.add_child(_vm_sun)
-		_vm_sun.global_basis = _world_sun.global_basis
-	# The ceiling battens are not in this world; a soft top light the colour of theirs stands in.
-	var fill := DirectionalLight3D.new()
-	fill.light_color = Color(1.0, 0.95, 0.88)
-	fill.light_energy = 1.0
-	fill.rotation = Vector3(-PI / 2.0 + 0.3, 0.4, 0.0)
-	_vm_view.add_child(fill)
-	# Key light riding the gun's camera, from above and behind the left shoulder, so stitching, edges,
-	# engraving and the normal maps read whichever way the player looks; a top light alone left the
-	# side of the gun and the backs of the gloves in flat ambient.
+	# A soft key light from over the left shoulder keeps the gun readable between lamps, and a rim
+	# from ahead draws a thin line on edges; both on the gun's layer only, or they would light the hall.
 	var key := DirectionalLight3D.new()
-	_vm_key = key
 	key.light_color = Color(1.0, 0.96, 0.9)
-	key.light_energy = KEY_ENERGY
-	key.light_specular = 1.2
+	key.light_energy = 1.0
 	key.rotation = Vector3(-0.65, 0.4, 0.0)
-	_vm_camera.add_child(key)
-	# Rim light from ahead and to the right, back toward the camera: a thin bright line on the edges
-	# of slides, sights and knuckles that lifts them off the dark hall.
 	var rim := DirectionalLight3D.new()
 	rim.light_color = Color(0.85, 0.9, 1.0)
-	rim.light_energy = 0.9
+	rim.light_energy = 0.5
 	rim.light_specular = 2.0
 	rim.rotation = Vector3(-0.35, PI - 0.6, 0.0)
-	_vm_camera.add_child(rim)
-	for l: Light3D in get_parent().find_children("*", "Light3D", true, false):
-		if (l is SpotLight3D or l is OmniLight3D) and not is_ancestor_of(l):
-			_hall_lights.append(l)
-	for i in VM_SPOTS:
-		_vm_spots.append(SpotLight3D.new())
-	for i in VM_OMNIS:
-		_vm_omnis.append(OmniLight3D.new())
-	for l: Light3D in _vm_spots + _vm_omnis:
-		l.shadow_enabled = false
-		l.visible = false
-		l.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
-		_vm_view.add_child(l)
-
-
-## Moves the gun world's stand-in lights onto the hall lights nearest the eye, and dims the key
-## light by how much light reaches it from them.
-func _mirror_lights(dt: float) -> void:
-	_light_pick -= dt
-	if _light_pick > 0.0 or _vm_spots.is_empty():
-		_vm_key.light_energy = KEY_ENERGY * lerpf(KEY_DARK, 1.0, _lit)
-		return
-	_light_pick = VM_LIGHT_PICK
-	var eye := _camera.global_position
-	var near := _hall_lights.filter(func(l: Light3D) -> bool: return is_instance_valid(l) and l.is_visible_in_tree())
-	near.sort_custom(func(a: Light3D, b: Light3D) -> bool: return _light_at(a, eye) > _light_at(b, eye))
-	var spots := near.filter(func(l: Light3D) -> bool: return l is SpotLight3D)
-	var omnis := near.filter(func(l: Light3D) -> bool: return l is OmniLight3D)
-	var lit := 0.0
-	for i in _vm_spots.size():
-		lit += _copy_light(_vm_spots[i], spots[i] if i < spots.size() else null, eye)
-	for i in _vm_omnis.size():
-		lit += _copy_light(_vm_omnis[i], omnis[i] if i < omnis.size() else null, eye)
-	_lit = lerpf(_lit, clampf(lit, 0.0, 1.0), 0.5)
-
-
-## How much of light `l` reaches `eye`, roughly: energy over the share of its range left, inside a spot's cone.
-func _light_at(l: Light3D, eye: Vector3) -> float:
-	var range_ := (l as SpotLight3D).spot_range if l is SpotLight3D else (l as OmniLight3D).omni_range
-	var to := eye - l.global_position
-	var f := clampf(1.0 - to.length() / range_, 0.0, 1.0)
-	if l is SpotLight3D and to.length() > 0.01:
-		var off := rad_to_deg((-l.global_basis.z).angle_to(to))
-		f *= clampf(1.0 - (off - (l as SpotLight3D).spot_angle) / 15.0, 0.0, 1.0)
-	return l.light_energy * f * f
-
-
-func _copy_light(to: Light3D, from: Light3D, eye: Vector3) -> float:
-	to.visible = from != null
-	if not from:
-		return 0.0
-	to.global_transform = from.global_transform
-	to.light_color = from.light_color
-	to.light_energy = from.light_energy
-	to.light_specular = maxf(from.light_specular, 1.0)
-	if to is SpotLight3D:
-		var s := from as SpotLight3D
-		(to as SpotLight3D).spot_range = s.spot_range
-		(to as SpotLight3D).spot_angle = s.spot_angle
-		(to as SpotLight3D).spot_attenuation = s.spot_attenuation
-		(to as SpotLight3D).spot_angle_attenuation = s.spot_angle_attenuation
-	else:
-		(to as OmniLight3D).omni_range = (from as OmniLight3D).omni_range
-		(to as OmniLight3D).omni_attenuation = (from as OmniLight3D).omni_attenuation
-	return _light_at(from, eye)
+	for l: DirectionalLight3D in [key, rim]:
+		l.light_cull_mask = 1 << 1
+		_vm_camera.add_child(l)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -382,8 +274,6 @@ func _process(delta: float) -> void:
 	_vm_camera.global_transform = _camera.global_transform
 	var vm_fov: float = _viewmodel.view_fov
 	_vm_camera.fov = _camera.fov if vm_fov == 0.0 else rad_to_deg(2.0 * atan(tan(deg_to_rad(vm_fov) * 0.5) / _zoom))
-	_shade_viewmodel(dt)
-	_mirror_lights(dt)
 	if _viewmodel._want_gun != GameState.player().gun:  # e.g. after leaving: local_peer() changed
 		_viewmodel.equip(GameState.player().gun)
 		_update_gun_bar()
@@ -420,19 +310,6 @@ func _place_head() -> void:
 	_camera.rotation.x = _recoil
 
 
-## Gun sun follows whether the eye can see the sky toward the sun (roof, walls, the heap).
-func _shade_viewmodel(dt: float) -> void:
-	if not _vm_sun:
-		return
-	var eye := _camera.global_position
-	_sun_query.from = eye
-	_sun_query.to = eye + _world_sun.global_basis.z * 80.0  # light shines along -z
-	var lit := 0.0 if get_world_3d().direct_space_state.intersect_ray(_sun_query) else 1.0
-	_sun_lit = move_toward(_sun_lit, lit, dt * SUN_SHADE_SPEED)
-	_vm_sun.light_energy = _world_sun.light_energy * _sun_lit
-	_vm_env.ambient_light_energy = _vm_ambient * lerpf(0.55, 1.0, _sun_lit)
-
-
 func _physics_process(delta: float) -> void:
 	rotation.y = _yaw  # the body faces where the player looks (3rd person, co-op)
 	if not is_on_floor():
@@ -442,7 +319,7 @@ func _physics_process(delta: float) -> void:
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
-	var speed := SPRINT_SPEED if Input.is_action_pressed("sprint") and _viewmodel.aim == 0.0 else SPEED
+	var speed: float = SPRINT_SPEED if Input.is_action_pressed("sprint") and _viewmodel.aim == 0.0 else SPEED * lerpf(1.0, ADS_WALK, _viewmodel.aim)
 	_shove = _shove * exp(-SHOVE_DECAY * delta)
 	velocity.x = dir.x * speed + _shove.x
 	velocity.z = dir.z * speed + _shove.z

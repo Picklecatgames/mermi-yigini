@@ -15,7 +15,7 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 
 ## Teknik kurallar
 
-- **Mermi mantıkta yalnız bir sayı.** Görseller MultiMesh + havuz; mermi başına node/fizik yok. Yığın bir yükseklik alanı (`scripts/pile.gd`), 30°'yi aşan eğim kayar.
+- **Mermi mantıkta yalnız bir sayı.** Görseller MultiMesh + havuz; mermi başına node/fizik yok. Yığın bir yükseklik alanı (`scripts/pile.gd`), 45°'yi aşan eğim kayar (yığın ~7 m boyunda, 8 m'deki kirişin altında kalmalı).
 - **Co-op:** bütün durum `GameState` autoload'unda; her oyuncu eylemi `request_*` komutu; host otoriter. Bağlantı yalnız `scripts/net.gd`. **Yeni dünya sinyali: `emit` yerine `_world` kullan, `EVENTS`'e yaz. Yeni istemci komutu: `REQUESTS`'e yaz.** Gold kişisel, dünyaya kurulan her şey ortak kasadan. Rastgelelik yalnız host'ta (`cue_target` / `key_layout` ile yayılır); süsler yerel. Kontrol: `tools/net_check.gd`.
 - Viewmodel: **tek kol rig'i, her silah aynı eldivende** (`assets/weapons/arms`, `tools/build_arms.py` + `tools/paint_arms.py`); silahlar o rig'de mesh + `<Silah>_` klip seti, ayarları `viewmodel.gd` `SETS`. Yeni silah: builder'a set ekle, kendi kollarını alma. Ayrı SubViewport, render katmanı 2.
 - `scenes/arena.tscn` elle düzenlenmez: `tools/build_arena.gd`'yi değiştirip yeniden çalıştır.
@@ -36,6 +36,6 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 
 ## Araçlar
 
-- Açık: godot, disciplines, context7, ponytail, session-report, i-have-adhd plugin'leri; godot MCP; Beckett MCP (yalnız Godot editörü açıkken; oyunu editörde çalıştırıp ekran görüntüsü alır, `run_project` yerine bunu kullan; `.mcp.json` git'e girmez); `.claude/agents/` içinde 8 agent. Graphify, superpowers, caveman ve video kapalı.
+- Açık: godot, disciplines, context7, ponytail, session-report, i-have-adhd plugin'leri; godot MCP; Beckett MCP (yalnız Godot editörü açıkken; oyunu editörde çalıştırıp ekran görüntüsü alır, `run_project` yerine bunu kullan; `.mcp.json` git'e girmez); Blender MCP (`mcp-for-blender`, telemetri kapalı; yalnız Blender açıkken, eklenti Blender açılınca kendi başlar); Claude Code Game Studios'un 40 agent'ı ve 72 skill'i (`.claude/agents`, `.claude/skills`; hook'ları, kuralları ve CLAUDE.md'si alınmadı; Unity/Unreal agent'ları ve `code-review` skill'i dışarıda). Graphify, superpowers, caveman ve video kapalı; claude-mem açık (yerel, sağlayıcı Anthropic planı; CMEM Pro/bulut eşitleme kullanılmaz; worker `claude-mem status`).
 - Kapalı bir araç gerekirse kullanmaya çalışma; hangisi, neden ve nasıl açılacağını söyle.
 - Çoklu agent, büyük klasör taraması ya da uzun iş öncesi maliyeti söyleyip onay iste.
