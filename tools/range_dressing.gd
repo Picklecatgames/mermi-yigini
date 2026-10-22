@@ -361,21 +361,9 @@ func _shooters_side() -> void:
 	b._prop(root, MODELS + "service_pistol/service_pistol_1k.gltf", bench + Vector3(0.8, 0.93, -0.15), 1.9, 1.0, Basis(Vector3.RIGHT, PI / 2))
 	b._prop(root, MODELS + "spray_paint_bottles/spray_paint_bottles_1k.gltf", bench + Vector3(1.25, 0.925, 0.2), 0.7)
 	b._prop(root, MODELS + "can_rusted/can_rusted_1k.gltf", bench + Vector3(-0.35, 0.925, 0.25), 0.0)
-	var cable := Vector3(10.9, 0, 26.9)
-	# Hung off a unistrut bracket bolted to the wall, its two plates screwed under the rail.
-	b.block(Vector3(1.5, 0.05, 0.05), cable + Vector3(0, 3.73, 0), _flat(INK, 0.6), root)
-	for sx in [-0.7, 0.7]:
-		b.block(Vector3(0.05, 0.05, 0.85), cable + Vector3(sx, 3.73, 0.43), _flat(INK, 0.6), root)
-	var cage: Node3D = (load(MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf") as PackedScene).instantiate()
-	cage.position = cable + Vector3(0, 3.7, 0)
-	b.add(cage, root)
-	var warm := OmniLight3D.new()
-	warm.position = cable + Vector3(0, 3.1, 0)
-	warm.light_color = Color(1.0, 0.72, 0.42)
-	warm.light_energy = 1.6
-	warm.omni_range = 6.0
-	warm.light_volumetric_fog_energy = 0.3
-	b.add(warm, root)
+	# A factory pendant over it on a strut under the trusses.
+	b.strut(10.9, 21.0, 27.85)
+	b.pendant(Vector3(10.9, 4.3, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.72, 0.42), 4.0, 55.0)
 	# Brass sweeping by the railing's south end.
 	b._prop(root, MODELS + "metal_trash_can/metal_trash_can_1k.gltf", Vector3(13.35, 0, 26.9), 0.2)
 	b._prop(root, MODELS + "plastic_broom/plastic_broom_1k.gltf", Vector3(13.55, 0, 27.6), 0.0, 1.0, Basis(Vector3.RIGHT, 0.18))

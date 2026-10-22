@@ -1,7 +1,8 @@
 extends SceneTree
 ## Builds scenes/arena.tscn: the range shed (beveled precast walls, H columns, trusses, purlins,
 ## corrugated roof with skylights, gable cladding), ceiling LED battens, props, floor paint and stains,
-## four co-op spawn points, the crate stands and the stage spots; closed and dark, no sky or sun. Re-run after changing tools/build_shed_meshes.py output or these numbers:
+## four co-op spawn points, the crate stands and the stage spots; closed and dark, the sun only
+## through the roof's holes (tools/hall_dressing.gd dresses the abandonment). Re-run after changing tools/build_shed_meshes.py output or these numbers:
 ##   godot --headless --path . -s res://tools/build_arena.gd
 ## Dimensions must match tools/build_shed_meshes.py.
 
@@ -194,7 +195,7 @@ func _environment() -> void:
 	env.background_color = Color.BLACK
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR  # faint fill: the roof and corners never go pitch black
 	env.ambient_light_color = Color(0.62, 0.6, 0.56)
-	env.ambient_light_energy = 0.3
+	env.ambient_light_energy = 0.42
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED  # the probe below covers it
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
@@ -202,7 +203,7 @@ func _environment() -> void:
 	env.ssao_radius = 1.2
 	env.ssao_intensity = 1.6
 	env.ssil_enabled = true
-	env.sdfgi_enabled = true  # bounce light from the lamps and spots
+	env.sdfgi_enabled = false  # 2026-10-22: its camera-centred cascades made dark corners pop lighter/darker as you walked; bounce is faked by ambient and the heap fill
 	env.sdfgi_use_occlusion = true
 	env.sdfgi_min_cell_size = 0.15
 	env.sdfgi_cascades = 4
@@ -629,9 +630,8 @@ func _final_spots() -> void:
 		_stage_spot("FinalSpot%d" % int(absf(z)), at, target, 22.0, 6.0, 0.1, 1.4, 1.6)  # was 60 / 0.4: the brightest thing in the hall, lighting an empty square
 
 
-## A halo round crate `level`'s stand that grows up the row: a soft glow pooled on the floor and a
-## column of light rising from it and fading out, faint and low at level 1, tall, bright and gold
-## at 12. Both additive, no lights of their own. `radius` is the halo's, in m.
+## A halo round crate `level`'s stand that grows up the row: a soft additive glow pooled on the
+## floor under its lamp, faint and cool at level 1, bright and gold at 12. `radius` is the halo's.
 func _aura(parent: Node3D, level: int, radius: float) -> void:
 	var k := float(level) / CHEST_COUNT  # 0.08 .. 1
 	var colour := Color(0.8, 0.88, 1.0).lerp(Color(1.0, 0.78, 0.35), k)
@@ -663,30 +663,6 @@ func _aura(parent: Node3D, level: int, radius: float) -> void:
 	f.position.y = 0.012
 	f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add(f, parent)
-	# Column: an open cylinder of light, brightest at the floor and fading upward.
-	var height := 0.8 + 4.2 * pow(k, 1.5)
-	var tube := CylinderMesh.new()
-	tube.top_radius = radius
-	tube.bottom_radius = radius * 0.85  # tips inward a little as it rises (flipped below)
-	tube.height = height
-	tube.radial_segments = 40
-	tube.rings = 6
-	tube.cap_top = false
-	tube.cap_bottom = false
-	var beam := ShaderMaterial.new()
-	beam.shader = load("res://materials/light_cone.gdshader")
-	beam.set_shader_parameter("color", Color(colour.r, colour.g, colour.b))
-	beam.set_shader_parameter("strength", 0.04 + 0.4 * k * k)
-	beam.set_shader_parameter("fade_power", 1.3)
-	beam.set_shader_parameter("edge_softness", 2.0)
-	var c := MeshInstance3D.new()
-	c.name = "AuraColumn"
-	c.mesh = tube
-	c.material_override = beam
-	# The shader is brightest at the mesh's top: turn it over so that end sits on the floor.
-	c.transform = Transform3D(Basis(Vector3.RIGHT, PI), Vector3(0, height / 2.0, 0))
-	c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add(c, parent)
 
 
 ## Dust, glitter and gold flakes over crate `level`'s stand, more and richer each level: a few slow
@@ -1385,21 +1361,23 @@ func _range_label(text: String, size: int, colour: Color, font: Font = null) -> 
 	return l
 
 
-## Stone stands for the crates: rounded, slightly lumpy cast stone that grows with the crate.
-## The final crate (12) has none: a big square on the floor and two crossing stage spots.
-## Common: a plain block. Rare: on a wider plinth slab. Legendary: plinth, block and an overhanging
-## darker cap, like a monument. Footprint and height grow along the row. Named ChestStand1..12
+## Stands for the crates (2026-10-22: stone plinths read as a museum): the army's pallets and olive
+## crates, each under a factory pendant on one strut. Common: one pallet, one crate. Rare: two
+## crates, a yellow band. Legendary: two pallets, steel corners and a hazard stripe. The final crate (12) has none: a big square on the floor
+## and two crossing stage spots. Footprint and height grow along the row. Named ChestStand1..12
 ## (1 and 12 have no block); meta "height" is the top, and its Socket marker (group
 ## "chest_socket", meta "level") is where that level's crate is placed.
 func _chest_stands() -> void:
-	var mat := _stone_mat("stone_stand", Color(1.05, 1.03, 1.0))  # a touch paler than the floor
-	var cap_mat := _stone_mat("stone_stand_cap", Color(0.6, 0.59, 0.57))
+	var olive: Material = worn("plywood", "crate_olive", {"tint": Color(0.78, 0.82, 0.58), "tex_size": 0.7,
+		"cell_size": 0.5, "cell_tone": 0.12, "grime": 0.55, "grime_scale": 1.1})
+	var wood: Material = load("res://materials/env/crate_wood.tres")
+	var steel: Material = load("res://materials/env/range_steel.tres")
 	var stands := Node3D.new()
 	stands.name = "ChestStands"
 	add(stands)
 	var last := CHEST_COUNT - 2  # the last stand; the final crate has none
 	for i in CHEST_COUNT:
-		var t := float(i - 1) / (last - 1)  # 0 at the first block, 1 at the last
+		var t := float(i - 1) / (last - 1)  # 0 at the first stack, 1 at the last
 		var final := i == CHEST_COUNT - 1
 		var top := 0.0 if i == 0 or final else lerpf(0.25, STAND_TOP, pow(t, 1.3))
 		var body := StaticBody3D.new()
@@ -1419,60 +1397,183 @@ func _chest_stands() -> void:
 		_aura(body, i + 1, FINAL_SQUARE * 0.42 if final else 0.85)
 		if final:
 			continue  # lit by its own two stage spots
-		# A pool of light on each stand that grows by 40% a level, cool white at the bottom of the
-		# row to warm gold at the top: the better the crate, the more it is lit up.
-		var glow := SpotLight3D.new()
-		glow.position = Vector3(0, top + 2.4, 0)
-		glow.rotation.x = -PI / 2
-		glow.light_color = Color(0.85, 0.92, 1.0).lerp(Color(1.0, 0.8, 0.45), float(i) / last)
-		glow.light_energy = 1.0 * pow(1.33, i)  # 1 at level 1, 17 at level 11: the first ones no longer vanish
-		glow.spot_range = 7.0
-		glow.spot_angle = 16.0 + 1.2 * i
-		glow.spot_angle_attenuation = 0.4
-		glow.shadow_enabled = false
-		add(glow, body)
+		_stand_lamp(i, top)
 		if i == 0:
-			continue
+			continue  # level 1 sits on the bare floor
 		var w := lerpf(0.75, 0.95, t)  # top width, the crate's footing
-		var parts: Array = []  # [size, mat] stacked bottom up
-		if i >= RARE_FROM:
-			var plinth := 0.12 if i < LEGEND_FROM else 0.16
-			parts.append([Vector3(w + 0.22, plinth, w + 0.22), mat])
-		var cap := 0.09 if i >= LEGEND_FROM else 0.0
-		var used := 0.0
-		for p in parts:
-			used += (p[0] as Vector3).y
-		parts.append([Vector3(w, top - used - cap, w), mat])
-		if cap > 0.0:
-			parts.append([Vector3(w + 0.12, cap, w + 0.12), cap_mat])
+		var rare := i >= RARE_FROM
+		var legend := i >= LEGEND_FROM
 		var y := 0.0
-		for k in parts.size():
-			var size: Vector3 = parts[k][0]
-			var mi := MeshInstance3D.new()
-			mi.mesh = _stone_block(size, i * 10 + k)
-			mi.material_override = parts[k][1]
-			mi.position.y = y + size.y / 2.0
-			add(mi, body)
-			var cs := CollisionShape3D.new()
-			var box := BoxShape3D.new()
-			box.size = size
-			cs.shape = box
-			cs.position.y = mi.position.y
-			add(cs, body)
-			y += size.y
+		for k in (2 if legend else 1):  # pallets: one, two under the legendary stacks
+			y = _stand_pallet(body, y, w + 0.3, wood)
+		# The crates: one on the common stands, two (the lower one wider) from rare up.
+		var crates := 2 if rare and top - y > 0.4 else 1
+		var h := (top - y) / crates
+		for k in crates:
+			var cw := w + (0.08 if k == 0 and crates == 2 else 0.0)
+			_stand_crate(body, Vector3(cw, h, cw), y, olive, steel, i, k == crates - 1, rare, legend)
+			y += h
+		var cs := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = Vector3(w + 0.3, top, w + 0.3)
+		cs.shape = box
+		cs.position.y = top / 2.0
+		add(cs, body)
 
 
-## Cast stone: the floor's own concrete shader (Poly Haven "Concrete Floor Worn 001", CC0), so the
-## stands sit in the hall's light like the floor does, with the slab joints turned off (a 4 m
-## joint line would run across a block) and a tint of their own.
-func _stone_mat(id: String, tint: Color) -> ShaderMaterial:
-	var mat := (load("res://materials/concrete.tres") as ShaderMaterial).duplicate() as ShaderMaterial
-	mat.set_shader_parameter("seam_width", 0.0)
-	mat.set_shader_parameter("tex_size", 1.2)  # finer grain on a 1 m block
-	mat.set_shader_parameter("tint", tint)
-	var path := "res://materials/env/%s.tres" % id
-	ResourceSaver.save(mat, path)
-	return load(path)
+## A timber pallet `size` m square, 14 cm high, from `y`; returns its top.
+func _stand_pallet(body: Node3D, y: float, size: float, wood: Material) -> float:
+	for k in 5:
+		block(Vector3(size, 0.022, size * 0.15), Vector3(0, y + 0.129, (k - 2) * size * 0.22), wood, body)
+	for k in 3:
+		block(Vector3(size * 0.12, 0.098, size), Vector3((k - 1) * size * 0.44, y + 0.069, 0), wood, body)
+		block(Vector3(size, 0.02, size * 0.12), Vector3(0, y + 0.01, (k - 1) * size * 0.44), wood, body)
+	return y + 0.14
+
+
+## An olive army crate `size`, standing on `y`: a lid band, rope handles, a stencilled number on
+## its front (+Z); rare ones a yellow band, legendary ones steel corners and a hazard stripe.
+func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel: Material, i: int, top_one: bool, rare: bool, legend: bool) -> void:
+	block(size, Vector3(0, y + size.y / 2.0, 0), olive, body)
+	if size.y > 0.16:
+		block(Vector3(size.x + 0.02, 0.035, size.z + 0.02), Vector3(0, y + size.y - 0.03, 0), olive, body)  # lid
+	for sx in [-1.0, 1.0]:  # rope handles on the sides
+		block(Vector3(0.02, 0.03, 0.16), Vector3(sx * (size.x / 2.0 + 0.01), y + size.y * 0.6, 0), load("res://materials/env/paint_black.tres"), body)
+	var front := size.z / 2.0 + 0.002
+	if rare:
+		var band := StandardMaterial3D.new()
+		band.albedo_color = Color(0.78, 0.62, 0.12)
+		band.roughness = 0.7
+		block(Vector3(size.x, 0.05, 0.004), Vector3(0, y + size.y * 0.25, front), band, body)
+	if legend:
+		for sx in [-1.0, 1.0]:  # steel corner guards
+			for sz in [-1.0, 1.0]:
+				block(Vector3(0.05, size.y, 0.05), Vector3(sx * size.x / 2.0, y + size.y / 2.0, sz * size.z / 2.0), steel, body)
+		var stripe := _decal_tex("hazard_stripe", 256, 32, func(img: Image) -> void:
+			for py in 32:
+				for px in 256:
+					img.set_pixel(px, py, Color(0.86, 0.66, 0.08) if fposmod((px + py) / 20.0, 1.0) < 0.5 else Color(0.06, 0.06, 0.06)))
+		var hz := StandardMaterial3D.new()
+		hz.albedo_texture = stripe
+		hz.roughness = 0.7
+		block(Vector3(size.x - 0.06, 0.07, 0.004), Vector3(0, y + size.y * 0.78, front), hz, body)
+	if top_one:
+		var n := _range_label("Y7-%02d" % (i + 1), 56, Color(0.92, 0.9, 0.82, 0.8), STENCIL)
+		n.position = Vector3(0, y + size.y * 0.5, front + 0.002)
+		add(n, body)
+
+
+## The lamp over stand `i`: a factory pendant on the row's strut, brighter, wider and warmer up
+## the row, its beam drawn down onto the crate. The crate stack under it shows the tier.
+func _stand_lamp(i: int, top: float) -> void:
+	var last := CHEST_COUNT - 2
+	var at := chest_pos(i)
+	var colour := Color(0.85, 0.92, 1.0).lerp(Color(1.0, 0.8, 0.45), float(i) / last)
+	var energy := 1.0 * pow(1.33, i)  # 1 at level 1, 17 at level 11
+	if i == 0:
+		strut(CHEST_X, -21.0, 21.0)  # the row's lamps all hang off one strut under the trusses
+	pendant(Vector3(at.x, top + 3.4, at.z), BOTTOM - CHORD / 2.0 - 0.065, colour, energy, 20.0 + 1.2 * i, 0.03 + 0.02 * i)
+
+
+## A steel lighting strut along z at `x`, bolted under the trusses' bottom chords from `z0` to
+## `z1`: what the pendants hang from (2026-10-22: lamps hung on bare cords from nowhere).
+func strut(x: float, z0: float, z1: float) -> void:
+	var steel: Material = load("res://materials/env/range_steel_dark.tres")
+	var y := BOTTOM - CHORD / 2.0 - 0.04
+	block(Vector3(0.05, 0.05, absf(z1 - z0)), Vector3(x, y, (z0 + z1) / 2.0), steel, arena)
+	for z: float in BAYS:  # a clamp at every chord it crosses
+		if z > minf(z0, z1) - 0.01 and z < maxf(z0, z1) + 0.01:
+			block(Vector3(0.12, 0.1, 0.1), Vector3(x, y + 0.05, z), steel, arena)
+
+
+## Poly Haven's "Hanging Industrial Lamp" (an olive enamel factory pendant, CC0) with its chain
+## and cable carried on up to the strut over it at `anchor_y`, so it hangs from something. `top` is
+## where the model's own chain hook ends; the glass is 1.34 m below. Its glass glows `colour`; a
+## spot shines down from it, `beam` > 0 also draws its cone in the dust.
+func pendant(top: Vector3, anchor_y: float, colour: Color, energy: float, angle: float, beam := 0.0, shadow := false) -> Node3D:
+	var lamp: Node3D = (load(MODELS + "hanging_industrial_lamp/hanging_industrial_lamp_1k.gltf") as PackedScene).instantiate()
+	lamp.position = top
+	add(lamp)
+	var metal: Material = null
+	for mi: MeshInstance3D in lamp.find_children("*", "MeshInstance3D", true, false):
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		for i in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
+			if m.resource_name.contains("glass") or m.emission_enabled:
+				m.emission_enabled = true
+				m.emission = colour
+				m.emission_energy_multiplier = 2.5
+			else:
+				metal = m
+			mi.set_surface_override_material(i, m)
+	# The chain on up: long oval links, every other one turned a quarter, like the model's own.
+	var link := TorusMesh.new()
+	link.inner_radius = 0.009
+	link.outer_radius = 0.016
+	link.rings = 10
+	link.ring_segments = 6
+	var length := anchor_y - top.y
+	var n := int(length / 0.05) + 1
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = link
+	mm.instance_count = n
+	for i in n:
+		var b := Basis(Vector3.UP, (i % 2) * PI / 2) * Basis(Vector3.RIGHT, PI / 2) * Basis.from_scale(Vector3(1.0, 1.0, 1.9))
+		mm.set_instance_transform(i, Transform3D(b, Vector3(0, 0.03 + i * 0.05, 0)))
+	var chain := MultiMeshInstance3D.new()
+	chain.multimesh = mm
+	chain.material_override = metal
+	chain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add(chain, lamp)
+	# The cable from its rose (4 cm off the chain) up the same way, and a shackle on the strut.
+	var cable := CylinderMesh.new()
+	cable.top_radius = 0.006
+	cable.bottom_radius = 0.006
+	cable.height = length
+	cable.radial_segments = 6
+	var cord := StandardMaterial3D.new()
+	cord.albedo_color = Color(0.03, 0.03, 0.03)
+	cord.roughness = 0.6
+	var c := MeshInstance3D.new()
+	c.mesh = cable
+	c.material_override = cord
+	c.position = Vector3(0.045, length / 2.0, 0)
+	c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add(c, lamp)
+	block(Vector3(0.06, 0.04, 0.06), Vector3(0, length - 0.02, 0), metal, lamp)
+	var spot := SpotLight3D.new()
+	spot.position = Vector3(0, -1.36, 0)
+	spot.rotation.x = -PI / 2
+	spot.light_color = colour
+	spot.light_energy = energy
+	spot.spot_range = 9.0
+	spot.spot_angle = angle
+	spot.spot_angle_attenuation = 0.8
+	spot.light_volumetric_fog_energy = 0.4
+	spot.shadow_enabled = shadow
+	add(spot, lamp)
+	if beam > 0.0:
+		var drop := top.y - 1.36
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.2
+		cone.bottom_radius = 0.2 + drop * tan(deg_to_rad(angle)) * 0.75
+		cone.height = drop
+		cone.radial_segments = 32
+		cone.cap_top = false
+		cone.cap_bottom = false
+		var m := ShaderMaterial.new()
+		m.shader = load("res://materials/light_cone.gdshader")
+		m.set_shader_parameter("color", Color(colour.r, colour.g, colour.b))
+		m.set_shader_parameter("strength", beam)
+		m.set_shader_parameter("edge_softness", 2.0)
+		var mi := MeshInstance3D.new()
+		mi.mesh = cone
+		mi.material_override = m
+		mi.position.y = -1.36 - drop / 2.0
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add(mi, lamp)
+	return lamp
 
 
 ## A box with rounded edges and a little noise pushed into its faces, centred on the origin.

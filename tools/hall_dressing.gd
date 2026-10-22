@@ -6,7 +6,7 @@ extends RefCounted
 ##     dust drifts at the wall feet, pigeon droppings under the trusses, leaks and moss down the
 ##     walls, a few old tags near the doors.
 ##   Light, one meaning per colour: cold daylight through the holes (abandoned), sodium tripods
-##     and caged bulbs on the crew's generator (alive), the army's red caged emergency lamps still lit on their
+##     and factory pendants on the crew's generator (alive), the army's red caged emergency lamps still lit on their
 ##     battery, green exit signs.
 ##   The crew: a camp in the north-west corner (container office, desk, stove, generator), their
 ##     covered car by the jammed loading door in the south wall, cables back to the generator.
@@ -557,22 +557,11 @@ func _camp() -> void:
 	# The covered car they came in, by the loading door.
 	b._prop(root, m.call("covered_car"), Vector3(-17.6, 0, 24.6), PI / 2 + 0.08)
 	b._prop(root, MODELS + "rusted_spade_01/rusted_spade_01_1k.gltf", Vector3(-14.9, 0.5, 27.8), 0.0, 1.0, Basis(Vector3.RIGHT, -0.25))
-	# Light: caged bulbs on a cord over the desk and the stove, and one sodium tripod.
-	var bulb: String = MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf"
-	for at in [desk + Vector3(0, 3.0, 0.6), Vector3(-18.8, 3.2, -24.0)]:
-		b.block(Vector3(0.012, b.BOTTOM - at.y, 0.012), Vector3(at.x, (b.BOTTOM + at.y) / 2.0, at.z), cord, root)
-		var cage: Node3D = (load(bulb) as PackedScene).instantiate()
-		cage.position = at + Vector3(0, 0.75, 0)
-		b.add(cage, root)
-		var warm := OmniLight3D.new()
-		warm.position = at + Vector3(0, -0.1, 0)
-		warm.light_color = Color(1.0, 0.68, 0.38)
-		warm.light_energy = 3.2
-		warm.omni_range = 7.0
-		warm.omni_attenuation = 1.4
-		warm.light_volumetric_fog_energy = 0.8
-		warm.shadow_enabled = true
-		b.add(warm, root)
+	# Light: factory pendants on a strut over the desk and the stove, and one sodium tripod.
+	b.strut(-22.4, -27.85, -21.0)
+	b.strut(-18.8, -27.85, -21.0)
+	b.pendant(Vector3(-22.4, 4.4, -23.1), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 6.0, 50.0, 0.0, true)
+	b.pendant(Vector3(-18.8, 4.6, -24.0), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 6.0, 50.0, 0.0, true)
 	_tripod(Vector3(-25.8, 0, -19.8), Vector3(-20.5, 0.2, -24.0), 1)
 	_cable([Vector2(GENERATOR.x, GENERATOR.z + 0.4), Vector2(-17.5, -25.2), Vector2(-21.0, -24.5), Vector2(-25.0, -21.0), Vector2(-25.8, -19.9)])
 	_cable([Vector2(GENERATOR.x - 0.3, GENERATOR.z + 0.3), Vector2(-17.3, -27.6), Vector2(-22.0, -27.8)])
