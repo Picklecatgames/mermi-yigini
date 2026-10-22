@@ -31,7 +31,7 @@ signal fired(peer: int, from: Vector3, dir: Vector3)
 ## Dummies react and pay out from this; impacts are drawn from it.
 signal shot_landed(peer: int, at: Vector3, normal: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, combo: int)
 signal gold_changed(gold: int)  # local player
-## Local player went into or out of placement mode (may cross the firing line).
+## Local player went into or out of placement mode (sets targets up from behind the railing).
 signal placing_changed(on: bool)
 ## Crate keys buried in the heap (scripts/key_cache.gd). Digging reached one: it pops out at `at`.
 signal key_revealed(rank: int, at: Vector3)
@@ -60,14 +60,18 @@ signal preview_received(peer: int, id: String, pos: Vector3, yaw: float)
 ## stands back up, where the star has turned to. Clients follow these instead of rolling their own.
 ## What `cue` holds is up to the target.
 signal target_cue(target: Node, cue: Array)
+## `peer` earned `gold` from `target` on its own, not from a shot of theirs (a burning scarecrow,
+## a gong pair rung together); pay_bonus. It pops over the target.
+signal bonus_paid(peer: int, target: Node, gold: int)
 ## Friendly fire: `shooter`'s round struck `victim`. It does no harm; it throws the victim's aim.
-signal player_shot(shooter: int, victim: int, at: Vector3, dir: Vector3)
+signal player_shot(shooter: int, victim: int, at: Vector3, dir: Vector3, special: String)
 ## Who stands on which spawn point (peer -> slot, the host 0); a player's colour follows it.
 signal player_slots(slots: Dictionary)
 ## Someone walked into the local player: shove it this way (m/s), on top of its own walking.
 signal pushed(vel: Vector3)
 ## What `peer` holds now: an index into GUNS (0 is bare fists).
 signal gun_changed(peer: int, gun: int)
+signal specials_changed  # local player: the special rounds pocket, or which one is armed
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -118,7 +122,7 @@ const COMBO_MAX := 20  # combo_cap's last level; the combo meter's full size and
 const SHOT_RANGE := 300.0  # m
 const SHOT_MASK := 1  # world layer: walls, floor, heap, dummies
 ## The firing line: a railing across the shed at this x, with every target past it. Players
-## only cross it in placement mode, and rounds fired from past it pay nothing and build no combo,
+## never cross it (targets go up from behind it), and rounds fired from past it pay nothing and build no combo,
 ## so walking up to a target to shoot it point blank gets you nothing.
 const FIRING_LINE_X := 14.0
 ## Physics layer of the railing: it stops players (mask), never rounds (SHOT_MASK).
@@ -136,6 +140,10 @@ const FIRE_FROM_SLACK := 1.5  # m
 const PUSH_REACH := 1.5  # m
 const PUSH_MAX := 8.0  # m/s
 const VAULT_SHARE := 0.2  # placeholder (yol haritası 7)
+## A round that glances off a "ricochet" body (the bank-shot plate) flies on, up to this many
+## times, and a target it then hits pays this many times over.
+const MAX_BOUNCES := 1
+const RICOCHET_MULT := 3
 ## Gear: targets the team buys from the shared vault (Q menu, Teçhizatlar). Bought ones wait in
 ## the shared stock until someone places them (yol haritası 10). Order is the menu's order.
 # ponytail: placeholder prices until the 60-minute balance pass.
@@ -147,6 +155,28 @@ const GEAR := {
 	"steel_rack": {"name": "Plaka Dizisi", "scene": "res://scenes/steel_rack.tscn", "cost": 90},
 	"plate_rack": {"name": "Köstebek Rafı", "scene": "res://scenes/plate_rack.tscn", "cost": 150},
 	"texas_star": {"name": "Texas Star", "scene": "res://scenes/texas_star.tscn", "cost": 300},
+	"convoy": {"name": "Konvoy", "scene": "res://scenes/convoy.tscn", "cost": 100},
+	"barrel": {"name": "Patlayan Varil", "scene": "res://scenes/barrel_target.tscn", "cost": 120},
+	"scarecrow": {"name": "Yanan Korkuluk", "scene": "res://scenes/scarecrow.tscn", "cost": 60},
+	"armored_dummy": {"name": "Zırhlı Kukla", "scene": "res://scenes/armored_dummy.tscn", "cost": 200},
+	"pendulum": {"name": "Sarkaç", "scene": "res://scenes/pendulum.tscn", "cost": 180},
+	"twin_gong": {"name": "Çift Gong", "scene": "res://scenes/twin_gong.tscn", "cost": 150},
+	"gold_dummy": {"name": "Altın Kukla", "scene": "res://scenes/gold_dummy.tscn", "cost": 400},
+	"ricochet": {"name": "Sekme Plakası", "scene": "res://scenes/ricochet_plate.tscn", "cost": 100},
+}
+## Rare rounds that come out of the heap now and then (rolled on the host, per bullet picked up):
+## `chance` is 1 in that many, about 1 in 75 for any of them. They go in a pocket of their own,
+## not the hand; the player arms one (request_arm_special) and the next shot is that round.
+## Troll rounds act on the teammate they hit. `tip` sits on the case's TipSocket
+## (assets/bullet/bullet_case.glb; tools/build_tips.py).
+# ponytail: placeholder odds until playtests.
+const SPECIALS := {
+	"punch": {"name": "Yumruk", "chance": 150, "tip": "res://assets/bullet/tips/punch.glb",
+		"desc": "Vurduğun takım arkadaşını çok uzağa uçurur."},
+	"balloon": {"name": "Balon", "chance": 250, "tip": "res://assets/bullet/tips/balloon.glb",
+		"desc": "Vurduğun takım arkadaşı balonlarla havalanır, yavaşça süzülür."},
+	"scream": {"name": "Çığlık", "chance": 400, "tip": "res://assets/bullet/tips/scream.glb",
+		"desc": "Vurduğun takım arkadaşının ekranına palyaço fırlar, çığlık atar."},
 }
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
@@ -159,19 +189,25 @@ const REQUESTS := {
 	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
 	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
-	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1,
+	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
 }
-## Where gear may stand: the target area past the firing line, clear of the east wall and the
-## crate stands; at least PLACE_GAP from any target's origin.
-const PLACE_ZONE := Rect2(15.0, -25.0, 11.5, 45.0)  # x, z
+## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
+## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
+## PLACE_GAP from any target's origin and with nothing solid in the way.
+const PLACE_ZONES: Array[Rect2] = [Rect2(15.0, -25.0, 11.5, 45.0), Rect2(26.5, -11.2, 13.0, 22.4)]
+const PLACE_ROOM := 0.35  # m: a piece's footing needs this much clear of walls, columns, props
 const PLACE_GAP := 1.6  # m
+## Render layer of what hangs over the range (roof, lamps, the bay's lid and baffles, ducts): the
+## placement overview camera leaves it out (tools/build_arena.gd overhead()).
+const OVERHEAD_LAYER := 3
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
-	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed"]
+	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed",
+	&"bonus_paid"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
-const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0}
+const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0, &"bonus_paid": 1}
 
 
 class PlayerState:
@@ -187,8 +223,10 @@ class PlayerState:
 	var keys: Array[int] = []  # crate key ranks held (1 = most common)
 	var combo_left := 0.0  # s until the body chain breaks; game time
 	var weak_left := 0.0  # s until the weak spot chain breaks
-	var placing := false  # placement mode: may cross the firing line
+	var placing := false  # placement mode: puts targets up, no shooting
 	var gun := 0  # GUNS index in hand; 0 is bare fists
+	var specials: Array[String] = []  # SPECIALS ids in the pocket, one per round
+	var armed := ""  # the special the next shot fires; "" for a plain round
 	var infinite_ammo := false  # test mode (T)
 	var pos := Vector3.ZERO  # feet, from the last pose
 	var has_pose := false
@@ -373,13 +411,33 @@ func request_buy_gear(id: String, peer := 0) -> bool:
 
 ## Whether piece `id` from the stock may go up at `pos` (target area, room around it).
 func can_place(id: String, pos: Vector3) -> bool:
-	if gear_stock.get(id, 0) <= 0 or not PLACE_ZONE.has_point(Vector2(pos.x, pos.z)):
-		return false
+	return place_problem(id, pos) == ""
+
+
+## Why piece `id` can't go up at `pos`, for the placement banner; "" when it can.
+func place_problem(id: String, pos: Vector3) -> String:
+	if gear_stock.get(id, 0) <= 0:
+		return "depoda yok"
+	if not in_place_zone(pos):
+		return "yeşil alanın dışında"
 	for t: Node in get_tree().get_nodes_in_group("target"):
 		var at: Vector3 = (t as Node3D).global_position
 		if Vector2(at.x - pos.x, at.z - pos.z).length() < PLACE_GAP:
-			return false
-	return true
+			return "başka bir hedefe çok yakın"
+	var q := PhysicsShapeQueryParameters3D.new()  # a column, a prop, a player standing there
+	var foot := CylinderShape3D.new()
+	foot.radius = PLACE_ROOM
+	foot.height = 1.2
+	q.shape = foot
+	q.transform = Transform3D(Basis(), pos + Vector3.UP * 0.75)  # clear of the floor
+	q.collision_mask = SHOT_MASK
+	if not get_viewport().world_3d.direct_space_state.intersect_shape(q, 1).is_empty():
+		return "yer dolu"
+	return ""
+
+
+static func in_place_zone(pos: Vector3) -> bool:
+	return PLACE_ZONES.any(func(r: Rect2) -> bool: return r.has_point(Vector2(pos.x, pos.z)))
 
 
 ## Puts piece `id` from the shared stock up at `pos`, turned `yaw`. The host checks the spot; two
@@ -481,8 +539,38 @@ func request_pick_up(at: Vector3, limit := 1 << 30, peer := 0) -> int:
 		return guess
 	var taken := request_take_bullets(want, at)
 	if taken > 0:
-		_set_carried(peer, p.carried + taken)
+		_set_carried(peer, p.carried + taken - _roll_specials(peer, taken))
 	return taken
+
+
+## Host: each of `n` bullets just picked up may turn out to be a special round (SPECIALS); those
+## go in the pocket. Returns how many did.
+func _roll_specials(peer: int, n: int) -> int:
+	var p := player(peer)
+	var got := 0
+	for i in n:
+		var r := randf()
+		for id: String in SPECIALS:
+			r -= 1.0 / SPECIALS[id].chance
+			if r < 0.0:
+				p.specials.append(id)
+				got += 1
+				break
+	if got > 0 and _is_local(peer):
+		specials_changed.emit()
+	return got
+
+
+## Arms special round `id` from the pocket: the next shot is that round, on top of the magazine
+## (it fires with the magazine empty too). The armed one again, or "", disarms.
+func request_arm_special(id: String, peer := 0) -> void:
+	var p := player(peer)
+	if id != "" and id not in p.specials:
+		return
+	_send(&"request_arm_special", [id], peer)
+	p.armed = "" if id == p.armed else id
+	if _is_local(peer):
+		specials_changed.emit()
 
 
 ## Player picks up the loose bullet `id`. The first request wins; later ones for the same
@@ -501,7 +589,7 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 	_taken_loose[id] = true
 	pile -= 1
 	_world(&"pile_changed", [pile])
-	_set_carried(peer, p.carried + 1)
+	_set_carried(peer, p.carried + 1 - _roll_specials(peer, 1))
 	_world(&"loose_taken", [id])
 	return 1
 
@@ -520,8 +608,8 @@ func request_reload(peer := 0) -> int:
 	return n
 
 
-## Placement mode (B for now, until the build mode has its own way in): lets the player through
-## the firing line to set targets up.
+## Placement mode (B for now, until the build mode has its own way in): the player sets targets
+## up past the firing line from behind it.
 func request_toggle_placing(peer := 0) -> void:
 	_send(&"request_toggle_placing", [], peer)
 	var p := player(peer)
@@ -600,13 +688,19 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	# Slack for frame timing on the caller, more for a remote one's network jitter, never so much
 	# that a client could fire faster than its gun does.
 	var interval: float = GUNS[p.gun].interval
-	if p.gun == 0 or p.loaded <= 0 or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
+	if p.gun == 0 or (p.loaded <= 0 and p.armed == "") or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
 		return false
 	# A remote round leaves from that player's synced eye, or not at all.
 	if not _is_local(peer) and not (p.has_pose and from.distance_to(p.pos + Vector3.UP * EYE) <= FIRE_FROM_SLACK):
 		return false
 	p.cooldown = interval
-	if not p.infinite_ammo:
+	var special := p.armed
+	if special != "":  # an armed special goes instead of a magazine round
+		p.specials.erase(special)
+		p.armed = ""
+		if _is_local(peer):
+			specials_changed.emit()
+	elif not p.infinite_ammo:
 		_set_loaded(peer, p.loaded - 1)
 	# A client's gun kicks and flashes now; where the round went comes back as shot_landed.
 	if _send(&"request_fire", [from, dir], peer):
@@ -617,17 +711,28 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var own := _body_of(who)  # the round starts inside the shooter
 	if own:
 		q.exclude = [own.get_rid()]
-	var hit := get_viewport().world_3d.direct_space_state.intersect_ray(q)
+	var space := get_viewport().world_3d.direct_space_state
+	var hit := space.intersect_ray(q)
+	var leg := from  # where the last leg of the round's flight started
+	var bounces := 0
+	while bounces < MAX_BOUNCES and not hit.is_empty() and hit.collider.is_in_group("ricochet"):
+		_world(&"shot_landed", [who, hit.position, hit.normal, dir, hit.collider, 0, false, 0])
+		dir = dir.bounce(hit.normal)
+		leg = hit.position
+		q = PhysicsRayQueryParameters3D.create(leg, leg + dir * SHOT_RANGE, SHOT_MASK)
+		q.exclude = [hit.rid]
+		hit = space.intersect_ray(q)
+		bounces += 1
 	if hit.is_empty():
 		_break_chain(p)
-		_world(&"shot_landed", [who, from + dir * SHOT_RANGE, -dir, dir, null, 0, false, 0])
+		_world(&"shot_landed", [who, leg + dir * SHOT_RANGE, -dir, dir, null, 0, false, 0])
 		return true
 	var target: Node = hit.collider
 	var victim := _peer_of(target)
 	if victim != 0:  # friendly fire: no pay, no harm, the chain breaks and their aim jumps
 		_break_chain(p)
 		_world(&"shot_landed", [who, hit.position, hit.normal, dir, null, 0, false, 0])
-		_world(&"player_shot", [who, victim, hit.position, dir])
+		_world(&"player_shot", [who, victim, hit.position, dir, special])
 		return true
 	var gold := 0
 	var weak := false
@@ -645,7 +750,10 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 			p.combo = mini(p.combo + 1, cap)
 			p.combo_left = COMBO_WINDOW
 			chain = p.combo
-		var base = target.get("hit_gold")
+		# A target whose pay depends on the moment (a swing's speed, armour left) says so itself.
+		var base = target.hit_gold_at(hit.position) if target.has_method("hit_gold_at") else target.get("hit_gold")
+		if bounces > 0 and base is int:
+			base *= RICOCHET_MULT
 		var behind := maxf(FIRING_LINE_X - from.x, 0.0)  # m behind the railing
 		var bonus := upgrade_value("gold_bonus", peer) + roundi(upgrade_value("range_bonus", peer) * behind)
 		var raw := float((base if base is int else 1) * (WEAK_MULT if weak else 1) * chain) * (100 + bonus) / 100.0 + p.gold_rest
@@ -717,6 +825,20 @@ func set_key_seed(seed: int) -> void:
 func cue_target(target: Node, cue: Array) -> void:
 	if not Net.is_client:
 		_world(&"target_cue", [target, cue])
+
+
+## Host (or solo): `target` pays `peer` on its own, outside a shot (bonus_paid). Flat: no combo,
+## no gold upgrades. A client's own call is dropped; it learns of the gold from the event.
+func pay_bonus(peer: int, target: Node, gold: int) -> void:
+	if Net.is_client or gold <= 0:
+		return
+	var p := player(peer)
+	p.gold += gold
+	if _is_local(peer):
+		gold_changed.emit(p.gold)
+	vault += gold * VAULT_SHARE
+	_world(&"vault_changed", [vault])
+	_world(&"bonus_paid", [peer, target, gold])
 
 
 ## The heap uncovered key `rank`; only buried keys can be revealed, once.
@@ -844,12 +966,12 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	callv(method, args + [peer])
 	var p := player(peer)
-	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun)
+	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed)
 
 
 ## Client: the host's word on our own state, after request `seq`.
 @rpc("authority", "call_remote", "reliable")
-func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int) -> void:
+func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int, specials: Array, armed: String) -> void:
 	_acked_seq = seq
 	if seq != _sent_seq:
 		return  # newer requests are still on their way; their answer will have it all
@@ -857,6 +979,10 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 	var p := player()
 	p.keys.assign(keys)
 	p.infinite_ammo = infinite
+	if p.specials != specials or p.armed != armed:
+		p.specials.assign(specials)  # the host rolls them: a client only learns of them here
+		p.armed = armed
+		specials_changed.emit()
 	if p.carried != carried_:
 		_set_carried(0, carried_)
 	if p.loaded != loaded_:
@@ -964,6 +1090,10 @@ func _event(event: StringName, args: Array) -> void:
 		&"gear_removed":
 			if args[0] < placed.size():
 				placed[args[0]] = null
+		&"bonus_paid":
+			if args[0] == local_peer():  # the host's _state carries it too; this shows it now
+				player().gold += args[2]
+				gold_changed.emit(player().gold)
 		&"gun_changed":
 			if args[0] == local_peer():
 				return  # our own: predicted, and settled by the host's answer (_state)

@@ -34,6 +34,18 @@ Bu karar demoyu kurtarıyor: finalde saniyede ~50 bin mermi akarken bile sunucu 
 | **Taret** | Haznesi var. Yalnız sabit hedeflere (kukla, gong, çelik raf) ateş eder. Kombo yok, kafa yok. Hazne elle de doldurulabilir (E). | Korkuluğa yakın, x ≈ 10–13,5 |
 | **Komuta** (sonra) | Oyuncunun kombo tavanı taretlerin hızını artırır: `× (1 + 0,15·V)`; co-op'ta en büyük V. Orta oyunda oyuncunun aktif işi. | `ajan_kritik/tasarim.md` |
 
+**Yerleşim (2026-10-22, kullanıcı isteği):** yığın x = 0'dayken boyalı halkası (yarıçap 10,6 m) x = 10,6'da bitiyordu, korkulukla (x = 14) arasında yalnız 3,4 m kalıyordu. Bant için gereken derinlik, korkuluktan geriye doğru:
+
+| Şerit | Derinlik |
+|---|---|
+| Oyuncu koridoru (korkuluk dibinde atış yeri) | 3 m |
+| Taret sırası (2×2 m gövde + hazne) | 2,5 m |
+| Bant alanı (2–3 dönüş, 3–4 modifiye karosu, hatlar arası 1 m yürüme) | ~6 m |
+| Ağız payı (yığın halkasından içeri uzanır) | ~1 m |
+| **Toplam** | **~12,5 m** |
+
+Bu yüzden yığın 9 m batıya taşındı (x = −9, `main.tscn` `Pile` ve `build_arena.gd` `HEAP`). Halka artık x = 1,6'da bitiyor; korkuluğa kadar **12,4 m** var. Korkuluk yerinde kaldı (hedef alanı ve atış alanı süslemesi ona bağlı). Kasa sırası x = −20'den −23'e kaydı (yığının batı halkası −19,6'da). Doğma noktaları, yığın spotları ve lamba boşluğu yığınla birlikte kaydı. Bu ölçüm yığının doğusundaki şerit için; kuzey ve güney yanları (z = ±10,6 … ±27) daha da geniş, uzun hatlar oradan dolaşabilir.
+
 **Durum (`GameState`):**
 - `turrets`: her taret için `[konum, yön, seviye, hazne]`
 - `lines`: her hat için `[ağız hücresi, hücre listesi, taret no, seviye]`

@@ -153,6 +153,7 @@ var _attach: BoneAttachment3D  # rides the gun bone: muzzle and ejection port ha
 var _since_fire := 10.0
 var _want_fire := 0.0  # s left on a buffered click
 var _want_reload := 0.0
+var wheel_used := false  # this R press opened the ammo wheel (player.gd): letting go is no reload
 var _was_captured := false  # the click that recaptures the mouse must not also shoot
 var clip: String:  # the section playing ("" at rest), so the player can tell others
 	get: return _clip
@@ -448,8 +449,14 @@ func _process(delta: float) -> void:
 	if captured and _was_captured and live:
 		if Input.is_action_just_pressed("fire") or (Input.is_action_pressed("fire") and GameState.GUNS[maxi(gun, 0)].auto):
 			_want_fire = FIRE_BUFFER
-		elif Input.is_action_just_pressed("reload"):
+		# With special rounds in the pocket R is a tap or a hold: the tap reloads when let go, the
+		# hold opens the ammo wheel (player.gd, ammo_wheel.gd) and loads what it picks instead.
+		elif GameState.player().specials.is_empty() and Input.is_action_just_pressed("reload"):
 			_want_reload = RELOAD_BUFFER
+		elif Input.is_action_just_released("reload"):
+			if not wheel_used and not GameState.player().specials.is_empty():
+				_want_reload = RELOAD_BUFFER
+			wheel_used = false
 	_was_captured = captured
 	var want_aim := captured and live and gun > 0 and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
 	if _kit.has("spin"):
@@ -566,6 +573,12 @@ func fire() -> void:
 
 func _can_reload() -> bool:
 	return gun > 0 and _clip == ""
+
+
+## The ammo wheel loaded a special round (or took it back out): the hands go through a reload.
+func load_round() -> void:
+	if _can_reload():
+		_play("reload")
 
 
 func reload() -> void:

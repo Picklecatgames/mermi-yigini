@@ -154,7 +154,7 @@ func _initialize() -> void:
 	gs.request_toggle_infinite_ammo()
 	gs.request_toggle_infinite_ammo()
 	assert(gs.player().loaded == 2, "T on and off leaves no free rounds")
-	# The firing line stops the player, except in placement mode.
+	# The firing line stops the player, placement mode too: there the view rises over it instead.
 	var pl: CharacterBody3D = main.get_node("Player")
 	pl.global_position = Vector3(gs.FIRING_LINE_X - 1.5, 0.05, 0)
 	await physics_frame
@@ -162,10 +162,21 @@ func _initialize() -> void:
 	var col := pl.move_and_collide(Vector3(3, 0, 0), true)
 	assert(col != null and col.get_collider().name == "FiringLine", "the railing stops the player")
 	gs.request_toggle_placing()
-	await physics_frame
-	await physics_frame
+	await create_timer(0.5).timeout
 	col = pl.move_and_collide(Vector3(3, 0, 0), true)
-	assert(col == null or col.get_collider().name != "FiringLine", "placement mode lets them through")
+	assert(col != null and col.get_collider().name == "FiringLine", "placement mode keeps them behind it")
+	var view := root.get_viewport().get_camera_3d()
+	assert(view.name == "Overview" and view.global_position.y > 8.0, "and cuts to the overview from above")
+	var before := pl.global_position
+	Input.action_press("move_forward")
+	await create_timer(0.3).timeout
+	Input.action_release("move_forward")
+	assert(pl.global_position.distance_to(before) < 0.05, "standing still while placing: WASD moves the camera")
+	gs.gear_stock["dummy"] = gs.gear_stock.get("dummy", 0) + 1
+	assert(gs.can_place("dummy", Vector3(34, 0, 0)), "the range bay takes targets")
+	assert(gs.place_problem("dummy", Vector3(42.5, 0, 0)) != "", "not on the sand backstop")
+	assert(gs.place_problem("dummy", Vector3(10, 0, 0)) != "", "not on the shooters' side")
+	gs.gear_stock["dummy"] -= 1
 	gs.request_toggle_placing()
 	# Moving costs accuracy, and stopping wins it back within a quarter second.
 	var vm: Node3D = pl.get_node("ViewmodelView/SubViewport/Camera/Viewmodel")

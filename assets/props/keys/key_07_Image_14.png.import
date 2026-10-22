@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dbl7wlg0i4uvj"
-path="res://.godot/imported/key_07_Image_14.png-f14c6908680dacbb82005de68ec8df63.ctex"
+path.s3tc="res://.godot/imported/key_07_Image_14.png-f14c6908680dacbb82005de68ec8df63.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "389801e50ea9d41e985ec83bd3b12829"
@@ -14,7 +15,7 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/props/keys/key_07_Image_14.png"
-dest_files=["res://.godot/imported/key_07_Image_14.png-f14c6908680dacbb82005de68ec8df63.ctex"]
+dest_files=["res://.godot/imported/key_07_Image_14.png-f14c6908680dacbb82005de68ec8df63.s3tc.ctex"]
 
 [params]
 

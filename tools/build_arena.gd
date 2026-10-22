@@ -20,14 +20,40 @@ const LAMP_STEP := 6.0
 const LAMP_ENERGY := 0.9  # dim working light: the heap's own spots must stay the brightest thing
 const LAMP_HEAP_CLEAR := 9.0  # m round the heap with no battens, so it stands in its own light
 const DECALS := "res://materials/env/decals/"
+## The heap's centre, west of the hall's middle (scenes/main.tscn Pile has the same): its paint
+## ring (10.6 m) ends at x 1.6, leaving a 12.4 m band to the railing for belts and turrets
+## (docs/taret_bant_kilavuzu.md, "Yerleşim").
+const HEAP := Vector3(-9.0, 0, 0)
 ## Co-op spawns along the south wall, everyone facing the heap.
-const SPAWNS: Array[Vector3] = [Vector3(-4.5, 0, 23.5), Vector3(-1.5, 0, 23.5), Vector3(1.5, 0, 23.5), Vector3(4.5, 0, 23.5)]
+const SPAWNS: Array[Vector3] = [HEAP + Vector3(-4.5, 0, 23.5), HEAP + Vector3(-1.5, 0, 23.5), HEAP + Vector3(1.5, 0, 23.5), HEAP + Vector3(4.5, 0, 23.5)]
 ## Crate stands west of the heap, a row running north and centred on the hall: levels 1-11 on
 ## stands STAND_GAP apart (1, the worst crate, on bare floor), then a gap and level 12, the final
 ## crate, on the floor in a big square under two crossing stage spots. Stand tiers follow the
 ## keys: 4 common, 5 rare, 2 legendary + the final. Tops climb on an ease-in curve to STAND_TOP,
 ## well under the 1.6 m eye so the crate on top still shows.
-const CHEST_X := -20.0  # halfway between the heap's paint ring and the west wall
+const GS := preload("res://scripts/game_state.gd")
+## The range past the firing line: black rubber floor from the railing on, plywood lining on the
+## walls, a light bridge over the line throwing cool floods on the targets, and a covered bay out
+## through the east wall with a low ceiling, steel baffles and a sand backstop. GS.PLACE_ZONES
+## follows these numbers.
+const BAY_END := 44.3     # inner face of the bay's back wall (30 m from the railing)
+const BAY_HALF := 12.0    # the east wall is open over |z| < BAY_HALF
+const BAY_H := 4.0        # the bay's ceiling, level with the hall's concrete
+const BERM_TOE := 40.3    # the sand backstop starts here and climbs to the back wall
+const BERM_TOP := 2.9
+## Baffles: uneven spacing (tight at the mouth, wider toward the berm), each its own depth, tilt,
+## width and side shift, so from the railing they don't stack into one striped block.
+const BAFFLES: Array[float] = [30.0, 32.7, 36.3, 40.5]
+const BAFFLE_DEPTH: Array[float] = [0.55, 0.64, 0.72, 0.6]
+const BAFFLE_TILT: Array[float] = [22.0, 27.0, 30.0, 24.0]
+const BAFFLE_WIDTH: Array[float] = [0.94, 1.0, 0.96, 0.9]
+const BAFFLE_SHIFT: Array[float] = [0.15, -0.1, 0.0, 0.2]
+const BRIDGE_Y := 5.0     # the light bridge over the firing line
+const RANGE_LIGHT := Color(0.88, 0.94, 1.0)  # cool daylight, against the hall's warm 4000 K
+const STENCIL := preload("res://assets/fonts/SairaStencilOne-Regular.ttf")  # signs (OFL)
+const SPRAY := preload("res://assets/fonts/RubikSprayPaint-Regular.ttf")  # graffiti (OFL)
+const FLICKER := preload("res://scripts/flicker_lamp.gd")
+const CHEST_X := -23.0  # between the heap's paint ring (x -19.6) and the west wall
 const CHEST_COUNT := 12
 const STAND_GAP := 3.0
 const FINAL_GAP := 4.5  # level 11 to level 12, room for the big square
@@ -60,10 +86,15 @@ func _initialize() -> void:
 	_final_spots()
 	_upper_walls()
 	_props()
+	_work_sites()
+	_dust()
 	_firing_line()
+	_range()
 	_chest_stands()
 	_markings()
 	_spawns()
+	for path in ["Roof", "Lamps", "UpperWalls", "Range/LightBridge", "Range/Baffles", "Range/BayCeiling"]:
+		overhead(arena.get_node(path))
 	var scene := PackedScene.new()
 	print("pack: ", scene.pack(arena), " save: ", ResourceSaver.save(scene, "res://scenes/arena.tscn"))
 	arena.free()
@@ -105,6 +136,49 @@ func pbr(id: String, tint := Color.WHITE, double_sided := false) -> ORMMaterial3
 	return load(path)
 
 
+## A Poly Haven set on materials/env/worn_surface.gdshader (no visible repeat: per-cell tone,
+## a big turned sample, grime, rust), saved as `save_as`. `params` set its uniforms.
+func worn(id: String, save_as: String, params: Dictionary) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = load("res://materials/env/worn_surface.gdshader")
+	m.set_shader_parameter("albedo_tex", load(TEX + "%s/%s_diff_2k.jpg" % [id, id]))
+	m.set_shader_parameter("normal_tex", load(TEX + "%s/%s_nor_gl_2k.jpg" % [id, id]))
+	m.set_shader_parameter("arm_tex", load(TEX + "%s/%s_arm_2k.jpg" % [id, id]))
+	var noise := FastNoiseLite.new()
+	noise.seed = save_as.hash() & 0xffff
+	noise.frequency = 0.02
+	noise.fractal_octaves = 5
+	var grime := NoiseTexture2D.new()
+	grime.noise = noise
+	grime.seamless = true
+	grime.width = 512
+	grime.height = 512
+	m.set_shader_parameter("grime_tex", grime)
+	for k: String in params:
+		m.set_shader_parameter(k, params[k])
+	var path := "res://materials/env/%s.tres" % save_as
+	ResourceSaver.save(m, path)
+	return load(path)
+
+
+## The same, mapped by position instead of UVs, a texture repeat every `metres`: world-space
+## (seamless across separate meshes) or per object (`world` off: every piece starts its own).
+func pbr_box(id: String, metres: float, tint := Color.WHITE, world := true, save_as := "") -> ORMMaterial3D:
+	var m := ORMMaterial3D.new()
+	m.albedo_texture = load(TEX + "%s/%s_diff_2k.jpg" % [id, id])
+	m.albedo_color = tint
+	m.normal_enabled = true
+	m.normal_texture = load(TEX + "%s/%s_nor_gl_2k.jpg" % [id, id])
+	m.orm_texture = load(TEX + "%s/%s_arm_2k.jpg" % [id, id])
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = world
+	m.uv1_scale = Vector3.ONE / metres
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	var path := "res://materials/env/%s.tres" % (save_as if save_as != "" else id)
+	ResourceSaver.save(m, path)
+	return load(path)
+
+
 func _environment() -> void:
 	# A closed, dark hall: no sky at all, so nothing outside can leak in through the GI, the
 	# reflections or the fog. Every bit of light is a lamp or spot we placed.
@@ -135,6 +209,9 @@ func _environment() -> void:
 	env.volumetric_fog_anisotropy = 0.55
 	env.volumetric_fog_length = 70.0
 	env.volumetric_fog_sky_affect = 0.0
+	env.adjustment_enabled = true  # AgX washes colour out; give the brass, paint and signs back some punch
+	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 1.15
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
@@ -158,12 +235,25 @@ func _floor() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Floor"
 	add(body)
-	var mi := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(56, 56)
-	mi.mesh = pm
-	mi.material_override = load("res://materials/concrete.tres")
-	add(mi, body)
+	# Concrete up to the firing line; past it the range's black rubber tiles (Poly Haven
+	# "Rubber Tiles", 2 m a tile set), on into the bay. Both world-mapped, so the pieces meet clean.
+	var fl: float = GS.FIRING_LINE_X
+	# Rubber: 1 m mats each with its own tone, some replaced; grime, and a scuffed band of
+	# brass and soot just past the railing. Warmed: the cool range light turned it pool blue.
+	var rubber := worn("rubber_tiles", "rubber_floor", {"tint": Color(1.2, 1.1, 1.0), "tex_size": 2.0,
+		"cell_size": 1.0, "cell_tone": 0.16, "odd_cells": 0.14, "antitile": 0.45, "grime": 0.7,
+		"grime_scale": 0.11, "wear_x": fl + 2.2, "wear_width": 2.6})
+	for part in [[Rect2(-28.0, -28.0, fl + 28.0, 56.0), load("res://materials/concrete.tres")],
+			[Rect2(fl, -28.0, 28.15 - fl, 56.0), rubber],
+			[Rect2(28.15, -BAY_HALF - 0.3, BAY_END - 28.15, 2.0 * BAY_HALF + 0.6), rubber]]:
+		var r: Rect2 = part[0]
+		var mi := MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = r.size
+		mi.mesh = pm
+		mi.position = Vector3(r.get_center().x, 0, r.get_center().y)
+		mi.material_override = part[1]
+		add(mi, body)
 	var cs := CollisionShape3D.new()
 	cs.shape = WorldBoundaryShape3D.new()
 	add(cs, body)
@@ -181,14 +271,19 @@ func _walls() -> void:
 		body.name = side[0]
 		body.transform = Transform3D(Basis(Vector3.UP, side[1]), side[2])
 		add(body, walls)
+		var east: bool = side[0] == "East"  # open over the range bay; local x is world z there
 		for i in 14:
-			mesh_at("wall_panel", Transform3D(Basis(), Vector3(-26.0 + 4.0 * i, 0, 0)), mat, body)
-		var cs := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = Vector3(56.6, 4.0, 0.3)
-		cs.shape = box
-		cs.position.y = 2.0
-		add(cs, body)
+			var along := -26.0 + 4.0 * i
+			if not (east and absf(along) < BAY_HALF):
+				mesh_at("wall_panel", Transform3D(Basis(), Vector3(along, 0, 0)), mat, body)
+		var runs := [[-28.3, -BAY_HALF], [BAY_HALF, 28.3]] if east else [[-28.3, 28.3]]
+		for run in runs:
+			var cs := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(run[1] - run[0], 4.0, 0.3)
+			cs.shape = box
+			cs.position = Vector3((run[0] + run[1]) / 2.0, 2.0, 0)
+			add(cs, body)
 
 
 func _columns() -> void:
@@ -199,6 +294,8 @@ func _columns() -> void:
 	var spots: Array = []  # [position, yaw, height]
 	for z in BAYS:
 		for s in [-1.0, 1.0]:
+			if s > 0 and absf(z) < BAY_HALF:
+				continue  # the range bay's mouth: a girder carries these trusses instead (_bay)
 			spots.append([Vector3(s * 27.85, 0, z), PI / 2, COLUMN_H])
 	for x in BAYS.slice(1, BAYS.size() - 1):
 		for s in [-1.0, 1.0]:
@@ -232,10 +329,14 @@ func _roof() -> void:
 		for s in [-1.0, 1.0]:
 			var xf := Transform3D(Basis(Vector3.BACK, -s * PITCH), Vector3(s * px, top_chord(px) + CHORD / 2 + 0.1, 0))
 			mesh_at("purlin", xf, steel, roof)
-	var sheet := mesh_at("roof_sheet", Transform3D(), pbr("corrugated_iron_02", Color(0.85, 0.86, 0.88), true), roof)
+	# Sheets 6 m apart each a little different, grime and rust blooms: no tiling seen from below.
+	var roof_mat := worn("corrugated_iron_02", "roof_sheet", {"mesh_uv": true, "tint": Color(0.85, 0.86, 0.88),
+		"cell_size": 6.0, "cell_tone": 0.12, "odd_cells": 0.1, "antitile": 0.3, "grime": 0.55,
+		"grime_scale": 0.07, "rust": 0.45})
+	var sheet := mesh_at("roof_sheet", Transform3D(), roof_mat, roof)
 	sheet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 	# The skylight strips are sheeted over too: the hall is closed and dark, lit only from inside.
-	var shut := mesh_at("skylight", Transform3D(), load("res://materials/env/corrugated_iron_02.tres"), roof)
+	var shut := mesh_at("skylight", Transform3D(), roof_mat, roof)
 	shut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 	var clad: Material = load("res://materials/env/corrugated_iron_02.tres")
 	for s in [-1.0, 1.0]:
@@ -269,7 +370,10 @@ func _lamps() -> void:
 			var near_spot := false
 			for s in HEAP_SPOTS + [Vector3(CHEST_X, 0, -14), Vector3(CHEST_X, 0, -21)]:
 				near_spot = near_spot or (absf(s.z - z) < 0.1 and absf(s.x - x) < 1.4)
-			near_spot = near_spot or Vector2(x, z).length() < LAMP_HEAP_CLEAR
+			near_spot = near_spot or Vector2(x - HEAP.x, z - HEAP.z).length() < LAMP_HEAP_CLEAR
+			var downrange := x > GS.FIRING_LINE_X  # cool daylight over the targets (_range)
+			# An old shed: a few tubes dead, one failing. Breaks the even grid into pools of light.
+			var wear := absi(hash(Vector2i(roundi(x), roundi(z)))) % 6
 			if not near_spot:  # the stage spots' clamps sit on these chords
 				var lamp := Node3D.new()
 				lamp.position = Vector3(x, y, z)
@@ -280,21 +384,29 @@ func _lamps() -> void:
 				h.position.y = -0.035
 				add(h, lamp)
 				var d := MeshInstance3D.new()
+				d.name = "Diffuser"
 				d.mesh = diffuser
 				d.material_override = lens
 				d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				d.position.y = -0.076
 				add(d, lamp)
+				if wear == 0 and not downrange:  # dead: dark tube, no light
+					d.material_override = paint
+					x += LAMP_STEP
+					continue
 				var spot := SpotLight3D.new()
+				if wear == 1:
+					d.material_override = lens.duplicate()
+					spot.set_script(FLICKER)
 				spot.position.y = -0.1
 				spot.rotation.x = -PI / 2
-				spot.light_color = Color(1.0, 0.95, 0.88)  # neutral-warm 4000 K
-				spot.light_energy = LAMP_ENERGY
+				spot.light_color = RANGE_LIGHT if downrange else Color(1.0, 0.95, 0.88)  # neutral-warm 4000 K
+				spot.light_energy = LAMP_ENERGY * (1.6 if downrange else 1.0)
 				spot.spot_range = 14.0
 				spot.spot_attenuation = 0.6
 				spot.spot_angle = 75.0
 				spot.spot_angle_attenuation = 0.9  # soft falloff: neighbours blend, no rings on the floor
-				spot.light_volumetric_fog_energy = 0.0  # no cones in the dust
+				spot.light_volumetric_fog_energy = 0.25  # a faint haze under each tube, so the roof is air, not a void
 				spot.shadow_enabled = false
 				add(spot, lamp)
 			x += LAMP_STEP
@@ -303,8 +415,8 @@ func _lamps() -> void:
 ## The heap's lights: four theatre spots, one from each corner round it, clamped under the z = +-7
 ## trusses in place of the hall lamps there. Wide and soft-edged, crossing so the whole heap is
 ## washed in an even, calm light, with faint beams in the dust. No lamp hangs over the heap itself.
-const HEAP_SPOTS: Array[Vector3] = [Vector3(-11, 0, 7), Vector3(11, 0, 7), Vector3(-11, 0, -7), Vector3(11, 0, -7)]
-const HEAP_AIM := Vector3(0, 2.4, 0)  # a third up the ~7 m heap
+const HEAP_SPOTS: Array[Vector3] = [HEAP + Vector3(-11, 0, 7), HEAP + Vector3(11, 0, 7), HEAP + Vector3(-11, 0, -7), HEAP + Vector3(11, 0, -7)]
+const HEAP_AIM := HEAP + Vector3(0, 2.4, 0)  # a third up the ~7 m heap
 
 
 func _heap_spot() -> void:
@@ -586,17 +698,9 @@ func _sparkle(parent: Node3D, level: int, top: float, area: float) -> void:
 ## The concrete walls stop at 4 m and the roof starts at 8-9 m; corrugated sheet closes the gap on
 ## all four sides so nothing outside shows, with a steel ledger capping the concrete.
 func _upper_walls() -> void:
-	var sheet := ORMMaterial3D.new()
-	sheet.albedo_texture = load(TEX + "corrugated_iron_02/corrugated_iron_02_diff_2k.jpg")
-	sheet.albedo_color = Color(0.68, 0.7, 0.72)
-	sheet.normal_enabled = true
-	sheet.normal_texture = load(TEX + "corrugated_iron_02/corrugated_iron_02_nor_gl_2k.jpg")
-	sheet.orm_texture = load(TEX + "corrugated_iron_02/corrugated_iron_02_arm_2k.jpg")
-	sheet.uv1_triplanar = true
-	sheet.uv1_scale = Vector3.ONE * 0.5
-	sheet.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	ResourceSaver.save(sheet, "res://materials/env/wall_sheet.tres")
-	sheet = load("res://materials/env/wall_sheet.tres")
+	var sheet := worn("corrugated_iron_02", "wall_sheet", {"tint": Color(0.68, 0.7, 0.72), "tex_size": 2.0,
+		"cell_size": 3.0, "cell_tone": 0.1, "odd_cells": 0.08, "antitile": 0.3, "grime": 0.45,
+		"grime_scale": 0.08, "rust": 0.35})
 	var steel: Material = load("res://materials/env/metal_plate_02.tres")
 	var upper := Node3D.new()
 	upper.name = "UpperWalls"
@@ -657,15 +761,128 @@ func _props() -> void:
 	_prop(props, mil, Vector3(26.9, 0.26, 18.25), PI / 2 + 0.05)
 	# An extinguisher at every other column; a wet floor sign next to the biggest oil stain.
 	var ext := MODELS + "korean_fire_extinguisher_01/korean_fire_extinguisher_01_1k.gltf"
-	for p in [Vector3(-27.4, 0, -13.4), Vector3(27.4, 0, 14.6), Vector3(13.4, 0, -27.4), Vector3(-13.4, 0, 27.4)]:
+	for p in [Vector3(-27.4, 0, -13.4), Vector3(27.4, 0, 16.4), Vector3(13.4, 0, -27.4), Vector3(-13.4, 0, 27.4)]:
 		_prop(props, ext, p, randf() * TAU)
-	_prop(props, MODELS + "WetFloorSign_01/WetFloorSign_01_1k.gltf", Vector3(13.2, 0, 15.1), 0.6)
+	_prop(props, MODELS + "WetFloorSign_01/WetFloorSign_01_1k.gltf", Vector3(-14.7, 0, -23.9), 0.6)
+
+
+## Two crews' leftovers just outside the heap's ring, so the heap reads as a job people are on and
+## not a model on an empty floor: north a sandbagged sorting corner, south a pickup point. West of
+## x = -3, clear of the belt band east of the heap (docs/taret_bant_kilavuzu.md, "Yerleşim").
+func _work_sites() -> void:
+	var site := Node3D.new()
+	site.name = "WorkSites"
+	add(site)
+	var m := func(n: String) -> String: return MODELS + n + "/" + n + "_1k.gltf"
+	var flat := Basis(Vector3.RIGHT, PI / 2)
+	# North: crates stacked two high, sandbags, the tool chest, buckets and a broom at the ring.
+	var crate: String = m.call("wooden_military_crate")
+	for p in [Vector3(-15.2, 0, -14.6), Vector3(-15.1, 0, -14.0), Vector3(-15.15, 0.465, -14.3)]:
+		_prop(site, crate, p, PI / 2 + randf_range(-0.08, 0.08))
+	var ammo: String = m.call("ammo_box")
+	for p in [Vector3(-15.0, 0.93, -14.6), Vector3(-15.15, 0.93, -14.1), Vector3(-14.4, 0, -13.2), Vector3(-14.25, 0, -12.95)]:
+		_prop(site, ammo, p, randf() * TAU)
+	var bag: String = m.call("cement_bag")
+	for i in 5:
+		_prop(site, bag, Vector3(-13.0 + i * 0.5, 0, -13.4 + randf_range(-0.05, 0.05)), PI / 2 + randf_range(-0.15, 0.15))
+	for i in 3:
+		_prop(site, bag, Vector3(-12.75 + i * 0.5, 0.18, -13.4), PI / 2 + randf_range(-0.2, 0.2))
+	_prop(site, m.call("metal_tool_chest"), Vector3(-12.6, 0, -15.4), 0.15)
+	_prop(site, m.call("metal_jerrycan_green"), Vector3(-11.6, 0, -15.5), 0.4)
+	_prop(site, m.call("propane_tank"), Vector3(-16.4, 0, -13.2), 0.0)
+	var can: String = m.call("can_rusted")
+	for p in [Vector3(-10.4, 0, -11.9), Vector3(-10.15, 0, -12.1), Vector3(-9.6, 0, -12.0)]:
+		_prop(site, can, p, randf() * TAU)
+	_prop(site, m.call("dustpan"), Vector3(-9.0, 0, -12.3), 2.6)
+	_prop(site, m.call("plastic_broom"), Vector3(-8.4, 0, -12.4), 1.2, 1.0, Basis(Vector3.FORWARD, PI / 2))  # dropped mid-sweep
+	# South: the pickup point, a cart, two crates with the paperwork on top, barriers, boots, a tyre.
+	_prop(site, m.call("industrial_storage_cart"), Vector3(-15.0, 0, 13.6), 0.35)
+	var mil: String = m.call("old_military_crate")
+	_prop(site, mil, Vector3(-11.4, 0, 14.3), 0.1)
+	_prop(site, mil, Vector3(-11.35, 0.3, 14.3), 0.16)
+	_prop(site, m.call("clipboard"), Vector3(-11.7, 0.6, 14.2), 0.4)
+	_prop(site, m.call("binoculars"), Vector3(-11.0, 0.61, 14.45), -0.7)
+	_prop(site, m.call("Megaphone_01"), Vector3(-10.6, 0.79, 14.1), 2.2)
+	var barrier: String = m.call("concrete_road_barrier")
+	_prop(site, barrier, Vector3(-6.4, 0, 13.4), 0.25)
+	_prop(site, barrier, Vector3(-4.9, 0, 13.0), 0.1)
+	_prop(site, m.call("rubber_boots"), Vector3(-13.1, 0, 12.8), 2.0)
+	_prop(site, m.call("old_tyre"), Vector3(-8.5, 0.083, 14.6), 0.0, 1.0, flat)
+	for p in [Vector3(-12.6, 0, 15.3), Vector3(-12.2, 0, 15.45)]:
+		_prop(site, ammo, p, randf() * TAU)
+	# Each corner under its own warm work lamp: in this big hall a few props only read as a place
+	# when they sit in a pool of light.
+	var cord := StandardMaterial3D.new()
+	cord.albedo_color = Color(0.05, 0.05, 0.05)
+	for at in [Vector3(-13.2, 0, -14.0), Vector3(-12.0, 0, 14.0)]:
+		block(Vector3(0.01, BOTTOM - 4.0, 0.01), at + Vector3(0, (BOTTOM + 4.0) / 2, 0), cord, site)
+		var cage: Node3D = (load(m.call("caged_hanging_light")) as PackedScene).instantiate()
+		cage.position = at + Vector3(0, 4.0, 0)
+		add(cage, site)
+		var lamp := SpotLight3D.new()
+		lamp.position = at + Vector3(0, 3.3, 0)
+		lamp.rotation.x = -PI / 2
+		lamp.light_color = Color(1.0, 0.74, 0.46)  # tungsten, against the cool battens
+		lamp.light_energy = 8.0
+		lamp.spot_range = 9.0
+		lamp.spot_angle = 55.0
+		lamp.spot_angle_attenuation = 1.4
+		lamp.light_volumetric_fog_energy = 1.2
+		lamp.shadow_enabled = true
+		add(lamp, site)
+
+
+## Dust drifting in the air over the heap and down the range: tiny lit specks, so they only show
+## where a light falls, and the still air of the shed moves a little.
+func _dust() -> void:
+	var speck := QuadMesh.new()
+	speck.size = Vector2(0.01, 0.01)
+	var look := StandardMaterial3D.new()
+	look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	look.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	look.vertex_color_use_as_albedo = true
+	look.albedo_color = Color(1.0, 0.95, 0.85, 0.25)
+	look.roughness = 1.0
+	speck.material = look
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0))
+	fade.set_color(1, Color(1, 1, 1, 0))
+	fade.add_point(0.2, Color.WHITE)
+	fade.add_point(0.8, Color.WHITE)
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = fade
+	for zone in [[HEAP + Vector3(0, 3.5, 0), Vector3(12, 3.5, 12)], [Vector3(24, 2.5, 0), Vector3(10, 2.5, 12)]]:
+		var drift := ParticleProcessMaterial.new()
+		drift.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+		drift.emission_box_extents = zone[1]
+		drift.direction = Vector3.UP
+		drift.spread = 180.0
+		drift.initial_velocity_min = 0.01
+		drift.initial_velocity_max = 0.05
+		drift.gravity = Vector3(0, -0.006, 0)
+		drift.turbulence_enabled = true
+		drift.turbulence_noise_scale = 6.0
+		drift.turbulence_influence_min = 0.01
+		drift.turbulence_influence_max = 0.04
+		drift.scale_min = 0.6
+		drift.scale_max = 1.5
+		drift.color_ramp = ramp
+		var p := GPUParticles3D.new()
+		p.name = "Dust"
+		p.position = zone[0]
+		p.amount = 900
+		p.lifetime = 24.0
+		p.preprocess = 24.0
+		p.process_material = drift
+		p.draw_pass_1 = speck
+		p.visibility_aabb = AABB(-zone[1] * 1.3, zone[1] * 2.6)
+		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add(p)
 
 
 ## The firing line: a yellow steel railing wall to wall at GameState.FIRING_LINE_X, every target
 ## past it. Its collision is on the fence layer only: it stops players, rounds fly through.
 func _firing_line() -> void:
-	const GS := preload("res://scripts/game_state.gd")
 	const RUN := 55.4  # m, between the inner wall faces
 	const HEIGHT := 1.1
 	var x: float = GS.FIRING_LINE_X
@@ -700,6 +917,438 @@ func _firing_line() -> void:
 		var z := -RUN / 2.0 + 0.2 + i * (RUN - 0.4) / (posts - 1)
 		box.call(Vector3(0.06, HEIGHT, 0.06), Vector3(x, HEIGHT / 2.0, z), paint)
 		box.call(Vector3(0.16, 0.012, 0.16), Vector3(x, 0.006, z), steel)
+
+
+## A plain box mesh under `parent`.
+## Puts everything under `node` on GS.OVERHEAD_LAYER: the placement overview camera leaves it out,
+## so from above the range reads like a plan (roof, lamps, the bay's lid and baffles gone).
+func overhead(node: Node) -> void:
+	if node is GeometryInstance3D:
+		(node as GeometryInstance3D).layers = 1 << (GS.OVERHEAD_LAYER - 1)
+	for c in node.get_children():
+		overhead(c)
+
+
+func block(size: Vector3, at: Vector3, mat: Material, parent: Node, basis := Basis()) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	var b := BoxMesh.new()
+	b.size = size
+	m.mesh = b
+	m.material_override = mat
+	m.transform = Transform3D(basis, at)
+	add(m, parent)
+	return m
+
+
+func collide(size: Vector3, at: Vector3, parent: Node, basis := Basis()) -> void:
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	cs.shape = box
+	cs.transform = Transform3D(basis, at)
+	add(cs, parent)
+
+
+## Everything past the firing line that makes it read as a range (see BAY_END above).
+func _range() -> void:
+	var fl: float = GS.FIRING_LINE_X
+	var range_node := Node3D.new()
+	range_node.name = "Range"
+	add(range_node)
+	var ply: Array[Material] = []  # four cuts of the sheet so neighbours differ
+	for k in 4:
+		var m := pbr_box("plywood", 1.1, [Color(0.95, 0.9, 0.84), Color(0.84, 0.79, 0.73), Color(1.0, 0.95, 0.88), Color(0.9, 0.85, 0.78)][k], false, "plywood_%d" % k)
+		m.uv1_offset = Vector3(0.37, 0.61, 0.13) * k
+		ResourceSaver.save(m, m.resource_path)
+		ply.append(m)
+	var steel := pbr_box("metal_plate_02", 1.0, Color(0.3, 0.31, 0.33), true, "range_steel")
+	var dark := pbr_box("metal_plate_02", 1.0, Color(0.1, 0.1, 0.11), true, "range_steel_dark")
+
+	# Plywood lining, the range's walls: hall north and south past the railing, the hall's east wall
+	# either side of the bay, the bay's own sides. Cut round the H columns.
+	for s in [-1.0, 1.0]:
+		_lining(range_node, true, s * 28.0, -s, fl + 0.25, 27.65, [21.0], ply, steel)
+		_lining(range_node, false, 28.0, -1.0, s * BAY_HALF, s * 27.65, [s * 14.0, s * 21.0], ply, steel)
+		_lining(range_node, true, s * BAY_HALF, -s, 28.3, BAY_END, [], ply, steel)
+
+	_bay(range_node, ply, steel, dark)
+	_light_bridge(range_node, dark)
+	_range_marks(range_node)
+	preload("res://tools/range_dressing.gd").new(self).build(range_node)
+
+	# The shooting counter: plywood shelves on the railing, between its posts, shooters' side.
+	const RUN := 55.4
+	const POSTS := 21
+	var step := (RUN - 0.4) / (POSTS - 1)
+	for i in POSTS - 1:
+		var z := -RUN / 2.0 + 0.2 + (i + 0.5) * step
+		block(Vector3(0.34, 0.025, step - 0.14), Vector3(fl - 0.16, 1.1 + 0.0125, z), ply[i % 4], range_node)
+		for sz in [-1.0, 1.0]:  # a bracket under each end
+			block(Vector3(0.3, 0.04, 0.03), Vector3(fl - 0.15, 1.08, z + sz * (step / 2.0 - 0.2)), steel, range_node)
+	# Steel threshold where the concrete meets the rubber.
+	block(Vector3(0.12, 0.01, RUN), Vector3(fl, 0.005, 0), steel, range_node)
+
+
+## Plywood sheets (1.22 x 2.44 m, a centimetre apart) on a wall face at `face` (z when `along_x`,
+## else x), from `from` to `to` along it, standing out toward `inward`; skips a hand's width round
+## each of `posts` and caps every run with a steel angle.
+func _lining(parent: Node, along_x: bool, face: float, inward: float, from: float, to: float, posts: Array, ply: Array[Material], cap: Material) -> void:
+	const W := 1.22
+	const H := 2.44
+	const T := 0.03
+	var lo := minf(from, to)
+	var hi := maxf(from, to)
+	var stops: Array[float] = [lo]
+	var sorted := posts.duplicate()
+	sorted.sort()
+	for p: float in sorted:
+		if p > lo and p < hi:
+			stops.append_array([p - 0.19, p + 0.19])
+	stops.append(hi)
+	var depth := face + inward * T / 2.0
+	for k in range(0, stops.size(), 2):
+		var s := stops[k]
+		var e := stops[k + 1]
+		var t := s
+		while e - t > 0.05:
+			var w := minf(W, e - t)
+			var c := t + w / 2.0
+			var at := Vector3(c, H / 2.0, depth) if along_x else Vector3(depth, H / 2.0, c)
+			var size := Vector3(w - 0.01, H, T) if along_x else Vector3(T, H, w - 0.01)
+			block(size, at, ply[randi() % ply.size()], parent)
+			t += w
+		var mid := (s + e) / 2.0
+		var lip := face + inward * 0.04
+		block(Vector3(e - s, 0.05, 0.08) if along_x else Vector3(0.08, 0.05, e - s),
+			Vector3(mid, H + 0.025, lip) if along_x else Vector3(lip, H + 0.025, mid), cap, parent)
+
+
+## The covered bay out through the east wall: concrete sides and back like the hall, a low dark
+## ceiling, steel baffles across it, a sand backstop, its own cool tube lights and a probe.
+func _bay(parent: Node, ply: Array[Material], steel: Material, dark: Material) -> void:
+	var concrete: Material = load("res://materials/env/concrete_slab_wall.tres")
+	var body := StaticBody3D.new()
+	body.name = "Bay"
+	add(body, parent)
+	var cx := (28.3 + BAY_END) / 2.0
+	for s in [-1.0, 1.0]:
+		var side := Node3D.new()
+		side.transform = Transform3D(Basis(Vector3.UP, 0.0 if s < 0 else PI), Vector3(cx, 0, s * (BAY_HALF + 0.15)))
+		add(side, body)
+		for i in 4:
+			mesh_at("wall_panel", Transform3D(Basis(), Vector3(-6.0 + 4.0 * i, 0, 0)), concrete, side)
+		collide(Vector3(BAY_END - 28.0, 4.0, 0.3), Vector3(cx, 2.0, s * (BAY_HALF + 0.15)), body)
+	var back := Node3D.new()
+	back.transform = Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(BAY_END + 0.15, 0, 0))
+	add(back, body)
+	for i in 6:
+		mesh_at("wall_panel", Transform3D(Basis(), Vector3(-10.0 + 4.0 * i, 0, 0)), concrete, back)
+	collide(Vector3(0.3, 4.0, 2.0 * BAY_HALF + 0.6), Vector3(BAY_END + 0.15, 2.0, 0), body)
+	# Ceiling: flat, painted near black, so the lit lane below is all there is to look at.
+	var lid := Vector3(BAY_END + 0.3 - 28.0, 0.12, 2.0 * BAY_HALF + 0.6)
+	var lid_at := Vector3((28.0 + BAY_END + 0.3) / 2.0, BAY_H + 0.06, 0)
+	var ceiling := StaticBody3D.new()  # its own body: the placement overview's ray skips it
+	ceiling.name = "BayCeiling"
+	ceiling.add_to_group("overhead", true)
+	add(ceiling, parent)
+	var lid_mat := worn("corrugated_iron_02", "bay_ceiling", {"tint": Color(0.16, 0.16, 0.17), "tex_size": 1.5,
+		"cell_size": 2.5, "cell_tone": 0.15, "odd_cells": 0.1, "grime": 0.4, "rust": 0.25})
+	block(lid, lid_at, lid_mat, ceiling)
+	for k in 5:  # transverse steel ribs every ~3.2 m hide where the sheets meet
+		block(Vector3(0.12, 0.16, 2.0 * BAY_HALF), Vector3(28.9 + k * 3.25, BAY_H - 0.08, 0), dark, ceiling)
+	collide(lid, lid_at, ceiling)
+	# A steel lintel across the mouth, under the hall's ledger, and a deep girder up under the truss
+	# ends from column to column, standing in for the columns taken out of the mouth.
+	block(Vector3(0.3, 0.3, 2.0 * BAY_HALF + 0.6), Vector3(28.15, BAY_H - 0.15, 0), dark, ceiling)
+	var girder: Material = load("res://materials/env/metal_plate_02.tres")
+	block(Vector3(0.3, 0.7, 28.0), Vector3(27.85, BOTTOM - CHORD - 0.35, 0), girder, ceiling)
+
+	# Baffles: steel plates with a plywood face to the shooters, hung across the bay and tipped so
+	# the face looks down the lane; a round that climbs hits them, not the ceiling.
+	var baffles := StaticBody3D.new()
+	baffles.name = "Baffles"
+	baffles.add_to_group("steel", true)  # sparks and lead splash, like the steel targets
+	baffles.add_to_group("overhead", true)
+	add(baffles, parent)
+	# Scarred, near-black steel that sinks into the dark ceiling (lit wooden faces read as a stack
+	# of shelves), with a worn yellow-black edge along the bottom so each one still reads.
+	var scarred := worn("metal_plate_02", "baffle_steel", {"tint": Color(0.16, 0.16, 0.17), "tex_size": 1.0,
+		"cell_size": 1.5, "cell_tone": 0.2, "grime": 0.5, "rust": 0.45})
+	var edge: Texture2D = load("res://materials/env/decals/hazard.res")
+	var stripe := StandardMaterial3D.new()
+	stripe.albedo_texture = edge
+	stripe.uv1_scale = Vector3(1.0, 6.0, 1.0)
+	stripe.roughness = 0.7
+	for i in BAFFLES.size():
+		var tip := Basis(Vector3.BACK, deg_to_rad(BAFFLE_TILT[i]))  # bottom edge downrange
+		var depth := BAFFLE_DEPTH[i]
+		var width := (2.0 * BAY_HALF - 0.1) * BAFFLE_WIDTH[i]
+		var at := Vector3(BAFFLES[i], BAY_H - 0.1 - depth / 2.0, BAFFLE_SHIFT[i])
+		block(Vector3(0.012, depth, width), at, scarred, baffles, tip)
+		var lip := block(Vector3(0.014, 0.07, width), at + tip * Vector3(0, -depth / 2.0 + 0.035, 0), stripe, baffles, tip)
+		lip.material_override = stripe
+		collide(Vector3(0.04, depth, width), at, baffles, tip)
+		block(Vector3(0.1, 0.12, width), Vector3(BAFFLES[i] - 0.1, BAY_H - 0.06, BAFFLE_SHIFT[i]), dark, baffles)  # the hanger channel
+		for side in [-1.0, 1.0]:  # its number, stencilled near both ends
+			var mark := _range_label("B%d" % (i + 1), 90, Color(0.92, 0.9, 0.85, 0.85), STENCIL)
+			mark.transform = Transform3D(tip * Basis(Vector3.UP, -PI / 2), at + tip * Vector3(-0.01, 0.05, side * width * 0.38))
+			add(mark, baffles)
+
+	_berm(parent)
+
+	# Tube lights flush on the ceiling between the baffles (Poly Haven "Mounted Fluorescent
+	# Lights"), two tubes end to end per strip, one soft downlight per strip.
+	var tube := _tube_mesh()
+	var edges: Array[float] = [28.3]
+	edges.append_array(BAFFLES)
+	edges.append(BAY_END)
+	for r in edges.size() - 1:
+		var x := (edges[r] + edges[r + 1]) / 2.0
+		for z in [-9.0, -3.0, 3.0, 9.0]:
+			for dz in [-0.46, 0.46]:
+				var m := MeshInstance3D.new()
+				m.mesh = tube
+				m.transform = Transform3D(Basis(Vector3.UP, PI / 2), Vector3(x, BAY_H, z + dz))
+				m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				add(m, ceiling)
+			var light := SpotLight3D.new()
+			light.position = Vector3(x, BAY_H - 0.08, z)
+			light.rotation.x = -PI / 2
+			light.light_color = RANGE_LIGHT
+			light.light_energy = 1.4
+			light.spot_range = 7.0
+			light.spot_attenuation = 0.7
+			light.spot_angle = 70.0
+			light.spot_angle_attenuation = 0.9
+			light.light_volumetric_fog_energy = 0.0
+			add(light, parent)
+	# Floods just inside the mouth, on the far targets' faces.
+	for z in [-8.0, -2.7, 2.7, 8.0]:
+		_flood(parent, Vector3(28.7, BAY_H - 0.25, z), Vector3(37.5, 0.9, z), dark, 7.0, absf(z) < 3.0)
+
+	var probe := ReflectionProbe.new()
+	probe.name = "BayReflections"
+	probe.size = Vector3(BAY_END - 28.0, BAY_H + 0.2, 2.0 * BAY_HALF)
+	probe.position = Vector3((28.0 + BAY_END) / 2.0, BAY_H / 2.0, 0)
+	probe.box_projection = true
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+	add(probe, parent)
+
+
+## The backstop: sand heaped against the bay's back wall, a lumpy slope from BERM_TOE up to
+## BERM_TOP, its toe wandering a little; a convex wedge for the rounds to land in.
+func _berm(parent: Node) -> void:
+	const NX := 28
+	const NZ := 72
+	var noise := FastNoiseLite.new()
+	noise.seed = 3
+	noise.frequency = 0.35
+	noise.fractal_octaves = 4
+	var crest := BAY_END - 0.7
+	var height := func(x: float, z: float) -> float:
+		var toe := BERM_TOE + noise.get_noise_1d(z * 0.6 + 50.0) * 0.6
+		var t := clampf((x - toe) / (crest - toe), 0.0, 1.0)
+		var h := BERM_TOP * t * t * (3.0 - 2.0 * t)  # soft toe, steep face, rounded shoulder
+		return h + noise.get_noise_2d(x * 1.0, z * 1.0) * 0.12 * minf(h * 2.0, 1.0) - 0.03
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var x0 := BERM_TOE - 0.8
+	var at := func(i: int, k: int) -> Vector3:
+		var x := lerpf(x0, BAY_END, float(i) / NX)
+		var z := lerpf(-BAY_HALF, BAY_HALF, float(k) / NZ)
+		return Vector3(x, height.call(x, z), z)
+	for i in NX:
+		for k in NZ:
+			var a: Vector3 = at.call(i, k)
+			var b: Vector3 = at.call(i + 1, k)
+			var c: Vector3 = at.call(i, k + 1)
+			var d: Vector3 = at.call(i + 1, k + 1)
+			for v in [a, d, c, a, b, d]:  # z x x is up: these face the sky (see _stone_block)
+				st.add_vertex(v)
+	st.index()
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.name = "Berm"
+	mi.mesh = st.commit()
+	mi.material_override = pbr_box("sand_01", 1.5, Color(0.92, 0.86, 0.78))
+	var body := StaticBody3D.new()
+	body.name = "Berm"
+	add(body, parent)
+	add(mi, body)
+	var wedge := ConvexPolygonShape3D.new()
+	var pts := PackedVector3Array()
+	for z in [-BAY_HALF, BAY_HALF]:
+		pts.append_array([Vector3(BERM_TOE, 0, z), Vector3(crest, BERM_TOP, z), Vector3(BAY_END, BERM_TOP, z), Vector3(BAY_END, 0, z)])
+	wedge.points = pts
+	var cs := CollisionShape3D.new()
+	cs.shape = wedge
+	add(cs, body)
+
+
+## One tube of Poly Haven's "Mounted Fluorescent Lights" (the set is seven in a row), saved on its
+## own with the glass glowing: the set leaves the emissive factor at zero.
+func _tube_mesh() -> Mesh:
+	var path := MODELS + "mounted_fluorescent_lights/tube.res"
+	var scene: Node = (load(MODELS + "mounted_fluorescent_lights/mounted_fluorescent_lights_1k.gltf") as PackedScene).instantiate()
+	var src := scene.find_child("mounted_fluorescent_lights_d", true, false) as MeshInstance3D
+	var mesh := src.mesh.duplicate() as ArrayMesh
+	for s in mesh.get_surface_count():
+		var m := mesh.surface_get_material(s) as BaseMaterial3D
+		if m and m.resource_name.ends_with("glass"):
+			m = m.duplicate()
+			m.emission_enabled = true
+			m.emission = RANGE_LIGHT
+			m.emission_energy_multiplier = 5.0
+			mesh.surface_set_material(s, m)
+	scene.free()
+	ResourceSaver.save(mesh, path)
+	return load(path)
+
+
+## A slim floodlight at `at` turned on `aim`: housing, cooling fins, glowing lens, a bracket up,
+## and a cool spot (shadowed when `shadow`).
+func _flood(parent: Node, at: Vector3, aim: Vector3, paint: Material, energy: float, shadow: bool, round := false) -> void:
+	var lens := StandardMaterial3D.new()
+	lens.albedo_color = Color.WHITE
+	lens.emission_enabled = true
+	lens.emission = RANGE_LIGHT
+	lens.emission_energy_multiplier = 2.2
+	ResourceSaver.save(lens, "res://materials/env/flood_lens.tres")
+	lens = load("res://materials/env/flood_lens.tres")
+	var rig := Node3D.new()
+	rig.position = at
+	add(rig, parent)
+	block(Vector3(0.05, 0.16, 0.05), Vector3(0, 0.1, 0), paint, rig)  # bracket up to the beam
+	var head := Node3D.new()
+	add(head, rig)
+	head.basis = Basis.looking_at(aim - at, Vector3.UP)
+	if round:  # a PAR can: a short drum with a round lens
+		var along := Basis(Vector3.RIGHT, PI / 2)
+		for part in [[0.13, 0.3, 0.0, paint], [0.115, 0.01, -0.152, lens]]:
+			var m := MeshInstance3D.new()
+			var c := CylinderMesh.new()
+			c.top_radius = part[0]
+			c.bottom_radius = part[0]
+			c.height = part[1]
+			m.mesh = c
+			m.material_override = part[3]
+			m.transform = Transform3D(along, Vector3(0, 0, part[2]))
+			add(m, head)
+	else:
+		block(Vector3(0.36, 0.24, 0.12), Vector3.ZERO, paint, head)
+		for k in 4:
+			block(Vector3(0.34, 0.012, 0.05), Vector3(0, -0.09 + k * 0.06, 0.08), paint, head)
+		var glass := block(Vector3(0.32, 0.2, 0.01), Vector3(0, 0, -0.062), lens, head)
+		glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var spot := SpotLight3D.new()
+	spot.position = Vector3(0, 0, -0.17 if round else -0.08)
+	spot.light_color = RANGE_LIGHT
+	spot.light_energy = energy
+	spot.spot_range = 24.0
+	spot.spot_attenuation = 0.5
+	spot.spot_angle = 30.0 if round else 40.0  # the can throws a tighter pool
+	spot.spot_angle_attenuation = 0.7
+	spot.shadow_enabled = shadow
+	spot.light_volumetric_fog_energy = 0.4  # a faint beam in the haze, like a real range
+	add(spot, head)
+
+
+## The light bridge: a steel beam hung from the trusses over the railing, floods along it aimed at
+## the target faces, a red "range hot" lamp at each end.
+func _light_bridge(parent: Node, dark: Material) -> void:
+	var bx: float = GS.FIRING_LINE_X + 0.8
+	var bridge := Node3D.new()
+	bridge.name = "LightBridge"
+	add(bridge, parent)
+	block(Vector3(0.16, 0.2, 55.4), Vector3(bx, BRIDGE_Y, 0), dark, bridge)
+	var drop := BOTTOM - CHORD - BRIDGE_Y - 0.1
+	for z in BAYS.slice(1, BAYS.size() - 1):
+		block(Vector3(0.03, drop, 0.03), Vector3(bx, BRIDGE_Y + 0.1 + drop / 2.0, z), dark, bridge)
+	# Irregular pairs, a box flood and a round can mixed, aims a little off one another: a rig
+	# that grew over years, not a row of copies.
+	var zs: Array[float] = [-25.2, -21.9, -16.0, -12.1, -6.6, -2.5, 2.9, 7.0, 11.6, 16.2, 21.0, 25.1]
+	for k in zs.size():
+		var z := zs[k]
+		var aim := Vector3(20.5 + 3.0 * fposmod(k * 0.37, 1.0), 0.9, z * 0.85 + (0.8 if k % 2 else -0.8))
+		_flood(bridge, Vector3(bx, BRIDGE_Y - 0.22, z), aim, dark, 5.0, k % 3 == 1, k % 4 == 1 or k % 4 == 2)
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Color(0.6, 0.05, 0.03)
+	red.emission_enabled = true
+	red.emission = Color(1.0, 0.12, 0.06)
+	red.emission_energy_multiplier = 4.0
+	for s in [-1.0, 1.0]:
+		var lamp := MeshInstance3D.new()
+		var dome := SphereMesh.new()
+		dome.radius = 0.08
+		dome.height = 0.12
+		lamp.mesh = dome
+		lamp.material_override = red
+		lamp.position = Vector3(bx, BRIDGE_Y - 0.17, s * 27.2)
+		lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add(lamp, bridge)
+		block(Vector3(0.12, 0.05, 0.12), lamp.position + Vector3(0, 0.08, 0), dark, bridge)
+		var glow := OmniLight3D.new()
+		glow.position = lamp.position + Vector3(0, -0.15, 0)
+		glow.light_color = Color(1.0, 0.15, 0.08)
+		glow.light_energy = 0.8
+		glow.omni_range = 3.5
+		glow.light_volumetric_fog_energy = 0.0
+		add(glow, bridge)
+
+
+## Range paint: yellow and black hazard stripes on the shooters' side of the railing, white
+## distance lines every 5 m past it with the number on the floor, and yellow plaques on the walls.
+func _range_marks(parent: Node) -> void:
+	var fl: float = GS.FIRING_LINE_X
+	var wear := FastNoiseLite.new()
+	wear.seed = 17
+	wear.frequency = 0.03
+	wear.fractal_octaves = 4
+	var hazard := _decal_tex("hazard", 64, 640, func(img: Image) -> void:
+		for y in 640:
+			for x in 64:
+				var band := fposmod((x + y) / 48.0, 1.0) < 0.5
+				var c := Color(0.86, 0.66, 0.08) if band else Color(0.04, 0.04, 0.04)
+				img.set_pixel(x, y, Color(c, 0.92 * smoothstep(-0.45, 0.1, wear.get_noise_2d(x * 2.0, y * 2.0)))))
+	for k in 14:  # 4 m tiles, 0.4 m wide
+		_decal(parent, hazard, Vector3(fl - 0.32, 0, -26.0 + k * 4.0), 0.0, Vector3(0.4, 1.0, 4.0))
+	var white := _decal_tex("line_white", 16, 2048, func(img: Image) -> void:
+		for y in 2048:
+			for x in 16:
+				img.set_pixel(x, y, Color(0.92, 0.92, 0.88, 0.9 * smoothstep(-0.75, -0.2, wear.get_noise_2d(x * 0.5, y * 1.5 + 300.0)))))
+	var yellow := StandardMaterial3D.new()
+	yellow.albedo_color = Color(0.86, 0.66, 0.08)
+	yellow.roughness = 0.6
+	for d in [5, 10, 15, 20, 25]:
+		var x: float = fl + d
+		var half := 27.6 if x < 28.0 else BAY_HALF - 0.05
+		_decal(parent, white, Vector3(x, 0, 0), 0.0, Vector3(0.1, 1.0, 2.0 * half))
+		for s in [-1.0, 1.0]:  # the number on the floor, read from the railing
+			var floor_label := _range_label("%d m" % d, 120, Color(0.92, 0.92, 0.88, 0.85))
+			floor_label.transform = Transform3D(Basis(Vector3.UP, -PI / 2) * Basis(Vector3.RIGHT, -PI / 2), Vector3(x + 0.45, 0.008, s * (half - 1.6)))
+			add(floor_label, parent)
+			# A plaque on the wall at eye height: yellow board, black number.
+			var wall_z: float = s * (27.95 if x < 28.0 else BAY_HALF - 0.035)
+			var turn := Basis(Vector3.UP, PI if s > 0 else 0.0)  # the board's front looks into the room
+			block(Vector3(1.0, 0.5, 0.02), Vector3(x, 1.75, wall_z - s * 0.01), yellow, parent, turn)
+			var plaque := _range_label("%d m" % d, 100, Color(0.05, 0.05, 0.05))
+			plaque.transform = Transform3D(turn, Vector3(x, 1.75, wall_z - s * 0.022))
+			add(plaque, parent)
+
+
+func _range_label(text: String, size: int, colour: Color, font: Font = null) -> Label3D:
+	var l := Label3D.new()
+	l.text = text
+	if font:
+		l.font = font
+	l.font_size = size
+	l.pixel_size = 0.0035
+	l.modulate = colour
+	l.outline_size = 0
+	l.shaded = true
+	l.double_sided = false
+	return l
 
 
 ## Stone stands for the crates: rounded, slightly lumpy cast stone that grows with the crate.
@@ -793,11 +1442,11 @@ func _stone_mat(id: String, tint: Color) -> ShaderMaterial:
 
 
 ## A box with rounded edges and a little noise pushed into its faces, centred on the origin.
-func _stone_block(size: Vector3, noise_seed: int) -> ArrayMesh:
+## `edge` is the edge radius (a mason's chamfer by default, a stuffed sandbag when large) and
+## `bump` how far the faces swell and dip.
+func _stone_block(size: Vector3, noise_seed: int, edge := 0.02, bump := 0.003) -> ArrayMesh:
 	const N := 14  # quads per face edge
-	const R := 0.02  # m, edge radius: a mason's chamfer, not a cushion
-	const BUMP := 0.003  # m, how far the faces swell and dip
-	var r := minf(R, size.y * 0.45)  # a 10 cm block can't take full-size rounding
+	var r := minf(edge, size.y * 0.45)  # a 10 cm block can't take full-size rounding
 	var half := size / 2.0
 	var inner := half - Vector3.ONE * r
 	var noise := FastNoiseLite.new()
@@ -810,7 +1459,7 @@ func _stone_block(size: Vector3, noise_seed: int) -> ArrayMesh:
 		var core := p.clamp(-inner, inner)
 		var n := (p - core).normalized()
 		var v := core + n * r
-		return v + n * noise.get_noise_3dv(v) * BUMP
+		return v + n * noise.get_noise_3dv(v) * bump
 	for axis in 3:
 		for sgn in [-1.0, 1.0]:
 			var nrm := Vector3.ZERO
@@ -834,9 +1483,9 @@ func _stone_block(size: Vector3, noise_seed: int) -> ArrayMesh:
 	return st.commit()
 
 
-func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0) -> void:
+func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0, tilt := Basis()) -> StaticBody3D:
 	var body := StaticBody3D.new()
-	body.transform = Transform3D(Basis(Vector3.UP, yaw).scaled(Vector3.ONE * s), pos)
+	body.transform = Transform3D((Basis(Vector3.UP, yaw) * tilt).scaled(Vector3.ONE * s), pos)
 	add(body, parent)
 	var inst: Node3D = (load(path) as PackedScene).instantiate()
 	add(inst, body)
@@ -847,6 +1496,7 @@ func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0) -> vo
 	cs.shape = box
 	cs.position = b.get_center()
 	add(cs, body)
+	return body
 
 
 func _aabb(n: Node, xf: Transform3D) -> AABB:
@@ -893,15 +1543,17 @@ func _markings() -> void:
 					a = 0.8
 				if a > 0.0:
 					img.set_pixel(x, y, Color(paint, a * worn.call(x * 1.0, y * 1.0))))
-	_decal(marks, ring, Vector3.ZERO, 0.0, Vector3(ring_m, 1.0, ring_m))
+	_decal(marks, ring, HEAP, 0.0, Vector3(ring_m, 1.0, ring_m))
 
 	var line := _decal_tex("line", 16, 2048, func(img: Image) -> void:
 		for y in 2048:
 			for x in 16:
 				img.set_pixel(x, y, Color(paint, worn.call(x * 0.5, y * 1.5))))
-	for side in 4:  # walkways 1.8 m in from each wall
+	for side: int in [0, 2, 3]:  # walkways 1.8 m in from each wall; north and south stop short of the range
 		var yaw := side * PI / 2.0
-		_decal(marks, line, Basis(Vector3.UP, yaw) * Vector3(0, 0, 25.9), yaw + PI / 2.0, Vector3(0.1, 1.0, 50.0))
+		var along := 0.0 if side == 3 else -6.0
+		var at := Basis(Vector3.UP, yaw) * Vector3(0, 0, 25.9) + Vector3(along, 0, 0)
+		_decal(marks, line, at, yaw + PI / 2.0, Vector3(0.1, 1.0, 50.0 if side == 3 else 38.0))
 
 	var box := _decal_tex("spawn_box", 256, 256, func(img: Image) -> void:
 		for y in 256:
@@ -932,17 +1584,17 @@ func _markings() -> void:
 	var placed := 0
 	while placed < 14:
 		var p := Vector3(rng.randf_range(-25, 25), 0, rng.randf_range(-25, 25))
-		if p.length() < 12.0:
-			continue  # under or next to the heap
+		if p.distance_to(HEAP) < 12.0 or p.x > GS.FIRING_LINE_X - 1.5:
+			continue  # under or next to the heap, or on the range's rubber
 		var s := rng.randf_range(0.8, 2.6)
 		_decal(marks, stain, p, rng.randf() * TAU, Vector3(s, 1.0, s * rng.randf_range(0.6, 1.0)))
 		placed += 1
-	_decal(marks, stain, Vector3(13.8, 0, 14.4), 0.4, Vector3(3.2, 1.0, 2.4))  # by the wet floor sign
+	_decal(marks, stain, Vector3(-14.1, 0, -24.6), 0.4, Vector3(3.2, 1.0, 2.4))  # by the wet floor sign
 	# Big faint wear patches: break up the floor scan's repeat at a scale it never tiles at.
 	placed = 0
 	while placed < 18:
 		var p := Vector3(rng.randf_range(-26, 26), 0, rng.randf_range(-26, 26))
-		if p.length() < 11.0:
+		if p.distance_to(HEAP) < 11.0 or p.x > GS.FIRING_LINE_X - 3.0:
 			continue
 		var s := rng.randf_range(4.0, 9.0)
 		var d := _decal(marks, stain, p, rng.randf() * TAU, Vector3(s, 1.0, s * rng.randf_range(0.5, 1.0)))
@@ -982,6 +1634,8 @@ func _wall_grime(parent: Node, rng: RandomNumberGenerator) -> void:
 				continue
 			var along := -26.0 + 4.0 * i + rng.randf_range(-1.2, 1.2)
 			var h := rng.randf_range(1.6, 3.6)
+			if side == 1 and absf(along) < BAY_HALF + 1.6:
+				continue  # the east wall is open over the range bay
 			var d := Decal.new()
 			d.texture_albedo = streak
 			d.size = Vector3(rng.randf_range(1.2, 3.2), 0.6, h)
@@ -989,12 +1643,13 @@ func _wall_grime(parent: Node, rng: RandomNumberGenerator) -> void:
 			d.modulate = Color(1, 1, 1, rng.randf_range(0.5, 1.0))
 			d.cull_mask = 1
 			add(d, parent)
-		var f := Decal.new()
-		f.texture_albedo = foot
-		f.size = Vector3(56.0, 0.6, 0.9)
-		f.transform = Transform3D(into, face + Vector3(0, 0.45, 0))
-		f.cull_mask = 1
-		add(f, parent)
+		for run in ([[-20.0, 16.0], [20.0, 16.0]] if side == 1 else [[0.0, 56.0]]):
+			var f := Decal.new()
+			f.texture_albedo = foot
+			f.size = Vector3(run[1], 0.6, 0.9)
+			f.transform = Transform3D(into, face + b * Vector3(run[0], 0, 0) + Vector3(0, 0.45, 0))
+			f.cull_mask = 1
+			add(f, parent)
 
 
 func _decal(parent: Node, tex: Texture2D, pos: Vector3, yaw: float, size: Vector3) -> Decal:

@@ -19,6 +19,14 @@ const GEAR_INFO := {  # one line on what it is, gold per hit, difficulty 1-5 (na
 	"steel_rack": ["Küçük plakalar, sabit el ister.", 4, 3],
 	"plate_rack": ["Plaka kalkar, kaçmadan vur. Refleks işi.", 7, 4],
 	"texas_star": ["Hızlı döner. Yalnız gerçek nişancılar için.", 12, 5],
+	"convoy": ["Üç popper arka arkaya. Öndekini devir, arkadaki açılsın.", 3, 2],
+	"barrel": ["Vurunca patlar; çevresindeki her hedef de öder. Ortaya koy.", 5, 2],
+	"scarecrow": ["Vurunca tutuşur, yanarken saniyede $1 akıtır.", 1, 1],
+	"armored_dummy": ["10 isabetlik zırh para vermez; kıran ×10 alır.", 10, 3],
+	"pendulum": ["Sallanır. Dipte vurana $8, uçta $2.", 8, 4],
+	"twin_gong": ["İki gong aynı anda vurulursa ikisi de ×5. İki kişilik.", 2, 4],
+	"gold_dummy": ["Ara sıra çıkar, kaçar. Vuruş başına $10.", 10, 4],
+	"ricochet": ["Plakaya vur, mermi duvarın arkasındaki poppera seksin: ×3.", 9, 5],
 }
 const DIFFICULTY := [Color(0.35, 0.9, 0.45), Color(0.6, 0.9, 0.35), Color(1.0, 0.8, 0.3), Color(1.0, 0.55, 0.25), Color(1.0, 0.32, 0.3)]
 const BG := Color(0.07, 0.08, 0.1, 0.97)
@@ -99,7 +107,8 @@ func _input(event: InputEvent) -> void:
 
 func toggle() -> void:
 	visible = not visible
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible else Input.MOUSE_MODE_CAPTURED
+	# The placement overview keeps its cursor when the workshop closes over it.
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or GameState.player().placing else Input.MOUSE_MODE_CAPTURED
 	if visible:
 		_show_tab(_tab)
 

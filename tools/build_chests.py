@@ -1,89 +1,129 @@
 # Blender (5.x, background): the crates on the chest stands, from Sketchfab downloads (credits in
-# docs/ayrintilar.md), cut down for a game: every part baked and joined into one mesh, decimated to
-# a triangle budget, textures shrunk, the long side along X and the front (lock side) toward glTF +Z,
-# centred with its bottom on the origin and scaled to 1 m wide. The game sizes each one by its level
+# docs/ayrintilar.md), made ready for a game: every part baked and joined into one mesh (no welding:
+# the split normals stay), decimated only past a triangle budget, textures kept up to 4K in their own
+# format, the long side along X and the front (lock side) toward glTF +Z, centred with its bottom on the origin and scaled to 1 m wide. The game sizes each one by its level
 # (scripts/chests.gd), so the reward grows down the row. A preview of each, seen from the front, goes
 # next to it (<name>_front.png) to check the turn.
 # Run: blender -b --factory-startup -P tools/build_chests.py -- <downloads dir> <out_dir>
 #   <downloads dir> holds chest<level>.glb as Sketchfab's "glb" download.
-import bpy, bmesh, math, os, sys
-from mathutils import Vector, Matrix
+import bpy, math, os, sys
+from mathutils import Euler, Vector, Matrix
 
 SRC, OUT = sys.argv[sys.argv.index("--") + 1:][:2]
 os.makedirs(OUT, exist_ok=True)
 
-TEX = 2048     # largest texture side kept
+TEX = 4096     # largest texture side kept: the crates are the reward, seen up close
 BUDGET = 40000  # triangles
 # level: extra turn about the up axis (degrees) after the long side is laid along X, so the
 # front faces +Z; read off the previews.
 TURN = {1: 180, 2: 180, 3: 180, 6: 180}
 # level: materials of what came with the model but is not the chest (a sand dune, a book; steam cards).
-DROP = {4: {"sand"}, 7: {"Props", "Steam"}}
-# Sat tilted on its dune: stood up along its own principal axes.
-LEVEL = {4}
+DROP = {4: {"sand"}, 7: {"Props", "Steam"}}  # 7 keeps the gold spilled at its feet
+# Sat tilted 19° on its dune: the chest's own turn is dropped, glTF's Y-up turn kept.
+UPRIGHT = {4}
+# The model holds two chests, the other with its lid open; only the closed one (x > 400) is kept.
+KEEP_X = {2: 400.0}
+# Modelled with the lid thrown open (its thumbnail too): the lid is swung shut about its hinge.
+CLOSE = {5}
 
 
-def keep_main(o, PAD):
-    # What lies outside the biggest part's footprint is not the chest: a second chest beside it
-    # (level 2), coins spilled in front (level 7). Sketchfab exports are triangle soup: welded
-    # first, or the biggest "part" is one plank.
+def close_lid(o):
+    # The lid is the mesh's highest island. Islands are found on a welded copy (the mesh itself
+    # stays unwelded, its normals as made) and mapped back by position; the lid is split off, turned
+    # about the hinge (its back bottom edge) to where it sits flattest on the box, and joined again.
+    import bmesh
+    from mathutils.kdtree import KDTree
     bm = bmesh.new()
     bm.from_mesh(o.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=max(o.dimensions) * 1e-4)
-    bm.to_mesh(o.data)
+    bm.verts.index_update()
+    bm.faces.index_update()
+    island, n = {}, 0
+    for f in bm.faces:
+        if f.index in island:
+            continue
+        stack = [f]
+        island[f.index] = n
+        while stack:
+            for e in stack.pop().edges:
+                for g in e.link_faces:
+                    if g.index not in island:
+                        island[g.index] = n
+                        stack.append(g)
+        n += 1
+    kd = KDTree(len(bm.verts))
+    vert_island = {}
+    for v in bm.verts:
+        kd.insert(v.co, v.index)
+        if v.link_faces:
+            vert_island[v.index] = island[v.link_faces[0].index]
+    kd.balance()
+    top = {}
+    for v in bm.verts:
+        if v.index in vert_island:
+            i = vert_island[v.index]
+            top[i] = max(top.get(i, -1e9), v.co.z)
+    lid = max(top, key=top.get)
     bm.free()
+    me = o.data
+    for v in me.vertices:  # the import leaves everything selected
+        v.select = False
+    for e in me.edges:
+        e.select = False
+    for p in me.polygons:
+        _, idx, _ = kd.find(me.vertices[p.vertices[0]].co)
+        p.select = vert_island.get(idx) == lid
+        if p.select:
+            for i in p.vertices:
+                me.vertices[i].select = True
     bpy.ops.object.select_all(action="DESELECT")
     o.select_set(True)
     bpy.context.view_layer.objects.active = o
     bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.mesh.separate(type="LOOSE")
+    bpy.ops.mesh.select_mode(use_extend=False, type="FACE")
+    bpy.ops.mesh.separate(type="SELECTED")
     bpy.ops.object.mode_set(mode="OBJECT")
-    parts = [p for p in bpy.context.scene.objects if p.type == "MESH"]
-    box = {p: bounds(p) for p in parts}
-    vol = lambda p: (box[p][1] - box[p][0]).x * (box[p][1] - box[p][0]).y * (box[p][1] - box[p][0]).z
-    lo, hi = box[max(parts, key=vol)]
-    pad = (hi - lo) * PAD
-    keep = []
-    for p in parts:
-        c = (box[p][0] + box[p][1]) / 2
-        if lo.x - pad.x <= c.x <= hi.x + pad.x and lo.y - pad.y <= c.y <= hi.y + pad.y:
-            keep.append(p)
-        else:
-            bpy.data.objects.remove(p)
-    print("  kept %d of %d parts" % (len(keep), len(parts)))
+    cap = [p for p in bpy.context.selected_objects if p != o][0]
+    box_top = max(v.co.z for v in o.data.vertices)
+    vs = [v.co.copy() for v in cap.data.vertices]
+    low = min(v.z for v in vs)
+    hinge = max((v for v in vs if v.z < low + 0.05), key=lambda v: abs(v.y))  # back, at the bottom
+    best = None
+    for deg in range(-150, 151):
+        r = Matrix.Translation(hinge) @ Matrix.Rotation(math.radians(deg), 4, "X") @ Matrix.Translation(-hinge)
+        z = [(r @ v).z for v in vs]
+        if min(z) < box_top - 0.04 * (max(z) - min(z) + 1e-6) - 0.01:
+            continue  # would sink into the box
+        if best is None or max(z) - min(z) < best[0]:
+            best = (max(z) - min(z), r, deg)
+    print("  lid shut by %d degrees" % best[2])
+    cap.data.transform(best[1])
     bpy.ops.object.select_all(action="DESELECT")
-    for p in keep:
-        p.select_set(True)
-    bpy.context.view_layer.objects.active = keep[0]
-    if len(keep) > 1:
-        bpy.ops.object.join()
-    return bpy.context.view_layer.objects.active
+    o.select_set(True)
+    cap.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.join()
+    return o
 
 
-def level_out(o):
-    # The box's edges are its principal axes; turn them onto X, Y, Z, the one nearest up kept up.
-    import numpy as np
-    vs = np.array([v.co[:] for v in o.data.vertices])
-    vs = vs - vs.mean(axis=0)
-    _, vec = np.linalg.eigh(vs.T @ vs)
-    up = int(np.argmax(np.abs(vec[2])))
-    rest = [i for i in range(3) if i != up]
-    axes = [vec[:, rest[0]], vec[:, rest[1]], vec[:, up] * np.sign(vec[2, up])]
-    axes[1] = np.cross(axes[2], axes[0])
-    o.data.transform(Matrix([list(a) for a in axes]).to_4x4())
-
-
-def load(path, drop=()):
+def load(path, level):
+    # No welding or splitting: the modellers' split normals (hard edges) stay as they made them.
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=path)
     for o in list(bpy.context.scene.objects):
-        if o.type == "MESH" and any(m and m.name in drop for m in o.data.materials):
+        if o.type != "MESH":
+            continue
+        c = sum((o.matrix_world @ Vector(v) for v in o.bound_box), Vector()) / 8
+        if any(m and m.name in DROP.get(level, ()) for m in o.data.materials) or (level in KEEP_X and c.x < KEEP_X[level]):
             bpy.data.objects.remove(o)
     meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
     for o in meshes:  # bake the Sketchfab node chain into the mesh, drop the empties
         o.data = o.data.copy()
-        o.data.transform(o.matrix_world)
+        m = o.matrix_world
+        if level in UPRIGHT:  # as the dune lies: glTF's Y-up turn only
+            loc, _, scale = m.decompose()
+            m = Matrix.LocRotScale(loc, Euler((math.radians(-90), 0.0, 0.0)), scale)
+        o.data.transform(m)
         o.parent = None
         o.matrix_world = Matrix.Identity(4)
     for o in list(bpy.context.scene.objects):
@@ -127,9 +167,9 @@ def preview(o, path):
 
 for name in sorted(f for f in os.listdir(SRC) if f.startswith("chest") and f.endswith(".glb")):
     level = int(name[5:-4])
-    o = keep_main(load(os.path.join(SRC, name), DROP.get(level, ())), 0.02 if level == 7 else 0.1)  # 7's coins lie right at its feet
-    if level in LEVEL:
-        level_out(o)
+    o = load(os.path.join(SRC, name), level)
+    if level in CLOSE:
+        o = close_lid(o)
     tris = sum(len(p.vertices) - 2 for p in o.data.polygons)
     if tris > BUDGET:
         m = o.modifiers.new("decimate", "DECIMATE")
@@ -150,6 +190,8 @@ for name in sorted(f for f in os.listdir(SRC) if f.startswith("chest") and f.end
             img.scale(int(img.size[0] * k), int(img.size[1] * k))
     lo, hi = bounds(o)
     print("level %d: %d tris, %.2f x %.2f x %.2f (w x h x d)" % (level, sum(len(p.vertices) - 2 for p in o.data.polygons), hi.x - lo.x, hi.z - lo.z, hi.y - lo.y))
-    out = os.path.join(OUT, "chest_%02d.glb" % level)
-    bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_animations=False, export_image_format="JPEG", export_jpeg_quality=90)
+    # .gltf with its textures beside it: Godot extracts a .glb's textures into files anyway, so a
+    # .glb would carry every 4K map twice.
+    out = os.path.join(OUT, "chest_%02d.gltf" % level)
+    bpy.ops.export_scene.gltf(filepath=out, export_format="GLTF_SEPARATE", export_texture_dir="chest_%02d" % level, export_animations=False, export_image_format="AUTO")
     preview(o, os.path.join(OUT, "chest_%02d_%%s.png" % level))

@@ -36,6 +36,7 @@ var _trails: Array[MeshInstance3D] = []
 var _trail_life: Array[float] = []
 var _next_trail := 0
 var _shot_from := {}  # peer -> where its last shot started (fired comes just before shot_landed)
+var _bounced := {}  # peer -> true while its round flies on off a ricochet plate
 var _shot_sounds := {}  # peer -> AudioStreamPlayer3D for other players' shots
 # A few drawn variants of each mark, picked at random and spun, so no two look alike.
 var _concrete_tex: Array[Texture2D] = _marks(MARK_CONCRETE)
@@ -123,11 +124,17 @@ func _on_fired(peer: int, from: Vector3, dir: Vector3) -> void:
 func _on_shot_landed(peer: int, at: Vector3, normal: Vector3, dir: Vector3, target: Node, _gold: int, _weak: bool, _combo: int) -> void:
 	if _shot_from.has(peer):
 		var gun := get_tree().get_first_node_in_group("first_person_gun")
-		var from: Vector3 = gun.muzzle_position() + dir * 0.05 if gun and peer == GameState.local_peer() else _shot_from[peer]
+		var bounced := _bounced.has(peer)
+		var from: Vector3 = gun.muzzle_position() + dir * 0.05 if gun and peer == GameState.local_peer() and not bounced else _shot_from[peer]
 		_trail(from, at)
+		_bounced.erase(peer)
+		if target and target.is_in_group("ricochet"):  # the round flies on from here
+			_shot_from[peer] = at
+			_bounced[peer] = true
 	if target == null:
 		return  # into the sky
-	var soft := target.has_method("cloth_hit")
+	# Armour (group "steel") on a cloth dummy sparks like steel.
+	var soft := target.has_method("cloth_hit") and not target.is_in_group("steel")
 	var steel := target.is_in_group("steel")
 	if soft:  # snap from the coarse hit box onto the cloth itself
 		var cloth: Array = target.cloth_hit(at, dir)

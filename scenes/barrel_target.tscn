@@ -1,0 +1,19 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/barrel_target.gd" id="1"]
+[ext_resource type="PackedScene" path="res://assets/props/barrel/barrel.gltf" id="2"]
+[ext_resource type="AudioStreamRandomizer" path="res://assets/props/steel_targets/sounds/heavy.tres" id="3"]
+
+[sub_resource type="CylinderShape3D" id="drum"]
+height = 0.88
+radius = 0.245
+
+[node name="Barrel" type="StaticBody3D"]
+script = ExtResource("1")
+hit_sound = ExtResource("3")
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="Shape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+shape = SubResource("drum")

@@ -1,0 +1,178 @@
+extends SceneTree
+## Headless check for special rounds (GameState.SPECIALS): the odds, the pocket, arming one with
+## V and the shot that spends it:
+##   Godot.exe --headless --path . -s res://tools/specials_check.gd
+
+
+func _initialize() -> void:
+	root.add_child(load("res://scenes/main.tscn").instantiate())
+	for i in 3:
+		await physics_frame
+	var gs: Node = root.get_node("GameState")
+	var p = gs.player()
+	for id: String in gs.SPECIALS:
+		assert(ResourceLoader.exists(gs.SPECIALS[id].tip), "%s has its tip model" % id)
+	# Odds: a million bullets rolled, each special near 1 in its chance.
+	seed(7)
+	var n := 1_000_000
+	var got_all: int = gs._roll_specials(0, n)
+	var total := 0.0
+	for id: String in gs.SPECIALS:
+		var want: float = n / float(gs.SPECIALS[id].chance)
+		var got: int = p.specials.count(id)
+		total += want
+		assert(absf(got - want) < want * 0.1, "%s: %d, want ~%d" % [id, got, want])
+		print("%s 1/%d: %d of %d" % [id, gs.SPECIALS[id].chance, got, n])
+	assert(got_all == p.specials.size(), "returns how many went in the pocket")
+	print("one special every %.0f bullets" % (n / total))
+	# A pickup: specials go in the pocket, the rest in the hand; together what came off the heap.
+	p.specials.clear()
+	p.levels["carry"] = 9
+	p.levels["magazine"] = 6
+	seed(3)
+	var pile_before: int = gs.pile
+	var hand := 0
+	for i in 40:
+		gs._set_carried(0, 0)
+		gs.request_pick_up(Vector3.ZERO)
+		hand += p.carried
+	assert(pile_before - gs.pile == 400 and hand + p.specials.size() == 400, "every bullet off the heap is in hand or pocket")
+	print("400 picked up: %d specials" % p.specials.size())
+	# Arming: only what is in the pocket; the same again disarms.
+	p.specials.assign(["punch", "balloon"])
+	gs.request_arm_special("scream")
+	assert(p.armed == "", "can't arm what we haven't got")
+	gs.request_arm_special("balloon")
+	assert(p.armed == "balloon")
+	gs.request_arm_special("balloon")
+	assert(p.armed == "", "armed again: disarmed")
+	# The armed round fires instead of a magazine round, even with the magazine empty.
+	var shots := []
+	gs.player_shot.connect(func(_s: int, _v: int, _a: Vector3, _d: Vector3, sp: String) -> void: shots.append(sp))
+	gs.request_select_gun(1)
+	gs._set_loaded(0, 0)
+	assert(not gs.request_fire(Vector3(0, 50, 0), Vector3.UP), "empty and nothing armed: no shot")
+	gs.request_arm_special("punch")
+	p.cooldown = 0.0
+	assert(gs.request_fire(Vector3(0, 50, 0), Vector3.UP), "the armed special fires from an empty gun")
+	assert(p.specials == ["balloon"] and p.armed == "" and p.loaded == 0, "spent, magazine untouched")
+	# A plain shot leaves the pocket alone.
+	gs._set_loaded(0, 2)
+	p.cooldown = 0.0
+	gs.request_fire(Vector3(0, 50, 0), Vector3.UP)
+	assert(p.loaded == 1 and p.specials == ["balloon"], "plain round from the magazine")
+	# What a special does to the player it hits (their own machine plays it).
+	var me: CharacterBody3D = get_first_node_in_group("walker")
+	var vm_cam: Camera3D = me.get_node("ViewmodelView/SubViewport/Camera")
+	var start := me.global_position
+	me._hit_by_special("punch", Vector3(0, 0, 1))
+	var top := 0.0
+	var fast := 0.0
+	for i in 60:
+		await physics_frame
+		top = maxf(top, me.global_position.y - start.y)
+		if i == 30:  # mid-flight, before a wall can stop it
+			fast = me._shove.length()
+	print("punch: %.1f m/s half a second in, %.1f m up, ended %.1f m away" % [fast, top, me.global_position.distance_to(start)])
+	assert(fast > 12.0 and top > 1.2, "punch throws us far and high")
+	assert(me._dizzy > 0.0, "and leaves us dizzy")
+	for i in 90:
+		await physics_frame
+	# Hit again and again, in the air too, toward a wall: never out of the hall, never over the
+	# railing or the roof beams (it used to stack up and fly over the 4 m walls).
+	for hit in 8:
+		me._hit_by_special("punch", Vector3(-1, 0, 0) if hit % 2 else Vector3(0, 0, -1))
+		for i in 12:
+			await physics_frame
+			var at: Vector3 = me.global_position
+			assert(absf(at.x) <= me.HALL_IN + 0.01 and absf(at.z) <= me.HALL_IN + 0.01 and at.y <= me.ROOF_IN + 0.01 and at.x <= gs.FIRING_LINE_X, "stays in the hall: %s" % at)
+	for i in 600:  # down, and dizzy no more
+		await physics_frame
+		if me.is_on_floor() and me._dizzy == 0.0:
+			break
+	assert(absf(me._camera.rotation.z) < 0.05, "the view rights itself")
+	start = me.global_position
+	me._hit_by_special("balloon", Vector3.FORWARD)
+	for i in 180:
+		await physics_frame
+	var risen := me.global_position.y - start.y
+	for i in 90:  # past the top
+		await physics_frame
+	var fall := 0.0
+	for i in 30:
+		var y := me.global_position.y
+		await physics_frame
+		fall = maxf(fall, (y - me.global_position.y) * 60.0)
+	print("balloon: up %.1f m, coming down at %.1f m/s" % [risen, fall])
+	assert(risen > 2.5 and fall <= 1.1, "balloon lifts, then drifts down slowly")
+	var before := vm_cam.get_child_count()
+	me._hit_by_special("scream", Vector3.FORWARD)
+	assert(vm_cam.get_child_count() == before + 1, "the face is in front of the camera")
+	assert(me._special_sound.playing and me._special_sound.stream.resource_path.ends_with("scream.wav"), "with the scream")
+	for i in 80:
+		await physics_frame
+	assert(vm_cam.get_child_count() == before, "and gone after the scare")
+	# The test area (N): a stand-in teammate we shoot, who can shoot us.
+	for i in 600:  # back on the floor (the balloon takes ~8 s)
+		await physics_frame
+		if me.is_on_floor():
+			break
+	me._toggle_demo(true)
+	var demo: Node = me.get_parent().get_node("SpecialDemo")
+	assert(p.specials.size() == gs.SPECIALS.size() * demo.EACH, "pocket full of every special")
+	for i in 60:  # it drops onto the floor, and is drawn there
+		await physics_frame
+	var others: Node = get_first_node_in_group("remote_players")
+	var mate: Node3D = others.character(demo.PEER)
+	assert(mate != null and mate.visible, "the stand-in is drawn like a teammate")
+	var aim := func() -> Vector3:
+		return (mate.global_position + Vector3.UP * 1.0 - (me.global_position + Vector3.UP * 1.6)).normalized()
+	var mate_start: Vector3 = demo._body.global_position
+	gs.request_arm_special("punch")
+	p.cooldown = 0.0
+	assert(gs.request_fire(me.global_position + Vector3.UP * 1.6, aim.call()), "fires at the stand-in")
+	for i in 30:
+		await physics_frame
+	print("stand-in punched: %.1f m/s, %.1f m up" % [demo._shove.length(), demo._body.global_position.y - mate_start.y])
+	assert(demo._shove.length() > 10.0, "our punch round throws the stand-in")
+	for i in 150:
+		await physics_frame
+	demo._body.global_position = mate_start  # back in front of us
+	for i in 20:
+		await physics_frame
+	gs.request_arm_special("balloon")
+	p.cooldown = 0.0
+	gs.request_fire(me.global_position + Vector3.UP * 1.6, aim.call())
+	await physics_frame
+	assert(mate.get_node_or_null("Balloons") != null and demo._balloon > 0.0, "the stand-in goes up under balloons")
+	var y0 := me.global_position.y
+	gs.request_arm_special("balloon")
+	demo.shoot_us()
+	for i in 60:
+		await physics_frame
+	assert(me.global_position.y - y0 > 0.5 and p.specials.count("balloon") == demo.EACH - 1, "J: its balloon round lifts us; ours is not spent")
+	var mate_peer: int = demo.PEER
+	me._toggle_demo(false)
+	await process_frame
+	assert(others.character(mate_peer) == null, "closing it takes the stand-in away")
+	# The ammo wheel (hold R): plain round first, then each kind in the pocket; sideways picks,
+	# letting go loads it as the next shot. A new special brings up its note.
+	var wheel: Control = me._wheel
+	p.specials.clear()
+	gs.specials_changed.emit()
+	p.specials.assign(["scream", "punch"])
+	p.armed = ""
+	gs.specials_changed.emit()
+	assert(is_instance_valid(wheel._note), "a new special: its note comes up")
+	wheel.open()
+	assert(wheel._ids == ["", "punch", "scream"], "plain, then the pocket's kinds: %s" % [wheel._ids])
+	wheel.steer(wheel.PICK_STEP * 2.0)
+	wheel.close()
+	assert(p.armed == "scream" and not wheel.is_open, "let go: the picked one is the next shot")
+	wheel.open()
+	assert(wheel._pick == 2, "opens on the loaded one")
+	wheel.steer(-wheel.PICK_STEP * 5.0)
+	wheel.close()
+	assert(p.armed == "", "the plain round takes it back out")
+	print("specials check passed")
+	quit()

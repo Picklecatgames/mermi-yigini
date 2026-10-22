@@ -1,7 +1,7 @@
 extends SceneTree
 ## Renders main.tscn from fixed cameras and saves PNGs, for checking visuals without playing.
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/shot.gd
-## Add `-- --dig` to drain 3M bullets from one spot on the heap first.
+## Add `-- --dig` to drain 3M bullets from one spot on the heap first; name shots after `--` to take only those.
 
 const SHOTS := {
 	"far": [Vector3(0, 1.6, 15), Vector3(0, 2.0, 0)],
@@ -11,6 +11,16 @@ const SHOTS := {
 	"toe": [Vector3(0.5, 1.0, 10.2), Vector3(0, 0.0, 8.3)],
 	"floor": [Vector3(0, 1.6, 22), Vector3(10, 0, 12)],
 	"dig": [Vector3(9.5, 4.0, 4.0), Vector3(4.0, 1.5, 0.0)],
+	"range": [Vector3(9.0, 1.6, 7.0), Vector3(26.0, 1.2, -1.0)],
+	"bay": [Vector3(25.0, 1.6, 2.0), Vector3(44.0, 1.0, 0.0)],
+	"place": [Vector3(12.0, 4.6, 9.0), Vector3(26.0, 0.0, 0.0)],
+	"wall": [Vector3(16.0, 1.6, 10.0), Vector3(22.0, 1.5, 27.9)],
+	"north": [Vector3(17.0, 1.7, -18.0), Vector3(22.0, 1.2, -27.9)],
+	"crew": [Vector3(6.0, 1.7, 20.0), Vector3(11.0, 1.4, 27.9)],
+	"gear": [Vector3(7.0, 1.7, -20.0), Vector3(11.0, 1.5, -27.9)],
+	"mouth": [Vector3(13.0, 2.2, 0.0), Vector3(28.0, 3.6, 0.0)],
+	"site_n": [Vector3(-3.0, 1.6, -7.0), Vector3(-12.0, 0.4, -14.0)],
+	"site_s": [Vector3(-3.0, 1.6, 7.0), Vector3(-12.0, 0.4, 14.0)],
 }
 
 
@@ -30,7 +40,8 @@ func _initialize() -> void:
 			await physics_frame
 		for i in 400:
 			await physics_frame
-	for shot_name in SHOTS:
+	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return SHOTS.has(a))
+	for shot_name in (only if not only.is_empty() else SHOTS.keys()):
 		cam.look_at_from_position(SHOTS[shot_name][0], SHOTS[shot_name][1])
 		for f in 30:  # let TAA settle
 			await process_frame

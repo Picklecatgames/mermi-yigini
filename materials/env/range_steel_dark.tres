@@ -1,0 +1,15 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_diff_2k.jpg" id="1_kcbkd"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_nor_gl_2k.jpg" id="2_wuwwr"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_arm_2k.jpg" id="3_gueid"]
+
+[resource]
+albedo_color = Color(0.1, 0.1, 0.11, 1)
+albedo_texture = ExtResource("1_kcbkd")
+orm_texture = ExtResource("3_gueid")
+normal_enabled = true
+normal_texture = ExtResource("2_wuwwr")
+uv1_triplanar = true
+uv1_world_triplanar = true
+texture_filter = 5

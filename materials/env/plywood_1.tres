@@ -1,0 +1,16 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/plywood/plywood_diff_2k.jpg" id="1_rrdb0"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/plywood/plywood_nor_gl_2k.jpg" id="2_fqxr4"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/plywood/plywood_arm_2k.jpg" id="3_85i6a"]
+
+[resource]
+albedo_color = Color(0.84, 0.79, 0.73, 1)
+albedo_texture = ExtResource("1_rrdb0")
+orm_texture = ExtResource("3_85i6a")
+normal_enabled = true
+normal_texture = ExtResource("2_fqxr4")
+uv1_scale = Vector3(0.9090909, 0.9090909, 0.9090909)
+uv1_offset = Vector3(0.37, 0.61, 0.13)
+uv1_triplanar = true
+texture_filter = 5

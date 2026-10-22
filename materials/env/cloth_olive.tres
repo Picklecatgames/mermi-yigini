@@ -1,0 +1,39 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://materials/env/worn_surface.gdshader" id="1_rhkn7"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/sand_01/sand_01_diff_2k.jpg" id="2_n2q3f"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/sand_01/sand_01_arm_2k.jpg" id="3_irioo"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/sand_01/sand_01_nor_gl_2k.jpg" id="4_ueufm"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_je8ga"]
+seed = 63645
+frequency = 0.02
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_35s3v"]
+noise = SubResource("FastNoiseLite_je8ga")
+seamless = true
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_rhkn7")
+shader_parameter/albedo_tex = ExtResource("2_n2q3f")
+shader_parameter/normal_tex = ExtResource("4_ueufm")
+shader_parameter/arm_tex = ExtResource("3_irioo")
+shader_parameter/grime_tex = SubResource("NoiseTexture2D_35s3v")
+shader_parameter/tint = Color(0.5, 0.56, 0.36, 1)
+shader_parameter/brightness = null
+shader_parameter/mesh_uv = null
+shader_parameter/uv_scale = null
+shader_parameter/tex_size = 0.5
+shader_parameter/cell_size = 0.5
+shader_parameter/turn_cells = null
+shader_parameter/cell_tone = null
+shader_parameter/odd_cells = null
+shader_parameter/antitile = null
+shader_parameter/grime_color = null
+shader_parameter/grime = 0.4
+shader_parameter/grime_scale = 0.8
+shader_parameter/rust_color = null
+shader_parameter/rust = null
+shader_parameter/wear_x = null
+shader_parameter/wear_width = null

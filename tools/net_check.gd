@@ -18,8 +18,10 @@ const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the w
 const LOG := "user://net_check_client.log"
 const WORLD := "user://net_check_client.json"  # what the client saw of the shared world
 ## The host digs these [at, rounds] as the client joins, near the heap's top, clear of the keys.
-const DIGS := [[Vector3(1.0, 0, 0.5), 3000], [Vector3(-0.8, 0, -1.2), 5000], [Vector3(0.3, 0, 1.6), 2000]]
+const HEAP := Vector3(-9, 0, 0)  # scenes/main.tscn Pile
+const DIGS := [[HEAP + Vector3(1.0, 0, 0.5), 3000], [HEAP + Vector3(-0.8, 0, -1.2), 5000], [HEAP + Vector3(0.3, 0, 1.6), 2000]]
 const DUG := 10_000
+const CROW_AT := Vector3(18, 0, -20)  # a scarecrow the client lights; the host pays it while it burns
 const STAR_EVERY := 0.1  # s between Texas Star samples
 
 var gs: Node
@@ -34,6 +36,11 @@ var _star_t := 0.0
 func _initialize() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
 	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets; the game starts with one dummy
+	var crow: Node3D = load("res://scenes/scarecrow.tscn").instantiate()  # pays the client while it burns
+	crow.name = "Scarecrow"
+	crow.position = CROW_AT
+	crow.rotation.y = -PI / 2
+	main.add_child(crow)
 	root.add_child(main)
 	gs = root.get_node("GameState")
 	net = root.get_node("Net")
@@ -65,20 +72,21 @@ func _host() -> void:
 	var paid := [gs.vault / gs.VAULT_SHARE]  # gold paid so far, by anyone (the vault takes its share of each)
 	gs.shot_landed.connect(func(_p: int, _a: Vector3, _n: Vector3, _d: Vector3, _t: Node, gold: int, _w: bool, _c: int) -> void:
 		paid[0] += gold)
+	gs.bonus_paid.connect(func(_p: int, _t: Node, gold: int) -> void: paid[0] += gold)
 	var topped := [0.0]  # what the client's T added to the vault on top of the hits
 	gs.vault_changed.connect(func(v: float) -> void:
 		if v >= gs.TEST_MONEY and topped[0] == 0.0:
 			topped[0] = v - paid[0] * gs.VAULT_SHARE)
 	gs.shot_landed.connect(func(peer: int, _at: Vector3, _n: Vector3, _d: Vector3, t: Node, gold: int, _w: bool, _c: int) -> void:
-		if peer == gs.local_peer() or t == null:
-			return  # our own shot at the popper, the client's at us
+		if peer == gs.local_peer() or t == null or t.name == "Scarecrow":
+			return  # our own shot at the popper, the client's at us and at the scarecrow
 		var who: Node3D = rp.character(peer)
 		var sound: Node3D = main.get_node("Impacts")._shot_sounds.get(peer)
 		shots.append([peer, t, gold, labels.any(func(l: Label3D) -> bool: return l.visible),
 			who.muzzle_position() if who else Vector3.INF, sound.global_position if sound else Vector3.INF,
 			gs.player(peer).pos, _holding(who)]))
 	var ff := []
-	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3) -> void:
+	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3, _special: String) -> void:
 		ff.append([shooter, victim]))
 	var me: Node3D = main.get_node("Player")
 	var home := me.global_position
@@ -131,7 +139,7 @@ func _host() -> void:
 	if not _ok(me.global_position.distance_to(home) > 0.3, "the client walking into us shoved us"): return
 	if not await _until(func() -> bool: return rp.character(cid) == null, "the client's character to go"): return
 	var p = gs._saved.values()[0] if gs._saved.size() == 1 else null  # under the client's token
-	if not _ok(p != null and p.gold == gs.TEST_MONEY and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
+	if not _ok(p != null and p.gold == gs.TEST_MONEY + 6 and p.loaded == 0 and p.carried == 0, "host keeps the client's state (its scarecrow $6 too)"): return
 	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return
 	if not _ok(paid[0] >= 1 and topped[0] > 0.0 and is_equal_approx(gs.vault, topped[0] + paid[0] * gs.VAULT_SHARE), "every paid $ put its share in the vault (%.2f of $%.0f)" % [gs.vault, paid[0]]): return
 	print("net_check OK")
@@ -175,7 +183,7 @@ func _client() -> void:
 	if not await _until(gs.synced, "answer to the loose grab"): return
 	if not _ok(gs.carried == 0, "host said no: the bullet is taken back"): return
 	# From the heap.
-	if not _ok(gs.request_pick_up(Vector3(0, 1, 0), 1) == 1, "heap grab predicted"): return
+	if not _ok(gs.request_pick_up(HEAP + Vector3(0, 1, 0), 1) == 1, "heap grab predicted"): return
 	if not await _until(gs.synced, "answer to the heap grab"): return
 	if not _ok(gs.carried == 1 and gs.pile == gs.PILE_START - 2 - DUG, "host agrees: in hand, pile down"): return
 	if not _ok(gs.request_reload() == 1, "reload"): return
@@ -221,7 +229,7 @@ func _client() -> void:
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout
 	var ff := []
-	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3) -> void: ff.append([shooter, victim]))
+	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3, _special: String) -> void: ff.append([shooter, victim]))
 	gs.player().cooldown = 0.0
 	var eye: Vector3 = me.global_position + Vector3.UP * gs.EYE
 	if not _ok(gs.request_fire(eye, (host_at + Vector3.UP * 1.2 - eye).normalized()), "shot at the host"): return
@@ -237,6 +245,18 @@ func _client() -> void:
 	_log.append("walked into the host: closest %.2f m, host moved %.2f m" % [closest, host_char.global_position.distance_to(host_at)])
 	if not _ok(closest > 0.6, "the host's body blocks us"): return
 	if not _ok(host_char.global_position.distance_to(host_at) > 0.3, "and we shoved it"): return
+	# The scarecrow: our hit lights it and the host pays us its burning seconds (bonus_paid).
+	me.global_position = Vector3(12, 0, CROW_AT.z)
+	me.reset_physics_interpolation()
+	await create_timer(0.5).timeout
+	var gold_before: int = gs.gold
+	gs.player().cooldown = 0.0
+	var eye_c: Vector3 = me.global_position + Vector3.UP * gs.EYE
+	if not _ok(gs.request_fire(eye_c, (CROW_AT + Vector3.UP * 1.1 - eye_c).normalized()), "shot at the scarecrow"): return
+	if not await _until(func() -> bool: return gs.gold - gold_before >= 6, "the scarecrow's hit and five burning seconds", 10.0): return
+	await create_timer(1.5).timeout
+	_log.append("scarecrow paid us %d" % (gs.gold - gold_before))
+	if not _ok(gs.gold - gold_before == 6, "scarecrow: $1 for the hit, $5 while it burnt"): return
 	gs.request_toggle_infinite_ammo()  # back to the empty gun the host checks for
 	if not await _until(gs.synced, "test mode off"): return
 	# Keep watching until the host's popper has gone down and up again and the rack has cycled.

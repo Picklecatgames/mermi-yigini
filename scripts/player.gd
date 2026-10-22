@@ -13,10 +13,47 @@ const BOB_FREQ := 1.4    # bob cycles per metre walked, scaled by speed
 const BOB_AMP := 0.05    # metres
 const LAND_AIR_TIME := 0.15  # s in the air before touching down counts as a landing step
 const HAND_MAX := 6      # bullets drawn in hand; more are carried but not shown
+const ARMED_RISE := 0.6  # bullet lengths/2.9: the armed special stands this far up out of the row
+const SPECIAL_IN_HAND := 1.15  # a special round in hand, this many times a plain one
+const SPECIAL_ROOM := 1.6  # its share of the row (plain round 1.1): tips are at most 1.25 across (tools/build_tips.py)
+const AMMO_WHEEL := preload("res://scripts/ammo_wheel.gd")
+const HUD := preload("res://scripts/hud.gd")
+const WHEEL_HOLD := 0.22  # s R is held before the ammo wheel opens; a shorter press reloads
+## Special rounds that hit us (GameState.SPECIALS). Punch: thrown off somewhere near the shot's
+## way, tumbling, bounced once on landing, then dizzy for a while: the view sways, the aim drifts,
+## the legs wander.
+const PUNCH_SPEED := Vector2(17.0, 26.0)  # m/s, picked between
+const PUNCH_UP := Vector2(5.5, 8.5)       # m/s; never added on top of a flight already going up
+const PUNCH_SPREAD := 0.7  # rad either way off the shot's line
+const PUNCH_TUMBLE := Vector2(5.0, 11.0)  # rad/s the view turns over at, on two axes, while flying
+const PUNCH_BOUNCE := 0.55  # of the speed kept by the one bounce, off somewhere else
+const AIR_DRAG := 0.4      # 1/s: a shove dies slowly in the air, SHOVE_DECAY on the floor
+const DIZZY_TIME := 4.0    # s from the hit, fading out
+const DIZZY_ROLL := 0.28   # rad the view sways to either side
+const DIZZY_DRIFT := Vector2(0.9, 0.5)  # rad/s the aim wanders, sideways and up/down
+const DIZZY_WALK := 1.1    # rad the legs head off from where we steer
+## The hall: nothing may throw us out of it or over the railing (walls stop 4 m up, the railing
+## 3 m, a punch flies higher).
+const HALL_IN := 27.6  # m from the centre to a wall's inner face, less our radius
+const ROOF_IN := 6.0   # m: the feet stay this low, under the roof beams
+## Balloon: up for BALLOON_TIME, then a slow drift down; ~8 s in all from the floor (4 m up, under
+## the 8 m roof beam even from a step).
+const BALLOON_TIME := 4.0  # s
+const BALLOON_RISE := 1.0  # m/s
+const BALLOON_FALL := 1.0  # m/s at most on the way down
+const SPECIAL_DEMO := preload("res://scripts/special_demo.gd")  # N, debug builds, solo
+## Scream: the clown's face rushes at the view, holds, shakes, is gone. Its sound is the user's
+## recording, played if it is there (no sound is made in code).
+const SCREAM_FACE := preload("res://assets/bullet/tips/scream_face.glb")
+const SCREAM_RUSH := 0.05  # s: the face lands as the sound's first full blast does (its lead-in is cut)
+const SCREAM_HOLD := 0.9  # s: until the scream starts to die down
+const SCREAM_DB := 7.6  # the recording is at full scale already; the master limiter catches the rest
+const SPECIAL_SOUND := "res://assets/sounds/specials/%s.wav"  # per SPECIALS id
 const GRAB_TIME := 0.25  # s for one bullet to fly into the hand
 const GRAB_GAP := 0.08   # s between bullets of one grab
 const PILE_BULLET_SCALE := 0.03  # matches the pile look; shrinks to hand size in flight
 const BULLET := preload("res://assets/bullet/bullet_9mm.glb")
+const CASE := preload("res://assets/bullet/bullet_case.glb")  # special rounds: case + TipSocket
 const GRAB_REPEAT := 0.02  # s between grabs while E is held
 const FLY_POOL := 16       # bullets in flight at most: GRAB_TIME / GRAB_REPEAT plus slack
 ## View kick: a critically damped spring, so the climb takes a few frames instead of one.
@@ -52,12 +89,21 @@ var _next_fly := 0
 var _vm_env: Environment
 var _hip_fov := 75.0
 var _zoom := 1.0
-var _before_placing := []  # [position, yaw, pitch] on our side of the line, for coming back
 var _pose_timer := 0.0
 var _shove := Vector3.ZERO  # m/s from someone walking into us
 var _push_timer := 0.0
 var _yaw_climb := 0.0  # rad of sideways aim still to add (friendly fire)
-var _gun_bar: HBoxContainer  # GameState.GUNS after the fists, number keys 1-4
+var _wheel: Control  # scripts/ammo_wheel.gd: hold R to pick a round, and the "found one" note
+var _pocket_seen: Array[String] = []  # the pocket as last shown, to spot a new special
+var _reload_held := 0.0  # s R has been down
+var _balloon := 0.0  # s of rising left (balloon round)
+var _drifting := false  # coming down slowly after the balloons
+var _tumble := Vector2.ZERO  # rad of view turn-over (pitch, roll) from a punch round
+var _tumble_vel := Vector2.ZERO  # rad/s while flying
+var _bounces := 0  # punch round bounces left
+var _dizzy := 0.0  # s left
+var _dizzy_t := 0.0  # s into it, for the sways
+var _special_sound: AudioStreamPlayer
 
 @onready var _head: Node3D = $Head
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
@@ -65,9 +111,6 @@ var _gun_bar: HBoxContainer  # GameState.GUNS after the fists, number keys 1-4
 @onready var _reach: RayCast3D = $Head/Camera3D/Reach
 @onready var _hand: Node3D = $Head/Camera3D/Hand
 @onready var _prompt: Label = $HUD/Prompt
-@onready var _counter: Label = $HUD/Counter
-@onready var _money: Label = $HUD/Money
-@onready var _vault: Label = $HUD/Vault
 @onready var _crosshair: Control = $HUD/Crosshair
 @onready var _hit_marker: Control = $HUD/HitMarker
 @onready var _vm_camera: Camera3D = $ViewmodelView/SubViewport/Camera
@@ -84,16 +127,15 @@ func _ready() -> void:
 	_head.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # placed per frame
 	_vm_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_reach.add_exception(self)
-	GameState.pile_changed.connect(_update_counter.unbind(1))
-	GameState.carried_changed.connect(_update_counter.unbind(1))
 	GameState.carried_changed.connect(func(c: int) -> void: _set_hand_count(mini(c, HAND_MAX)))
-	GameState.upgraded.connect(_update_counter.unbind(2))
-	GameState.loaded_changed.connect(_update_counter.unbind(1))
-	GameState.gold_changed.connect(_on_gold_changed)
-	GameState.placing_changed.connect(_on_placing)
-	_money.text = "$%d" % GameState.gold
-	GameState.vault_changed.connect(func(v: float) -> void: _vault.text = "Kasa $%d" % floori(v))
-	_vault.text = "Kasa $%d" % floori(GameState.vault)
+	# The HUD (scripts/hud.gd, UiStyle) draws counts, gold and guns itself; the scene's old
+	# labels stay hidden until the scene's owner takes them out.
+	for old: Control in [$HUD/Counter, $HUD/Money, $HUD/Vault]:
+		old.visible = false
+	$HUD.add_child(HUD.new())
+	_prompt.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM, 1))
+	_prompt.add_theme_font_size_override("font_size", 14)
+	_prompt.add_theme_color_override("font_shadow_color", UiStyle.SHADOW)
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
@@ -101,11 +143,9 @@ func _ready() -> void:
 		_yaw_climb += yaw
 		_recoil_vel += a * (1.0 - KICK_CLIMB) * KICK_OMEGA * exp(1.0))  # peak = v / (w·e)
 	_viewmodel.equip(GameState.player().gun)
-	_build_gun_bar()
 	GameState.gun_changed.connect(func(peer: int, gun: int) -> void:
 		if peer == GameState.local_peer():
-			_viewmodel.equip(gun)
-			_update_gun_bar())
+			_viewmodel.equip(gun))
 	for i in FLY_POOL:
 		var b: Node3D = BULLET.instantiate()
 		b.visible = false
@@ -117,18 +157,96 @@ func _ready() -> void:
 		if v.length() > _shove.length():
 			_shove = v)
 	GameState.player_shot.connect(_on_player_shot)
-	_update_counter()
+	_wheel = AMMO_WHEEL.new()
+	$HUD.add_child(_wheel)
+	_wheel.picked.connect(_on_wheel_picked)
+	_pocket_seen = GameState.player().specials.duplicate()
+	_special_sound = AudioStreamPlayer.new()  # in our ears only: it is our scare
+	_special_sound.max_polyphony = 2
+	add_child(_special_sound)
+	GameState.specials_changed.connect(_on_specials_changed)
 	_set_hand_count(mini(GameState.carried, HAND_MAX))
 	_place_head()
 
 
 ## Friendly fire: it doesn't hurt, but it throws the aim off right when you need it.
-func _on_player_shot(_shooter: int, victim: int, _at: Vector3, _dir: Vector3) -> void:
+func _on_player_shot(_shooter: int, victim: int, _at: Vector3, dir: Vector3, special: String) -> void:
 	if victim != GameState.local_peer():
 		return
+	_hit_by_special(special, dir)
 	_climb += randf_range(FF_CLIMB.x, FF_CLIMB.y)
 	_yaw_climb += randf_range(-FF_YAW, FF_YAW)
 	_recoil_vel += FF_KICK * KICK_OMEGA * exp(1.0)
+
+
+## A punch round's throw: along the shot, give or take PUNCH_SPREAD, at a speed of its own.
+static func punch_shove(dir: Vector3) -> Vector3:
+	var flat := Vector3(dir.x, 0.0, dir.z).normalized().rotated(Vector3.UP, randf_range(-PUNCH_SPREAD, PUNCH_SPREAD))
+	return flat * randf_range(PUNCH_SPEED.x, PUNCH_SPEED.y)
+
+
+## A punch round's one bounce: landing still going fast, off again somewhere else.
+static func punch_bounce(shove: Vector3) -> Vector3:
+	return shove.rotated(Vector3.UP, randf_range(-1.6, 1.6)) * PUNCH_BOUNCE
+
+
+## Keeps `body` in the hall and on its side of the railing (`inside`: it was there before moving).
+static func keep_in_hall(body: CharacterBody3D, inside: bool) -> void:
+	var p := body.global_position
+	var x_max := GameState.FIRING_LINE_X - 0.4 if inside else INF
+	var c := Vector3(clampf(p.x, -HALL_IN, x_max), minf(p.y, ROOF_IN), clampf(p.z, -HALL_IN, HALL_IN))
+	if c != p:
+		body.global_position = c
+		if c.y < p.y:
+			body.velocity.y = minf(body.velocity.y, 0.0)
+
+
+## A teammate's special round hit us (GameState.SPECIALS); "" was a plain one. Everyone moves
+## their own body, so it all plays out here, on the hit player's machine.
+func _hit_by_special(special: String, dir: Vector3) -> void:
+	if special == "":
+		return
+	var path := SPECIAL_SOUND % special
+	if ResourceLoader.exists(path):
+		_special_sound.stream = load(path)
+		_special_sound.volume_db = SCREAM_DB if special == "scream" else 0.0
+		_special_sound.play()
+	match special:
+		"punch":
+			_shove = punch_shove(dir)
+			if velocity.y <= 0.0:  # hit again on the way up: no higher (over the walls)
+				velocity.y = randf_range(PUNCH_UP.x, PUNCH_UP.y)
+			_tumble_vel = Vector2(randf_range(PUNCH_TUMBLE.x, PUNCH_TUMBLE.y) * signf(randf() - 0.5),
+				randf_range(PUNCH_TUMBLE.x, PUNCH_TUMBLE.y) * signf(randf() - 0.5))
+			_bounces = 1
+			_dizzy = DIZZY_TIME
+			_dizzy_t = randf() * 10.0  # each time a different sway
+		"balloon":
+			_balloon = BALLOON_TIME
+			_drifting = true
+		"scream":
+			_jumpscare()
+
+
+## The clown's face over everything (drawn by the gun's camera, on its layer): it rushes in from
+## the dark, fills the view, shakes, and is gone.
+func _jumpscare() -> void:
+	var face: Node3D = SCREAM_FACE.instantiate()
+	for m: MeshInstance3D in face.find_children("*", "MeshInstance3D"):
+		m.layers = 1 << 1
+		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var holder := Node3D.new()  # the face looks at +Z (at us) with its crown on +X: stood upright
+	holder.add_child(face)
+	face.rotation.z = PI / 2.0
+	face.position = Vector3(0.0, -0.5, 0.0)  # its chin is the origin: centre the head
+	_vm_camera.add_child(holder)
+	var t := holder.create_tween()
+	# The head is 1 m tall; at 0.8 m the gun camera's ~50° shows 0.75 m of it: a bit over the view.
+	t.tween_property(holder, "position", Vector3(0.0, 0.0, -0.8), SCREAM_RUSH).from(Vector3(0.0, 0.0, -6.0)).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	t.tween_method(func(f: float) -> void:
+		holder.position = Vector3(randf_range(-0.03, 0.03), randf_range(-0.03, 0.03), -0.8 + f * 0.1), 0.0, 1.0, SCREAM_HOLD)
+	t.tween_callback(holder.queue_free)
+	_recoil_vel += FF_KICK * 3.0 * KICK_OMEGA * exp(1.0)  # we flinch
 
 
 ## Solo and the host stand on the first spawn point; each guest gets its own from the host.
@@ -194,7 +312,11 @@ func _setup_viewmodel_world() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if GameState.player().placing and not event.is_action_pressed("placement_mode"):
+		return  # the overview has the mouse and keys (scripts/placement.gd)
+	if event is InputEventMouseMotion and _wheel.is_open:
+		_wheel.steer(event.relative.x)  # the view holds still while picking
+	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var sens := MOUSE_SENSITIVITY / _zoom  # the same mouse travel moves the same share of the screen
 		_yaw -= event.relative.x * sens
 		_pitch = clampf(_pitch - event.relative.y * sens, -1.5, 1.5)
@@ -204,47 +326,31 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("infinite_ammo"):
 		GameState.request_toggle_infinite_ammo()
-		_update_gun_bar()  # test mode opens the crate guns
 	elif event.is_action_pressed("placement_mode"):
 		GameState.request_toggle_placing()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
+	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:
+		_toggle_demo(not event.shift_pressed)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
 		# 1 draws the first gun; the key of the one in hand puts it away (bare fists).
 		GameState.request_select_gun(event.physical_keycode - KEY_1 + 1)
 
 
-## Bottom centre: one slot per gun, the one in hand lit; a gun not in yet is dimmed. Test bar
-## until guns come off the table and out of crates.
-func _build_gun_bar() -> void:
-	_gun_bar = HBoxContainer.new()
-	_gun_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	_gun_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_gun_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_gun_bar.offset_bottom = -64  # above placement's stock reminder
-	_gun_bar.add_theme_constant_override("separation", 10)
-	_gun_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	$HUD.add_child(_gun_bar)
-	for i in range(1, GameState.GUNS.size()):
-		var slot := PanelContainer.new()
-		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		row.add_child(PLACEMENT._label(str(i), 15, Color(1, 1, 1, 0.6)))
-		row.add_child(PLACEMENT._label(GameState.GUNS[i].name, 18, Color.WHITE))
-		slot.add_child(row)
-		_gun_bar.add_child(slot)
-	_update_gun_bar()
-
-
-func _update_gun_bar() -> void:
-	for i in _gun_bar.get_child_count():
-		var on := i + 1 == GameState.player().gun
-		var box: StyleBoxFlat = PLACEMENT._box(Color(0.05, 0.06, 0.08, 0.82 if on else 0.55), Color(PLACEMENT.GOLD, 0.9) if on else Color(1, 1, 1, 0.2), 16, 8)
-		box.set_border_width_all(2 if on else 1)
-		var slot: PanelContainer = _gun_bar.get_child(i)
-		slot.add_theme_stylebox_override("panel", box)
-		slot.modulate = Color.WHITE if on else Color(1, 1, 1, 0.7 if GameState.gun_open(i + 1) else 0.3)
+## N: the special rounds test (scripts/special_demo.gd) opens, or tops the pocket up again;
+## Shift+N closes it. Letter keys: not every keyboard has F keys.
+func _toggle_demo(on: bool) -> void:
+	var demo := get_parent().get_node_or_null("SpecialDemo")
+	if not on:
+		if demo:
+			demo.queue_free()
+		return
+	if demo:
+		demo.refill()
+		return
+	demo = SPECIAL_DEMO.new()
+	demo.name = "SpecialDemo"
+	get_parent().add_child(demo)
 
 
 func _process(delta: float) -> void:
@@ -262,9 +368,21 @@ func _process(delta: float) -> void:
 		_recoil += _recoil_vel * h
 	_head_bob(delta)
 	_place_head()
+	# R held with special rounds in the pocket: the ammo wheel; let go, it loads what was picked
+	# (a tap still reloads, viewmodel.gd).
+	var p := GameState.player()
+	if Input.is_action_pressed("reload") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.placing and p.gun != 0 and not p.specials.is_empty():
+		_reload_held += delta
+		if _reload_held >= WHEEL_HOLD and not _wheel.is_open:
+			_wheel.open()
+			_viewmodel.wheel_used = true
+	else:
+		_reload_held = 0.0
+		_wheel.close()
 	_zoom = lerpf(1.0, ADS_ZOOM, _viewmodel.aim)
 	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom))
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
+	_crosshair.visible = not GameState.player().placing  # the overview has its own cursor
 	# Screen px per unit of tan(angle) off the view axis (fov is vertical).
 	var focal := get_viewport().get_visible_rect().size.y * 0.5 / tan(deg_to_rad(_camera.fov) * 0.5)
 	var off: Vector2 = _viewmodel.aim_offset
@@ -277,60 +395,67 @@ func _process(delta: float) -> void:
 	_vm_camera.fov = _camera.fov if vm_fov == 0.0 else rad_to_deg(2.0 * atan(tan(deg_to_rad(vm_fov) * 0.5) / _zoom))
 	if _viewmodel._want_gun != GameState.player().gun:  # e.g. after leaving: local_peer() changed
 		_viewmodel.equip(GameState.player().gun)
-		_update_gun_bar()
-
-
-## Placement mode (B, or buying gear) takes us over the firing line, facing the target area;
-## leaving it brings us back to where we stood.
-func _on_placing(on: bool) -> void:
-	_update_counter()
-	_gun_bar.visible = not on  # placement has its own key row down there
-	if on and global_position.x < GameState.FIRING_LINE_X:
-		_before_placing = [global_position, _yaw, _pitch]
-		var zone := GameState.PLACE_ZONE
-		_teleport(Vector3(zone.position.x + 0.5, global_position.y, clampf(global_position.z, zone.position.y + 2.0, zone.end.y - 2.0)), -PI / 2.0, -0.3)
-	elif not on and global_position.x > GameState.FIRING_LINE_X and not _before_placing.is_empty():
-		_teleport(_before_placing[0], _before_placing[1], _before_placing[2])
-		_before_placing.clear()
-
-
-func _teleport(at: Vector3, yaw: float, pitch: float) -> void:
-	global_position = at
-	velocity = Vector3.ZERO
-	_yaw = yaw
-	_pitch = pitch
-	rotation.y = yaw
-	reset_physics_interpolation()
-	_place_head()
 
 
 func _place_head() -> void:
 	var feet := get_global_transform_interpolated().origin
 	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), feet + Vector3.UP * EYE)
 	_camera.position = _bob_offset
-	_camera.rotation.x = _recoil
+	var k := smoothstep(0.0, 1.0, _dizzy / DIZZY_TIME)
+	_camera.rotation.x = _recoil + _tumble.x
+	_camera.rotation.z = _tumble.y + (sin(_dizzy_t * 2.1) + 0.5 * sin(_dizzy_t * 3.7)) / 1.5 * DIZZY_ROLL * k
 
 
 func _physics_process(delta: float) -> void:
 	rotation.y = _yaw  # the body faces where the player looks (3rd person, co-op)
-	if not is_on_floor():
+	_balloon = maxf(_balloon - delta, 0.0)
+	if _balloon > 0.0:
+		velocity.y = BALLOON_RISE
+	elif not is_on_floor():
 		velocity += get_gravity() * delta
-	elif Input.is_action_just_pressed("jump"):
+		if _drifting:
+			velocity.y = maxf(velocity.y, -BALLOON_FALL)
+	elif Input.is_action_just_pressed("jump") and not GameState.player().placing:
 		velocity.y = JUMP_VELOCITY
+	if is_on_floor() and _balloon == 0.0:
+		_drifting = false
 
-	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# Placement mode: WASD moves the overview camera, not us.
+	var input := Vector2.ZERO if GameState.player().placing else Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
+	# Dizzy (punch round): the aim wanders off and the legs head somewhere near where we steer.
+	_dizzy = maxf(_dizzy - delta, 0.0)
+	_dizzy_t += delta
+	var k := smoothstep(0.0, 1.0, _dizzy / DIZZY_TIME)
+	if k > 0.0:
+		_yaw += sin(_dizzy_t * 1.3) * DIZZY_DRIFT.x * k * delta
+		_pitch = clampf(_pitch + cos(_dizzy_t * 1.7) * DIZZY_DRIFT.y * k * delta, -1.5, 1.5)
+		dir = dir.rotated(Vector3.UP, sin(_dizzy_t * 1.1) * DIZZY_WALK * k)
+	# Flying: the view turns over; down again, it rights itself.
+	if is_on_floor():
+		_tumble_vel = Vector2.ZERO
+		_tumble = Vector2(wrapf(_tumble.x, -PI, PI), wrapf(_tumble.y, -PI, PI)) * exp(-8.0 * delta)
+	else:
+		_tumble += _tumble_vel * delta
 	# Turning minigun barrels hold you back too, and you can't sprint with them (viewmodel walk_share).
 	var walk: float = _viewmodel.walk_share
 	var speed: float = SPRINT_SPEED if Input.is_action_pressed("sprint") and _viewmodel.aim == 0.0 and walk == 1.0 else SPEED * lerpf(1.0, ADS_WALK, _viewmodel.aim) * walk
-	_shove = _shove * exp(-SHOVE_DECAY * delta)
+	_shove = _shove * exp(-(SHOVE_DECAY if is_on_floor() else AIR_DRAG) * delta)
 	velocity.x = dir.x * speed + _shove.x
 	velocity.z = dir.z * speed + _shove.z
-	# The firing line stops you unless you are placing targets; caught past it (placement mode
-	# switched off over there) you can still walk back out, never in.
-	set_collision_mask_value(GameState.FENCE_LAYER, not GameState.player().placing and global_position.x < GameState.FIRING_LINE_X)
+	# The firing line always stops you (targets go up from behind it); caught past it somehow you
+	# can still walk back out, never in.
+	set_collision_mask_value(GameState.FENCE_LAYER, global_position.x < GameState.FIRING_LINE_X)
 	var walked := Vector3(velocity.x, 0.0, velocity.z)  # before sliding takes the bump out of it
+	var inside := global_position.x <= GameState.FIRING_LINE_X
+	var flying := not is_on_floor()
 	move_and_slide()
+	keep_in_hall(self, inside)
+	if flying and is_on_floor() and _bounces > 0 and _shove.length() > 6.0:
+		_bounces -= 1
+		_shove = punch_bounce(_shove)
+		velocity.y = 3.5
+		_tumble_vel = Vector2(randf_range(-6.0, 6.0), randf_range(-6.0, 6.0))
 	_push_others(delta, walked)
 	_pose_timer -= delta
 	if _pose_timer <= 0.0:
@@ -348,7 +473,7 @@ func _physics_process(delta: float) -> void:
 	# Holding E keeps grabbing, one bullet at a time, until the hand is full.
 	_grab_timer -= delta
 	var looking := _looking_at_pile()
-	if Input.is_action_pressed("pick_up") and _grab_timer <= 0.0 and looking:
+	if Input.is_action_pressed("pick_up") and _grab_timer <= 0.0 and looking and not GameState.player().placing:
 		_grab_timer = GRAB_REPEAT
 		var at := _reach.get_collision_point()
 		var shown_before := mini(GameState.carried, HAND_MAX)
@@ -433,36 +558,63 @@ func _fly_to_hand(from: Vector3, shown_before: int) -> void:
 		_set_hand_count(mini(shown_before + 1, GameState.carried)))
 
 
-## Shows `n` bullets side by side in the hand, copying the first as needed.
+## Shows `n` plain bullets side by side in the hand, after the special rounds in the pocket: those
+## bigger, their faces turned to our eye, the loaded one standing up out of the row. Copies the
+## first round as needed.
 func _set_hand_count(n: int) -> void:
-	n = mini(n, HAND_MAX)
+	var p := GameState.player()
+	n = mini(n + p.specials.size(), HAND_MAX)
 	var first := _hand.get_child(0) as Node3D
 	while _hand.get_child_count() < n:
-		var copy := first.duplicate() as Node3D
-		copy.position = Vector3(0.0, _hand.get_child_count() * 1.1, 0.0)  # local +y is screen-left
-		_hand.add_child(copy)
+		_hand.add_child(first.duplicate())
+	var armed := p.specials.find(p.armed) if p.armed != "" else -1
+	var along := 0.0  # local +y is screen-left, +x up
 	for c in _hand.get_child_count():
-		(_hand.get_child(c) as Node3D).visible = c < n
+		var b := _hand.get_child(c) as Node3D
+		var id: String = p.specials[c] if c < p.specials.size() else ""
+		var s := SPECIAL_IN_HAND if id != "" else 1.0
+		b.visible = c < n
+		b.scale = Vector3.ONE * s
+		var room := (SPECIAL_ROOM if id != "" else 1.1) * s
+		b.position = Vector3(ARMED_RISE * s if c == armed else 0.0, along + room * 0.5, 0.0)
+		along += room
+		_dress_round(b, id)
+		if id != "":  # spun about its own axis so the tip's face looks at the eye
+			var eye := b.to_local(_camera.global_position)
+			b.get_node("Special").rotation.x = atan2(-eye.y, eye.z)
 	_hand.visible = n > 0
 
 
-func _update_counter() -> void:
-	_counter.text = "Elde: %d/%d\nŞarjör: %d/%d\nYığın: %s\n[Q] Geliştirmeler%s" % [GameState.carried, GameState.carry_capacity, GameState.loaded, GameState.mag_capacity, _thousands(GameState.pile), ("\nSINIRSIZ MERMİ + PARA (T)" if GameState.infinite_ammo else "")]  # placement mode has its own banner (scripts/placement.gd)
-
-
-## Money counter: the new amount, and a green pop when it went up.
-func _on_gold_changed(gold: int) -> void:
-	var up := gold > int(_money.text.trim_prefix("$"))
-	_money.text = "$%d" % gold
-	if not up:
+## A round in hand as plain, or as the special `id`: its case with that special's tip on the socket.
+func _dress_round(b: Node3D, id: String) -> void:
+	var dressed := b.get_node_or_null("Special")
+	if dressed and dressed.get_meta("id") == id:
 		return
-	_money.pivot_offset = Vector2(_money.size.x, _money.size.y * 0.5)
-	_money.scale = Vector2.ONE * 1.25
-	create_tween().tween_property(_money, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if dressed:
+		dressed.free()
+	b.get_child(0).visible = id == ""  # the plain round
+	if id == "":
+		return
+	dressed = CASE.instantiate()
+	dressed.name = "Special"
+	dressed.set_meta("id", id)
+	b.add_child(dressed)
+	dressed.find_child("TipSocket").add_child(load(GameState.SPECIALS[id].tip).instantiate())
 
 
-static func _thousands(n: int) -> String:
-	var s := str(n)
-	for i in range(s.length() - 3, 0, -3):
-		s = s.insert(i, ".")
-	return s
+## The ammo wheel's pick: a special goes in as the next shot, the plain round takes it back out;
+## the hands go through a reload either way.
+func _on_wheel_picked(id: String) -> void:
+	if id != GameState.player().armed:
+		GameState.request_arm_special(id)
+		_viewmodel.load_round()
+
+
+## Pocket changed: a note for each kind there is more of than before, and the hand redrawn.
+func _on_specials_changed() -> void:
+	var p := GameState.player()
+	for id: String in GameState.SPECIALS:
+		if p.specials.count(id) > _pocket_seen.count(id):
+			_wheel.note(id)
+	_pocket_seen = p.specials.duplicate()
+	_set_hand_count(GameState.carried)

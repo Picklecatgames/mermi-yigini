@@ -22,6 +22,7 @@ const ANIMS := preload("res://assets/characters/animations/operator_anims.res")
 const ARMS := preload("res://assets/weapons/arms/arms.gltf")
 const MUZZLE_FX := preload("res://scenes/muzzle_fx.tscn")
 const VIEWMODEL := preload("res://scripts/viewmodel.gd")  # SETS: each gun's mesh, clips, bone, muzzle
+const PLAYER := preload("res://scripts/player.gd")  # the special rounds' effect times
 const DELAY := 0.1  # s behind the newest pose: two snapshots in hand even when one is late
 const KEEP := 0.6   # s of snapshots kept
 const UNIT := 0.01  # the model is in centimetres
@@ -52,6 +53,9 @@ var _chars := {}  # peer -> Character
 func _ready() -> void:
 	add_to_group("remote_players")
 	GameState.pose_received.connect(_on_pose)
+	GameState.player_shot.connect(func(_s: int, victim: int, _a: Vector3, _d: Vector3, special: String) -> void:
+		if special == "balloon" and _chars.has(victim):
+			(_chars[victim] as Character).balloons())
 	multiplayer.peer_disconnected.connect(_drop)
 	multiplayer.server_disconnected.connect(func() -> void:
 		for peer in _chars.keys():
@@ -124,6 +128,22 @@ class Character extends Node3D:
 	var _tag_box: StandardMaterial3D
 	## What others collide with and shoot at; carries the peer id as meta "peer".
 	var body: AnimatableBody3D
+
+	## The balloon round's balloons over their head, for as long as it lifts and lets them down
+	## (player.gd BALLOON_*: up and down at the same speed).
+	func balloons() -> void:
+		var old := get_node_or_null("Balloons")
+		if old:
+			old.free()
+		var b: Node3D = load(GameState.SPECIALS.balloon.tip).instantiate()
+		b.name = "Balloons"
+		b.rotation.z = PI / 2.0  # the bunch grows along +X: up
+		b.scale = Vector3.ONE * 0.9
+		b.position.y = LABEL_HEIGHT + 0.2
+		add_child(b)
+		var t := b.create_tween()
+		t.tween_interval(PLAYER.BALLOON_TIME * 2.0)
+		t.tween_callback(b.queue_free)
 
 	func _init(id: int) -> void:
 		peer = id

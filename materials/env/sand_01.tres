@@ -1,0 +1,16 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/sand_01/sand_01_diff_2k.jpg" id="1_q46jn"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/sand_01/sand_01_nor_gl_2k.jpg" id="2_kyl63"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/sand_01/sand_01_arm_2k.jpg" id="3_s6iet"]
+
+[resource]
+albedo_color = Color(0.92, 0.86, 0.78, 1)
+albedo_texture = ExtResource("1_q46jn")
+orm_texture = ExtResource("3_s6iet")
+normal_enabled = true
+normal_texture = ExtResource("2_kyl63")
+uv1_scale = Vector3(0.6666667, 0.6666667, 0.6666667)
+uv1_triplanar = true
+uv1_world_triplanar = true
+texture_filter = 5

@@ -1,0 +1,39 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://materials/env/worn_surface.gdshader" id="1_4vvea"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_diff_2k.jpg" id="2_y8j2f"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_arm_2k.jpg" id="3_ep51d"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/metal_plate_02/metal_plate_02_nor_gl_2k.jpg" id="4_8i6y2"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_qrcfj"]
+seed = 20666
+frequency = 0.02
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_mjvxo"]
+noise = SubResource("FastNoiseLite_qrcfj")
+seamless = true
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_4vvea")
+shader_parameter/albedo_tex = ExtResource("2_y8j2f")
+shader_parameter/normal_tex = ExtResource("4_8i6y2")
+shader_parameter/arm_tex = ExtResource("3_ep51d")
+shader_parameter/grime_tex = SubResource("NoiseTexture2D_mjvxo")
+shader_parameter/tint = Color(0.4, 0.41, 0.42, 1)
+shader_parameter/brightness = null
+shader_parameter/mesh_uv = null
+shader_parameter/uv_scale = null
+shader_parameter/tex_size = 0.8
+shader_parameter/cell_size = null
+shader_parameter/turn_cells = null
+shader_parameter/cell_tone = null
+shader_parameter/odd_cells = null
+shader_parameter/antitile = null
+shader_parameter/grime_color = null
+shader_parameter/grime = 0.5
+shader_parameter/grime_scale = null
+shader_parameter/rust_color = null
+shader_parameter/rust = 0.6
+shader_parameter/wear_x = null
+shader_parameter/wear_width = null

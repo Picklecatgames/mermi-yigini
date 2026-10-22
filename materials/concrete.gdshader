@@ -46,7 +46,11 @@ void fragment() {
 	// Each pour cures slightly differently: per-slab brightness jitter.
 	float slab_tint = mix(0.95, 1.04, rnd.x);
 
-	ALBEDO = texture(albedo_tex, uv).rgb * tint * brightness * slab_tint * mix(0.85, 1.0, stain) * (1.0 - seam * 0.6);
+	// The scan's own 2 m repeat still shows across a 56 m floor: a 3.7x larger, turned sample
+	// modulates the brightness, at a scale the slabs never line up with.
+	float big = dot(texture(albedo_tex, mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8)) * (p / (tex_size * 3.7))).rgb, vec3(0.333));
+	float mean = max(dot(textureLod(albedo_tex, vec2(0.5), 10.0).rgb, vec3(0.333)), 0.02);
+	ALBEDO = texture(albedo_tex, uv).rgb * mix(1.0, big / mean, 0.4) * tint * brightness * slab_tint * mix(0.85, 1.0, stain) * (1.0 - seam * 0.6);
 	ROUGHNESS = mix(0.75, 1.0, texture(rough_tex, uv).r);  // weathered, not polished
 	AO = texture(ao_tex, uv).r * (1.0 - seam * 0.5);
 	// Undo the slab's quarter turn on the normal's tangent-space xy.

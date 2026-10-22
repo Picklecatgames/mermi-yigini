@@ -8,7 +8,7 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 - Oyun yumrukla başlar. Silah sırası: Ağır Tabanca (Deagle, lvl 1) → Mikro SMG (UZI) → Kompakt SMG (Scorpion); hepsi 1Matzh setleri. Kasadan çıkan benzersiz silahlar: orta oyun (6. anahtar, seçilmedi) ve minigun (12. anahtar, final; 1Matzh Minigun). Şimdilik 1-4 / alttaki çubukla seçilir (`request_select_gun`); kasa silahı (`"crate"`) kasası açılana kadar kilitli, şimdilik yalnız T açar (`gun_open`).
 - **Yığın hem hedef hem yakıt.** Hiçbir mekanik yığına/envantere mermi eklemez; modifiyeler yalnız gold'u çarpar.
 - Kombo: 1,5 sn içindeki isabetler zinciri büyütür; ödenen çarpan = zincir, tavanı Kombo Tavanı upgrade'i (x2→x20). Kafa ve gövde ayrı zincir. Taret/bant zinciri büyütmez.
-- Hedefler doğu duvarında, x = 14'teki korkuluğun arkasında; korkuluğun ötesinden atış para vermez. Küçük/hareketli/zamanlı hedef daha çok öder.
+- Hedefler x = 14'teki korkuluğun arkasında (kauçuk zeminli poligon + doğu duvarından 30 m'ye uzanan atış koridoru); korkuluğun ötesinden atış para vermez, oyuncu korkuluğu hiç geçmez; yerleştirme modu (B) kuş bakışı kamera + fare imleci + sağda takım deposu (`scripts/placement.gd`). Küçük/hareketli/zamanlı hedef daha çok öder.
 - 12 anahtar yığına gömülü (derinlik nadirliğe bağlı, `scripts/key_cache.gd`); her biri bir kasa açar (mermi tipi, benzersiz silah, özel dummy). Kasa açılınca özellik bütün takıma açılır. Kasalar henüz yok.
 - Planlananlar: kovan → fırın → külçe (taret geliştirme), taretler, tek yönlü grid bantlar, bant modifiyeleri (seken mermi vb.), robotlar, HP'li dummy.
 - Yok: ürün zinciri, kablolama, büyük tech tree, idle ağırlık, konuşma animasyonu, dummy yıpranması.
@@ -18,6 +18,7 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 - **Mermi mantıkta yalnız bir sayı.** Görseller MultiMesh + havuz; mermi başına node/fizik yok. Yığın bir yükseklik alanı (`scripts/pile.gd`), 45°'yi aşan eğim kayar (yığın ~7 m boyunda, 8 m'deki kirişin altında kalmalı).
 - **Co-op:** bütün durum `GameState` autoload'unda; her oyuncu eylemi `request_*` komutu; host otoriter. Bağlantı yalnız `scripts/net.gd`. **Yeni dünya sinyali: `emit` yerine `_world` kullan, `EVENTS`'e yaz. Yeni istemci komutu: `REQUESTS`'e yaz.** Gold kişisel, dünyaya kurulan her şey ortak kasadan. Rastgelelik yalnız host'ta (`cue_target` / `key_layout` ile yayılır); süsler yerel. Kontrol: `tools/net_check.gd`.
 - Viewmodel: **tek kol rig'i, her silah aynı eldivende** (`assets/weapons/arms`, `tools/build_arms.py` + `tools/paint_arms.py`); silahlar o rig'de mesh + `<Silah>_` klip seti, ayarları `viewmodel.gd` `SETS`. Yeni silah: builder'a set ekle, kendi kollarını alma. Ayrı SubViewport, render katmanı 2.
+- Arayüz: `UiStyle` (`scripts/ui_style.gd`); kutu, yuvarlak köşe, dolu buton yok; Inter; sol-sağ simetrik; tek vurgu rengi yalnız durum için.
 - `scenes/arena.tscn` elle düzenlenmez: `tools/build_arena.gd`'yi değiştirip yeniden çalıştır.
 - Ses: gerçek kayıtlar kullanıcıdan gelir, kodla ses üretilmez. Perde kaydırma ve kompresör kullanılmaz. `AudioStreamRandomizer` + `max_polyphony`.
 - Headless kontroller `tools/*_check.gd` içinde; değişiklikten sonra ilgili olanı çalıştır.
