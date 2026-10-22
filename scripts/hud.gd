@@ -11,6 +11,7 @@ const KeyCache := preload("res://scripts/key_cache.gd")
 const MARGIN := Vector2(30, 24)  # px from the screen's edges
 const BIG := 46  # px, the two big numbers
 const SIDE_RULE := 130.0  # px
+const MONEY := Color(0.33, 1.0, 0.42)  # dollar green
 
 var _heap: Label
 var _heap_meter: Control
@@ -65,7 +66,7 @@ func _build_sides() -> void:
 		col.offset_right = -MARGIN.x if right else 0
 		col.offset_bottom = -MARGIN.y
 		var align := HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
-		var caption := UiStyle.caption("altın" if right else "şarjör")
+		var caption := UiStyle.caption(" " if right else "şarjör")  # the gold's "$" says enough; the blank keeps the corners level
 		caption.horizontal_alignment = align
 		col.add_child(caption)
 		var row := HBoxContainer.new()
@@ -73,7 +74,7 @@ func _build_sides() -> void:
 		row.add_theme_constant_override("separation", 6)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		col.add_child(row)
-		var big := UiStyle.label("", BIG, UiStyle.LIGHT)
+		var big := UiStyle.label("", BIG, UiStyle.LIGHT, MONEY if right else UiStyle.WHITE)
 		row.add_child(big)
 		var rule := UiStyle.line(SIDE_RULE)
 		rule.size_flags_horizontal = Control.SIZE_SHRINK_END if right else Control.SIZE_SHRINK_BEGIN
@@ -134,8 +135,8 @@ func refresh() -> void:
 		_mag.text = str(GameState.loaded)
 		_mag_of.text = "/ %d" % GameState.mag_capacity
 		_hand.text = "elde %d / %d" % [GameState.carried, GameState.carry_capacity]
-	_gold.text = _dotted(GameState.gold)
-	_vault.text = "takım kasası %s" % _dotted(floori(GameState.vault))
+	_gold.text = "$" + _dotted(GameState.gold)
+	_vault.text = "takım kasası $%s" % _dotted(floori(GameState.vault))
 	if p.armed != "":
 		_special.text = "%s takılı" % GameState.SPECIALS[p.armed].name.to_lower()
 		_special.add_theme_color_override("font_color", UiStyle.ACCENT)

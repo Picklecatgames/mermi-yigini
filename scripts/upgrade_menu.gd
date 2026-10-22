@@ -155,7 +155,7 @@ func _process(_delta: float) -> void:
 ## Gold | tabs | vault, the two sides mirrored like the HUD's corners.
 func _header() -> Control:
 	var row := HBoxContainer.new()
-	row.add_child(_wallet("altın", false))
+	row.add_child(_wallet("", false))  # the player's own: "$" says enough
 	var tabs := HBoxContainer.new()
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -172,10 +172,10 @@ func _wallet(caption: String, right: bool) -> VBoxContainer:
 	col.custom_minimum_size.x = SIDE_W
 	col.add_theme_constant_override("separation", 0)
 	var align := HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
-	var c := UiStyle.caption(caption)
+	var c := UiStyle.caption(caption if caption != "" else " ")  # blank still holds the line: the figures stay level
 	c.horizontal_alignment = align
 	col.add_child(c)
-	var big := UiStyle.label("", 36, UiStyle.LIGHT)
+	var big := UiStyle.label("", 36, UiStyle.LIGHT, HUD.MONEY)
 	big.horizontal_alignment = align
 	col.add_child(big)
 	if right:
@@ -219,7 +219,7 @@ func _show_tab(index: int) -> void:
 		_tabs[i].modulate.a = 1.0 if on else 0.45
 		(_tabs[i].find_child("Under", true, false) as Control).visible = on
 		_pages[i].visible = on
-	_subtitle.text = ["yalnız senin için  ·  altınınla", "ortak kasadan  ·  bütün takım kullanır  ·  b ile kur"][index]
+	_subtitle.text = ["", "ortak kasadan  ·  bütün takım kullanır  ·  b ile kur"][index]
 	if index == 1 and not _models_built:  # built on first look: fifteen small worlds
 		_models_built = true
 		for id in GameState.GEAR:
@@ -412,11 +412,11 @@ func _refresh() -> void:
 	if visible and roundi(_gold_shown) != GameState.gold:  # the figure counts to it
 		create_tween().tween_method(func(v: float) -> void:
 			_gold_shown = v
-			_money.text = HUD._dotted(roundi(v)), _gold_shown, float(GameState.gold), 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+			_money.text = "$" + HUD._dotted(roundi(v)), _gold_shown, float(GameState.gold), 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 	else:
 		_gold_shown = GameState.gold
-		_money.text = HUD._dotted(GameState.gold)
-	_vault.text = HUD._dotted(floori(GameState.vault))
+		_money.text = "$" + HUD._dotted(GameState.gold)
+	_vault.text = "$" + HUD._dotted(floori(GameState.vault))
 	for id in GameState.UPGRADES:
 		var c: Dictionary = _cards[id]
 		var level: int = GameState.player().levels[id]
