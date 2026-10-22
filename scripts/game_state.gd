@@ -149,13 +149,10 @@ const RICOCHET_MULT := 3
 # ponytail: placeholder prices until the 60-minute balance pass.
 const GEAR := {
 	"dummy": {"name": "Saman Kukla", "scene": "res://scenes/dummy.tscn", "cost": 20},
-	"steel_silhouette": {"name": "Çelik Siluet", "scene": "res://scenes/steel_silhouette.tscn", "cost": 35},
-	"steel_gong": {"name": "Çelik Gong", "scene": "res://scenes/steel_gong.tscn", "cost": 35},
 	"popper": {"name": "Popper", "scene": "res://scenes/popper_target.tscn", "cost": 60},
 	"steel_rack": {"name": "Plaka Dizisi", "scene": "res://scenes/steel_rack.tscn", "cost": 90},
 	"plate_rack": {"name": "Köstebek Rafı", "scene": "res://scenes/plate_rack.tscn", "cost": 150},
 	"texas_star": {"name": "Texas Star", "scene": "res://scenes/texas_star.tscn", "cost": 300},
-	"convoy": {"name": "Konvoy", "scene": "res://scenes/convoy.tscn", "cost": 100},
 	"barrel": {"name": "Patlayan Varil", "scene": "res://scenes/barrel_target.tscn", "cost": 120},
 	"scarecrow": {"name": "Yanan Korkuluk", "scene": "res://scenes/scarecrow.tscn", "cost": 60},
 	"armored_dummy": {"name": "Zırhlı Kukla", "scene": "res://scenes/armored_dummy.tscn", "cost": 200},

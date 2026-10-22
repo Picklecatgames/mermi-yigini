@@ -4,8 +4,8 @@ extends Control
 ## found in it.
 ## Bottom left: the magazine big, the hand under a rule. Bottom right, its mirror: gold big, the
 ## team vault under a rule. Bottom centre: the guns, the one in hand underlined, and above them a
-## special round's state (loaded, or how many in the pocket) and, when the gold reaches an upgrade,
-## a call to the workshop. Listens to GameState itself.
+## special round's state (loaded, or how many in the pocket) and the way to the workshop
+## ("q · geliştirmeler", in the accent when the gold reaches an upgrade). Listens to GameState itself.
 
 const KeyCache := preload("res://scripts/key_cache.gd")
 const MARGIN := Vector2(30, 24)  # px from the screen's edges
@@ -99,7 +99,7 @@ func _build_middle() -> void:
 	var col := _column(Control.PRESET_CENTER_BOTTOM, HORIZONTAL_ALIGNMENT_CENTER)
 	col.offset_bottom = -MARGIN.y
 	col.add_theme_constant_override("separation", 10)
-	_can_buy = _centred(UiStyle.caption("q  ·  geliştirme alınabilir", UiStyle.ACCENT))
+	_can_buy = _centred(UiStyle.caption(""))
 	col.add_child(_can_buy)
 	_special = UiStyle.caption("")
 	_special.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -151,9 +151,11 @@ func refresh() -> void:
 		gun.get_child(1).modulate.a = 1.0 if on else 0.0  # the underline
 		gun.modulate.a = 1.0 if on else (0.45 if GameState.gun_open(i + 1) else 0.2)
 	_guns.get_parent().visible = not p.placing  # placement keeps its keys here
-	_can_buy.visible = GameState.UPGRADES.keys().any(func(id: String) -> bool:
+	var can := GameState.UPGRADES.keys().any(func(id: String) -> bool:
 		var costs: Array = GameState.UPGRADES[id].costs
 		return p.levels[id] < costs.size() and GameState.gold >= costs[p.levels[id]])
+	_can_buy.text = "q  ·  geliştirme alınabilir" if can else "q  ·  geliştirmeler"
+	_can_buy.add_theme_color_override("font_color", UiStyle.ACCENT if can else UiStyle.DIM)
 	_test.visible = GameState.infinite_ammo
 
 

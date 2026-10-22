@@ -17,13 +17,10 @@ const INFO := {
 }
 const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 	"dummy": [1, 1],
-	"steel_gong": [2, 1],
-	"steel_silhouette": [2, 2],
 	"popper": [3, 2],
 	"steel_rack": [4, 3],
 	"plate_rack": [7, 4],
 	"texas_star": [12, 5],
-	"convoy": [3, 2],
 	"barrel": [5, 2],
 	"scarecrow": [1, 1],
 	"armored_dummy": [10, 3],
@@ -126,6 +123,13 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("upgrades") or (visible and event.is_action_pressed("ui_cancel")):
 		toggle()
+		get_viewport().set_input_as_handled()
+
+
+## A click or wheel turn the cards let pass would reach player.gd, which takes the mouse back
+## into the game: while open the workshop keeps every mouse button to itself.
+func _unhandled_input(event: InputEvent) -> void:
+	if visible and event is InputEventMouseButton:
 		get_viewport().set_input_as_handled()
 
 

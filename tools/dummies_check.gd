@@ -1,6 +1,6 @@
 extends SceneTree
-## Headless check for the eight gear targets of 2026-10-22 (konvoy, varil, korkuluk, zırhlı,
-## sarkaç, çift gong, altın kukla, sekme plakası): what each pays and how it reacts.
+## Headless check for the gear targets of 2026-10-22 (varil, korkuluk, zırhlı, sarkaç, çift gong,
+## altın kukla, sekme plakası): what each pays and how it reacts.
 ##   Godot.exe --headless --path . -s res://tools/dummies_check.gd
 
 var gs: Node
@@ -23,7 +23,6 @@ func _initialize() -> void:
 	var crow: Node3D = put.call("res://scenes/scarecrow.tscn", -4.0)
 	var barrel: Node3D = put.call("res://scenes/barrel_target.tscn", -9.0)
 	put.call("res://scenes/dummy.tscn", -11.0)  # the barrel's neighbour
-	var convoy: Node3D = put.call("res://scenes/convoy.tscn", -14.0)
 	var gold: Node3D = put.call("res://scenes/gold_dummy.tscn", -17.5)
 	var bank: Node3D = put.call("res://scenes/ricochet_plate.tscn", -22.0)
 	for i in 3:
@@ -32,12 +31,6 @@ func _initialize() -> void:
 	gs.infinite_ammo = true
 	gs.player().loaded = 1
 	gs.player().levels["combo_cap"] = 4  # x20
-
-	# Konvoy: the front popper goes down and the one behind it is in the line of fire.
-	var line: Vector3 = convoy.global_transform * Vector3(0, 0.3, 0)
-	assert(_shot(line) == 3, "konvoy: front pays 3")
-	assert(_shot(line) == 4, "konvoy: then the middle one, 4")
-	assert(_shot(line) == 5, "konvoy: then the back one, 5")
 
 	# Varil: its own 5 and the dummy 2 m away; then it is gone.
 	assert(_shot(barrel.global_position + Vector3(0, 0.5, 0)) == 6, "barrel: 5 + the dummy's 1")
