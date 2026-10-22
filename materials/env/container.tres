@@ -1,0 +1,15 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/container_side/container_side_diff_2k.jpg" id="1_llvst"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/container_side/container_side_nor_gl_2k.jpg" id="2_c6fjc"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/container_side/container_side_arm_2k.jpg" id="3_gfw0g"]
+
+[resource]
+albedo_color = Color(0.82, 0.86, 0.84, 1)
+albedo_texture = ExtResource("1_llvst")
+orm_texture = ExtResource("3_gfw0g")
+normal_enabled = true
+normal_texture = ExtResource("2_c6fjc")
+uv1_scale = Vector3(0.41666666, 0.41666666, 0.41666666)
+uv1_triplanar = true
+texture_filter = 5

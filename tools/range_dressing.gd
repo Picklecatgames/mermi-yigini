@@ -374,7 +374,7 @@ func _shooters_side() -> void:
 	b._prop(root, MODELS + "metal_trash_can/metal_trash_can_1k.gltf", Vector3(13.35, 0, 26.9), 0.2)
 	b._prop(root, MODELS + "plastic_broom/plastic_broom_1k.gltf", Vector3(13.55, 0, 27.6), 0.0, 1.0, Basis(Vector3.RIGHT, 0.18))
 	b._prop(root, MODELS + "dustpan/dustpan_1k.gltf", Vector3(12.9, 0, 27.55), 0.8)
-	b._prop(root, MODELS + "standing_chalkboard_01/standing_chalkboard_01_1k.gltf", Vector3(5.6, 0, 27.0), PI + 0.3)
+	b._prop(root, MODELS + "standing_chalkboard_01/standing_chalkboard_01_1k.gltf", Vector3(1.9, 0, 27.0), PI + 0.3)
 
 
 func _ammo_can(at: Vector3, yaw: float) -> void:
@@ -469,16 +469,50 @@ func _hole(holes: Array, at: Vector3, normal: Vector3) -> void:
 # --- posters: odd old public-information prints the crew taped up, on the shooters' side --------
 
 func _posters() -> void:
-	_poster("fly_bomber", Vector3(3.8, 1.7, -27.97), _wall(1.0), 0.9, -0.03)
-	_poster("john_not_dull", Vector3(5.5, 1.65, -27.97), _wall(1.0), 0.95, 0.02)
-	_poster("dont_mix_em", Vector3(7.3, 1.75, -27.97), _wall(1.0), 0.85, -0.015)
-	_poster("firecrackers", Vector3(3.4, 1.65, 27.97), _wall(-1.0), 0.8, -0.02)
-	_poster("six_out_of_ten", Vector3(4.6, 1.6, 27.97), _wall(-1.0), 0.75, 0.04)
-	_poster("oops", Vector3(7.6, 1.7, 27.97), _wall(-1.0), 0.85, 0.01)
-	_poster("heat_ruins_ammo", Vector3(12.0, 2.5, 27.97), _wall(-1.0), 0.6, 0.03)
-	_poster("black_widow", Vector3(19.2, 2.15, 27.955), _wall(-1.0), 0.55, 0.05)
+	# Two crowded notice boards, years of notices pinned over each other, faded, torn, a few
+	# hanging off or fallen; not posters spaced out one by one on a bare wall.
+	_board(Vector3(5.4, 1.75, -27.97), _wall(1.0), ["fly_bomber", "john_not_dull", "dont_mix_em", "heat_ruins_ammo"])
+	_board(Vector3(5.6, 1.75, 27.97), _wall(-1.0), ["firecrackers", "six_out_of_ten", "oops", "black_widow"])
 	_sign(["ATIŞ VAR", "GİRİLMEZ"], Vector3(12.6, 2.3, -27.97), _wall(1.0), Vector2(0.8, 0.5), true)
 	_sign(["ATIŞ VAR", "GİRİLMEZ"], Vector3(12.6, 2.3, 27.97), _wall(-1.0), Vector2(0.8, 0.5), true)
+
+
+## A 3.2 x 1.5 m pin board: posters and papers overlapping, scraps of torn-off ones, one poster
+## peeled half off the board, one fallen to the floor under it.
+func _board(at: Vector3, face: Basis, posters: Array) -> void:
+	var out := face * Vector3(0, 0, 1)
+	var cork: Material = b.worn("plywood", "board_cork", {"tint": Color(0.66, 0.6, 0.52), "tex_size": 0.8, "cell_size": 4.0, "grime": 0.6, "grime_scale": 1.2})
+	b.block(Vector3(3.6, 1.8, 0.025), at + out * 0.0125, cork, root, face)
+	for e in [[Vector3(0, 0.92, 0), Vector3(3.68, 0.05, 0.04)], [Vector3(0, -0.92, 0), Vector3(3.68, 0.05, 0.04)],
+			[Vector3(1.82, 0, 0), Vector3(0.05, 1.88, 0.04)], [Vector3(-1.82, 0, 0), Vector3(0.05, 1.88, 0.04)]]:
+		b.block(e[1], at + out * 0.02 + face * e[0], wood, root, face)
+	var z := 0.028
+	for k in 6:  # scraps left where older sheets were torn off
+		var p := Vector3(rng.randf_range(-1.4, 1.4), rng.randf_range(-0.6, 0.6), 0)
+		b.add(_mesh(_quad(Vector2(rng.randf_range(0.08, 0.2), rng.randf_range(0.06, 0.16))), _aged_paper(),
+			Transform3D(face * Basis(Vector3.BACK, rng.randf_range(-0.5, 0.5)), at + face * p + out * z)), root)
+	var slots := [Vector3(-1.2, 0.1, 0), Vector3(-0.3, 0.18, 0), Vector3(0.62, -0.04, 0), Vector3(1.35, 0.22, 0)]
+	for i in posters.size():
+		z += 0.003
+		var h := rng.randf_range(0.95, 1.2)
+		var m := _aged_poster(posters[i])
+		var tex: Texture2D = m.albedo_texture
+		var size := Vector2(h * tex.get_width() / tex.get_height(), h)
+		var p: Vector3 = at + face * slots[i] + out * z
+		if i == 2:  # this one's bottom pins are gone: it hangs off the board from the top
+			var hinge := p + face * Vector3(0, size.y / 2.0, 0)
+			var xf := Transform3D(face * Basis(Vector3.RIGHT, -0.32) * Basis(Vector3.BACK, 0.05), hinge)
+			b.add(_mesh(_quad(size), m, xf * Transform3D(Basis(), Vector3(0, -size.y / 2.0, 0))), root)
+			continue
+		_taped(m, p, face, size, rng.randf_range(-0.05, 0.05))
+	for k in 4:  # notices over and between them
+		z += 0.003
+		_paper([], at + face * Vector3(rng.randf_range(-1.45, 1.45), rng.randf_range(-0.5, 0.55), 0) + out * z, face,
+			Vector2(0.21, 0.297), rng.randf_range(-0.12, 0.12), k == 1)
+	# The one that came down, lying curled at the wall foot.
+	var fallen := _aged_poster(posters[0])
+	var floor_at := Vector3(at.x + 1.9, 0.004, at.z) + out * 0.5
+	b.add(_mesh(_quad(Vector2(0.55, 0.75)), fallen, Transform3D(Basis(Vector3.UP, 0.7) * Basis(Vector3.RIGHT, -PI / 2), floor_at)), root)
 
 
 # --- overhead: ducts fill the black void under the roof ---------------------------------------
@@ -560,12 +594,62 @@ func _paper(lines: Array, at: Vector3, face: Basis, size: Vector2, roll: float, 
 
 ## A printed poster from assets/env/posters, `height` m tall, taped on like the papers.
 func _poster(file: String, at: Vector3, face: Basis, height: float, roll: float) -> void:
-	var tex: Texture2D = load("res://assets/env/posters/%s.jpg" % file)
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = tex
-	m.albedo_color = Color(0.9, 0.87, 0.8)  # aged under the hall's dust
-	m.roughness = 0.85
+	var m := _aged_poster(file)
+	var tex: Texture2D = m.albedo_texture
 	_taped(m, at, face, Vector2(height * tex.get_width() / tex.get_height(), height), roll)
+
+
+## A poster gone old on the wall: sun-faded toward the paper, yellowed, water stains, damp
+## blooms, fold lines, corners and edges torn away. Drawn once into materials/env/decals.
+func _aged_poster(file: String) -> StandardMaterial3D:
+	var path := DECALS + "aged_%s.res" % file
+	if not ResourceLoader.exists(path):
+		var img := Image.load_from_file(ProjectSettings.globalize_path("res://assets/env/posters/%s.jpg" % file))
+		var w := 384
+		var h := int(384.0 * img.get_height() / img.get_width())
+		img.resize(w, h)
+		img.convert(Image.FORMAT_RGBA8)
+		var n := FastNoiseLite.new()
+		n.seed = file.hash() & 0xffff
+		n.frequency = 0.012
+		n.fractal_octaves = 5
+		var torn_corner := (file.hash() >> 3) % 4
+		for y in h:
+			for x in w:
+				var c := img.get_pixel(x, y)
+				var g := n.get_noise_2d(x, y)
+				c = c.lerp(Color(0.86, 0.8, 0.64), 0.32 + 0.12 * g)  # faded and yellowed
+				var stain := smoothstep(0.25, 0.45, n.get_noise_2d(x * 0.6 + 500.0, y * 0.6))
+				c = c.lerp(Color(0.55, 0.45, 0.3), stain * 0.35)  # water stains with a darker tide line
+				if absf(n.get_noise_2d(x * 0.6 + 500.0, y * 0.6) - 0.25) < 0.012:
+					c = c.darkened(0.25)
+				if absi(y - h / 2) < 1 or absi(x - w / 2) < 1:
+					c = c.darkened(0.12)  # fold lines
+				var edge := minf(minf(x, w - 1 - x), minf(y, h - 1 - y))
+				var rag := 6.0 + 10.0 * (n.get_noise_2d(x * 3.0, y * 3.0) + 0.5)
+				var corner := Vector2(0 if torn_corner % 2 == 0 else w, 0 if torn_corner < 2 else h)
+				var gone := edge < rag * 0.5 or Vector2(x, y).distance_to(corner) < 70.0 + 40.0 * g
+				c = c.darkened(0.25 * smoothstep(rag * 3.0, 0.0, edge))  # grimy edges
+				c.a = 0.0 if gone else 1.0
+				img.set_pixel(x, y, c)
+		img.generate_mipmaps()
+		PortableCompressedTexture2D.set_keep_all_compressed_buffers(true)
+		var tex := PortableCompressedTexture2D.new()
+		tex.create_from_image(img, PortableCompressedTexture2D.COMPRESSION_MODE_LOSSLESS)
+		ResourceSaver.save(tex, path)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load(path)
+	m.albedo_color = Color(0.85, 0.83, 0.78)
+	m.roughness = 0.9
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m
+
+
+func _aged_paper() -> StandardMaterial3D:
+	var m := _flat(PAPER.darkened(0.25), 0.9)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m
 
 
 ## A sheet of `m` with tape on its corners; returns its transform.

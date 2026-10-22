@@ -20,6 +20,13 @@ const LAMP_STEP := 6.0
 const LAMP_ENERGY := 0.9  # dim working light: the heap's own spots must stay the brightest thing
 const LAMP_HEAP_CLEAR := 9.0  # m round the heap with no battens, so it stands in its own light
 const DECALS := "res://materials/env/decals/"
+# The abandoned roof (2026-10-22): skylight panels broken out (x0, z0, x1, z1) and sheets rusted
+# through. Every one lets a shaft of the sun (_sun) in; one falls right on the heap.
+const SKY_HOLES: Array[Vector4] = [Vector4(-9.5, -2.8, -6.5, 1.4), Vector4(6.5, -15.6, 9.5, -12.0),
+	Vector4(6.5, 8.6, 9.5, 10.6), Vector4(-20.5, -24.4, -17.5, -21.0), Vector4(17.5, -23.4, 20.5, -20.8)]
+const RUST_HOLES: Array[Vector4] = [Vector4(-3.2, 17.6, -1.6, 18.8), Vector4(11.4, -5.8, 12.6, -4.9),
+	Vector4(-24.6, 8.2, -23.4, 9.4)]
+const SUN_DIR := Vector3(-0.42, -1.0, 0.22)  # sunlight's travel; shafts lean west a little
 ## The heap's centre, west of the hall's middle (scenes/main.tscn Pile has the same): its paint
 ## ring (10.6 m) ends at x 1.6, leaving a 12.4 m band to the railing for belts and turrets
 ## (docs/taret_bant_kilavuzu.md, "Yerleşim").
@@ -86,13 +93,13 @@ func _initialize() -> void:
 	_final_spots()
 	_upper_walls()
 	_props()
-	_work_sites()
 	_dust()
 	_firing_line()
 	_range()
 	_chest_stands()
 	_markings()
 	_spawns()
+	preload("res://tools/hall_dressing.gd").new(self).build()
 	for path in ["Roof", "Lamps", "UpperWalls", "Range/LightBridge", "Range/Baffles", "Range/BayCeiling"]:
 		overhead(arena.get_node(path))
 	var scene := PackedScene.new()
@@ -187,7 +194,7 @@ func _environment() -> void:
 	env.background_color = Color.BLACK
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR  # faint fill: the roof and corners never go pitch black
 	env.ambient_light_color = Color(0.62, 0.6, 0.56)
-	env.ambient_light_energy = 0.15
+	env.ambient_light_energy = 0.22
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED  # the probe below covers it
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
@@ -204,11 +211,15 @@ func _environment() -> void:
 	env.glow_bloom = 0.04
 	env.glow_hdr_threshold = 1.3
 	env.volumetric_fog_enabled = true  # dust in the air: the lamp cones and spot beams show in it
-	env.volumetric_fog_density = 0.002  # a light haze; thicker turned every beam into a grey wedge
+	env.volumetric_fog_density = 0.0025  # a light haze; thicker turned every beam into a grey wedge
 	env.volumetric_fog_albedo = Color(0.92, 0.9, 0.86)
 	env.volumetric_fog_anisotropy = 0.55
 	env.volumetric_fog_length = 70.0
 	env.volumetric_fog_sky_affect = 0.0
+	env.ssr_enabled = true  # the puddles under the roof holes mirror the shafts and lamps
+	env.ssr_max_steps = 96
+	env.ssr_fade_in = 0.1
+	env.ssr_fade_out = 2.0
 	env.adjustment_enabled = true  # AgX washes colour out; give the brass, paint and signs back some punch
 	env.adjustment_contrast = 1.08
 	env.adjustment_saturation = 1.15
@@ -274,6 +285,8 @@ func _walls() -> void:
 		var east: bool = side[0] == "East"  # open over the range bay; local x is world z there
 		for i in 14:
 			var along := -26.0 + 4.0 * i
+			if side[0] == "South" and i == 8:
+				continue  # world x -6: the loading door (tools/hall_dressing.gd _loading_door)
 			if not (east and absf(along) < BAY_HALF):
 				mesh_at("wall_panel", Transform3D(Basis(), Vector3(along, 0, 0)), mat, body)
 		var runs := [[-28.3, -BAY_HALF], [BAY_HALF, 28.3]] if east else [[-28.3, 28.3]]
@@ -336,12 +349,60 @@ func _roof() -> void:
 	var sheet := mesh_at("roof_sheet", Transform3D(), roof_mat, roof)
 	sheet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 	# The skylight strips are sheeted over too: the hall is closed and dark, lit only from inside.
-	var shut := mesh_at("skylight", Transform3D(), roof_mat, roof)
+	roof_mat.set_shader_parameter("holes", RUST_HOLES)
+	roof_mat.set_shader_parameter("hole_count", RUST_HOLES.size())
+	ResourceSaver.save(roof_mat)
+	# The skylights: yellowed fibreglass glowing dull with the day, some panels broken out.
+	var glass := ShaderMaterial.new()
+	glass.shader = load("res://materials/env/skylight.gdshader")
+	glass.set_shader_parameter("grime_tex", roof_mat.get_shader_parameter("grime_tex"))
+	glass.set_shader_parameter("holes", SKY_HOLES)
+	glass.set_shader_parameter("hole_count", SKY_HOLES.size())
+	ResourceSaver.save(glass, "res://materials/env/skylight.tres")
+	var shut := mesh_at("skylight", Transform3D(), load("res://materials/env/skylight.tres"), roof)
 	shut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
+	shut.gi_mode = GeometryInstance3D.GI_MODE_DISABLED  # its glow would light the whole hall evenly
+	_sun(roof)
 	var clad: Material = load("res://materials/env/corrugated_iron_02.tres")
 	for s in [-1.0, 1.0]:
 		var g := mesh_at("gable_cladding", Transform3D(Basis(), Vector3(0, 0, s * 28.3)), clad, roof)
 		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
+
+
+
+## Daylight outside the closed hall: a bright overcast sky lid over the roof (seen only through the
+## holes) and one shadowed sun. The roof shades it everywhere but the holes, so it comes in as
+## hard shafts through the dust. Kept out of the GI, so nothing outside leaks in evenly.
+func _sun(roof: Node3D) -> void:
+	var sky := MeshInstance3D.new()
+	sky.name = "SkyLid"
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(160, 160)
+	pm.flip_faces = true  # seen from below
+	sky.mesh = pm
+	var lid := StandardMaterial3D.new()
+	lid.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lid.albedo_color = Color(0.86, 0.9, 0.96)
+	sky.material_override = lid
+	sky.position = Vector3(0, 16.0, 0)
+	sky.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sky.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	add(sky, roof)
+	var sun := DirectionalLight3D.new()
+	sun.name = "Sun"
+	sun.transform = Transform3D(Basis.looking_at(SUN_DIR.normalized(), Vector3.FORWARD), Vector3(0, 20, 0))
+	sun.light_color = Color(1.0, 0.95, 0.86)
+	sun.light_energy = 1.35
+	sun.light_volumetric_fog_energy = 0.0  # the fog ignores the roof's shadow: shafts are drawn (sun_shaft.gdshader)
+	sun.light_cull_mask = 1  # not the gun's layer
+	sun.shadow_enabled = true
+	sun.shadow_bias = 0.03
+	sun.shadow_normal_bias = 1.2
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = 90.0
+	sun.directional_shadow_blend_splits = true
+	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	add(sun)
 
 
 ## LED battens bolted flat under every truss's bottom chord, LAMP_STEP apart: a slim housing with a
@@ -372,11 +433,25 @@ func _lamps() -> void:
 				near_spot = near_spot or (absf(s.z - z) < 0.1 and absf(s.x - x) < 1.4)
 			near_spot = near_spot or Vector2(x - HEAP.x, z - HEAP.z).length() < LAMP_HEAP_CLEAR
 			var downrange := x > GS.FIRING_LINE_X  # cool daylight over the targets (_range)
-			# An old shed: a few tubes dead, one failing. Breaks the even grid into pools of light.
-			var wear := absi(hash(Vector2i(roundi(x), roundi(z)))) % 6
+			# Years abandoned: half the hall's tubes dead, some failing, some hanging off one chain.
+			# The range side still has its own working circuit. Pools of light, not a grid.
+			var wear := absi(hash(Vector2i(roundi(x * 3.0), roundi(z * 7.0)))) % 10
+			if downrange:
+				wear = 9 if wear < 8 else wear
 			if not near_spot:  # the stage spots' clamps sit on these chords
 				var lamp := Node3D.new()
 				lamp.position = Vector3(x, y, z)
+				if wear == 6 or wear == 7:  # one end's chain gone: it swings down from the other
+					var drop := 0.9 + 0.5 * float(absi(hash(Vector2i(roundi(z), roundi(x)))) % 10) / 10.0
+					lamp.position += Vector3(-0.75 + 0.75 * cos(drop * 0.55), -0.75 * sin(drop * 0.55) - 0.25, 0)
+					lamp.rotation.z = -drop * 0.55
+					var chain := MeshInstance3D.new()
+					var cb := BoxMesh.new()
+					cb.size = Vector3(0.012, 0.3, 0.012)
+					chain.mesh = cb
+					chain.material_override = paint
+					chain.position = Vector3(x + 0.75, y - 0.15, z)
+					add(chain, lamps)
 				add(lamp, lamps)
 				var h := MeshInstance3D.new()
 				h.mesh = housing
@@ -390,12 +465,12 @@ func _lamps() -> void:
 				d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				d.position.y = -0.076
 				add(d, lamp)
-				if wear == 0 and not downrange:  # dead: dark tube, no light
+				if wear <= 4 or wear == 7:  # dead: dark tube, no light
 					d.material_override = paint
 					x += LAMP_STEP
 					continue
 				var spot := SpotLight3D.new()
-				if wear == 1:
+				if wear == 5 or wear == 6:
 					d.material_override = lens.duplicate()
 					spot.set_script(FLICKER)
 				spot.position.y = -0.1
@@ -729,27 +804,15 @@ func _props() -> void:
 	var props := Node3D.new()
 	props.name = "Props"
 	add(props)
-	var barrel := MODELS + "Barrel_01/Barrel_01_1k.gltf"
-	for p in [Vector3(-25.6, 0, -24.8), Vector3(-24.9, 0, -25.5), Vector3(-26.2, 0, -25.9), Vector3(24.8, 0, 24.6), Vector3(25.6, 0, 25.4)]:
-		_prop(props, barrel, p, randf() * TAU)
 	var shelves := MODELS + "steel_frame_shelves_01/steel_frame_shelves_01_1k.gltf"
 	for z in [-6.0, -4.8, 4.8, 6.0]:
 		_prop(props, shelves, Vector3(-27.45, 0, z), PI / 2, 0.1)
 	var crate := MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf"
 	var ammo := MODELS + "ammo_box/ammo_box_1k.gltf"
-	for p in [Vector3(-25.8, 0, -3.4), Vector3(-25.7, 0.35, -3.35), Vector3(-25.2, 0, 3.6), Vector3(24.9, 0, -24.9), Vector3(25.8, 0, -25.3), Vector3(25.3, 0.35, -25.1)]:
+	for p in [Vector3(-25.8, 0, -3.4), Vector3(-25.7, 0.35, -3.35), Vector3(-25.2, 0, 3.6)]:
 		_prop(props, crate, p, randf_range(-0.3, 0.3))
-	for p in [Vector3(-25.6, 0.7, -3.3), Vector3(-25.3, 0.35, 3.7), Vector3(25.4, 0.7, -25.0)]:
+	for p in [Vector3(-25.6, 0.7, -3.3), Vector3(-25.3, 0.35, 3.7)]:
 		_prop(props, ammo, p, randf_range(-0.6, 0.6))
-	# North wall: a storage cart with boxes, a generator with fuel cans by the east wall.
-	_prop(props, MODELS + "industrial_storage_cart/industrial_storage_cart_1k.gltf", Vector3(-21.5, 0, -26.9), 0.0)
-	var box := MODELS + "cardboard_box_01/cardboard_box_01_1k.gltf"
-	for p in [Vector3(-19.9, 0, -27.2), Vector3(-19.3, 0, -26.8), Vector3(-19.6, 0.34, -27.0), Vector3(-23.6, 0, -27.1)]:
-		_prop(props, box, p, randf_range(-0.4, 0.4))
-	_prop(props, MODELS + "portable_generator/portable_generator_1k.gltf", Vector3(26.9, 0, -18.4), -PI / 2 + 0.2)
-	var can := MODELS + "metal_jerrycan/metal_jerrycan_1k.gltf"
-	for p in [Vector3(27.3, 0, -17.3), Vector3(27.35, 0, -16.9)]:
-		_prop(props, can, p, PI / 2 + randf_range(-0.2, 0.2))
 	var crate3 := MODELS + "plastic_crate_03/plastic_crate_03_1k.gltf"
 	for p in [Vector3(-24.2, 0, 26.9), Vector3(-23.6, 0, 26.95), Vector3(-23.9, 0.27, 26.9)]:
 		_prop(props, crate3, p, randf_range(-0.15, 0.15))
@@ -759,77 +822,10 @@ func _props() -> void:
 	var mil := MODELS + "old_military_crate/old_military_crate_1k.gltf"
 	_prop(props, mil, Vector3(26.9, 0, 18.2), PI / 2)
 	_prop(props, mil, Vector3(26.9, 0.26, 18.25), PI / 2 + 0.05)
-	# An extinguisher at every other column; a wet floor sign next to the biggest oil stain.
+	# An extinguisher at every other column.
 	var ext := MODELS + "korean_fire_extinguisher_01/korean_fire_extinguisher_01_1k.gltf"
 	for p in [Vector3(-27.4, 0, -13.4), Vector3(27.4, 0, 16.4), Vector3(13.4, 0, -27.4), Vector3(-13.4, 0, 27.4)]:
 		_prop(props, ext, p, randf() * TAU)
-	_prop(props, MODELS + "WetFloorSign_01/WetFloorSign_01_1k.gltf", Vector3(-14.7, 0, -23.9), 0.6)
-
-
-## Two crews' leftovers just outside the heap's ring, so the heap reads as a job people are on and
-## not a model on an empty floor: north a sandbagged sorting corner, south a pickup point. West of
-## x = -3, clear of the belt band east of the heap (docs/taret_bant_kilavuzu.md, "Yerleşim").
-func _work_sites() -> void:
-	var site := Node3D.new()
-	site.name = "WorkSites"
-	add(site)
-	var m := func(n: String) -> String: return MODELS + n + "/" + n + "_1k.gltf"
-	var flat := Basis(Vector3.RIGHT, PI / 2)
-	# North: crates stacked two high, sandbags, the tool chest, buckets and a broom at the ring.
-	var crate: String = m.call("wooden_military_crate")
-	for p in [Vector3(-15.2, 0, -14.6), Vector3(-15.1, 0, -14.0), Vector3(-15.15, 0.465, -14.3)]:
-		_prop(site, crate, p, PI / 2 + randf_range(-0.08, 0.08))
-	var ammo: String = m.call("ammo_box")
-	for p in [Vector3(-15.0, 0.93, -14.6), Vector3(-15.15, 0.93, -14.1), Vector3(-14.4, 0, -13.2), Vector3(-14.25, 0, -12.95)]:
-		_prop(site, ammo, p, randf() * TAU)
-	var bag: String = m.call("cement_bag")
-	for i in 5:
-		_prop(site, bag, Vector3(-13.0 + i * 0.5, 0, -13.4 + randf_range(-0.05, 0.05)), PI / 2 + randf_range(-0.15, 0.15))
-	for i in 3:
-		_prop(site, bag, Vector3(-12.75 + i * 0.5, 0.18, -13.4), PI / 2 + randf_range(-0.2, 0.2))
-	_prop(site, m.call("metal_tool_chest"), Vector3(-12.6, 0, -15.4), 0.15)
-	_prop(site, m.call("metal_jerrycan_green"), Vector3(-11.6, 0, -15.5), 0.4)
-	_prop(site, m.call("propane_tank"), Vector3(-16.4, 0, -13.2), 0.0)
-	var can: String = m.call("can_rusted")
-	for p in [Vector3(-10.4, 0, -11.9), Vector3(-10.15, 0, -12.1), Vector3(-9.6, 0, -12.0)]:
-		_prop(site, can, p, randf() * TAU)
-	_prop(site, m.call("dustpan"), Vector3(-9.0, 0, -12.3), 2.6)
-	_prop(site, m.call("plastic_broom"), Vector3(-8.4, 0, -12.4), 1.2, 1.0, Basis(Vector3.FORWARD, PI / 2))  # dropped mid-sweep
-	# South: the pickup point, a cart, two crates with the paperwork on top, barriers, boots, a tyre.
-	_prop(site, m.call("industrial_storage_cart"), Vector3(-15.0, 0, 13.6), 0.35)
-	var mil: String = m.call("old_military_crate")
-	_prop(site, mil, Vector3(-11.4, 0, 14.3), 0.1)
-	_prop(site, mil, Vector3(-11.35, 0.3, 14.3), 0.16)
-	_prop(site, m.call("clipboard"), Vector3(-11.7, 0.6, 14.2), 0.4)
-	_prop(site, m.call("binoculars"), Vector3(-11.0, 0.61, 14.45), -0.7)
-	_prop(site, m.call("Megaphone_01"), Vector3(-10.6, 0.79, 14.1), 2.2)
-	var barrier: String = m.call("concrete_road_barrier")
-	_prop(site, barrier, Vector3(-6.4, 0, 13.4), 0.25)
-	_prop(site, barrier, Vector3(-4.9, 0, 13.0), 0.1)
-	_prop(site, m.call("rubber_boots"), Vector3(-13.1, 0, 12.8), 2.0)
-	_prop(site, m.call("old_tyre"), Vector3(-8.5, 0.083, 14.6), 0.0, 1.0, flat)
-	for p in [Vector3(-12.6, 0, 15.3), Vector3(-12.2, 0, 15.45)]:
-		_prop(site, ammo, p, randf() * TAU)
-	# Each corner under its own warm work lamp: in this big hall a few props only read as a place
-	# when they sit in a pool of light.
-	var cord := StandardMaterial3D.new()
-	cord.albedo_color = Color(0.05, 0.05, 0.05)
-	for at in [Vector3(-13.2, 0, -14.0), Vector3(-12.0, 0, 14.0)]:
-		block(Vector3(0.01, BOTTOM - 4.0, 0.01), at + Vector3(0, (BOTTOM + 4.0) / 2, 0), cord, site)
-		var cage: Node3D = (load(m.call("caged_hanging_light")) as PackedScene).instantiate()
-		cage.position = at + Vector3(0, 4.0, 0)
-		add(cage, site)
-		var lamp := SpotLight3D.new()
-		lamp.position = at + Vector3(0, 3.3, 0)
-		lamp.rotation.x = -PI / 2
-		lamp.light_color = Color(1.0, 0.74, 0.46)  # tungsten, against the cool battens
-		lamp.light_energy = 8.0
-		lamp.spot_range = 9.0
-		lamp.spot_angle = 55.0
-		lamp.spot_angle_attenuation = 1.4
-		lamp.light_volumetric_fog_energy = 1.2
-		lamp.shadow_enabled = true
-		add(lamp, site)
 
 
 ## Dust drifting in the air over the heap and down the range: tiny lit specks, so they only show
@@ -1589,7 +1585,6 @@ func _markings() -> void:
 		var s := rng.randf_range(0.8, 2.6)
 		_decal(marks, stain, p, rng.randf() * TAU, Vector3(s, 1.0, s * rng.randf_range(0.6, 1.0)))
 		placed += 1
-	_decal(marks, stain, Vector3(-14.1, 0, -24.6), 0.4, Vector3(3.2, 1.0, 2.4))  # by the wet floor sign
 	# Big faint wear patches: break up the floor scan's repeat at a scale it never tiles at.
 	placed = 0
 	while placed < 18:

@@ -1,0 +1,22 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://materials/env/skylight.gdshader" id="1_stbwe"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_ljxjw"]
+seed = 55827
+frequency = 0.02
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_42130"]
+noise = SubResource("FastNoiseLite_ljxjw")
+seamless = true
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_stbwe")
+shader_parameter/grime_tex = SubResource("NoiseTexture2D_42130")
+shader_parameter/sheet = null
+shader_parameter/daylight = null
+shader_parameter/glow = null
+shader_parameter/panel = null
+shader_parameter/holes = Array[Vector4]([Vector4(-9.5, -2.8, -6.5, 1.4), Vector4(6.5, -15.6, 9.5, -12), Vector4(6.5, 8.6, 9.5, 10.6), Vector4(-20.5, -24.4, -17.5, -21), Vector4(17.5, -23.4, 20.5, -20.8)])
+shader_parameter/hole_count = 5

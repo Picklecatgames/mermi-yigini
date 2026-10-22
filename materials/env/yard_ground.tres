@@ -1,0 +1,16 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/dry_ground_01/dry_ground_01_diff_2k.jpg" id="1_fckou"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dry_ground_01/dry_ground_01_nor_gl_2k.jpg" id="2_32fvo"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dry_ground_01/dry_ground_01_arm_2k.jpg" id="3_cwqop"]
+
+[resource]
+albedo_color = Color(0.9, 0.88, 0.84, 1)
+albedo_texture = ExtResource("1_fckou")
+orm_texture = ExtResource("3_cwqop")
+normal_enabled = true
+normal_texture = ExtResource("2_32fvo")
+uv1_scale = Vector3(0.33333334, 0.33333334, 0.33333334)
+uv1_triplanar = true
+uv1_world_triplanar = true
+texture_filter = 5

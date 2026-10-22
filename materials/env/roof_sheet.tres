@@ -37,3 +37,5 @@ shader_parameter/rust_color = null
 shader_parameter/rust = 0.45
 shader_parameter/wear_x = null
 shader_parameter/wear_width = null
+shader_parameter/holes = Array[Vector4]([Vector4(-3.2, 17.6, -1.6, 18.8), Vector4(11.4, -5.8, 12.6, -4.9), Vector4(-24.6, 8.2, -23.4, 9.4)])
+shader_parameter/hole_count = 3
