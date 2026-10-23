@@ -29,8 +29,7 @@ uniform vec3 rust_color : source_color = vec3(0.36, 0.17, 0.07);
 uniform float rust = 0.0;             // metal: rust bloom in the grime's dark spots
 uniform float wear_x = -1000.0;       // floor: x of a standing line (the railing); worn just behind it
 uniform float wear_width = 3.0;
-uniform vec4 holes[6];                // roof: rusted-through holes (x0, z0, x1, z1 world rects)
-uniform int hole_count = 0;
+uniform vec4 cutout = vec4(0.0);      // roof: a clean opening (x0, z0, x1, z1 world rect) for the glass lantern
 
 varying vec3 world_pos;
 varying vec3 world_normal;
@@ -59,16 +58,8 @@ void fragment() {
 		rot = mat2(vec2(cos(angle), sin(angle)), vec2(-sin(angle), cos(angle)));
 		uv = rot * (p / tex_size);
 	}
-	// Rusted-through holes: ragged, with a rust halo eaten round them.
-	float halo = 0.0;
-	for (int i = 0; i < hole_count; i++) {
-		vec4 hr = holes[i];
-		vec2 hd = abs(world_pos.xz - (hr.xy + hr.zw) * 0.5) / ((hr.zw - hr.xy) * 0.5);
-		float r = max(hd.x, hd.y) - 0.35 * texture(grime_tex, world_pos.xz * 0.7).r;
-		if (r < 0.62) {
-			discard;
-		}
-		halo = max(halo, smoothstep(1.4, 0.62, r));
+	if (all(greaterThan(world_pos.xz, cutout.xy)) && all(lessThan(world_pos.xz, cutout.zw))) {
+		discard;
 	}
 	vec3 albedo = texture(albedo_tex, uv).rgb;
 	// The texture's own repeat: a second sample 3.7x larger and turned, used for its brightness only.
@@ -94,7 +85,7 @@ void fragment() {
 	}
 	albedo = mix(albedo, grime_color, clamp(dirt + wear * 0.45, 0.0, 0.85));
 	rough = clamp(rough - wear * 0.25 + dirt * 0.1, 0.05, 1.0);
-	float rust_mask = max(smoothstep(0.55, 0.15, g) * rust * (0.6 + 0.4 * h), halo);
+	float rust_mask = smoothstep(0.55, 0.15, g) * rust * (0.6 + 0.4 * h);
 	albedo = mix(albedo, rust_color * (0.7 + 0.6 * texture(grime_tex, p * 0.9).r), clamp(rust_mask, 0.0, 1.0));
 	float metal = arm.b * (1.0 - rust_mask);
 

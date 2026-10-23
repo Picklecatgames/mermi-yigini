@@ -37,5 +37,4 @@ shader_parameter/rust_color = null
 shader_parameter/rust = null
 shader_parameter/wear_x = 16.2
 shader_parameter/wear_width = 2.6
-shader_parameter/holes = null
-shader_parameter/hole_count = null
+shader_parameter/cutout = null

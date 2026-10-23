@@ -22,16 +22,15 @@ const COLUMN_H := 8.95
 const BAYS: Array[float] = [-27.85, -21.0, -14.0, -7.0, 0.0, 7.0, 14.0, 21.0, 27.85]
 const LAMP_SPAN := 24.0  # ceiling battens from -LAMP_SPAN to +LAMP_SPAN along each truss
 const LAMP_STEP := 6.0
-const LAMP_ENERGY := 2.2  # working light pools under each bulb; the heap's own spots stay the brightest thing
+const LAMP_ENERGY := 1.0  # night: dim, old bulbs; working light pools under each bulb; the heap's own spots stay the brightest thing
 const LAMP_HEAP_CLEAR := 9.0  # m round the heap with no battens, so it stands in its own light
 const DECALS := "res://materials/env/decals/"
-# The abandoned roof (2026-10-22): skylight panels broken out (x0, z0, x1, z1) and sheets rusted
-# through. Every one lets a shaft of the sun (_sun) in; one falls right on the heap.
-const SKY_HOLES: Array[Vector4] = [Vector4(-9.5, -2.8, -6.5, 1.4), Vector4(6.5, -15.6, 9.5, -12.0),
-	Vector4(6.5, 8.6, 9.5, 10.6), Vector4(-20.5, -24.4, -17.5, -21.0), Vector4(17.5, -23.4, 20.5, -20.8)]
-const RUST_HOLES: Array[Vector4] = [Vector4(-3.2, 17.6, -1.6, 18.8), Vector4(11.4, -5.8, 12.6, -4.9),
-	Vector4(-24.6, 8.2, -23.4, 9.4)]
-const SUN_DIR := Vector3(-0.42, -1.0, 0.22)  # sunlight's travel; shafts lean west a little
+# 2026-10-24: a greenhouse glass roof over the middle of the hall (x0, z0, x1, z1), about 30% of
+# its floor, the heap under it; the rest of the roof is sheeted shut. _lantern builds it.
+const LANTERN := Vector4(-15.0, -14.0, 15.0, 14.0)
+const LANTERN_EAVE := 11.6  # top of its glass side walls, over the old roof
+const LANTERN_PITCH := deg_to_rad(18.0)
+const SUN_DIR := Vector3(-0.42, -1.0, 0.22)  # the night light's travel through the glass
 ## The heap's centre, west of the hall's middle (scenes/main.tscn Pile has the same): its paint
 ## ring (10.6 m) ends at x 1.6, leaving a 12.4 m band to the railing for belts and turrets
 ## (docs/taret_bant_kilavuzu.md, "Yerleşim").
@@ -202,8 +201,8 @@ func _environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color.BLACK
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR  # faint fill: the roof and corners never go pitch black
-	env.ambient_light_color = Color(0.62, 0.6, 0.56)
-	env.ambient_light_energy = 0.42
+	env.ambient_light_color = Color(0.5, 0.52, 0.58)  # night: a touch cold
+	env.ambient_light_energy = 0.18
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED  # the probe below covers it
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
@@ -358,21 +357,12 @@ func _roof() -> void:
 		"grime_scale": 0.07, "rust": 0.45})
 	var sheet := mesh_at("roof_sheet", Transform3D(), roof_mat, roof)
 	sheet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
-	# The skylight strips are sheeted over too: the hall is closed and dark, lit only from inside.
-	roof_mat.set_shader_parameter("holes", RUST_HOLES)
-	roof_mat.set_shader_parameter("hole_count", RUST_HOLES.size())
+	# Cut clean where the glass lantern sits; the old skylight strips are sheeted over with the rest.
+	roof_mat.set_shader_parameter("cutout", LANTERN)
 	ResourceSaver.save(roof_mat)
-	# The skylights: yellowed fibreglass glowing dull with the day, some panels broken out.
-	var glass := ShaderMaterial.new()
-	glass.shader = load("res://materials/env/skylight.gdshader")
-	glass.set_shader_parameter("grime_tex", roof_mat.get_shader_parameter("grime_tex"))
-	glass.set_shader_parameter("holes", SKY_HOLES)
-	glass.set_shader_parameter("hole_count", SKY_HOLES.size())
-	glass.set_shader_parameter("daylight", Color(0.05, 0.065, 0.11))  # night behind it: barely there
-	ResourceSaver.save(glass, "res://materials/env/skylight.tres")
-	var shut := mesh_at("skylight", Transform3D(), load("res://materials/env/skylight.tres"), roof)
+	var shut := mesh_at("skylight", Transform3D(), roof_mat, roof)
 	shut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
-	shut.gi_mode = GeometryInstance3D.GI_MODE_DISABLED  # its glow would light the whole hall evenly
+	_lantern(roof, steel)
 	_sun(roof)
 	var clad: Material = load("res://materials/env/corrugated_iron_02.tres")
 	for s in [-1.0, 1.0]:
@@ -381,29 +371,94 @@ func _roof() -> void:
 
 
 
-## Night outside the closed hall, about 21:30: a starry sky lid over the roof (night_sky.gdshader,
-## seen only through the holes) and one shadowed moon. The roof shades it everywhere but the holes,
-## so it comes in as faint cold shafts through the dust. Kept out of the GI, so nothing outside leaks in evenly.
+## A greenhouse lantern over the LANTERN rect: glass side walls standing on the roof sheet, a
+## glass gable over them at LANTERN_PITCH, glass gable ends down to the old roof line, all on a
+## grid of slim steel glazing bars. The glass casts no shadow, the bars do.
+func _lantern(roof: Node3D, steel: Material) -> void:
+	var e1 := LANTERN.z
+	var z0 := LANTERN.y
+	var z1 := LANTERN.w
+	var sheet := func(x: float) -> float: return top_chord(x) + CHORD / 2 + 0.21
+	var glass_y := func(x: float) -> float: return LANTERN_EAVE + (e1 - absf(x)) * tan(LANTERN_PITCH)
+	var base: float = sheet.call(e1)
+	var mid: float = sheet.call(0.0)
+	var ridge: float = glass_y.call(0.0)
+	var panes := SurfaceTool.new()
+	panes.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var quad := func(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+		for v in [a, b, c, a, c, d]:
+			panes.add_vertex(v)
+	var bars := SurfaceTool.new()
+	bars.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var unit := BoxMesh.new()
+	var bar := func(a: Vector3, b: Vector3) -> void:
+		var along := b - a
+		var side := along.cross(Vector3.RIGHT if absf(along.normalized().y) > 0.9 else Vector3.UP).normalized()
+		bars.append_from(unit, 0, Transform3D(Basis(along, side.cross(along).normalized() * 0.09, side * 0.06), (a + b) / 2.0))
+	for s in [-1.0, 1.0]:
+		var e: float = s * e1
+		quad.call(Vector3(e, LANTERN_EAVE, z0), Vector3(0, ridge, z0), Vector3(0, ridge, z1), Vector3(e, LANTERN_EAVE, z1))
+		quad.call(Vector3(e, base, z0), Vector3(e, LANTERN_EAVE, z0), Vector3(e, LANTERN_EAVE, z1), Vector3(e, base, z1))
+		var z := z0
+		while z <= z1 + 0.01:  # rafters down the slope, mullions in the side wall
+			bar.call(Vector3(e, LANTERN_EAVE, z), Vector3(0, ridge, z))
+			bar.call(Vector3(e, base, z), Vector3(e, LANTERN_EAVE, z))
+			z += 2.0
+		for t in [0.0, 0.34, 0.67, 1.0]:  # glazing bars along the slope, eave to ridge
+			var at := Vector3(e, LANTERN_EAVE, 0).lerp(Vector3(0, ridge, 0), t)
+			bar.call(Vector3(at.x, at.y, z0), Vector3(at.x, at.y, z1))
+		bar.call(Vector3(e, base, z0), Vector3(e, base, z1))
+		for gz in [z0, z1]:  # the gable ends, down to the old roof
+			quad.call(Vector3(e, base, gz), Vector3(0, mid, gz), Vector3(0, ridge, gz), Vector3(e, LANTERN_EAVE, gz))
+			bar.call(Vector3(e, base, gz), Vector3(0, mid, gz))
+			var x := 0.0
+			while x < e1 - 0.01:
+				bar.call(Vector3(s * x, sheet.call(x), gz), Vector3(s * x, glass_y.call(x), gz))
+				x += 2.5
+	panes.generate_normals()
+	var glass := StandardMaterial3D.new()
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+	glass.albedo_color = Color(0.5, 0.58, 0.58, 0.1)  # old greenhouse glass: a faint green-grey film
+	glass.roughness = 0.06
+	glass.metallic_specular = 0.6  # catches the lamps and the heap in it
+	var g := MeshInstance3D.new()
+	g.name = "LanternGlass"
+	g.mesh = panes.commit()
+	g.material_override = glass
+	g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	g.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	add(g, roof)
+	var f := MeshInstance3D.new()
+	f.name = "LanternFrame"
+	f.mesh = bars.commit()
+	f.material_override = steel
+	add(f, roof)
+
+
+## Night outside, about 21:30: a starry sky on a dome round the whole shed (night_sky.gdshader,
+## seen only through the glass lantern) and its cold light, which falls in through the glass with
+## the glazing bars' shadows on the heap. Kept out of the GI, so nothing outside leaks in evenly.
 func _sun(roof: Node3D) -> void:
 	var sky := MeshInstance3D.new()
-	sky.name = "SkyLid"
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(160, 160)
-	pm.flip_faces = true  # seen from below
-	sky.mesh = pm
+	sky.name = "Sky"
+	var dome := SphereMesh.new()
+	dome.radius = 150.0
+	dome.height = 300.0
+	dome.flip_faces = true  # seen from inside
+	sky.mesh = dome
 	var lid := ShaderMaterial.new()
 	lid.shader = load("res://materials/env/night_sky.gdshader")
 	sky.material_override = lid
-	sky.position = Vector3(0, 16.0, 0)
 	sky.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sky.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add(sky, roof)
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.transform = Transform3D(Basis.looking_at(SUN_DIR.normalized(), Vector3.FORWARD), Vector3(0, 20, 0))
-	sun.light_color = Color(0.6, 0.72, 1.0)  # cold moonlight: the abandonment, against the crew's warm lamps
-	sun.light_energy = 0.22
-	sun.light_volumetric_fog_energy = 0.0  # the fog ignores the roof's shadow: shafts are drawn (sun_shaft.gdshader)
+	sun.light_color = Color(0.6, 0.72, 1.0)  # cold night light: the abandonment, against the crew's warm lamps
+	sun.light_energy = 0.18
+	sun.light_volumetric_fog_energy = 0.0  # the fog ignores the roof's shadow: it would light the whole hall
 	sun.light_cull_mask = 1  # not the gun's layer
 	sun.shadow_enabled = true
 	sun.shadow_bias = 0.03
@@ -486,14 +541,14 @@ const HEAP_AIM := HEAP + Vector3(0, 2.4, 0)  # a third up the ~7 m heap
 func _heap_spot() -> void:
 	for i in HEAP_SPOTS.size():
 		var at := HEAP_SPOTS[i] + Vector3(0, BOTTOM - CHORD / 2 - 0.05, 0)
-		_stage_spot("HeapSpot%d" % (i + 1), at, HEAP_AIM, 36.0, 8.0, 0.0, 1.0, 1.8)  # no beams: in the hall they read as solid grey wedges
+		_stage_spot("HeapSpot%d" % (i + 1), at, HEAP_AIM, 36.0, 7.0, 0.0, 1.0, 1.8)  # no beams: in the hall they read as solid grey wedges
 	# The pile is a big gold reflector: a warm bounce off it keeps the floor round its foot, where
 	# players dig, out of the black.
 	var bounce := OmniLight3D.new()
 	bounce.name = "HeapBounce"
 	bounce.position = HEAP + Vector3(0, 0.6, 0)
 	bounce.light_color = Color(1.0, 0.72, 0.4)
-	bounce.light_energy = 3.0
+	bounce.light_energy = 2.2
 	bounce.omni_range = 14.0
 	bounce.omni_attenuation = 1.2
 	bounce.light_volumetric_fog_energy = 0.0
@@ -809,7 +864,7 @@ func _dust() -> void:
 	look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	look.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	look.vertex_color_use_as_albedo = true
-	look.albedo_color = Color(1.0, 0.95, 0.85, 0.12)
+	look.albedo_color = Color(1.0, 0.95, 0.85, 0.05)  # faint: against the dark roof brighter specks read as stars
 	look.roughness = 1.0
 	speck.material = look
 	var fade := Gradient.new()
@@ -838,7 +893,7 @@ func _dust() -> void:
 		var p := GPUParticles3D.new()
 		p.name = "Dust"
 		p.position = zone[0]
-		p.amount = 350  # 900 sprinkled the dark roof with "stars"
+		p.amount = 200  # more sprinkled the dark roof with "stars"
 		p.lifetime = 24.0
 		p.preprocess = 24.0
 		p.process_material = drift
@@ -1104,7 +1159,7 @@ func _bay(parent: Node, ply: Array[Material], steel: Material, dark: Material) -
 			add(light, parent)
 	# Floods just inside the mouth, on the far targets' faces.
 	for z in [-8.0, -2.7, 2.7, 8.0]:
-		_flood(parent, Vector3(28.7, BAY_H - 0.25, z), Vector3(37.5, 0.9, z), dark, 7.0, absf(z) < 3.0)
+		_flood(parent, Vector3(28.7, BAY_H - 0.25, z), Vector3(37.5, 0.9, z), dark, 5.5, absf(z) < 3.0)
 
 	var probe := ReflectionProbe.new()
 	probe.name = "BayReflections"
@@ -1263,7 +1318,7 @@ func _light_bridge(parent: Node, dark: Material) -> void:
 	for k in zs.size():
 		var z := zs[k]
 		var aim := Vector3(20.5 + 3.0 * fposmod(k * 0.37, 1.0), 0.9, z * 0.85 + (0.8 if k % 2 else -0.8))
-		_flood(bridge, Vector3(bx, BRIDGE_Y - 0.22, z), aim, dark, 5.0, k % 3 == 1, k % 4 == 1 or k % 4 == 2)
+		_flood(bridge, Vector3(bx, BRIDGE_Y - 0.22, z), aim, dark, 4.0, k % 3 == 1, k % 4 == 1 or k % 4 == 2)
 	var red := StandardMaterial3D.new()
 	red.albedo_color = Color(0.6, 0.05, 0.03)
 	red.emission_enabled = true

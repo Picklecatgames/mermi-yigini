@@ -1,11 +1,10 @@
 extends RefCounted
 ## The hall's abandonment for tools/build_arena.gd (2026-10-22): years of an empty army range,
 ## then the digging crew's few months on top. Plan from the art-director and research reviews.
-##   Decay: sun shafts through the broken skylights and rust holes (build_arena SKY_HOLES /
-##     RUST_HOLES), each with a puddle and fallen bits under it; cracks along the slab joints,
+##   Decay: cracks along the slab joints,
 ##     dust drifts at the wall feet, pigeon droppings under the trusses, leaks and moss down the
 ##     walls, a few old tags near the doors.
-##   Light, one meaning per colour: cold daylight through the holes (abandoned), sodium tripods
+##   Light, one meaning per colour: cold night light through the glass roof (abandoned), sodium tripods
 ##     and factory pendants on the crew's generator (alive), the army's red caged emergency lamps still lit on their
 ##     battery, green exit signs.
 ##   The crew: a camp in the north-west corner (container office, desk, stove, generator), their
@@ -41,7 +40,6 @@ func build() -> void:
 	cord.cull_mode = BaseMaterial3D.CULL_DISABLED
 	steel = load("res://materials/env/scrap_steel.tres")
 	dark = _flat(Color(0.05, 0.05, 0.055), 0.7)
-	_shafts()
 	_floor_decay()
 	_wall_decay()
 	_loading_door()
@@ -52,120 +50,6 @@ func build() -> void:
 	_overhead()
 	_range_wear()
 	_crew_work()
-
-
-# --- sun shafts ---------------------------------------------------------------------------------
-
-## Where the sun through a roof hole at `x, z` lands on the floor.
-func landing(x: float, z: float) -> Vector3:
-	var d: Vector3 = b.SUN_DIR.normalized()
-	var top := Vector3(x, b.top_chord(x) + 0.35, z)
-	return top + d * (top.y / -d.y)
-
-
-func _shafts() -> void:
-	var holes: Array = b.SKY_HOLES + b.RUST_HOLES
-	var noise := FastNoiseLite.new()
-	noise.seed = 17
-	noise.frequency = 0.03
-	noise.fractal_octaves = 3
-	var nt := NoiseTexture2D.new()
-	nt.noise = noise
-	nt.seamless = true
-	nt.width = 256
-	nt.height = 256
-	var beam := ShaderMaterial.new()
-	beam.shader = load("res://materials/env/sun_shaft.gdshader")
-	beam.set_shader_parameter("noise_tex", nt)
-	beam.set_shader_parameter("color", Color(0.55, 0.68, 1.0))  # moonlight
-	beam.set_shader_parameter("strength", 0.03)
-	ResourceSaver.save(beam, "res://materials/env/sun_shaft.tres")
-	beam = load("res://materials/env/sun_shaft.tres")
-	var unit := BoxMesh.new()
-	for i in holes.size():
-		var h: Vector4 = holes[i]
-		var c := Vector2((h.x + h.z) / 2.0, (h.y + h.w) / 2.0)
-		var size := Vector2(h.z - h.x, h.w - h.y)
-		var top := Vector3(c.x, b.top_chord(c.x) + 0.35, c.y)
-		var foot := landing(c.x, c.y)
-		# The beam: a unit box sheared along the sunlight, so every slice of it is the hole.
-		var xf := Transform3D(Basis(Vector3(size.x * 0.9, 0, 0), top - foot, Vector3(0, 0, size.y * 0.9)), (top + foot) / 2.0)
-		var shaft := _mesh(unit, beam, xf)
-		shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		shaft.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-		b.add(shaft, root)
-		_motes(Transform3D(Basis(), (top + foot) / 2.0), Vector3(size.x, top.y - foot.y, size.y) * 0.8 + Vector3(absf(top.x - foot.x), 0, absf(top.z - foot.z)))
-		# Rain falls straight in: a puddle right under the hole, bits of roof in it.
-		var under := Vector3(c.x, 0, c.y)
-		if Vector2(under.x - b.HEAP.x, under.z - b.HEAP.z).length() < 9.0:
-			continue  # over the heap
-		_puddle(under, maxf(size.x, size.y) * rng.randf_range(0.9, 1.25), rng.randf() * TAU)
-		if i < b.SKY_HOLES.size():
-			for k in 6:  # fibreglass shards
-				var at := under + Vector3(rng.randf_range(-1.4, 1.4), 0.004, rng.randf_range(-1.4, 1.4))
-				var shard: MeshInstance3D = b.block(Vector3(rng.randf_range(0.15, 0.5), 0.006, rng.randf_range(0.1, 0.35)), at,
-					load("res://materials/env/skylight.tres"), root, Basis(Vector3.UP, rng.randf() * TAU))
-				shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-
-
-## Specks in a shaft: only lit inside it, so they read as dust turning in the sunlight.
-func _motes(xf: Transform3D, size: Vector3) -> void:
-	var speck := QuadMesh.new()
-	speck.size = Vector2(0.012, 0.012)
-	var look := StandardMaterial3D.new()
-	look.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	look.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	look.albedo_color = Color(1.0, 0.97, 0.9, 0.5)
-	speck.material = look
-	var drift := ParticleProcessMaterial.new()
-	drift.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	drift.emission_box_extents = size * 0.45
-	drift.spread = 180.0
-	drift.initial_velocity_min = 0.01
-	drift.initial_velocity_max = 0.04
-	drift.gravity = Vector3(0, -0.004, 0)
-	drift.turbulence_enabled = true
-	drift.turbulence_noise_scale = 3.0
-	drift.turbulence_influence_max = 0.03
-	drift.scale_min = 0.5
-	drift.scale_max = 1.6
-	var p := GPUParticles3D.new()
-	p.transform = xf
-	p.amount = 260
-	p.lifetime = 20.0
-	p.preprocess = 20.0
-	p.local_coords = true
-	p.process_material = drift
-	p.draw_pass_1 = speck
-	p.visibility_aabb = AABB(-size * 0.6, size * 1.2)
-	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	b.add(p, root)
-
-
-## Standing water: darker, mirror-smooth (SSR), a damp ring round it.
-func _puddle(at: Vector3, size: float, yaw: float) -> void:
-	var v := rng.randi() % 3  # three shapes, so no two puddles are the same splat
-	var noise := FastNoiseLite.new()
-	noise.seed = [3, 7, 11][v]
-	noise.frequency = 0.012
-	noise.fractal_octaves = 4
-	var shape := func(x: int, y: int) -> float:
-		return 1.0 - Vector2(x - 256, y - 256).length() / 256.0 + noise.get_noise_2d(x, y) * 0.55
-	var water: Texture2D = b._decal_tex("puddle_%d" % v, 512, 512, func(img: Image) -> void:
-		for y in 512:
-			for x in 512:
-				var s: float = shape.call(x, y)
-				var a := clampf(s * 5.0, 0.0, 1.0)  # the water, crisp edged
-				var damp := clampf(s * 2.0 + 0.5, 0.0, 1.0) * 0.55  # the wet ring
-				img.set_pixel(x, y, Color(0.02, 0.022, 0.025, maxf(a, damp))))
-	var orm: Texture2D = b._decal_tex("puddle_orm_%d" % v, 512, 512, func(img: Image) -> void:
-		for y in 512:
-			for x in 512:
-				var s: float = shape.call(x, y)
-				img.set_pixel(x, y, Color(1.0, lerpf(0.5, 0.1, clampf(s * 5.0, 0.0, 1.0)), 0.0)))
-	var d: Decal = b._decal(root, water, at, yaw, Vector3(size, 0.6, size * rng.randf_range(0.6, 0.9)))
-	d.texture_orm = orm
-	d.albedo_mix = 0.12  # water hardly darkens: it is the mirror that shows it
 
 
 # --- floor --------------------------------------------------------------------------------------
@@ -619,7 +503,7 @@ func _tripod(at: Vector3, aim: Vector3, heads: int) -> void:
 		var spot := SpotLight3D.new()
 		spot.position = Vector3(0, 0, -0.03)
 		spot.light_color = SODIUM
-		spot.light_energy = 7.0 if heads > 1 else 5.0
+		spot.light_energy = 5.0 if heads > 1 else 3.5
 		spot.spot_range = 22.0
 		spot.spot_angle = 48.0
 		spot.spot_angle_attenuation = 1.3
