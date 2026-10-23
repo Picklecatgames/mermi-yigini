@@ -89,7 +89,7 @@ Taret ve bant için kılavuz, adım listesi ve yapılmayacaklar: `taret_bant_kil
 15. **İlk taret:** ortak kasadan alınır, külçeyle gelişir, zincire girmez. Hedef seçimi ve atış host'ta, istemciye yalnız atış olayları.
 16. **Taret hortumu (2026-10-23, bantların yerine):** taret konunca yığına kendiliğinden uzanır, oyuncu döşemez; akış ve kazı kılavuzdaki hat modeliyle aynı (`bullets_taken`, anahtarlar hortumun kazdığı yerden fırlar).
 17. **Mermi tarifi, birer birer** (`ayrintilar.md` → "Mermi tarifi"): önce deneme olarak klon + sekme + mermi çarkı, beğenilirse kalan 7 özellik kasa sırasıyla. Maliyet şarjörden düşer. Sekme hedefleri ve bölünme zarı host'ta.
-18. **Orta oyun silahı (6. anahtar, Kafatası): pompalı.** Saçma dağılımı host'ta hesaplanır.
+18. **Silahları kasaya bağlamak (2026-10-23):** pompalı yok; UZI 3., Scorpion 6. (Kafatası), minigun 12. kasadan. `GUNS`'ta UZI ve Scorpion'a `"crate"` eklenir, Q'dan satın alınmazlar.
 
 ## Faz 5: Final (~15 sa)
 

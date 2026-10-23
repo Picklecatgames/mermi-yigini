@@ -31,7 +31,7 @@ Referans oyun: Find the Needle (Steam 5160800). Saman yığınında iğne arama;
   - **Neden erken bulunamaz:** Yığın 45°'de kaydığı için D derinliğe inmek en az π·D³/3 m³ kazı ister (`min_bullets`); gerçek yığında tam üstünden kazmak bunun 4-25 katı (yukarıdan kayan mermi doldurur). Son ölçüm (`tools/keys_check.gd`, 12 anahtarla): sıradan anahtarlar 400-1.300 mermi, ilk nadir 322.000, efsanevi teorik alt sınırı bile 4-12,6 milyon. İlk 15 dk elle toplam ~1.500 mermi alınıyor: 10. dakikada minigun fiziksel olarak imkânsız. Merkeze yakın sıradan anahtar 11-15 bin tutuyordu, dış halka kuralı bu yüzden.
   - **Açığa çıkma ve toplama:** Yüzey anahtara inince fırlar, döner, kademe renginde parlar (beyaz/mavi/altın), yüzeyle birlikte iner; üstünden yürüyen alır (`GameState.request_reveal_key/request_take_key`, `key_states`, `PlayerState.keys`). Ekranda bildirim (anahtar düğümünde); sayı HUD'da, yığın çizgisinin altında "anahtar n / 12". Ses yuvaları boş: `reveal_sound`, `take_sound`.
   - **Henüz yok:** tarayıcı (yaklaştıkça sinyal), kasalar ve anahtar-kasa eşleşmesi.
-- **Kasalar (güncellendi 2026-10-20):** 6–10 kasa (sayı henüz kesin değil), her anahtara bir kasa, her kasanın bir işlevi var. İçerik: **mermi tipleri** (seken, delici, patlayıcı, yanıcı, tracer), **unique silahlar** (ör. minigun, çok nadir bir anahtarla) ve **özel dummy'ler** (hangileri sonra). *(2026-10-23: yerini "Mermi tarifi"ndeki 12 kasalık tablo aldı; orta oyun silahı pompalı.)* Hareket hızı/stamina gibi düz statlar kasadan çıktı. Açılan şey sonra parayla upgrade edilir. **Co-op (karar 2026-10-20): kasa açılınca özellik bütün takıma açılır**, anahtarı kim bulursa bulsun; upgrade'ini herkes kendi parasıyla alır.
+- **Kasalar (güncellendi 2026-10-20):** 6–10 kasa (sayı henüz kesin değil), her anahtara bir kasa, her kasanın bir işlevi var. İçerik: **mermi tipleri** (seken, delici, patlayıcı, yanıcı, tracer), **unique silahlar** (ör. minigun, çok nadir bir anahtarla) ve **özel dummy'ler** (hangileri sonra). *(2026-10-23: yerini "Mermi tarifi"ndeki 12 kasalık tablo aldı; orta oyun silahı Scorpion, UZI de kasadan.)* Hareket hızı/stamina gibi düz statlar kasadan çıktı. Açılan şey sonra parayla upgrade edilir. **Co-op (karar 2026-10-20): kasa açılınca özellik bütün takıma açılır**, anahtarı kim bulursa bulsun; upgrade'ini herkes kendi parasıyla alır.
 - **Kullanıcı kararları (2026-10-20):** Raylı dummy ve silüet demodan çıktı (dosyalar duruyor). Kombo yazısı **zincir sayısını** gösterir. Hedefler **ortak kasadan** alınır. **Dummy yıpranması yok**; kurşun izleri kalır, dummy deliklerinden çıkan duman azaltıldı (4 iplik, opaklık 0,2, 1,4 sn). Çelik rafın titremesi kapalı (`shiver = false`).
 - **Benzersiz silahlar (2026-10-20):** Satın alınan silah sırasının dışında, yalnızca kasadan çıkan iki silah. **Son silah (12. anahtar, Dişli Anahtar): minigun**, oyunun "delire delire sıkma" finali; yığın gözle görülür hızla erir. Model: 1Matzh'in Minigun seti (kolları kullanılmaz, silah ve klipleri ortak kollara taşınacak). Orta oyun silahı 6. anahtardan (Kafatası Anahtarı) çıkar, silahın kendisi henüz seçilmedi. 12 anahtar: 4 sıradan, 5 nadir, 3 efsanevi. Tracer mermi tasarımı (mor, hızlı; vurduktan sonra hedefin sağ arkasında ışık olarak belirip tekrar vurur, yankı vuruş sayısı upgrade ağacı) mermi tipleri yapılırken uygulanacak.
 - **Kovanlar:** Atılan her mermi kovan bırakır. Kovan toplanır, **fırında eritilir, metal külçe** olur. Külçe taret geliştirme ve yapı malzemesi. İlk 1–1,5 saatte ana para dolar (dummy isabeti); taret açmak dolarla, taret geliştirmek külçeyle.
@@ -97,18 +97,18 @@ Bant modifiye karolarının yerini alır. Fikir: güç arttıkça atış başın
 
 Tam sürüme: Dondurucu, Bağ (iki oyuncunun mermisi 1 sn içinde aynı hedefe: ×3), Hayalet (Delici'yle aynı işi yapıyor).
 
-**Açılma sırası (12 kasa = 9 blueprint + 2 silah + 1 dummy).** Anahtar derinlikleri sırayla artar (`key_cache.gd` `DEPTHS`), ama oyuncu nereyi kazarsa oradakini bulur: kademe kesin, kademe içindeki sıra yaklaşık. Bu yüzden her kademenin içeriği hangi sırayla gelirse gelsin çalışmalı.
+**Açılma sırası (12 kasa = 9 blueprint + 3 silah; 2026-10-23 kullanıcı kararı: pompalı yok, UZI ve Scorpion parayla değil kasadan, doğru sırada).** Anahtar derinlikleri sırayla artar (`key_cache.gd` `DEPTHS`), ama oyuncu nereyi kazarsa oradakini bulur: kademe kesin, kademe içindeki sıra yaklaşık. Silah sırası kademeyle garanti: UZI sıradan, Scorpion nadir, minigun efsanevi kasada. Her kademenin geri kalanı hangi sırayla gelirse gelsin çalışmalı. Dev Kukla (HP'li, 4 kişilik ortak hedef) kasadan çıktı, öteki özel dummy'ler gibi Q → Teçhizat'ta. Kodda henüz UZI ve Scorpion'da `"crate"` yok; kasalar yapılınca eklenir (3 ve 6).
 
 | Kasa | Kademe, zaman | İçerik | Neden burada |
 |---|---|---|---|
 | 1 | Sıradan, ~0-15 dk | **Klon** | Tarif sistemini öğretir, tek dummy'de bile çalışır |
 | 2 | Sıradan | **Obur** | Oyunun fikrini öğretir: yığını yemek para. Model istemez |
-| 3 | Sıradan | **Yankı** | Tek hedefte çalışan ilk görsel şov |
+| 3 | Sıradan | **Mikro SMG (UZI)** | İlk otomatik silah; büyük şarjör klonu rahat atar |
 | 4 | Sıradan | **Sekme** | Bu noktada birkaç hedef kurulu; hedefler arası zikzak |
-| 5 | Nadir, ~20-40 dk | **Delici** | B modunda koridora sıralı dizme bulmacası |
-| 6 | Nadir | **Pompalı tüfek** (orta oyun silahı) | Her saçma bir mermi; klonla katlanır |
-| 7 | Nadir | **Parça tesirli** | Klon isabetten önce böler, bu sonra: ikisi çarpışır |
-| 8 | Nadir | **Dev Kukla** (HP'li, 4 kişilik ilk ortak hedef) | Blueprint serisini böler, takımı bir araya toplar |
+| 5 | Nadir, ~20-40 dk | **Yankı** | Tek hedefte de çalışan mor ikinci vuruş |
+| 6 | Nadir | **Kompakt SMG (Scorpion)** | Orta oyun silahı (Kafatası anahtarı) |
+| 7 | Nadir | **Delici** | B modunda koridora sıralı dizme bulmacası |
+| 8 | Nadir | **Parça tesirli** | Klon isabetten önce böler, bu sonra: ikisi çarpışır |
 | 9 | Nadir | **Yakıcı** | Taretlerin çoğaldığı evrede pasif gelir |
 | 10 | Efsanevi, ~40-55 dk | **Yıldırım** | Sekmeyle birleşince hedef duvarı ışıkla dolar |
 | 11 | Efsanevi | **Yer çekimi** | Demonun en gösterişli anı; sekmeleri merkezde döndürür |
