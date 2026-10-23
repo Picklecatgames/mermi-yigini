@@ -112,6 +112,7 @@ func _ready() -> void:
 	_pages.append(_page(GameState.GEAR.keys(), _gear_card))
 	for p in _pages:
 		stack.add_child(p)
+	_frame.add_child(_wishlist_row())
 	_frame.add_child(_centred(UiStyle.caption("q  ·  kapat")))
 	GameState.gold_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
@@ -229,7 +230,7 @@ func _show_tab(index: int) -> void:
 	if index == 1 and not _models_built:  # built on first look: fifteen small worlds
 		_models_built = true
 		for id in GameState.GEAR:
-			(_cards[id].model as Control).add_child(_model_view(id))
+			(_cards[id].model as Control).add_child(_model_view(load(GameState.GEAR[id].scene).instantiate()))
 	_refresh()
 
 
@@ -340,9 +341,10 @@ func _gear_card(id: String) -> Control:
 	return card
 
 
-## The piece turning slowly on its own, lit like the round picker's rounds: a copy of its meshes
-## (with their own materials) in a little world of its own, framed to fit.
-func _model_view(id: String) -> SubViewportContainer:
+## The piece turning slowly on its own, lit like the round picker's rounds: a copy of `src`'s meshes
+## (with their own materials; only the one named `only` if given) in a little world of its own,
+## framed to fit. `side`: shown from the side and rocking a little instead of turning (a gun).
+func _model_view(src: Node3D, only := "", side := false) -> SubViewportContainer:
 	var holder := SubViewportContainer.new()
 	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	holder.stretch = true
@@ -368,13 +370,12 @@ func _model_view(id: String) -> SubViewportContainer:
 	vp.add_child(turn)
 	# Many pieces build their meshes in _ready: the original enters the tree a moment, hidden and
 	# still, and is freed at once (as placement.gd's see-through copy does).
-	var src: Node3D = load(GameState.GEAR[id].scene).instantiate()
 	src.process_mode = Node.PROCESS_MODE_DISABLED
 	src.visible = false
 	add_child(src)
 	var box := AABB()
 	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
-		if not m.mesh:
+		if not m.mesh or (only != "" and m.name != only):
 			continue
 		var copy := MeshInstance3D.new()
 		copy.mesh = m.mesh
@@ -396,8 +397,48 @@ func _model_view(id: String) -> SubViewportContainer:
 	var eye := Vector3(0, box.get_center().y + far * 0.25, far)
 	cam.transform = Transform3D(Basis.looking_at(Vector3(0, box.get_center().y, 0) - eye), eye)
 	vp.add_child(cam)
-	turn.create_tween().set_loops().tween_property(turn, "rotation:y", TAU, 9.0).from(0.0)
+	if not side:
+		turn.create_tween().set_loops().tween_property(turn, "rotation:y", TAU, 9.0).from(0.0)
+		return holder
+	var across := PI / 2.0 if box.size.z > box.size.x else 0.0  # its length across the view
+	var rock := turn.create_tween().set_loops().set_trans(Tween.TRANS_SINE)
+	rock.tween_property(turn, "rotation:y", across + 0.35, 2.5).from(across - 0.35)
+	rock.tween_property(turn, "rotation:y", across - 0.35, 2.5)
 	return holder
+
+
+## Under the cards: a small gold Deagle and the line that gets it (scripts/wishlist.gd). Claimed,
+## the line thanks instead and no longer clicks.
+func _wishlist_row() -> Control:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	var icon := Control.new()
+	icon.custom_minimum_size = Vector2(72, 36)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(icon)
+	var deagle: String = preload("res://scripts/viewmodel.gd").SETS.deagle.mesh
+	var view := _model_view(load("res://assets/weapons/arms/arms.gltf").instantiate(), deagle, true)
+	for m: MeshInstance3D in view.find_children("*", "MeshInstance3D", true, false):
+		Wishlist.gild(m)
+	icon.add_child(view)
+	var b := _flat_button()
+	b.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM, UiStyle.CAPTION_TRACK))
+	b.add_theme_font_size_override("font_size", 14)
+	for s in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
+		b.add_theme_color_override(s, Wishlist.GOLD)
+	var claimed := func() -> void:
+		b.text = "altın deagle senin  ·  teşekkürler"
+		b.disabled = true
+		b.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	b.text = "istek listesine ekle  ·  altın deagle'ı kap"
+	b.pressed.connect(func() -> void:
+		Wishlist.claim(get_tree())
+		claimed.call())
+	if Wishlist.golden():
+		claimed.call()
+	row.add_child(b)
+	return row
 
 
 ## Just bought a piece: straight into placement mode with it in hand, over the firing line.

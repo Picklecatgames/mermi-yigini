@@ -275,6 +275,13 @@ func _ready() -> void:
 				var k: float = each.get("paint", 1.0)
 				steel.albedo_color = Color(k, k, k)
 				mi.set_surface_override_material(i, steel)
+	if Wishlist.golden():
+		gild()
+
+
+## The wishlist reward (scripts/wishlist.gd): the Deagle in gold. Also called on the claim.
+func gild() -> void:
+	Wishlist.gild(_skel.get_node(NodePath(SETS.deagle.mesh)))
 
 
 ## The sets' clips only key the bones they move; a bone left out would keep the last clip's pose
