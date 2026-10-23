@@ -70,6 +70,7 @@ const STAND_GAP := 3.0
 const FINAL_GAP := 4.5  # level 11 to level 12, room for the big square
 const FINAL_SQUARE := 4.2  # m
 const STAND_TOP := 1.1  # m, level 11's top
+const STAND_LAMP_Y := 5.5  # every stand's pendant hangs from one height (rim ~4.2 m), a straight row over the crates
 const RARE_FROM := 4  # index of the first rare stand; legendary from LEGEND_FROM
 const LEGEND_FROM := 9
 
@@ -1441,14 +1442,14 @@ func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel:
 
 ## The lamp over stand `i`: a factory pendant on the row's strut, brighter, wider and warmer up
 ## the row, its beam drawn down onto the crate. The crate stack under it shows the tier.
-func _stand_lamp(i: int, top: float) -> void:
+func _stand_lamp(i: int, _top: float) -> void:
 	var last := CHEST_COUNT - 2
 	var at := chest_pos(i)
 	var colour := Color(0.85, 0.92, 1.0).lerp(Color(1.0, 0.8, 0.45), float(i) / last)
 	var energy := 1.0 * pow(1.33, i)  # 1 at level 1, 17 at level 11
 	if i == 0:
 		strut(CHEST_X, -21.0, 21.0)  # the row's lamps all hang off one strut under the trusses
-	pendant(Vector3(at.x, top + 3.4, at.z), BOTTOM - CHORD / 2.0 - 0.065, colour, energy, 20.0 + 1.2 * i, 0.03 + 0.02 * i)
+	pendant(Vector3(at.x, STAND_LAMP_Y, at.z), BOTTOM - CHORD / 2.0 - 0.065, colour, energy, 20.0 + 1.2 * i, 0.03 + 0.02 * i)
 
 
 ## A steel lighting strut along z at `x`, bolted under the trusses' bottom chords from `z0` to
@@ -1652,6 +1653,9 @@ func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0, tilt 
 	body.transform = Transform3D((Basis(Vector3.UP, yaw) * tilt).scaled(Vector3.ONE * s), pos)
 	add(body, parent)
 	var inst: Node3D = (load(path) as PackedScene).instantiate()
+	# Parts lying wholly under the floor are leftovers (hopper.glb has rounds a physics sim dropped
+	# 100 m down): they'd stretch the collision box into a wall over the whole corner.
+	_drop_buried(inst, Transform3D())
 	add(inst, body)
 	var b := _aabb(inst, Transform3D())
 	var cs := CollisionShape3D.new()
@@ -1661,6 +1665,14 @@ func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0, tilt 
 	cs.position = b.get_center()
 	add(cs, body)
 	return body
+
+
+func _drop_buried(n: Node, xf: Transform3D) -> void:
+	var t := xf * (n as Node3D).transform if n is Node3D else xf
+	for c in n.get_children():
+		_drop_buried(c, t)
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh and (t * (n as MeshInstance3D).mesh.get_aabb()).end.y < -0.5:
+		n.free()
 
 
 func _aabb(n: Node, xf: Transform3D) -> AABB:

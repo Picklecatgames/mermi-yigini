@@ -459,7 +459,7 @@ func _workshop() -> void:
 	_sticker("ghs_flamme", Vector3(hopper.x, 0.72, 26.78), Vector3(0, 0, -1), 0.14)
 	# Light: a failing pendant over the bench, the barrel's fire, the crucible's glow, a dim wash.
 	b.strut(x, 21.0, 27.85)
-	var pendant: Node3D = b.pendant(Vector3(x, 3.9, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 5.0, 62.0, 0.05, true)
+	var pendant: Node3D = b.pendant(Vector3(x, 5.0, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 5.0, 62.0, 0.05, true)
 	for spot: SpotLight3D in pendant.find_children("*", "SpotLight3D", false, false):
 		spot.set_script(b.FLICKER)
 	for f in [[barrel + Vector3(0, 1.0, 0), Color(1.0, 0.45, 0.15), 2.2, 4.5, true], [hopper + Vector3(0, 0.3, 0), Color(1.0, 0.5, 0.2), 0.8, 1.8, false]]:
