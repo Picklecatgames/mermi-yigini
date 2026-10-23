@@ -10,7 +10,8 @@ const SHED := "res://assets/env/shed/"
 const TEX := "res://assets/env/textures/"
 const MODELS := "res://assets/env/models/"
 const OFFICE := "res://assets/props/office/"  # tools/build_office.py
-const LAMP_DROP := 1.08  # ceiling_lamp.gltf: rod top to the shade's rim
+const LAMP_DROP := 1.34  # hanging_industrial_lamp: rod top to the shade's rim
+const BULB_Y := -1.06  # the model's own bulb, up in the glass under the reflector
 const HALF_SPAN := 27.7
 const EAVE := 8.8
 const BOTTOM := 8.0
@@ -20,7 +21,7 @@ const COLUMN_H := 8.95
 const BAYS: Array[float] = [-27.85, -21.0, -14.0, -7.0, 0.0, 7.0, 14.0, 21.0, 27.85]
 const LAMP_SPAN := 24.0  # ceiling battens from -LAMP_SPAN to +LAMP_SPAN along each truss
 const LAMP_STEP := 6.0
-const LAMP_ENERGY := 1.4  # dim working light: the heap's own spots must stay the brightest thing
+const LAMP_ENERGY := 2.2  # working light pools under each bulb; the heap's own spots stay the brightest thing
 const LAMP_HEAP_CLEAR := 9.0  # m round the heap with no battens, so it stands in its own light
 const DECALS := "res://materials/env/decals/"
 # The abandoned roof (2026-10-22): skylight panels broken out (x0, z0, x1, z1) and sheets rusted
@@ -80,6 +81,7 @@ static func chest_pos(i: int) -> Vector3:
 	return Vector3(CHEST_X, 0, z)
 
 var arena: Node3D
+var _lamp_saved := false
 
 
 func _initialize() -> void:
@@ -419,7 +421,7 @@ func _lamps() -> void:
 	lens.albedo_color = Color(1.0, 0.97, 0.92)
 	lens.emission_enabled = true
 	lens.emission = Color(1.0, 0.95, 0.86)
-	lens.emission_energy_multiplier = 2.5  # a soft strip, no glare
+	lens.emission_energy_multiplier = 14.0  # a hot bulb: well over the glow threshold, it blooms through the glass
 	ResourceSaver.save(lens, "res://materials/env/lamp_diffuser.tres")
 	lens = load("res://materials/env/lamp_diffuser.tres")
 	var paint: Material = load("res://materials/env/metal_plate_02.tres")
@@ -440,30 +442,28 @@ func _lamps() -> void:
 			if downrange:  # its own circuit, kept up better: one in six dead or failing
 				wear = 9 if wear < 4 else (wear if wear in [4, 5] else 9)
 			if not near_spot:  # the stage spots' clamps sit on these chords
-				var lamp := ceiling_lamp()
+				var lamp := ceiling_lamp(lamps)
 				lamp.position = Vector3(x, y, z)
 				if wear == 7:  # knocked: hangs a little askew on its rod
 					lamp.rotation.z = 0.08 * (1.0 if hash(z) % 2 == 0 else -1.0)
-				add(lamp, lamps)
-				var d := bulb(lens)
-				add(d, lamp)
-				if wear <= 4 or wear == 7:  # dead: dark bulb, no light
-					d.material_override = paint
+				var dead := wear <= 4 or wear == 7
+				var d := bulb(lamp, paint if dead else lens, not dead)
+				if dead:  # dark bulb, no light
 					x += LAMP_STEP
 					continue
 				var spot := SpotLight3D.new()
 				if wear == 5 or wear == 6:
 					d.material_override = lens.duplicate()
 					spot.set_script(FLICKER)
-				spot.position.y = -LAMP_DROP - 0.02
+				spot.position.y = BULB_Y  # from the bulb itself, the shade's rim cuts the cone
 				spot.rotation.x = -PI / 2
 				spot.light_color = RANGE_LIGHT if downrange else Color(1.0, 0.9, 0.78)  # old tungsten-warm 3500 K: only the daylight is cold
 				spot.light_energy = LAMP_ENERGY * (1.6 if downrange else 1.0)
 				spot.spot_range = 14.0
 				spot.spot_attenuation = 0.6
-				spot.spot_angle = 55.0
+				spot.spot_angle = 58.0  # the shade's rim seen from the bulb
 				spot.spot_angle_attenuation = 1.6  # pools of light on the floor, dark between
-				spot.light_volumetric_fog_energy = 0.25  # a faint haze under each tube, so the roof is air, not a void
+				spot.light_volumetric_fog_energy = 1.2  # a soft cone in the dust under each bulb: the light visibly leaves the lamp
 				spot.shadow_enabled = false
 				add(spot, lamp)
 			x += LAMP_STEP
@@ -1564,15 +1564,14 @@ func strut(x: float, z0: float, z1: float) -> void:
 ## `top` is where the rod ends; the shade's rim is LAMP_DROP below, a bulb in it glowing `colour`.
 ## A spot shines down from it, `beam` > 0 also draws its cone in the dust.
 func pendant(top: Vector3, anchor_y: float, colour: Color, energy: float, angle: float, beam := 0.0, shadow := false) -> Node3D:
-	var lamp := ceiling_lamp()
+	var lamp := ceiling_lamp(arena)
 	lamp.position = top
-	add(lamp)
 	var glow := StandardMaterial3D.new()
 	glow.albedo_color = colour
 	glow.emission_enabled = true
 	glow.emission = colour
-	glow.emission_energy_multiplier = 2.5
-	add(bulb(glow), lamp)
+	glow.emission_energy_multiplier = 14.0
+	bulb(lamp, glow)
 	var metal: Material = load("res://materials/env/range_steel_dark.tres")
 	# The chain on up: long oval links, every other one turned a quarter, like the model's own.
 	var link := TorusMesh.new()
@@ -1611,7 +1610,7 @@ func pendant(top: Vector3, anchor_y: float, colour: Color, energy: float, angle:
 	add(c, lamp)
 	block(Vector3(0.06, 0.04, 0.06), Vector3(0, length - 0.02, 0), metal, lamp)
 	var spot := SpotLight3D.new()
-	spot.position = Vector3(0, -LAMP_DROP, 0)
+	spot.position = Vector3(0, BULB_Y, 0)
 	spot.rotation.x = -PI / 2
 	spot.light_color = colour
 	spot.light_energy = energy
@@ -1624,8 +1623,8 @@ func pendant(top: Vector3, anchor_y: float, colour: Color, energy: float, angle:
 	if beam > 0.0:
 		var drop := top.y - LAMP_DROP
 		var cone := CylinderMesh.new()
-		cone.top_radius = 0.2
-		cone.bottom_radius = 0.2 + drop * tan(deg_to_rad(angle)) * 0.75
+		cone.top_radius = 0.26  # the shade's rim
+		cone.bottom_radius = 0.26 + drop * tan(deg_to_rad(angle)) * 0.75
 		cone.height = drop
 		cone.radial_segments = 32
 		cone.cap_top = false
@@ -1644,25 +1643,62 @@ func pendant(top: Vector3, anchor_y: float, colour: Color, energy: float, angle:
 	return lamp
 
 
-## The pack's pendant, origin at its rod's top, the shade's rim LAMP_DROP below.
-func ceiling_lamp() -> Node3D:
-	var lamp: Node3D = (load(OFFICE + "ceiling_lamp.gltf") as PackedScene).instantiate()
-	for mi: MeshInstance3D in lamp.find_children("*", "MeshInstance3D", true, false):
-		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+## Poly Haven's olive enamel factory pendant (CC0), origin at its rod's top, the shade's rim
+## LAMP_DROP below. Its own bulb's glow is switched off (bulb() is the one that lights, dies and
+## flickers) and its glass, which Godot can't transmit through, is swapped for a clear one.
+## A plain mesh, not the glTF's scene: edits to an instanced scene's children aren't saved in arena.tscn.
+func ceiling_lamp(parent: Node) -> Node3D:
+	var path := MODELS + "hanging_industrial_lamp/lamp.res"
+	if not _lamp_saved:  # once per build
+		_lamp_saved = true
+		var scene: Node = (load(MODELS + "hanging_industrial_lamp/hanging_industrial_lamp_1k.gltf") as PackedScene).instantiate()
+		var mesh := (scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh.duplicate() as ArrayMesh
+		scene.free()
+		var shade := mesh.surface_get_material(0).duplicate() as StandardMaterial3D
+		shade.emission_enabled = false
+		mesh.surface_set_material(0, shade)
+		var glass := StandardMaterial3D.new()
+		glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glass.albedo_color = Color(0.95, 0.93, 0.88, 0.15)
+		glass.roughness = 0.08
+		glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh.surface_set_material(1, glass)
+		ResourceSaver.save(mesh, path)
+	var lamp := Node3D.new()
+	lamp.name = "Pendant"
+	var mi := MeshInstance3D.new()
+	mi.mesh = load(path)
+	mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # its own spot shines from inside it
+	add(lamp, parent)
+	add(mi, lamp)
 	return lamp
 
 
-## The bulb up in a ceiling_lamp()'s shade, lit by `lens` (flicker_lamp.gd dims it by this name).
-func bulb(lens: Material) -> MeshInstance3D:
+## The bulb in a ceiling_lamp()'s glass, lit by `lens` (flicker_lamp.gd dims it by this name). A
+## lit one carries a short warm light that fills the reflector and the glass from inside, so the
+## lamp reads as lit by its bulb, not as a disc with light coming out from under it.
+func bulb(lamp: Node3D, lens: Material, lit := true) -> MeshInstance3D:
 	var s := SphereMesh.new()
-	s.radius = 0.05
-	s.height = 0.1
+	s.radius = 0.048
+	s.height = 0.135  # over the model's bulb, a pear, not a ball
 	var d := MeshInstance3D.new()
 	d.name = "Diffuser"
 	d.mesh = s
 	d.material_override = lens
 	d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	d.position.y = -LAMP_DROP + 0.06
+	d.position.y = BULB_Y
+	add(d, lamp)
+	if lit:
+		var fill := OmniLight3D.new()
+		fill.name = "Fill"
+		fill.light_color = (lens as StandardMaterial3D).emission
+		fill.light_energy = 1.2
+		fill.omni_range = 0.75  # the shade and its glass, nothing past the rim
+		fill.omni_attenuation = 1.5
+		fill.light_volumetric_fog_energy = 0.0
+		fill.light_specular = 0.3
+		add(fill, d)
 	return d
 
 
