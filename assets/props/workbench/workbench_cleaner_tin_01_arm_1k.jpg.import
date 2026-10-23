@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dtxe3psemq6s8"
-path="res://.godot/imported/workbench_cleaner_tin_01_arm_1k.jpg-1abaa3b1bca5f91542f7b2d81e20d967.ctex"
+path.s3tc="res://.godot/imported/workbench_cleaner_tin_01_arm_1k.jpg-1abaa3b1bca5f91542f7b2d81e20d967.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "3aef603796c987c8323b4ca8177dc258"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/props/workbench/workbench_cleaner_tin_01_arm_1k.jpg"
-dest_files=["res://.godot/imported/workbench_cleaner_tin_01_arm_1k.jpg-1abaa3b1bca5f91542f7b2d81e20d967.ctex"]
+dest_files=["res://.godot/imported/workbench_cleaner_tin_01_arm_1k.jpg-1abaa3b1bca5f91542f7b2d81e20d967.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

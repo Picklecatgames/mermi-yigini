@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://caulthnrpo672"
-path="res://.godot/imported/hopper_green_metal_rust_rough.jpg-e62ece1c9876f8d259a801cb0c55d285.ctex"
+path.s3tc="res://.godot/imported/hopper_green_metal_rust_rough.jpg-e62ece1c9876f8d259a801cb0c55d285.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "9b695c3acbb2ef6551869abc3f2b52f2"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/props/workbench/hopper_green_metal_rust_rough.jpg"
-dest_files=["res://.godot/imported/hopper_green_metal_rust_rough.jpg-e62ece1c9876f8d259a801cb0c55d285.ctex"]
+dest_files=["res://.godot/imported/hopper_green_metal_rust_rough.jpg-e62ece1c9876f8d259a801cb0c55d285.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bweqw7ok6cejc"
-path="res://.godot/imported/workbench_screwdrivers_02_arm_1k.jpg-1ea9cdcdf7e5e9e996b9f0785a424378.ctex"
+path.s3tc="res://.godot/imported/workbench_screwdrivers_02_arm_1k.jpg-1ea9cdcdf7e5e9e996b9f0785a424378.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "52aa4a29c3e172bfc599c27ce9941c68"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/props/workbench/workbench_screwdrivers_02_arm_1k.jpg"
-dest_files=["res://.godot/imported/workbench_screwdrivers_02_arm_1k.jpg-1ea9cdcdf7e5e9e996b9f0785a424378.ctex"]
+dest_files=["res://.godot/imported/workbench_screwdrivers_02_arm_1k.jpg-1ea9cdcdf7e5e9e996b9f0785a424378.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

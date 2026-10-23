@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c6qt1ta2xxoow"
-path="res://.godot/imported/workbench_paper_09.jpg-6b8f8058ec544b2c01e05055e21a3f78.ctex"
+path.s3tc="res://.godot/imported/workbench_paper_09.jpg-6b8f8058ec544b2c01e05055e21a3f78.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "201ef2ca40e79155f57f0a111cb9c015"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/props/workbench/workbench_paper_09.jpg"
-dest_files=["res://.godot/imported/workbench_paper_09.jpg-6b8f8058ec544b2c01e05055e21a3f78.ctex"]
+dest_files=["res://.godot/imported/workbench_paper_09.jpg-6b8f8058ec544b2c01e05055e21a3f78.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

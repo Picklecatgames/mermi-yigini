@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://4xf35bxdkk4a"
-path="res://.godot/imported/workbench_07___Default_1002_baseColor.jpg-d8ce410e4042cec9d0904f5bd9f76c47.ctex"
+path.s3tc="res://.godot/imported/workbench_07___Default_1002_baseColor.jpg-d8ce410e4042cec9d0904f5bd9f76c47.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e312f3b13103fc42389d5c5628ab6736"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/props/workbench/workbench_07___Default_1002_baseColor.jpg"
-dest_files=["res://.godot/imported/workbench_07___Default_1002_baseColor.jpg-d8ce410e4042cec9d0904f5bd9f76c47.ctex"]
+dest_files=["res://.godot/imported/workbench_07___Default_1002_baseColor.jpg-d8ce410e4042cec9d0904f5bd9f76c47.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dft26bhjpgx1p"
-path="res://.godot/imported/workbench_vintage_spacecraft_instrument_arm_1k.jpg-a5aec952419dae9416129165dbec4caf.ctex"
+path.s3tc="res://.godot/imported/workbench_vintage_spacecraft_instrument_arm_1k.jpg-a5aec952419dae9416129165dbec4caf.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "12b3c0dd1d16759e19c4c316bf110431"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/props/workbench/workbench_vintage_spacecraft_instrument_arm_1k.jpg"
-dest_files=["res://.godot/imported/workbench_vintage_spacecraft_instrument_arm_1k.jpg-a5aec952419dae9416129165dbec4caf.ctex"]
+dest_files=["res://.godot/imported/workbench_vintage_spacecraft_instrument_arm_1k.jpg-a5aec952419dae9416129165dbec4caf.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
