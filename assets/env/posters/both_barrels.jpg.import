@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c56llrh4mqxb6"
-path="res://.godot/imported/sign013_color.png-dcb7607b50297e8e4547b589341a43eb.ctex"
+uid="uid://byl12i1damfds"
+path="res://.godot/imported/both_barrels.jpg-1f3ea0900520a787ada98e38b7f03a67.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/env/signs/sign013_color.png"
-dest_files=["res://.godot/imported/sign013_color.png-dcb7607b50297e8e4547b589341a43eb.ctex"]
+source_file="res://assets/env/posters/both_barrels.jpg"
+dest_files=["res://.godot/imported/both_barrels.jpg-1f3ea0900520a787ada98e38b7f03a67.ctex"]
 
 [params]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c1r77jkcudegm"
-path="res://.godot/imported/sign009_normal.png-08abbf9bbc63360cfd45c7295b9afe91.ctex"
+uid="uid://ounamqrkhern"
+path="res://.godot/imported/pass_ammo.jpg-f883c8b98f79ec2fe7ff11f099810b0f.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/env/signs/sign009_normal.png"
-dest_files=["res://.godot/imported/sign009_normal.png-08abbf9bbc63360cfd45c7295b9afe91.ctex"]
+source_file="res://assets/env/posters/pass_ammo.jpg"
+dest_files=["res://.godot/imported/pass_ammo.jpg-f883c8b98f79ec2fe7ff11f099810b0f.ctex"]
 
 [params]
 

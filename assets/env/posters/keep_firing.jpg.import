@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dwenuf2u6ykrh"
-path="res://.godot/imported/sign018_rough.png-f488485a0526748669252492d443e796.ctex"
+uid="uid://llho1cl1ccxh"
+path="res://.godot/imported/keep_firing.jpg-5680c8953b748c6c7911a3f51f8cdc7a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/env/signs/sign018_rough.png"
-dest_files=["res://.godot/imported/sign018_rough.png-f488485a0526748669252492d443e796.ctex"]
+source_file="res://assets/env/posters/keep_firing.jpg"
+dest_files=["res://.godot/imported/keep_firing.jpg-5680c8953b748c6c7911a3f51f8cdc7a.ctex"]
 
 [params]
 

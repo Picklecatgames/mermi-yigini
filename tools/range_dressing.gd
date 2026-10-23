@@ -52,6 +52,7 @@ func build(parent: Node) -> void:
 	_flanks()
 	_bay_detail()
 	_posters()
+	_workshop()
 	_overhead()
 
 
@@ -412,6 +413,86 @@ func _posters() -> void:
 	# hanging off or fallen; not posters spaced out one by one on a bare wall.
 	_board(Vector3(5.4, 1.75, -27.97), _wall(1.0), ["fly_bomber", "john_not_dull", "dont_mix_em", "heat_ruins_ammo"])
 	_board(Vector3(5.6, 1.75, 27.97), _wall(-1.0), ["firecrackers", "six_out_of_ten", "oops", "black_widow"])
+
+
+## The upgrade workshop in the shooters' corner, where the railing meets the south wall: the bullet
+## workbench (assembled in Blender, docs/ayrintilar.md "Mermi tezgâhı") a size up and pushed into the
+## corner, the melting hopper on its right, both on a worn carpet. Round it the crew's corner: old
+## ammunition posters taped up (Commons, public domain), a rifle and a pistol hung on the wall, a
+## fire going in a barrel stove, crates and sandbags by the railing. Lit like a camp: one failing
+## pendant, the barrel's fire and the crucible's glow.
+func _workshop() -> void:
+	const BENCH := 1.2  # the Blender bench, scaled up to stand out
+	var at := Vector3(12.3, 0, 27.4)  # its east end against the column at x 14, its back on the wall
+	b._prop(root, "res://assets/props/workbench/workbench.glb", at, PI, BENCH)
+	var x := at.x - 0.09 * BENCH  # the bench's middle
+	var hopper := Vector3(at.x - 1.22 * BENCH - 1.0, 0, 27.15)  # on its right (looking at it), the bucket on the bench side
+	b._prop(root, "res://assets/props/workbench/hopper.glb", hopper, PI)
+	var rug := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(4.6, 2.6)
+	rug.mesh = plane
+	rug.material_override = b.pbr_box("dirty_carpet", 0.6, Color.WHITE, false)  # the scan is 0.6 m square
+	rug.transform = Transform3D(Basis(Vector3.UP, 0.03), Vector3(11.3, 0.006, 26.3))
+	rug.layers = 1 << 4  # off the floor paint's layer: the walkway decal printed over it
+	b.add(rug, root)
+	# The wall behind: posters over the bench's shelf and round the hopper, guns on nails.
+	var face := _wall(-1.0)
+	for pz in [["fifty_cal", Vector3(x, 2.85, 27.96), 0.66, 0.02], ["both_barrels", Vector3(11.0, 2.7, 27.955), 0.6, -0.04],
+			["bonds_bullets", Vector3(13.5, 2.75, 27.955), 0.7, 0.03], ["pass_ammo", Vector3(9.85, 2.0, 27.96), 0.85, -0.02],
+			["keep_shooting", Vector3(9.1, 2.15, 27.955), 0.9, 0.05], ["keep_firing", Vector3(8.2, 1.65, 27.96), 0.75, -0.03]]:
+		_poster(pz[0], pz[1], face, pz[2], pz[3])
+	b._prop(root, MODELS + "bolt_action_rifle_7_62/bolt_action_rifle_7_62_1k.gltf", Vector3(10.25, 1.3, 27.9), 0.04)
+	b._prop(root, MODELS + "service_pistol/service_pistol_1k.gltf", Vector3(10.55, 1.75, 27.94), -0.3)
+	# A fire in a barrel west of the hopper, a jerrycan and a tyre by it.
+	var barrel := Vector3(8.7, 0, 27.0)
+	b._prop(root, MODELS + "barrel_stove/barrel_stove_1k.gltf", barrel, 0.4)
+	b._prop(root, MODELS + "metal_jerrycan/metal_jerrycan_1k.gltf", Vector3(8.0, 0, 27.65), 0.2)
+	b._prop(root, MODELS + "old_tyre/old_tyre_1k.gltf", Vector3(7.75, 0.3, 27.82), 0.0, 1.0, Basis(Vector3.RIGHT, -0.15))
+	# Stock along the railing: an army crate, a crate of rounds on it, ammo boxes, sandbags.
+	b._prop(root, MODELS + "wooden_military_crate/wooden_military_crate_1k.gltf", Vector3(13.45, 0, 25.4), PI / 2)
+	b._prop(root, MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf", Vector3(13.45, 0.465, 25.6), 0.15)
+	for p in [Vector3(13.45, 0.465, 25.05), Vector3(13.4, 0.815, 25.6)]:
+		b._prop(root, MODELS + "ammo_box/ammo_box_1k.gltf", p, PI / 2 + rng.randf_range(-0.4, 0.4))
+	_sandbags(Vector3(13.45, 0, 24.1), 2, 2, PI / 2)
+	_sticker("ghs_explos", Vector3(13.1, 0.25, 25.4), Vector3(-1, 0, 0), 0.18)
+	_sticker("ghs_flamme", Vector3(hopper.x, 0.72, 26.78), Vector3(0, 0, -1), 0.14)
+	# Light: a failing pendant over the bench, the barrel's fire, the crucible's glow, a dim wash.
+	b.strut(x, 21.0, 27.85)
+	var pendant: Node3D = b.pendant(Vector3(x, 3.9, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 5.0, 62.0, 0.05, true)
+	for spot: SpotLight3D in pendant.find_children("*", "SpotLight3D", false, false):
+		spot.set_script(b.FLICKER)
+	for f in [[barrel + Vector3(0, 1.0, 0), Color(1.0, 0.45, 0.15), 2.2, 4.5, true], [hopper + Vector3(0, 0.3, 0), Color(1.0, 0.5, 0.2), 0.8, 1.8, false]]:
+		var fire := OmniLight3D.new()
+		fire.position = f[0]
+		fire.light_color = f[1]
+		fire.light_energy = f[2]
+		fire.omni_range = f[3]
+		fire.shadow_enabled = f[4]
+		fire.light_volumetric_fog_energy = 0.6
+		b.add(fire, root)
+	var wash := SpotLight3D.new()
+	wash.position = Vector3(8.6, 4.6, 23.6)
+	wash.basis = Basis.looking_at(Vector3(x - 0.8, 1.6, 27.9) - wash.position, Vector3.UP)
+	wash.light_color = Color(1.0, 0.72, 0.42)
+	wash.light_energy = 2.2
+	wash.spot_range = 10.0
+	wash.spot_angle = 30.0
+	wash.spot_angle_attenuation = 1.8
+	wash.light_volumetric_fog_energy = 0.0
+	wash.shadow_enabled = true
+	b.add(wash, root)
+
+
+## A GHS hazard sticker (assets/env/stickers/, public domain) on the face at `at` looking along `out`.
+func _sticker(id: String, at: Vector3, out: Vector3, size: float) -> void:
+	var d := Decal.new()
+	d.texture_albedo = load("res://assets/env/stickers/" + id + ".png")
+	d.modulate = Color(0.85, 0.82, 0.75)  # sun and grime
+	d.size = Vector3(size, 0.4, size)
+	d.transform = Transform3D(Basis(out.cross(Vector3.UP), out, Vector3.DOWN), at)
+	d.cull_mask = 1
+	b.add(d, root)
 
 
 ## A 3.2 x 1.5 m pin board: posters and papers overlapping, scraps of torn-off ones, one poster

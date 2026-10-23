@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ddgsnvpp0ykn"
-path="res://.godot/imported/sign013_rough.png-86fb047a02fe4d992a9aa137ff8af920.ctex"
+uid="uid://cfnwhavx8ocp"
+path="res://.godot/imported/fifty_cal.jpg-403abd6adbee38467a1be0063d9b6758.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/env/signs/sign013_rough.png"
-dest_files=["res://.godot/imported/sign013_rough.png-86fb047a02fe4d992a9aa137ff8af920.ctex"]
+source_file="res://assets/env/posters/fifty_cal.jpg"
+dest_files=["res://.godot/imported/fifty_cal.jpg-403abd6adbee38467a1be0063d9b6758.ctex"]
 
 [params]
 

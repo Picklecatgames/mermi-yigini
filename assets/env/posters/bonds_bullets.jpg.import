@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cw3u4f2lsbf6k"
-path="res://.godot/imported/sign018_color.png-a88669f41faf4aae9d3c065815f8b8aa.ctex"
+uid="uid://bov35mpq20u6x"
+path="res://.godot/imported/bonds_bullets.jpg-adc68be3e3357d04bd842778f8e4f950.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/env/signs/sign018_color.png"
-dest_files=["res://.godot/imported/sign018_color.png-a88669f41faf4aae9d3c065815f8b8aa.ctex"]
+source_file="res://assets/env/posters/bonds_bullets.jpg"
+dest_files=["res://.godot/imported/bonds_bullets.jpg-adc68be3e3357d04bd842778f8e4f950.ctex"]
 
 [params]
 
