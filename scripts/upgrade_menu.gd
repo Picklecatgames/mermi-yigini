@@ -1,19 +1,18 @@
 extends CanvasLayer
-## The workshop, toggled with Q (Esc also closes), in UiStyle: no boxes, text on the dimmed view.
-## Top: the player's gold on the left, the team vault mirrored on the right, the two tabs between
-## them (the player's own upgrades, GameState.UPGRADES, paid from their gold; the team's gear,
-## GameState.GEAR, paid from the vault). Under a rule, five columns of cards, each standing under
-## its own thin rule. An upgrade card walks a track of its levels (bought lit, the next one in the
-## accent, beating); a gear card turns its target's model. Whatever the money reaches is bright,
-## its price line and "al" in the accent; the rest wait faded. Buying sweeps the accent along the
-## card's rule, lights the new level and swells the new value. The game keeps running behind it.
+## The workshop, toggled with Q (Esc also closes): a dark panel over the dimmed game. Top: the
+## player's gold on the left, the team vault on the right, two tabs between them (the player's own
+## upgrades, GameState.UPGRADES, paid from their gold; the team's gear, GameState.GEAR, paid from
+## the vault). Below, five columns of cards. An upgrade card has its icon, level, the value now and
+## after the next level, a row of level pips and a big buy button; a gear card turns its target's
+## model. What the money reaches glows green and its button breathes; the rest wait dimmed. Buying
+## pops the card, flashes it, throws coins off the button and floats "+1" up. The game keeps running.
 
-const INFO := {
-	"carry": ["El Kapasitesi", "%d"],
-	"magazine": ["Şarjör", "%d"],
-	"combo_cap": ["Kombo Tavanı", "x%d"],
-	"gold_bonus": ["Altın", "+%d%%"],
-	"range_bonus": ["Uzak Atış", "+%d%%/m"],
+const INFO := {  # name, value format, icon colour
+	"carry": ["El Kapasitesi", "%d", Color(0.36, 0.72, 1.0)],
+	"magazine": ["Şarjör", "%d", Color(1.0, 0.55, 0.25)],
+	"combo_cap": ["Kombo Tavanı", "x%d", Color(0.85, 0.4, 1.0)],
+	"gold_bonus": ["Altın", "+%d%%", Color(1.0, 0.8, 0.25)],
+	"range_bonus": ["Uzak Atış", "+%d%%/m", Color(0.35, 0.9, 0.75)],
 }
 const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 	"dummy": [1, 1],
@@ -31,12 +30,17 @@ const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 }
 const HUD := preload("res://scripts/hud.gd")  # its dotted numbers
 const COLUMNS := 5
-const CARD_W := 188.0  # px
-const MODEL_H := 120.0  # px, a gear card's turning model
-const MAX_SIZE := Vector2(1180, 680)  # px; small windows keep a margin round it
-const SIDE_W := 220.0  # px, the gold and the vault: equal so the tabs sit in the middle
+const CARD_W := 192.0  # px
+const MODEL_H := 110.0  # px, a gear card's turning model
+const MAX_SIZE := Vector2(1200, 700)  # px; small windows keep a margin round it
+const SIDE_W := 240.0  # px, the gold and the vault: equal so the tabs sit in the middle
 const DEAGLE_ICON := Vector2(104, 52)  # px, the wishlist line's gold Deagle
-const WAITING := 0.55  # a card the money does not reach yet
+const BUY := Color(0.24, 0.86, 0.38)  # what the money reaches
+const MAXED := Color(1.0, 0.78, 0.3)
+const PANEL := Color(0.07, 0.08, 0.1, 0.94)
+const CARD := Color(0.12, 0.135, 0.16)
+const CARD_EDGE := Color(1, 1, 1, 0.08)
+const WAITING := 0.6  # a card the money does not reach yet
 
 var _tab := 0
 var _frame: VBoxContainer
@@ -47,64 +51,107 @@ var _money: Label
 var _vault: Label
 var _gold_shown := 0.0  # what the gold figure reads while it counts to the real one
 var _models_built := false
-var _cards := {}  # id -> {card, meter, need, button, ready, and level/value/next/track or stock/model}
+var _cards := {}  # id -> {card, style, need, button, ready, and level/value/next/track or stock/model}
 
 
-## A level track: one mark per level on a thin line; bought ones lit, the next one in the accent
-## and beating, the rest faint. `flash` (1 just after a buy) swells the newest mark.
+## Pips, one per level: bought ones filled in the upgrade's colour, the next one an outline that
+## beats when the money reaches it, the rest faint. `flash` (1 just after a buy) swells the newest.
 class Track extends Control:
 	var levels := 1
 	var level := 0
+	var color := Color.WHITE
+	var armed := false  # the money reaches the next pip
 	var flash := 0.0:
 		set(v):
 			flash = v
 			queue_redraw()
 
-	func _init(n: int) -> void:
+	func _init(n: int, c: Color) -> void:
 		levels = n
-		custom_minimum_size = Vector2(0, 14)
+		color = c
+		custom_minimum_size = Vector2(0, 10)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	func _process(_delta: float) -> void:
-		if level < levels and is_visible_in_tree():
-			queue_redraw()  # the next mark beats
+		if armed and is_visible_in_tree():
+			queue_redraw()  # the next pip beats
 
 	func _draw() -> void:
-		var y := roundf(size.y / 2.0)
-		var at := func(i: int) -> float: return roundf(3.0 + (size.x - 6.0) * i / maxf(levels - 1, 1))
-		draw_rect(Rect2(0, y, size.x, 1), UiStyle.LINE)
-		if level > 0:
-			draw_rect(Rect2(0, y, at.call(level - 1), 1), UiStyle.WHITE)
-		var beat := 0.55 + 0.45 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
+		var gap := 3.0
+		var w := (size.x - gap * (levels - 1)) / levels
+		var beat := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)
 		for i in levels:
-			var x: float = at.call(i)
-			var s := 4.0
-			var c := Color(1, 1, 1, 0.35)
+			var r := Rect2(i * (w + gap), 0, w, size.y)
 			if i < level:
-				s = 6.0 + (8.0 * flash if i == level - 1 else 0.0)
-				c = UiStyle.WHITE.lerp(UiStyle.ACCENT, flash) if i == level - 1 else UiStyle.WHITE
+				var grow := 3.0 * flash if i == level - 1 else 0.0
+				draw_rect(r.grow(grow), color.lerp(Color.WHITE, flash if i == level - 1 else 0.0))
 			elif i == level:
-				s = 8.0
-				c = Color(UiStyle.ACCENT, beat)
-			draw_rect(Rect2(x - s / 2.0, y - s / 2.0 + 0.5, s, s).abs(), c)
+				draw_rect(r, Color(1, 1, 1, 0.1))
+				draw_rect(r, Color(BUY, 0.5 + 0.5 * beat) if armed else Color(1, 1, 1, 0.3), false, 1.5)
+			else:
+				draw_rect(r, Color(1, 1, 1, 0.08))
+
+
+## The upgrade's emblem, drawn: a disc in its colour with a white symbol.
+class Icon extends Control:
+	var id := ""
+	var color := Color.WHITE
+
+	func _init(which: String, c: Color) -> void:
+		id = which
+		color = c
+		custom_minimum_size = Vector2(52, 52)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		var c := size / 2.0
+		draw_circle(c, 26.0, Color(color, 0.18))
+		draw_arc(c, 25.0, 0.0, TAU, 48, Color(color, 0.9), 2.0, true)
+		var w := Color(1, 1, 1, 0.95)
+		match id:
+			"carry":  # three rounds standing side by side
+				for k in 3:
+					var x := c.x - 11.0 + 11.0 * k
+					draw_rect(Rect2(x - 3.5, c.y - 4.0, 7.0, 15.0), Color(0.95, 0.75, 0.35))
+					draw_colored_polygon(PackedVector2Array([Vector2(x - 3.5, c.y - 4.0), Vector2(x + 3.5, c.y - 4.0), Vector2(x, c.y - 13.0)]), Color(0.8, 0.5, 0.3))
+			"magazine":  # a magazine with rounds peeking out the top
+				draw_rect(Rect2(c.x - 8.0, c.y - 8.0, 16.0, 22.0), w)
+				draw_rect(Rect2(c.x - 5.0, c.y - 14.0, 10.0, 6.0), Color(0.95, 0.75, 0.35))
+				for k in 3:
+					draw_rect(Rect2(c.x - 5.0, c.y - 3.0 + 5.0 * k, 10.0, 1.5), Color(color, 0.9))
+			"combo_cap":  # an x and a rising streak
+				draw_line(c + Vector2(-9, -9), c + Vector2(9, 9), w, 4.0, true)
+				draw_line(c + Vector2(9, -9), c + Vector2(-9, 9), w, 4.0, true)
+				draw_line(c + Vector2(6, -14), c + Vector2(14, -14), Color(color, 1.0), 3.0)
+				draw_line(c + Vector2(14, -14), c + Vector2(14, -6), Color(color, 1.0), 3.0)
+			"gold_bonus":  # a coin
+				draw_circle(c, 13.0, Color(1.0, 0.8, 0.25))
+				draw_arc(c, 10.0, 0.0, TAU, 32, Color(0.75, 0.5, 0.1), 2.0, true)
+				draw_string(UiStyle.face(UiStyle.BOLD), c + Vector2(-5, 6), "$", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.55, 0.35, 0.05))
+			"range_bonus":  # a target
+				for k in 3:
+					draw_arc(c, 14.0 - 5.0 * k, 0.0, TAU, 32, w if k % 2 == 0 else Color(color, 1.0), 2.5, true)
+				draw_circle(c, 2.5, w)
 
 
 func _ready() -> void:
 	layer = 5
 	visible = false
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.72)
+	dim.color = Color(0, 0, 0, 0.6)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _box(PANEL, Color(1, 1, 1, 0.1), 16, 28))
+	center.add_child(panel)
 	_frame = VBoxContainer.new()
-	_frame.add_theme_constant_override("separation", 14)
-	center.add_child(_frame)
+	_frame.add_theme_constant_override("separation", 16)
+	panel.add_child(_frame)
 	_frame.add_child(_header())
-	_frame.add_child(UiStyle.line())
-	_subtitle = _centred(UiStyle.caption(""))
+	_subtitle = _centred(UiStyle.label("", 14, UiStyle.REGULAR, UiStyle.DIM))
 	_frame.add_child(_subtitle)
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -113,8 +160,14 @@ func _ready() -> void:
 	_pages.append(_page(GameState.GEAR.keys(), _gear_card))
 	for p in _pages:
 		stack.add_child(p)
-	_frame.add_child(_wishlist_row())
-	_frame.add_child(_centred(UiStyle.caption("Q  ·  kapat")))
+	var foot := HBoxContainer.new()
+	foot.add_child(_wishlist_row())
+	var close := UiStyle.label("Q  ·  kapat", 14, UiStyle.MEDIUM, UiStyle.DIM)
+	close.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	close.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	foot.add_child(close)
+	_frame.add_child(foot)
 	GameState.gold_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
 	GameState.vault_changed.connect(_refresh.unbind(1))
@@ -139,7 +192,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func toggle() -> void:
 	visible = not visible
-	var hud := get_node_or_null("../HUD") as CanvasLayer  # the player's: its top line would cross the tabs
+	var hud := get_node_or_null("../HUD") as CanvasLayer  # the player's: its corners would show through
 	if hud:
 		hud.visible = not visible
 	# The placement overview keeps its cursor when the workshop closes over it.
@@ -149,41 +202,42 @@ func toggle() -> void:
 		_show_tab(_tab)
 
 
-## What the money reaches beats softly: its "al" breathes in the accent.
+## What the money reaches breathes: its button's glow swells and fades.
 func _process(_delta: float) -> void:
 	if not visible:
 		return
-	var a := 0.72 + 0.28 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
+	var a := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 4.0)
 	for c: Dictionary in _cards.values():
-		(c.button as Control).modulate.a = a if c.ready else 1.0
+		if c.ready:
+			(c.button.get_theme_stylebox("normal") as StyleBoxFlat).shadow_size = roundi(4 + 8 * a)
 
 
 # --- layout -----------------------------------------------------------------------------------
 
-## Gold | tabs | vault, the two sides mirrored like the HUD's corners.
+## Gold | tabs | vault.
 func _header() -> Control:
 	var row := HBoxContainer.new()
-	row.add_child(_wallet("", false))  # the player's own: "$" says enough
+	row.add_child(_wallet("ALTININ", false))
 	var tabs := HBoxContainer.new()
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
-	tabs.add_theme_constant_override("separation", 44)
+	tabs.add_theme_constant_override("separation", 8)
 	row.add_child(tabs)
 	tabs.add_child(_tab_button(0))
 	tabs.add_child(_tab_button(1))
-	row.add_child(_wallet("takım kasası", true))
+	row.add_child(_wallet("TAKIM KASASI", true))
 	return row
 
 
 func _wallet(caption: String, right: bool) -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.custom_minimum_size.x = SIDE_W
-	col.add_theme_constant_override("separation", 0)
+	col.add_theme_constant_override("separation", -4)
 	var align := HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
-	var c := UiStyle.caption(caption if caption != "" else " ")  # blank still holds the line: the figures stay level
+	var c := UiStyle.label(caption, 13, UiStyle.BOLD, UiStyle.DIM, UiStyle.CAPTION_TRACK)
 	c.horizontal_alignment = align
 	col.add_child(c)
-	var big := UiStyle.label("", 36, UiStyle.LIGHT, HUD.MONEY)
+	var big := UiStyle.label("", 40, UiStyle.BOLD, HUD.MONEY)
 	big.horizontal_alignment = align
 	col.add_child(big)
 	if right:
@@ -193,22 +247,13 @@ func _wallet(caption: String, right: bool) -> VBoxContainer:
 	return col
 
 
-## A tab is its name in text, underlined when open. Names are set in _show_tab: the player's
-## name arrives after joining.
+## A tab is a pill: filled when open. Names are set in _show_tab: the player's arrives after joining.
 func _tab_button(index: int) -> Button:
 	var b := _flat_button()
-	b.custom_minimum_size.y = 32
-	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER  # the header row is as tall as the big numbers
-	var title := UiStyle.label("", 20, UiStyle.MEDIUM)
-	title.name = "Title"
-	title.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	title.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	b.add_child(title)
-	var under := UiStyle.line(0, UiStyle.WHITE)
-	under.name = "Under"
-	under.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	under.offset_top = -1
-	b.add_child(under)
+	b.custom_minimum_size = Vector2(150, 42)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD))
+	b.add_theme_font_size_override("font_size", 17)
 	b.pressed.connect(_show_tab.bind(index))
 	_tabs.append(b)
 	return b
@@ -217,21 +262,25 @@ func _tab_button(index: int) -> Button:
 func _show_tab(index: int) -> void:
 	_tab = index
 	var screen := get_viewport().get_visible_rect().size
-	_frame.custom_minimum_size = Vector2(minf(MAX_SIZE.x, screen.x * 0.92), minf(MAX_SIZE.y, screen.y * 0.9))
+	_frame.custom_minimum_size = Vector2(minf(MAX_SIZE.x, screen.x * 0.92) - 56, minf(MAX_SIZE.y, screen.y * 0.9) - 56)
 	var titles := [GameState.display_name(), "Teçhizat"]
 	for i in _tabs.size():
 		var on := i == index
-		var title := _tabs[i].find_child("Title", true, false) as Label
-		title.text = titles[i]
-		_tabs[i].custom_minimum_size.x = title.get_minimum_size().x
-		_tabs[i].modulate.a = 1.0 if on else 0.45
-		(_tabs[i].find_child("Under", true, false) as Control).visible = on
+		var b := _tabs[i]
+		b.text = titles[i]
+		var fill := Color(1, 1, 1, 0.92) if on else Color(1, 1, 1, 0.06)
+		for s in ["normal", "hover", "pressed"]:
+			b.add_theme_stylebox_override(s, _box(fill if s != "hover" or on else Color(1, 1, 1, 0.12), Color(0, 0, 0, 0), 21, 0))
+		for s in ["font_color", "font_hover_color", "font_pressed_color"]:
+			b.add_theme_color_override(s, Color(0.08, 0.09, 0.1) if on else UiStyle.WHITE)
 		_pages[i].visible = on
-	_subtitle.text = ["", "ortak kasadan  ·  bütün takım kullanır  ·  B ile kur"][index]
+	_subtitle.text = ["Kendi altınınla  ·  yalnız senin", "Takım kasasından  ·  bütün takım kullanır  ·  B ile kur"][index]
 	if index == 1 and not _models_built:  # built on first look: fifteen small worlds
 		_models_built = true
 		for id in GameState.GEAR:
-			(_cards[id].model as Control).add_child(_model_view(load(GameState.GEAR[id].scene).instantiate()))
+			var model: Control = _cards[id].model
+			model.add_child(_model_view(id))
+			model.move_child(model.get_child(-1), 0)  # under the stock count
 	_refresh()
 
 
@@ -245,59 +294,68 @@ func _page(ids: Array, make: Callable) -> Control:
 	scroll.add_child(center)
 	var grid := GridContainer.new()
 	grid.columns = COLUMNS
-	grid.add_theme_constant_override("h_separation", 30)
-	grid.add_theme_constant_override("v_separation", 30)
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 18)
 	center.add_child(grid)
 	for id in ids:
 		grid.add_child(make.call(id))
 	return scroll
 
 
-## A card: its rule on top, the caller's middle, a line toward the price, what is missing and "al".
-func _card(id: String, body: Control, buy: Callable) -> VBoxContainer:
-	var card := VBoxContainer.new()
+## A card: a rounded panel holding the caller's body, then what is missing and the buy button.
+## Hovered, it lifts a little.
+func _card(id: String, body: Control, buy: Callable) -> PanelContainer:
+	var card := PanelContainer.new()
 	card.custom_minimum_size.x = CARD_W
-	card.add_theme_constant_override("separation", 8)
-	var rule := UiStyle.line()
-	card.add_child(rule)
-	card.add_child(body)
-	var meter := UiStyle.meter(CARD_W)
-	card.add_child(meter)
-	var foot := HBoxContainer.new()
-	card.add_child(foot)
-	var need := UiStyle.caption("")
-	need.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	need.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	foot.add_child(need)
+	var style := _box(CARD, CARD_EDGE, 12, 14)
+	style.border_width_bottom = 2
+	card.add_theme_stylebox_override("panel", style)
+	card.mouse_filter = Control.MOUSE_FILTER_PASS
+	card.resized.connect(func() -> void: card.pivot_offset = card.size / 2.0)
+	card.mouse_entered.connect(func() -> void: card.create_tween().tween_property(card, "scale", Vector2.ONE * 1.03, 0.12))
+	card.mouse_exited.connect(func() -> void: card.create_tween().tween_property(card, "scale", Vector2.ONE, 0.15))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 10)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(col)
+	col.add_child(body)
+	var need := _centred(UiStyle.label("", 13, UiStyle.MEDIUM, UiStyle.DIM))
+	col.add_child(need)
 	var button := _flat_button()
-	button.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM))
-	button.add_theme_font_size_override("font_size", 15)
-	button.add_theme_color_override("font_hover_color", UiStyle.WHITE)
-	button.add_theme_color_override("font_pressed_color", UiStyle.WHITE)
-	button.add_theme_color_override("font_disabled_color", Color(UiStyle.DIM, 0.6))
+	button.custom_minimum_size.y = 44
+	button.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD))
+	button.add_theme_font_size_override("font_size", 18)
+	button.mouse_entered.connect(func() -> void: card.mouse_entered.emit())
 	button.pressed.connect(func() -> void:
 		if buy.call():
-			_celebrate(id, rule))
-	foot.add_child(button)
-	_cards[id] = {"card": card, "meter": meter, "need": need, "button": button, "ready": false}
+			_celebrate(id))
+	col.add_child(button)
+	_cards[id] = {"card": card, "style": style, "need": need, "button": button, "ready": false}
 	return card
 
 
 func _upgrade_card(id: String) -> Control:
+	var color: Color = INFO[id][2]
 	var body := VBoxContainer.new()
-	body.add_theme_constant_override("separation", 6)
-	var level := UiStyle.caption("")
-	body.add_child(level)
-	body.add_child(UiStyle.label(INFO[id][0], 18, UiStyle.MEDIUM))
+	body.add_theme_constant_override("separation", 8)
+	var top := HBoxContainer.new()
+	top.add_child(Icon.new(id, color))
+	var level := UiStyle.label("", 13, UiStyle.BOLD, color)
+	level.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	level.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	level.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	top.add_child(level)
+	body.add_child(top)
+	body.add_child(UiStyle.label(INFO[id][0], 20, UiStyle.BOLD))
 	var values := HBoxContainer.new()
-	values.add_theme_constant_override("separation", 10)
+	values.add_theme_constant_override("separation", 8)
 	body.add_child(values)
-	var value := UiStyle.label("", 30, UiStyle.LIGHT)
+	var value := UiStyle.label("", 32, UiStyle.BOLD)
 	values.add_child(value)
-	var next := UiStyle.label("", 18, UiStyle.LIGHT, UiStyle.ACCENT)
-	next.size_flags_vertical = Control.SIZE_SHRINK_END
+	var next := UiStyle.label("", 20, UiStyle.BOLD, BUY)
+	next.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	values.add_child(next)
-	var track := Track.new(GameState.UPGRADES[id].costs.size())
+	var track := Track.new(GameState.UPGRADES[id].costs.size(), color)
 	body.add_child(track)
 	var card := _card(id, body, func() -> bool: return GameState.request_buy_upgrade(id))
 	_cards[id].merge({"level": level, "value": value, "next": next, "track": track})
@@ -307,32 +365,38 @@ func _upgrade_card(id: String) -> Control:
 func _gear_card(id: String) -> Control:
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 6)
-	var model := Control.new()  # its turning model comes in on the first look (_show_tab)
-	model.custom_minimum_size = Vector2(CARD_W, MODEL_H)
+	var stage := PanelContainer.new()  # its turning model comes in on the first look (_show_tab)
+	stage.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0.25), Color(0, 0, 0, 0), 8, 0))
+	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var model := Control.new()
+	model.custom_minimum_size = Vector2(0, MODEL_H)
 	model.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	body.add_child(model)
-	var hard: int = GEAR_INFO[id][1]
+	stage.add_child(model)
+	body.add_child(stage)
+	var stock := UiStyle.label("", 12, UiStyle.BOLD)  # in the stage's top right corner
+	stock.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	stock.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	stock.position += Vector2(-8, 6)
+	model.add_child(stock)
+	body.add_child(UiStyle.label(GameState.GEAR[id].name, 18, UiStyle.BOLD))
 	var diff := _pips(5)
-	for i in hard:
-		(diff.get_child(i) as ColorRect).color = UiStyle.WHITE
+	for i in GEAR_INFO[id][1]:
+		(diff.get_child(i) as ColorRect).color = Color(1.0, 0.45, 0.3)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 10)
-	top.add_child(UiStyle.caption("zorluk"))
+	top.add_child(UiStyle.label("Zorluk", 12, UiStyle.MEDIUM, UiStyle.DIM))
 	diff.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	diff.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	top.add_child(diff)
 	body.add_child(top)
-	body.add_child(UiStyle.label(GameState.GEAR[id].name, 18, UiStyle.MEDIUM))
 	var values := HBoxContainer.new()
-	values.add_theme_constant_override("separation", 10)
+	values.add_theme_constant_override("separation", 8)
 	body.add_child(values)
-	var value := UiStyle.label("$%d" % GEAR_INFO[id][0], 30, UiStyle.LIGHT)
+	var value := UiStyle.label("$%d" % GEAR_INFO[id][0], 28, UiStyle.BOLD, HUD.MONEY)
 	values.add_child(value)
-	var per := UiStyle.caption("isabet başı")
-	per.size_flags_vertical = Control.SIZE_SHRINK_END
+	var per := UiStyle.label("isabet başı", 13, UiStyle.MEDIUM, UiStyle.DIM)
+	per.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	values.add_child(per)
-	var stock := UiStyle.caption("")
-	body.add_child(stock)
 	var card := _card(id, body, func() -> bool:
 		if not GameState.request_buy_gear(id):
 			return false
@@ -408,11 +472,10 @@ func _little_world(turn: Node3D, cam: Camera3D) -> SubViewportContainer:
 	return holder
 
 
-## Under the cards: a small gold Deagle and the line that gets it (scripts/wishlist.gd). Claimed,
-## the line thanks instead and no longer clicks.
+## Bottom left: a small gold Deagle and the line that gets it (scripts/wishlist.gd). Claimed, the
+## line thanks instead and no longer clicks.
 func _wishlist_row() -> Control:
 	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
 	var icon := Control.new()
 	icon.custom_minimum_size = DEAGLE_ICON
@@ -420,7 +483,7 @@ func _wishlist_row() -> Control:
 	row.add_child(icon)
 	icon.add_child(_deagle_view())
 	var b := _flat_button()
-	b.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM))
+	b.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD))
 	b.add_theme_font_size_override("font_size", 17)
 	for s in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
 		b.add_theme_color_override(s, Wishlist.GOLD)
@@ -510,12 +573,14 @@ func _refresh() -> void:
 		var values: Array = GameState.UPGRADES[id].values
 		var costs: Array = GameState.UPGRADES[id].costs
 		var maxed := level >= costs.size()
-		(c.level as Label).text = "seviye %d / %d" % [level, costs.size()]
-		(c.track as Track).level = level
-		(c.track as Track).queue_redraw()
+		(c.level as Label).text = "MAKS" if maxed else "SV %d / %d" % [level, costs.size()]
 		(c.value as Label).text = INFO[id][1] % values[level]
-		(c.next as Label).text = "" if maxed else "→  " + INFO[id][1] % values[level + 1]
+		(c.next as Label).text = "" if maxed else "→ " + INFO[id][1] % values[level + 1]
 		_price(c, 0 if maxed else costs[level], GameState.gold, maxed)
+		var track: Track = c.track
+		track.level = level
+		track.armed = c.ready
+		track.queue_redraw()
 	for id in GameState.GEAR:
 		var c: Dictionary = _cards[id]
 		var n: int = GameState.gear_stock.get(id, 0)
@@ -524,83 +589,129 @@ func _refresh() -> void:
 		_price(c, GameState.GEAR[id].cost, floori(GameState.vault), false)
 
 
-## The line toward the price, what is still missing, and "al". When the money reaches it the
-## card is bright and its line, "hazır" and "al" turn to the accent; short of it the card fades.
+## The buy button and the line over it. Money enough: the card's edge and the button go green and
+## the button glows (_process); short: a dark button with the price, "$N eksik" over it, the card
+## dimmed. Maxed: a gold "MAKS" that no longer clicks.
 func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	var need: Label = c.need
 	var b: Button = c.button
-	var lit := (c.meter as Control).get_child(0) as ColorRect
-	b.visible = not maxed
+	var style: StyleBoxFlat = c.style
 	c.ready = false
 	if maxed:
-		UiStyle.set_meter(c.meter, 1.0)
-		lit.color = UiStyle.WHITE
+		b.text = "MAKS"
+		b.disabled = true
+		_button_fill(b, Color(MAXED, 0.18), MAXED)
 		need.text = "en üst seviye"
-		need.add_theme_color_override("font_color", UiStyle.DIM)
+		need.add_theme_color_override("font_color", MAXED)
+		style.border_color = Color(MAXED, 0.5)
 		(c.card as Control).modulate.a = 1.0
 		return
-	UiStyle.set_meter(c.meter, float(have) / cost)
 	var ok := have >= cost
 	c.ready = ok
-	lit.color = UiStyle.ACCENT if ok else UiStyle.WHITE
-	need.text = "hazır" if ok else "$%d eksik" % (cost - have)
-	need.add_theme_color_override("font_color", UiStyle.ACCENT if ok else UiStyle.DIM)
-	b.text = "al  $%d" % cost
+	b.text = "AL  $%d" % cost
 	b.disabled = not ok
-	b.add_theme_color_override("font_color", UiStyle.ACCENT if ok else UiStyle.WHITE)
+	need.text = "hazır" if ok else "$%d eksik" % (cost - have)
+	need.add_theme_color_override("font_color", BUY if ok else UiStyle.DIM)
+	if ok:
+		_button_fill(b, BUY, Color(0.04, 0.12, 0.06))
+	else:
+		_button_fill(b, Color(1, 1, 1, 0.07), Color(1, 1, 1, 0.55))
+	style.border_color = Color(BUY, 0.7) if ok else CARD_EDGE
 	(c.card as Control).modulate.a = 1.0 if ok else WAITING
 
 
-## A purchase: the accent sweeps along the card's rule, the new level's mark swells and settles,
-## the value swells, and "+1" floats up.
-func _celebrate(id: String, rule: Control) -> void:
+func _button_fill(b: Button, fill: Color, text: Color) -> void:
+	var box := _box(fill, Color(0, 0, 0, 0), 10, 0)
+	box.shadow_color = Color(fill, 0.45)
+	box.shadow_size = 0
+	var hover := box.duplicate() as StyleBoxFlat
+	hover.bg_color = fill.lightened(0.15)
+	var pressed := box.duplicate() as StyleBoxFlat
+	pressed.bg_color = fill.darkened(0.15)
+	b.add_theme_stylebox_override("normal", box)
+	b.add_theme_stylebox_override("hover", hover)
+	b.add_theme_stylebox_override("pressed", pressed)
+	b.add_theme_stylebox_override("disabled", box)
+	for s in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
+		b.add_theme_color_override(s, text)
+
+
+## A purchase: the card pops and flashes white, coins burst off the button, the newest pip swells,
+## the value swells green and settles, and "+1" floats up.
+func _celebrate(id: String) -> void:
 	var c: Dictionary = _cards[id]
-	var sweep := ColorRect.new()
-	sweep.color = UiStyle.ACCENT
-	sweep.size = Vector2(0, 1)
-	sweep.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rule.add_child(sweep)
-	var s := sweep.create_tween()
-	s.tween_property(sweep, "size:x", rule.size.x, 0.28).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	s.tween_property(sweep, "modulate:a", 0.0, 0.5)
-	s.tween_callback(sweep.queue_free)
+	var card: Control = c.card
+	card.scale = Vector2.ONE * 1.1
+	card.create_tween().tween_property(card, "scale", Vector2.ONE * 1.03, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var style: StyleBoxFlat = c.style  # the card itself flashes white and fades back
+	card.create_tween().tween_property(style, "bg_color", CARD, 0.35).from(CARD.lerp(Color.WHITE, 0.35))
+	var b: Button = c.button
+	var coins := CPUParticles2D.new()
+	coins.top_level = true
+	coins.position = b.global_position + b.size / 2.0
+	coins.one_shot = true
+	coins.explosiveness = 1.0
+	coins.amount = 24
+	coins.lifetime = 0.7
+	coins.direction = Vector2.UP
+	coins.spread = 70.0
+	coins.initial_velocity_min = 180.0
+	coins.initial_velocity_max = 360.0
+	coins.gravity = Vector2(0, 700)
+	coins.scale_amount_min = 3.0
+	coins.scale_amount_max = 6.0
+	coins.color = MAXED
+	card.add_child(coins)
+	coins.emitting = true
+	coins.finished.connect(coins.queue_free)
 	if c.has("track"):
 		var track: Track = c.track
 		track.create_tween().tween_property(track, "flash", 0.0, 0.6).from(1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	var value: Label = c.value
 	value.pivot_offset = Vector2(0, value.size.y * 0.7)
-	value.scale = Vector2.ONE * 1.3
-	value.modulate = UiStyle.ACCENT
+	value.scale = Vector2.ONE * 1.4
+	value.modulate = BUY
 	var v := value.create_tween().set_parallel()
-	v.tween_property(value, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	v.tween_property(value, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	v.tween_property(value, "modulate", Color.WHITE, 0.6)
-	var card: Control = c.card
-	var up := UiStyle.label("+1 seviye" if _tab == 0 else "+1 depoya", 15, UiStyle.MEDIUM, UiStyle.ACCENT)
+	var up := UiStyle.label("+1 SEVİYE" if _tab == 0 else "+1 DEPOYA", 20, UiStyle.BOLD, BUY)
 	up.top_level = true  # floats free of the card's container layout
 	card.add_child(up)
-	up.global_position = card.global_position + Vector2(0, -22)
+	up.global_position = card.global_position + Vector2(card.size.x / 2.0 - 50, -10)
 	var f := up.create_tween().set_parallel()
-	f.tween_property(up, "global_position:y", up.global_position.y - 30, 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	f.tween_property(up, "modulate:a", 0.0, 0.5).set_delay(0.25)
+	f.tween_property(up, "global_position:y", up.global_position.y - 40, 0.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	f.tween_property(up, "modulate:a", 0.0, 0.5).set_delay(0.35)
 	f.chain().tween_callback(up.queue_free)
 
 
 # --- helpers ----------------------------------------------------------------------------------
 
-## A row of short 2 px marks, unlit (difficulty).
+## A rounded box in `fill` with a 1 px `edge`, `pad` px inside.
+static func _box(fill: Color, edge: Color, radius: int, pad: int) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = fill
+	s.border_color = edge
+	s.set_border_width_all(1 if edge.a > 0.0 else 0)
+	s.set_corner_radius_all(radius)
+	s.set_content_margin_all(pad)
+	s.anti_aliasing = true
+	return s
+
+
+## A row of short 4 px bars, unlit (difficulty).
 func _pips(count: int) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 3)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for i in count:
-		var p := UiStyle.line(0, UiStyle.LINE)
-		p.custom_minimum_size.y = 2
+		var p := UiStyle.line(0, Color(1, 1, 1, 0.12))
+		p.custom_minimum_size.y = 4
 		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(p)
 	return row
 
 
-## A button that is only its text: no frame, no fill, mouse only (Space must keep jumping).
+## A button with no frame of its own, mouse only (Space must keep jumping).
 static func _flat_button() -> Button:
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE

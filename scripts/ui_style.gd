@@ -1,8 +1,6 @@
 class_name UiStyle
-## The game's look on screen (docs/ayrintilar.md → "Arayüz"): no boxes, no rounded corners, no
-## filled buttons. Text stands on the view with a soft shadow, sections part with 1 px lines,
-## left and right mirror each other. One face (Inter), near white; ACCENT only marks a state
-## (a special round loaded, the next level) and only as text or a thin line.
+## Shared look helpers: the face (Inter), the few colours, labels with a soft shadow, thin lines
+## and the screen-fit scaling.
 
 const FACE := preload("res://assets/fonts/Inter.ttf")
 const WHITE := Color(0.953, 0.957, 0.961)
@@ -14,6 +12,7 @@ const CAPTION_TRACK := 2  # px between letters of the small labels
 const LIGHT := 300
 const REGULAR := 400
 const MEDIUM := 500
+const BOLD := 700
 const BASE_HEIGHT := 1080.0  # px, the screen height the sizes here are drawn for
 
 static var _faces := {}  # [weight, tracking] -> FontVariation

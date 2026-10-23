@@ -14,15 +14,15 @@ func _initialize() -> void:
 	var menu: Node = main.find_child("UpgradeMenu", true, false)
 	menu.toggle()
 	if not _ok(menu.visible and menu._tab == 0, "Q opens on the player's own tab"): return
-	var title: Label = menu._tabs[0].find_child("Title", true, false)
-	if not _ok(title.text == gs.display_name(), "the first tab carries the player's name (%s)" % title.text): return
+	var title: String = menu._tabs[0].text
+	if not _ok(title == gs.display_name(), "the first tab carries the player's name (%s)" % title): return
 
 	# Own upgrades: short of money, the button is shut; with it, one press buys one level.
 	var carry: Button = menu._cards["carry"].button
 	if not _ok(carry.disabled, "carry is shut with no gold"): return
 	gs.player().gold = 10
 	gs.gold_changed.emit(10)
-	if not _ok(not carry.disabled and carry.text == "al  $6", "carry opens at $6 (%s)" % carry.text): return
+	if not _ok(not carry.disabled and carry.text == "AL  $6", "carry opens at $6 (%s)" % carry.text): return
 	carry.pressed.emit()
 	if not _ok(gs.player().levels["carry"] == 1 and gs.gold == 4, "one level bought, $6 paid"): return
 	if not _ok(menu._cards["carry"].need.text == "$11 eksik", "the next level shows what is missing (%s)" % menu._cards["carry"].need.text): return
