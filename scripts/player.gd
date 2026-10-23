@@ -301,12 +301,12 @@ func _setup_viewmodel_world() -> void:
 	# from ahead draws a thin line on edges; both on the gun's layer only, or they would light the hall.
 	var key := DirectionalLight3D.new()
 	key.light_color = Color(1.0, 0.96, 0.9)
-	key.light_energy = 1.5
+	key.light_energy = 2.2
 	key.rotation = Vector3(-0.65, 0.4, 0.0)
 	var rim := DirectionalLight3D.new()
 	rim.light_color = Color(0.85, 0.9, 1.0)
-	rim.light_energy = 0.5
-	rim.light_specular = 2.0
+	rim.light_energy = 0.8
+	rim.light_specular = 3.0
 	rim.rotation = Vector3(-0.35, PI - 0.6, 0.0)
 	for l: DirectionalLight3D in [key, rim]:
 		l.light_cull_mask = 1 << 1

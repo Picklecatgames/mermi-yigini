@@ -26,6 +26,7 @@ const LAYER := 2
 ## Scorpion lighter per round, faster, and the more it fires the more it wanders sideways.
 ## paint lifts the gun's colour map: the SMGs' are near black (linear 0.02-0.04, the Deagle's ~0.1)
 ## and in the hall they drew as a flat silhouette with none of the map's wear and parts showing.
+## Kept low: at 2.5-4 the dark steel washed out into flat grey plastic.
 const SETS := {
 	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 50.0},
 	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
@@ -33,10 +34,10 @@ const SETS := {
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
 		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0},
 	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
-		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 2.5,
+		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 1.6,
 		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75},
 	"scorpion": {"mesh": "CZScorpion", "clips": "Scorpion_", "bone": "Scorpion Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
-		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339), "paint": 4.0,
+		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339), "paint": 2.0,
 		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34,
 		"clip_fire": false, "move": 0.75, "kick": 0.26, "climb": 0.0071, "yaw": 0.0089, "bloom": 0.0013, "jiggle": 0.22, "flash": 0.65},
 	# Held at the hip, no sights: the aim button spins the barrels up without firing. spin: we turn
@@ -60,9 +61,6 @@ const CLIP_BLEND := 0.08  # s
 ## The guns' roughness maps are made for a lit studio; in the dark hall the lamp streaks spread into a
 ## dull sheen. A share of it sharpens them into the glints of oiled steel.
 const GUN_ROUGHNESS := 0.7
-## Full metal has no diffuse: in the dark hall it only mirrors darkness and the gun drew as a black
-## cut-out. Part of it takes the key light and ambient again, so the texture's detail shows.
-const GUN_METALLIC := 0.45
 const RUN_SPEED := 6.5  # m/s; faster plays Run instead of Walk
 ## Recoil is a spring on the whole rig: a shot gives it a kick of speed, it flies up and back and
 ## swings home on its own momentum with one small dip, so the kick and the return are one motion.
@@ -271,7 +269,6 @@ func _ready() -> void:
 			for i in mi.mesh.get_surface_count():
 				var steel := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
 				steel.roughness *= GUN_ROUGHNESS
-				steel.metallic *= GUN_METALLIC
 				var k: float = each.get("paint", 1.0)
 				steel.albedo_color = Color(k, k, k)
 				mi.set_surface_override_material(i, steel)
