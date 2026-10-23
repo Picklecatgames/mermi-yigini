@@ -1,7 +1,6 @@
-[gd_resource type="NoiseTexture2D" format=3]
+[gd_resource type="NoiseTexture2D" format=3 uid="uid://jmgk3f3i4kxy"]
 
 [sub_resource type="FastNoiseLite" id="noise"]
-noise_type = 1
 frequency = 0.007
 fractal_octaves = 2
 fractal_gain = 0.35
@@ -9,6 +8,5 @@ fractal_gain = 0.35
 [resource]
 width = 256
 height = 256
-seamless = true
-generate_mipmaps = true
 noise = SubResource("noise")
+seamless = true
