@@ -1749,7 +1749,8 @@ func _aabb(n: Node, xf: Transform3D) -> AABB:
 	var t := xf * (n as Node3D).transform if n is Node3D else xf
 	var out := AABB()
 	var empty := true
-	if n is MeshInstance3D and (n as MeshInstance3D).mesh:
+	# Loose bits (single rounds strewn round hopper.glb) don't count: they made a wall in front of it.
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh and (n as MeshInstance3D).mesh.get_aabb().get_longest_axis_size() * t.basis.get_scale().x > 0.15:
 		out = t * (n as MeshInstance3D).mesh.get_aabb()
 		empty = false
 	for c in n.get_children():
