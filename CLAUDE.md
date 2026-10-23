@@ -8,11 +8,11 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 - Oyun yumrukla başlar. Silah sırası: Ağır Tabanca (Deagle, lvl 1) → Mikro SMG (UZI) → Kompakt SMG (Scorpion); hepsi 1Matzh setleri. Kasadan çıkan benzersiz silahlar: orta oyun (6. anahtar, seçilmedi) ve minigun (12. anahtar, final; 1Matzh Minigun). Şimdilik 1-4 / alttaki çubukla seçilir (`request_select_gun`); kasa silahı (`"crate"`) kasası açılana kadar kilitli, şimdilik yalnız T açar (`gun_open`).
 - **Yığın hem hedef hem yakıt.** Hiçbir mekanik yığına/envantere mermi eklemez; modifiyeler yalnız gold'u çarpar.
 - Kombo: 1,5 sn içindeki isabetler zinciri büyütür; ödenen çarpan = zincir, tavanı Kombo Tavanı upgrade'i (x2→x20). Kafa ve gövde ayrı zincir. Taret/bant zinciri büyütmez.
-- Mermi tarifi (planlı): blueprint'ler (kasadan) mermiye özellik ekler (klon, sekme, yıldırım...), her özellik atış başına yenen mermiyi artırır. Klon/sekme isabeti komboyu büyütmez, düz isabet altını öder; ekrandaki çarpım yalnız görsel. Yığın 100M kalır (250M 8 m kirişe sığmaz).
+- Mermi tarifi (planlı): blueprint'ler (kasadan) mermiye özellik ekler (klon, sekme, yıldırım...), her özellik atış başına yenen mermiyi artırır; maliyet şarjörden düşer, tarif mermi çarkından seçilir. Klon/sekme isabeti komboyu büyütmez, düz isabet altını öder; ekrandaki çarpım yalnız görsel. Yığın 100M kalır (250M 8 m kirişe sığmaz).
 - Hedefler x = 14'teki korkuluğun arkasında (kauçuk zeminli poligon + doğu duvarından 30 m'ye uzanan atış koridoru); korkuluğun ötesinden atış para vermez, oyuncu korkuluğu hiç geçmez; yerleştirme modu (B) kuş bakışı kamera + fare imleci + sağda takım deposu (`scripts/placement.gd`). Küçük/hareketli/zamanlı hedef daha çok öder.
 - 12 anahtar yığına gömülü (derinlik nadirliğe bağlı, `scripts/key_cache.gd`); her biri bir kasa açar (mermi tipi, benzersiz silah, özel dummy). Kasa açılınca özellik bütün takıma açılır. Kasalar henüz yok.
-- Planlananlar: kovan → fırın → külçe (taret geliştirme), taretler, tek yönlü grid bantlar, bant modifiyeleri (seken mermi vb.), robotlar, HP'li dummy.
-- Yok: ürün zinciri, kablolama, büyük tech tree, idle ağırlık, konuşma animasyonu, dummy yıpranması.
+- Planlananlar: kovan → fırın → külçe (taret geliştirme), taretler (yığına kendiliğinden hortum uzatır), HP'li dummy.
+- Yok: bant döşeme, ürün zinciri, kablolama, büyük tech tree, idle ağırlık, konuşma animasyonu, dummy yıpranması.
 
 ## Teknik kurallar
 

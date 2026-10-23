@@ -9,8 +9,9 @@ CLAUDE.md'nin eski uzun hâli (2026-10-20'de ayrıldı). Özet CLAUDE.md'de; bir
 - **Başlangıç:** Yığından elle 1 mermi alınır, tabancaya konur, dummy'ye ateş edilir. Her isabet +1 gold.
 - **Upgrade'ler:** taşıma kapasitesi, ateş hızı, gold çarpanı.
 - **Silah sırası:** tek atımlık tabanca → 6'lık revolver → Uzi → AK (30'luk).
-- **Otomasyon:** taretler, mermi taşıyan bantlar, taşıyıcı robotlar, yeni dummy'ler.
-- **Mermi tarifi:** (2026-10-23, bant modifiye karolarının yerine) üretim masasında blueprint'lerle mermiye özellik eklenir; ayrıntı "Mermi tarifi".
+- **Otomasyon:** taretler (yığından kendi hortumuyla çeker), yeni dummy'ler.
+- **Mermi tarifi:** (2026-10-23, bant modifiye karolarının yerine) blueprint'lerle mermiye özellik eklenir; ayrıntı "Mermi tarifi".
+- **Bant yok (2026-10-23, kullanıcı kararı: çok sistem oyuncuyu yorar):** taret konunca yığına kendiliğinden bir hortum uzanır; oyuncu hat döşemez. Oyuncunun üç işi: ateş, Q menüsü, B modu.
 
 ### Tasarım kuralları
 
@@ -18,7 +19,7 @@ CLAUDE.md'nin eski uzun hâli (2026-10-20'de ayrıldı). Özet CLAUDE.md'de; bir
 - **Modifiyeler gold'u çarpar, yığını değil.** Yığına ya da envantere mermi ekleyen mekanik yok. Klon ve sekme bedava değil: bir atış, tarifin maliyeti kadar mermiyi yığından yer (aşağıda "Mermi tarifi").
 - **Tempo tablosu baştan planlanır.** Örnek: finalde saniyede 50 bin mermi harcanırsa 100M yaklaşık 33 dakikada biter. Oyuncu son saatte yığının gözle görülür şekilde küçüldüğünü görmeli.
 - **Orta oyunda oyuncunun aktif bir işi kalmalı:** manuel ateş bonusu, yerleşim optimizasyonu, HP'li zırhlı dummy'ler.
-- **Bantlar basit:** grid üzerinde, tek yönlü, splitter yok, oran hesabı yok.
+- ~~**Bantlar basit**~~ (2026-10-23: bant yok, taret hortumu otomatik).
 - **Konuşma/ağız animasyonu yok.** İletişim ping ve emote ikonlarıyla.
 
 ### Anahtar, kasa, kovan (2026-10-19, Find the Needle'dan uyarlandı)
@@ -30,7 +31,7 @@ Referans oyun: Find the Needle (Steam 5160800). Saman yığınında iğne arama;
   - **Neden erken bulunamaz:** Yığın 45°'de kaydığı için D derinliğe inmek en az π·D³/3 m³ kazı ister (`min_bullets`); gerçek yığında tam üstünden kazmak bunun 4-25 katı (yukarıdan kayan mermi doldurur). Son ölçüm (`tools/keys_check.gd`, 12 anahtarla): sıradan anahtarlar 400-1.300 mermi, ilk nadir 322.000, efsanevi teorik alt sınırı bile 4-12,6 milyon. İlk 15 dk elle toplam ~1.500 mermi alınıyor: 10. dakikada minigun fiziksel olarak imkânsız. Merkeze yakın sıradan anahtar 11-15 bin tutuyordu, dış halka kuralı bu yüzden.
   - **Açığa çıkma ve toplama:** Yüzey anahtara inince fırlar, döner, kademe renginde parlar (beyaz/mavi/altın), yüzeyle birlikte iner; üstünden yürüyen alır (`GameState.request_reveal_key/request_take_key`, `key_states`, `PlayerState.keys`). Ekranda bildirim (anahtar düğümünde); sayı HUD'da, yığın çizgisinin altında "anahtar n / 12". Ses yuvaları boş: `reveal_sound`, `take_sound`.
   - **Henüz yok:** tarayıcı (yaklaştıkça sinyal), kasalar ve anahtar-kasa eşleşmesi.
-- **Kasalar (güncellendi 2026-10-20):** 6–10 kasa (sayı henüz kesin değil), her anahtara bir kasa, her kasanın bir işlevi var. İçerik: **mermi tipleri** (seken, delici, patlayıcı, yanıcı, tracer), **unique silahlar** (ör. minigun, çok nadir bir anahtarla) ve **özel dummy'ler** (hangileri sonra). Hareket hızı/stamina gibi düz statlar kasadan çıktı. Açılan şey sonra parayla upgrade edilir. **Co-op (karar 2026-10-20): kasa açılınca özellik bütün takıma açılır**, anahtarı kim bulursa bulsun; upgrade'ini herkes kendi parasıyla alır.
+- **Kasalar (güncellendi 2026-10-20):** 6–10 kasa (sayı henüz kesin değil), her anahtara bir kasa, her kasanın bir işlevi var. İçerik: **mermi tipleri** (seken, delici, patlayıcı, yanıcı, tracer), **unique silahlar** (ör. minigun, çok nadir bir anahtarla) ve **özel dummy'ler** (hangileri sonra). *(2026-10-23: yerini "Mermi tarifi"ndeki 12 kasalık tablo aldı; orta oyun silahı pompalı.)* Hareket hızı/stamina gibi düz statlar kasadan çıktı. Açılan şey sonra parayla upgrade edilir. **Co-op (karar 2026-10-20): kasa açılınca özellik bütün takıma açılır**, anahtarı kim bulursa bulsun; upgrade'ini herkes kendi parasıyla alır.
 - **Kullanıcı kararları (2026-10-20):** Raylı dummy ve silüet demodan çıktı (dosyalar duruyor). Kombo yazısı **zincir sayısını** gösterir. Hedefler **ortak kasadan** alınır. **Dummy yıpranması yok**; kurşun izleri kalır, dummy deliklerinden çıkan duman azaltıldı (4 iplik, opaklık 0,2, 1,4 sn). Çelik rafın titremesi kapalı (`shiver = false`).
 - **Benzersiz silahlar (2026-10-20):** Satın alınan silah sırasının dışında, yalnızca kasadan çıkan iki silah. **Son silah (12. anahtar, Dişli Anahtar): minigun**, oyunun "delire delire sıkma" finali; yığın gözle görülür hızla erir. Model: 1Matzh'in Minigun seti (kolları kullanılmaz, silah ve klipleri ortak kollara taşınacak). Orta oyun silahı 6. anahtardan (Kafatası Anahtarı) çıkar, silahın kendisi henüz seçilmedi. 12 anahtar: 4 sıradan, 5 nadir, 3 efsanevi. Tracer mermi tasarımı (mor, hızlı; vurduktan sonra hedefin sağ arkasında ışık olarak belirip tekrar vurur, yankı vuruş sayısı upgrade ağacı) mermi tipleri yapılırken uygulanacak.
 - **Kovanlar:** Atılan her mermi kovan bırakır. Kovan toplanır, **fırında eritilir, metal külçe** olur. Külçe taret geliştirme ve yapı malzemesi. İlk 1–1,5 saatte ana para dolar (dummy isabeti); taret açmak dolarla, taret geliştirmek külçeyle.
@@ -74,10 +75,46 @@ Yığından nadiren özel mermi çıkar; co-op'ta güzel bir anı bırakmak içi
 
 Bant modifiye karolarının yerini alır. Fikir: güç arttıkça atış başına yenen mermi de artar, yani **güçlenmek yığını daha hızlı eritmek demek**. Ürün zinciri yok: tek tarif, üstüne özellik eklenir.
 
-- **Üretim masası:** arenada fiziksel bir yer; arayüzü Q menüsünde bir sekme. Masa mermiyi yığından alır, tarife göre işler, oyuncunun eline verir; El Kapasitesi işlenmiş mermiyi sayar. Taretlerde hat ham mermi getirir, taret takımın tarifiyle kendisi işler. (Öneri, uygulamada netleşecek.)
-- **Blueprint'ler kasalardan çıkar** (görevler blueprint açmaz). Her blueprint mermiye bir özellik ekler, özellikler birlikte çalışır: klon (atış 2, sonra 4 mermi), sekme (1, sonra 3 kez), delici, yıldırım sekmesi, yakıcı; yer çekimi vb. tam sürüme. Demo için 4-5 özellik.
-- **Maliyet:** her özellik ve her güçlendirme atış başına yenen mermiyi artırır. Örnek sıra: normal 1 → klon 5 → klon+sekme 25 → güçlendikçe 50, 100 → yıldırım ~200. Sayılar yer tutucu, denge turunda.
-- **Maliyetin asıl etkisi taşıma:** atış 100 mermi yiyorsa el ve şarjör hemen boşalır (El Kapasitesi, Şarjör değerlenir); tarette hat hızı ve kapasitesi darboğaz olur.
+- **Masa yok, taşıma yok (2026-10-23):** tarif Q menüsünde bir sekme. Oyuncu eskisi gibi ham mermi alıp şarjöre koyar.
+- **Maliyet şarjörden düşer (2026-10-23):** atış, tarifin maliyeti kadar mermiyi şarjörden yer; yetmiyorsa atılamaz. Güçlü mermi tek atışta şarjörü bitirir: oyuncu "az ama gösterişli mi, çok ama sade mi" seçer, en güçlüyü spamlamak El Kapasitesi ve Şarjör geliştirmesi ister. Bu yüzden El Kapasitesi ileride avuç → kova → kürek ölçeğine çıkar (10 → 50 → 200 → 1000). Taret maliyeti hortumun akışından öder.
+- **Tarif seçimi mermi çarkında:** R basılı tutunca (`ammo_wheel.gd`) normal mermi, açılmış tarifler ve özel mermiler yan yana. Yeni blueprint zorunlu değil: şarjör küçükken oyuncu normal mermide kalabilir, yoksa ilk ödül ceza gibi hissettirir. İlk klonun maliyeti 2.
+- **Blueprint'ler kasalardan çıkar** (görevler blueprint açmaz), açılan bütün takımındır. Her özelliğin en çok 2 geliştirme ekseni var (Q, kişisel gold); her seviye atış başına maliyeti artırır. Örnek maliyet sırası: normal 1 → klon 2 → klon+sekme 25 → güçlendikçe 50, 100 → finalde ~200. Sayılar yer tutucu, denge turunda.
+- **Özel dummy'ler kasadan değil Q → Teçhizat'tan** gold'la alınır (kasa yuvaları blueprint'lere lazım); sinerji dummy'leri (Kalabalık Kukla, Sekme Kafesi) özelliği açıldığında dükkâna düşer.
+
+**Özellikler (demo, 9 tane):**
+
+| Özellik | Ne yapar | Geliştirme eksenleri |
+|---|---|---|
+| Klon | Atış birden çok mermiye bölünür, yelpaze gibi | Klon sayısı (2→3→4→6), yayılma (dar → geniş) |
+| Obur | Her isabette yığından fazladan 10 mermi yer, o isabet ×2 altın | Fazladan yenen (10→50→200), altın çarpanı |
+| Yankı | 0,5 sn sonra hedefin arkasında mor ışık belirir, aynı yere bir kez daha vurur (eski "tracer" tasarımı) | Yankı sayısı (1→3), gecikme |
+| Sekme | İsabetten sonra en yakın hedefe seker | Sekme sayısı (1→3→5), arama yarıçapı |
+| Delici | Hedefin içinden geçip arkadakine vurur | Delme sayısı (1→3), zırh delme (Zırhlı Kukla) |
+| Parça tesirli | İsabette 3-5 parçaya bölünüp yakın hedeflere saçılır | Parça sayısı, saçılma yarıçapı |
+| Yakıcı | Vurulan hedef yanar, yanarken para verir | Yanma süresi, yanma altını |
+| Yıldırım | İsabette yakın hedeflere elektrik atlar (her sekme noktasında da) | Atlama sayısı, atlama şansı (%30→%100) |
+| Yer çekimi | İsabet noktasında küçük kara delik: hedefleri ve sekmeleri içine çeker | Süre, çekim yarıçapı |
+
+Tam sürüme: Dondurucu, Bağ (iki oyuncunun mermisi 1 sn içinde aynı hedefe: ×3), Hayalet (Delici'yle aynı işi yapıyor).
+
+**Açılma sırası (12 kasa = 9 blueprint + 2 silah + 1 dummy).** Anahtar derinlikleri sırayla artar (`key_cache.gd` `DEPTHS`), ama oyuncu nereyi kazarsa oradakini bulur: kademe kesin, kademe içindeki sıra yaklaşık. Bu yüzden her kademenin içeriği hangi sırayla gelirse gelsin çalışmalı.
+
+| Kasa | Kademe, zaman | İçerik | Neden burada |
+|---|---|---|---|
+| 1 | Sıradan, ~0-15 dk | **Klon** | Tarif sistemini öğretir, tek dummy'de bile çalışır |
+| 2 | Sıradan | **Obur** | Oyunun fikrini öğretir: yığını yemek para. Model istemez |
+| 3 | Sıradan | **Yankı** | Tek hedefte çalışan ilk görsel şov |
+| 4 | Sıradan | **Sekme** | Bu noktada birkaç hedef kurulu; hedefler arası zikzak |
+| 5 | Nadir, ~20-40 dk | **Delici** | B modunda koridora sıralı dizme bulmacası |
+| 6 | Nadir | **Pompalı tüfek** (orta oyun silahı) | Her saçma bir mermi; klonla katlanır |
+| 7 | Nadir | **Parça tesirli** | Klon isabetten önce böler, bu sonra: ikisi çarpışır |
+| 8 | Nadir | **Dev Kukla** (HP'li, 4 kişilik ilk ortak hedef) | Blueprint serisini böler, takımı bir araya toplar |
+| 9 | Nadir | **Yakıcı** | Taretlerin çoğaldığı evrede pasif gelir |
+| 10 | Efsanevi, ~40-55 dk | **Yıldırım** | Sekmeyle birleşince hedef duvarı ışıkla dolar |
+| 11 | Efsanevi | **Yer çekimi** | Demonun en gösterişli anı; sekmeleri merkezde döndürür |
+| 12 | Efsanevi | **Minigun** | Final; oyuncunun atışı taretlerle yarışır |
+
+**Sinerjiler:** Klon + Sekme (4 × 3 = "×12"), Sekme + Yıldırım, Yer çekimi + Sekme, Delici + koridor dizilimi, Obur + hepsi (isabet sayısını yığın yemeye çevirir, finalin motoru).
 - **Gold: isabet başına, görsel çarpım ayrı.** Klon ve sekme isabetleri komboyu büyütmez, kombo çarpanı onlara uygulanmaz; her biri düz "isabet altını" öder (başta $1, kendi geliştirmesiyle artar). Ana merminin ilk isabeti eskisi gibi kombo ve hedef ödemesiyle. Ekranda tatmin için merminin kaç yere çarptığı ve zincirin büyük yazısı görünür, ama gold o çarpımla çarpılmaz.
 - **Co-op:** blueprint'ler bütün takıma (kasa kuralı); oyuncunun mermi tarifi ve güçlendirmeleri kişisel, kendi gold'uyla (herkes farklı yapı kurar); taret tarifleri ortak kasadan. Sekme hedeflerini host seçer, istemciye atış başına tek olay gider, efektleri istemci çizer. Başkalarının efektleri daha soluk.
 - **Teknik:** sekme ve yıldırım anlık raycast zinciri; uçan mermi, mermi başına node yok.

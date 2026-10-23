@@ -1,5 +1,7 @@
 # Taret ve bant hattı kılavuzu (2026-10-22)
 
+> **2026-10-23:** Bant döşeme kalktı. Taret konunca yığına kendiliğinden bir hortum uzanır; aşağıdaki hat modeli (akış tek sayı, bir hat = bir taret) aynen geçerli, yalnız ızgara, L çekme ve modifiye karoları yok. Mermi özellikleri `ayrintilar.md` → "Mermi tarifi".
+
 Yol haritası Faz 4'ün (15–16. adımlar) uygulama kılavuzu. Önce "Karar bekleyenler"i kapat, sonra adımları sırayla yap; her adımın sonunda kontrolü çalıştır ve commit'le.
 
 ## Ana fikir: bant mermi taşımaz, akış taşır

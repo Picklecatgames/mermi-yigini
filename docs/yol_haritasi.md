@@ -87,9 +87,9 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 Taret ve bant için kılavuz, adım listesi ve yapılmayacaklar: `taret_bant_kilavuzu.md` (2026-10-22).
 
 15. **İlk taret:** ortak kasadan alınır, külçeyle gelişir, zincire girmez. Hedef seçimi ve atış host'ta, istemciye yalnız atış olayları.
-16. **Bantlar + robot taşıyıcı:** host simüle eder; bant kazısı `bullets_taken` olayıyla yayılır, anahtarlar bandın kazdığı yerden fırlar.
-17. **Kalan mermi tipleri, birer birer:** seken, bölünme, delici, yanıcı, patlayıcı. Sekme hedefleri ve bölünme zarı host'ta.
-18. **Orta oyun silahı (6. anahtar, Kafatası):** silah henüz seçilmedi. Saçma dağılımı host'ta hesaplanır.
+16. **Taret hortumu (2026-10-23, bantların yerine):** taret konunca yığına kendiliğinden uzanır, oyuncu döşemez; akış ve kazı kılavuzdaki hat modeliyle aynı (`bullets_taken`, anahtarlar hortumun kazdığı yerden fırlar).
+17. **Mermi tarifi, birer birer** (`ayrintilar.md` → "Mermi tarifi"): önce deneme olarak klon + sekme + mermi çarkı, beğenilirse kalan 7 özellik kasa sırasıyla. Maliyet şarjörden düşer. Sekme hedefleri ve bölünme zarı host'ta.
+18. **Orta oyun silahı (6. anahtar, Kafatası): pompalı.** Saçma dağılımı host'ta hesaplanır.
 
 ## Faz 5: Final (~15 sa)
 
