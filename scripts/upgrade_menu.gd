@@ -35,6 +35,7 @@ const CARD_W := 188.0  # px
 const MODEL_H := 120.0  # px, a gear card's turning model
 const MAX_SIZE := Vector2(1180, 680)  # px; small windows keep a margin round it
 const SIDE_W := 220.0  # px, the gold and the vault: equal so the tabs sit in the middle
+const DEAGLE_ICON := Vector2(104, 52)  # px, the wishlist line's gold Deagle
 const WAITING := 0.55  # a card the money does not reach yet
 
 var _tab := 0
@@ -113,7 +114,7 @@ func _ready() -> void:
 	for p in _pages:
 		stack.add_child(p)
 	_frame.add_child(_wishlist_row())
-	_frame.add_child(_centred(UiStyle.caption("q  ·  kapat")))
+	_frame.add_child(_centred(UiStyle.caption("Q  ·  kapat")))
 	GameState.gold_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
 	GameState.vault_changed.connect(_refresh.unbind(1))
@@ -226,7 +227,7 @@ func _show_tab(index: int) -> void:
 		_tabs[i].modulate.a = 1.0 if on else 0.45
 		(_tabs[i].find_child("Under", true, false) as Control).visible = on
 		_pages[i].visible = on
-	_subtitle.text = ["", "ortak kasadan  ·  bütün takım kullanır  ·  b ile kur"][index]
+	_subtitle.text = ["", "ortak kasadan  ·  bütün takım kullanır  ·  B ile kur"][index]
 	if index == 1 and not _models_built:  # built on first look: fifteen small worlds
 		_models_built = true
 		for id in GameState.GEAR:
@@ -341,10 +342,44 @@ func _gear_card(id: String) -> Control:
 	return card
 
 
-## The piece turning slowly on its own, lit like the round picker's rounds: a copy of `src`'s meshes
-## (with their own materials; only the one named `only` if given) in a little world of its own,
-## framed to fit. `side`: shown from the side and rocking a little instead of turning (a gun).
-func _model_view(src: Node3D, only := "", side := false) -> SubViewportContainer:
+## The piece turning slowly on its own, lit like the round picker's rounds: a copy of its meshes
+## (with their own materials) in a little world of its own, framed to fit.
+func _model_view(id: String) -> SubViewportContainer:
+	var turn := Node3D.new()
+	var cam := Camera3D.new()
+	var holder := _little_world(turn, cam)
+	# Many pieces build their meshes in _ready: the original enters the tree a moment, hidden and
+	# still, and is freed at once (as placement.gd's see-through copy does).
+	var src: Node3D = load(GameState.GEAR[id].scene).instantiate()
+	src.process_mode = Node.PROCESS_MODE_DISABLED
+	src.visible = false
+	add_child(src)
+	var box := AABB()
+	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
+		if not m.mesh:
+			continue
+		var copy := MeshInstance3D.new()
+		copy.mesh = m.mesh
+		copy.transform = src.global_transform.affine_inverse() * m.global_transform
+		copy.material_override = m.material_override
+		for s in m.get_surface_override_material_count():
+			copy.set_surface_override_material(s, m.get_surface_override_material(s))
+		turn.add_child(copy)
+		var b := copy.transform * m.mesh.get_aabb()
+		box = b if box.size == Vector3.ZERO else box.merge(b)
+	src.free()
+	for c: Node3D in turn.get_children():  # its middle on the turning axis
+		c.position -= Vector3(box.get_center().x, 0.0, box.get_center().z)
+	var reach := maxf(box.size.y, Vector2(box.size.x, box.size.z).length() * 0.8)
+	var far := reach * 0.5 / tan(deg_to_rad(cam.fov * 0.5)) * 1.25
+	var eye := Vector3(0, box.get_center().y + far * 0.25, far)
+	cam.transform = Transform3D(Basis.looking_at(Vector3(0, box.get_center().y, 0) - eye), eye)
+	turn.create_tween().set_loops().tween_property(turn, "rotation:y", TAU, 9.0).from(0.0)
+	return holder
+
+
+## A transparent little world with its own key and rim light, `turn` in its middle seen by `cam`.
+func _little_world(turn: Node3D, cam: Camera3D) -> SubViewportContainer:
 	var holder := SubViewportContainer.new()
 	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	holder.stretch = true
@@ -366,44 +401,10 @@ func _model_view(src: Node3D, only := "", side := false) -> SubViewportContainer
 	rim.rotation = Vector3(-0.3, PI - 0.4, 0.0)
 	rim.light_energy = 0.8
 	vp.add_child(rim)
-	var turn := Node3D.new()
 	vp.add_child(turn)
-	# Many pieces build their meshes in _ready: the original enters the tree a moment, hidden and
-	# still, and is freed at once (as placement.gd's see-through copy does).
-	src.process_mode = Node.PROCESS_MODE_DISABLED
-	src.visible = false
-	add_child(src)
-	var box := AABB()
-	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
-		if not m.mesh or (only != "" and m.name != only):
-			continue
-		var copy := MeshInstance3D.new()
-		copy.mesh = m.mesh
-		copy.transform = src.global_transform.affine_inverse() * m.global_transform
-		copy.material_override = m.material_override
-		for s in m.get_surface_override_material_count():
-			copy.set_surface_override_material(s, m.get_surface_override_material(s))
-		turn.add_child(copy)
-		var b := copy.transform * m.mesh.get_aabb()
-		box = b if box.size == Vector3.ZERO else box.merge(b)
-	src.free()
-	for c: Node3D in turn.get_children():  # its middle on the turning axis
-		c.position -= Vector3(box.get_center().x, 0.0, box.get_center().z)
-	var cam := Camera3D.new()
 	cam.fov = 30.0
 	cam.environment = env
-	var reach := maxf(box.size.y, Vector2(box.size.x, box.size.z).length() * 0.8)
-	var far := reach * 0.5 / tan(deg_to_rad(cam.fov * 0.5)) * 1.25
-	var eye := Vector3(0, box.get_center().y + far * 0.25, far)
-	cam.transform = Transform3D(Basis.looking_at(Vector3(0, box.get_center().y, 0) - eye), eye)
 	vp.add_child(cam)
-	if not side:
-		turn.create_tween().set_loops().tween_property(turn, "rotation:y", TAU, 9.0).from(0.0)
-		return holder
-	var across := PI / 2.0 if box.size.z > box.size.x else 0.0  # its length across the view
-	var rock := turn.create_tween().set_loops().set_trans(Tween.TRANS_SINE)
-	rock.tween_property(turn, "rotation:y", across + 0.35, 2.5).from(across - 0.35)
-	rock.tween_property(turn, "rotation:y", across - 0.35, 2.5)
 	return holder
 
 
@@ -414,24 +415,20 @@ func _wishlist_row() -> Control:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 10)
 	var icon := Control.new()
-	icon.custom_minimum_size = Vector2(72, 36)
+	icon.custom_minimum_size = DEAGLE_ICON
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(icon)
-	var deagle: String = preload("res://scripts/viewmodel.gd").SETS.deagle.mesh
-	var view := _model_view(load("res://assets/weapons/arms/arms.gltf").instantiate(), deagle, true)
-	for m: MeshInstance3D in view.find_children("*", "MeshInstance3D", true, false):
-		Wishlist.gild(m)
-	icon.add_child(view)
+	icon.add_child(_deagle_view())
 	var b := _flat_button()
-	b.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM, UiStyle.CAPTION_TRACK))
-	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM))
+	b.add_theme_font_size_override("font_size", 17)
 	for s in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
 		b.add_theme_color_override(s, Wishlist.GOLD)
 	var claimed := func() -> void:
-		b.text = "altın deagle senin  ·  teşekkürler"
+		b.text = "Altın Deagle senin  ·  teşekkürler"
 		b.disabled = true
 		b.mouse_default_cursor_shape = Control.CURSOR_ARROW
-	b.text = "istek listesine ekle  ·  altın deagle'ı kap"
+	b.text = "İstek listesine ekle  ·  Altın Deagle'ı kap"
 	b.pressed.connect(func() -> void:
 		Wishlist.claim(get_tree())
 		claimed.call())
@@ -439,6 +436,47 @@ func _wishlist_row() -> Control:
 		claimed.call()
 	row.add_child(b)
 	return row
+
+
+## The gold Deagle rocking gently, side on. Its parts lie apart in the rest pose, so it is the
+## whole arms rig standing in its Idle pose with only the gun shown, framed on the gun bone. Mirror
+## gold needs something to mirror: the first-person guns' hall sky (scripts/player.gd).
+func _deagle_view() -> SubViewportContainer:
+	var turn := Node3D.new()
+	var cam := Camera3D.new()
+	var holder := _little_world(turn, cam)
+	var sky := ShaderMaterial.new()
+	sky.shader = preload("res://materials/viewmodel_sky.gdshader")
+	cam.environment.sky = Sky.new()
+	cam.environment.sky.sky_material = sky
+	cam.environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	var arms: Node3D = preload("res://assets/weapons/arms/arms.gltf").instantiate()
+	arms.visible = false  # until posed and framed, once in the tree
+	turn.add_child(arms)
+	var kit: Dictionary = preload("res://scripts/viewmodel.gd").SETS.deagle
+	var pose := func() -> void:
+		var anim: AnimationPlayer = arms.find_child("AnimationPlayer", true, false)
+		anim.play(kit.clips + "Idle")
+		anim.seek(0.0, true)
+		anim.advance(0.0)
+		anim.pause()
+		for m: MeshInstance3D in arms.find_children("*", "MeshInstance3D", true, false):
+			m.visible = m.name == kit.mesh
+			if m.visible:
+				Wishlist.gild(m)
+		var skel: Skeleton3D = arms.find_child("Skeleton3D", true, false)
+		var gun := arms.global_transform.affine_inverse() * skel.global_transform * skel.get_bone_global_pose(skel.find_bone(kit.bone))
+		gun.basis = gun.basis.orthonormalized()
+		# Gun bone space: y up, the barrel along +z; the gun's middle a little under and ahead of it.
+		arms.transform = Transform3D(Basis(), -Vector3(0.0, -0.03, 0.01)) * gun.affine_inverse()
+		arms.visible = true
+		var high := 0.19  # m of view, the gun ~0.28 m long across a 2:1 frame
+		cam.transform = Transform3D(Basis.looking_at(Vector3.LEFT), Vector3(high * 0.5 / tan(deg_to_rad(cam.fov * 0.5)), 0, 0))
+		var rock := turn.create_tween().set_loops().set_trans(Tween.TRANS_SINE)
+		rock.tween_property(turn, "rotation:y", 0.35, 2.5).from(-0.35)
+		rock.tween_property(turn, "rotation:y", -0.35, 2.5)
+	pose.call_deferred()
+	return holder
 
 
 ## Just bought a piece: straight into placement mode with it in hand, over the firing line.

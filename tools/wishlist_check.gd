@@ -12,9 +12,10 @@ func _initialize() -> void:
 		await physics_frame
 	var menu: Node = main.find_child("UpgradeMenu", true, false)
 	var icon := menu.find_children("*", "SubViewportContainer", true, false).filter(
-		func(v: Node) -> bool: return v.get_parent().custom_minimum_size == Vector2(72, 36))
+		func(v: Node) -> bool: return v.get_parent().custom_minimum_size == menu.DEAGLE_ICON)
 	assert(icon.size() == 1, "the workshop has one small Deagle")
-	var shown: Array = icon[0].find_children("*", "MeshInstance3D", true, false)
+	var shown: Array = icon[0].find_children("*", "MeshInstance3D", true, false).filter(
+		func(m: MeshInstance3D) -> bool: return m.visible)
 	assert(shown.size() == 1 and _gold(shown[0]), "the small Deagle is gold")
 	var gun: Node = root.get_tree().get_first_node_in_group("first_person_gun")
 	var deagle: MeshInstance3D = gun._skel.get_node("Deagle")
@@ -28,6 +29,6 @@ func _initialize() -> void:
 func _gold(mi: MeshInstance3D) -> bool:
 	for i in mi.mesh.get_surface_count():
 		var m := mi.get_active_material(i) as StandardMaterial3D
-		if not m or not m.next_pass or m.albedo_color != Wishlist.GOLD * 6.0:
+		if not m or not m.next_pass or m.albedo_color != Wishlist.GOLD:
 			return false
 	return true
