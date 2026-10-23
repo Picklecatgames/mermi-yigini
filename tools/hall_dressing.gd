@@ -603,34 +603,26 @@ func _heap_lights() -> void:
 	_cable([Vector2(-16.5, 9.6), Vector2(-14.0, 12.4), Vector2(-9.0, 13.9), Vector2(-5.0, 13.4), Vector2(-3.7, 11.6)])
 
 
-## A work light on a tripod: legs, mast, `heads` LED boxes on a bar, aimed at `aim`.
+## The office pack's two-head flood on its tripod (tools/build_office.py), turned to face `aim`;
+## `heads` of its two lamps lit (a lone one: the other's dead), each a spot on `aim`.
+const TRIPOD_LENSES: Array[Vector3] = [Vector3(-0.32, 2.35, -0.055), Vector3(0.26, 2.35, 0.275)]  # recessed lens faces, +Z
+
+
 func _tripod(at: Vector3, aim: Vector3, heads: int) -> void:
-	var stand := Node3D.new()
-	stand.transform = Transform3D(Basis.looking_at(Vector3(aim.x - at.x, 0, aim.z - at.z)), at)
-	b.add(stand, root)
+	var stand: StaticBody3D = b._prop(root, b.OFFICE + "tripod_light.gltf", at, 0.0)
+	stand.basis = Basis.looking_at(Vector3(aim.x - at.x, 0, aim.z - at.z), Vector3.UP, true)
 	var to_local := stand.transform.affine_inverse()
-	const MAST := 2.1
-	for k in 3:
-		_rod(stand, Basis(Vector3.UP, k * TAU / 3.0 + 0.5) * Vector3(0, 0, 0.6), Vector3(0, 1.0, 0), 0.016)
-	_rod(stand, Vector3(0, 0.6, 0), Vector3(0, MAST, 0), 0.022)
-	var bar := 0.32 * (heads - 1)
-	if heads > 1:
-		_rod(stand, Vector3(-bar, MAST, 0), Vector3(bar, MAST, 0), 0.016)
-	var body := StaticBody3D.new()
-	b.add(body, stand)
-	b.collide(Vector3(0.9, MAST, 0.9), Vector3(0, MAST / 2.0, 0), body)
 	var lens := _glow(Color(1.0, 0.82, 0.6), 6.0)
 	for h in heads:
-		var p := Vector3(-bar + h * bar * 2.0 if heads > 1 else 0.0, MAST + 0.12, 0)
+		var p := TRIPOD_LENSES[h]
+		var face: MeshInstance3D = b.block(Vector3(0.3, 0.22, 0.01), p, lens, stand)
+		face.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var target: Vector3 = to_local * (aim + Vector3(rng.randf_range(-0.6, 0.6), 0, rng.randf_range(-0.6, 0.6)))
 		var head := Node3D.new()
 		head.transform = Transform3D(Basis.looking_at(target - p), p)
 		b.add(head, stand)
-		b.block(Vector3(0.36, 0.28, 0.1), Vector3.ZERO, dark, head)
-		var face: MeshInstance3D = b.block(Vector3(0.31, 0.23, 0.01), Vector3(0, 0, -0.052), lens, head)
-		face.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var spot := SpotLight3D.new()
-		spot.position = Vector3(0, 0, -0.08)
+		spot.position = Vector3(0, 0, -0.03)
 		spot.light_color = SODIUM
 		spot.light_energy = 7.0 if heads > 1 else 5.0
 		spot.spot_range = 22.0

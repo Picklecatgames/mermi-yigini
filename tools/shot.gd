@@ -1,6 +1,7 @@
 extends SceneTree
 ## Renders main.tscn from fixed cameras and saves PNGs, for checking visuals without playing.
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/shot.gd
+## Add `-- --gold=N` to give the local player N gold first (the desk's cash heap follows it).
 ## Add `-- --dig` to drain 3M bullets from one spot on the heap first; name shots after `--` to take only those.
 
 const SHOTS := {
@@ -37,6 +38,10 @@ const SHOTS := {
 	"walk7": [Vector3(-19.50, 1.7, -23.50), Vector3(-23.0, 1.5, -26.0)],
 	"stands": [Vector3(-18.5, 1.8, -1.0), Vector3(-23.0, 1.0, 9.0)],
 	"up": [Vector3(0.0, 1.7, 6.0), Vector3(-6.0, 9.0, -4.0)],
+	"desk": [Vector3(5.0, 1.7, 22.3), Vector3(5.0, 0.9, 25.5)],
+	"cash": [Vector3(5.4, 1.45, 24.1), Vector3(5.12, 0.95, 25.45)],
+	"lamps": [Vector3(2.0, 1.7, 16.0), Vector3(-2.0, 6.5, 2.0)],
+	"tripod": [Vector3(-12.5, 1.7, -14.5), Vector3(-16.4, 1.9, -9.6)],
 }
 
 
@@ -47,6 +52,12 @@ func _initialize() -> void:
 	var cam := Camera3D.new()
 	main.add_child(cam)
 	cam.make_current()
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--gold="):
+			await process_frame
+			var gs := root.get_node("GameState")
+			gs.player().gold = a.trim_prefix("--gold=").to_int()
+			gs.gold_changed.emit(gs.player().gold)
 	if "--dig" in OS.get_cmdline_user_args():
 		await process_frame
 		var pile: Node3D = main.get_node("Pile")

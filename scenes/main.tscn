@@ -4,37 +4,36 @@
 [ext_resource type="PackedScene" path="res://scenes/pile.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3"]
 [ext_resource type="PackedScene" path="res://scenes/dummy.tscn" id="4"]
-[ext_resource type="Script" path="res://scripts/impacts.gd" id="5"]
-[ext_resource type="Script" path="res://scripts/key_cache.gd" id="13"]
-[ext_resource type="Script" path="res://scripts/remote_players.gd" id="14"]
-[ext_resource type="Script" path="res://scripts/placement.gd" id="15"]
-[ext_resource type="Script" path="res://scripts/chests.gd" id="16"]
+[ext_resource type="Script" uid="uid://c3qi8avw68ne" path="res://scripts/impacts.gd" id="5"]
+[ext_resource type="Script" uid="uid://jawpgbuga7s7" path="res://scripts/key_cache.gd" id="13"]
+[ext_resource type="Script" uid="uid://p8fuybjj7fx" path="res://scripts/remote_players.gd" id="14"]
+[ext_resource type="Script" uid="uid://bxkg3gqpjicie" path="res://scripts/placement.gd" id="15"]
+[ext_resource type="Script" uid="uid://0sa05q7tkj15" path="res://scripts/chests.gd" id="16"]
 
 [node name="Main" type="Node3D" unique_id=603565990]
 
-[node name="Arena" parent="." instance=ExtResource("1")]
+[node name="Arena" parent="." unique_id=867209200 instance=ExtResource("1")]
 
-[node name="Pile" parent="." instance=ExtResource("2")]
-position = Vector3(-9, 0, 0)
+[node name="Pile" parent="." unique_id=1017014262 instance=ExtResource("2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9, 0, 0)
 
-[node name="Keys" type="Node3D" parent="."]
+[node name="Keys" type="Node3D" parent="." unique_id=1755134361]
 script = ExtResource("13")
 
-[node name="Chests" type="Node3D" parent="."]
+[node name="Chests" type="Node3D" parent="." unique_id=1347682885]
 script = ExtResource("16")
 
-[node name="Player" parent="." instance=ExtResource("3")]
+[node name="Player" parent="." unique_id=5293025 instance=ExtResource("3")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
 
-[node name="Dummy" parent="." instance=ExtResource("4")]
-position = Vector3(23, 0, 0)
-rotation = Vector3(0, -1.5708, 0)
+[node name="Dummy" parent="." unique_id=1521745297 instance=ExtResource("4")]
+transform = Transform3D(-3.6199901e-06, 0, -1, 0, 1, 0, 1, 0, -3.6199901e-06, 23, 0, 0)
 
-[node name="Placed" type="Node3D" parent="."]
+[node name="Placed" type="Node3D" parent="." unique_id=1515942774]
 script = ExtResource("15")
 
-[node name="Impacts" type="Node3D" parent="."]
+[node name="Impacts" type="Node3D" parent="." unique_id=186312426]
 script = ExtResource("5")
 
-[node name="RemotePlayers" type="Node3D" parent="."]
+[node name="RemotePlayers" type="Node3D" parent="." unique_id=79780794]
 script = ExtResource("14")

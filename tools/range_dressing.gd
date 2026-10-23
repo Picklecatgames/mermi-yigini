@@ -364,11 +364,38 @@ func _shooters_side() -> void:
 	# A factory pendant over it on a strut under the trusses.
 	b.strut(10.9, 21.0, 27.85)
 	b.pendant(Vector3(10.9, 4.3, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.72, 0.42), 4.0, 55.0)
+	_boss_desk(Vector3(5.0, 0, 25.5))
 	# Brass sweeping by the railing's south end.
 	b._prop(root, MODELS + "metal_trash_can/metal_trash_can_1k.gltf", Vector3(13.35, 0, 26.9), 0.2)
 	b._prop(root, MODELS + "plastic_broom/plastic_broom_1k.gltf", Vector3(13.55, 0, 27.6), 0.0, 1.0, Basis(Vector3.RIGHT, 0.18))
 	b._prop(root, MODELS + "dustpan/dustpan_1k.gltf", Vector3(12.9, 0, 27.55), 0.8)
 	b._prop(root, MODELS + "standing_chalkboard_01/standing_chalkboard_01_1k.gltf", Vector3(1.9, 0, 27.0), PI + 0.3)
+
+
+## The boss's desk off the office pack (tools/build_office.py) against the south wall, its armchair
+## to the wall and the safe at its east end, its visitor side to the hall: the player walks up to
+## it. The cash on it heaps up with the player's gold (scripts/money_pile.gd); the desk lamp is lit
+## and a pendant hangs over it.
+func _boss_desk(at: Vector3) -> void:
+	for part in ["desk", "chair", "safe"]:
+		b._prop(root, b.OFFICE + part + ".gltf", at, PI)
+	var desk := Node3D.new()
+	desk.transform = Transform3D(Basis(Vector3.UP, PI), at)
+	b.add(desk, root)
+	var cash := MultiMeshInstance3D.new()
+	cash.name = "Cash"
+	cash.set_script(preload("res://scripts/money_pile.gd"))
+	cash.position = Vector3(-0.12, 0.862, 0.05)  # the desk mat, clear of the lamp, the box file and the adding machine
+	b.add(cash, desk)
+	var lamp := OmniLight3D.new()
+	lamp.position = Vector3(-0.72, 1.22, 0.3)  # in the desk lamp's shade
+	lamp.light_color = Color(1.0, 0.74, 0.45)
+	lamp.light_energy = 0.8
+	lamp.omni_range = 2.6
+	lamp.light_volumetric_fog_energy = 0.0
+	b.add(lamp, desk)
+	b.strut(at.x, 21.0, 27.85)
+	b.pendant(at + Vector3(0, 4.3, 0), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.72, 0.42), 3.0, 50.0)
 
 
 func _ammo_can(at: Vector3, yaw: float) -> void:
