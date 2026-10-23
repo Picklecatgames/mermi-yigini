@@ -781,9 +781,6 @@ func _props() -> void:
 		_prop(props, crate, p, randf_range(-0.3, 0.3))
 	for p in [Vector3(-25.6, 0.7, -3.3), Vector3(-25.3, 0.35, 3.7)]:
 		_prop(props, ammo, p, randf_range(-0.6, 0.6))
-	var crate3 := MODELS + "plastic_crate_03/plastic_crate_03_1k.gltf"
-	for p in [Vector3(-24.2, 0, 26.9), Vector3(-23.6, 0, 26.95), Vector3(-23.9, 0.27, 26.9)]:
-		_prop(props, crate3, p, randf_range(-0.15, 0.15))
 	var barrel2 := MODELS + "Barrel_02/Barrel_02_1k.gltf"
 	for p in [Vector3(-26.9, 0, 17.6), Vector3(-26.3, 0, 18.3), Vector3(-26.95, 0, 18.6)]:
 		_prop(props, barrel2, p, randf() * TAU)
@@ -794,12 +791,45 @@ func _props() -> void:
 	var ext := MODELS + "korean_fire_extinguisher_01/korean_fire_extinguisher_01_1k.gltf"
 	for p in [Vector3(-27.4, 0, -13.4), Vector3(27.4, 0, 16.4), Vector3(13.4, 0, -27.4), Vector3(-13.4, 0, 27.4)]:
 		_prop(props, ext, p, randf() * TAU)
-	# The bullet workbench against the south wall, facing the hall, clear of the boss's desk at x 5
-	# (range_dressing.gd); the melting hopper west of it, in front of the column at x 0
-	# (assembled in Blender, docs/ayrintilar.md "Mermi tezgâhı").
-	var bench := "res://assets/props/workbench/"
-	_prop(props, bench + "workbench.glb", Vector3(2.0, 0, 27.1), PI)
-	_prop(props, bench + "hopper.glb", Vector3(-0.75, 0, 26.65), PI)
+	# The melting hopper against the south wall, in front of the column at x 0.
+	_prop(props, "res://assets/props/workbench/hopper.glb", Vector3(-0.75, 0, 26.65), PI)
+	_workshop(props)
+
+
+## The upgrade workshop in the south-west corner: the bullet workbench (assembled in Blender,
+## docs/ayrintilar.md "Mermi tezgâhı") pushed into the corner on a worn carpet, under a low warm
+## pendant and a wash on the wall behind it, so it stands out of the dark hall.
+func _workshop(props: Node) -> void:
+	var at := Vector3(-26.33, 0, 27.4)  # the bench's west end against the corner column, its back on the wall
+	_prop(props, "res://assets/props/workbench/workbench.glb", at, PI)
+	var carpet := pbr_box("dirty_carpet", 0.6, Color.WHITE, false)  # the scan is 0.6 m square
+	var rug := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(3.2, 2.4)
+	rug.mesh = plane
+	rug.material_override = carpet
+	rug.transform = Transform3D(Basis(Vector3.UP, 0.04), Vector3(-25.75, 0.006, 26.35))  # under the bench, out in front for whoever stands at it
+	add(rug, props)
+	# Stock along the west wall beside it: crates of rounds stacked, ammo boxes on top.
+	var crate := MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf"
+	for p in [Vector3(-27.4, 0, 25.6), Vector3(-27.35, 0.35, 25.55), Vector3(-27.4, 0, 24.85)]:
+		_prop(props, crate, p, randf_range(-0.2, 0.2))
+	for p in [Vector3(-27.35, 0.7, 25.6), Vector3(-27.4, 0.35, 24.85)]:
+		_prop(props, MODELS + "ammo_box/ammo_box_1k.gltf", p, PI / 2 + randf_range(-0.4, 0.4))
+	var x := at.x - 0.09  # the bench's middle
+	strut(x, 21.0, 27.85)
+	pendant(Vector3(x, 3.9, 27.0), BOTTOM - CHORD / 2.0 - 0.065, Color(1.0, 0.7, 0.4), 6.0, 62.0, 0.05, true)
+	var wash := SpotLight3D.new()
+	wash.position = Vector3(-23.2, 4.4, 23.8)
+	wash.basis = Basis.looking_at(Vector3(x, 1.2, 27.9) - wash.position, Vector3.UP)
+	wash.light_color = Color(1.0, 0.78, 0.5)
+	wash.light_energy = 3.0
+	wash.spot_range = 9.0
+	wash.spot_angle = 24.0
+	wash.spot_angle_attenuation = 1.6
+	wash.light_volumetric_fog_energy = 0.0
+	wash.shadow_enabled = true
+	add(wash, props)
 
 
 ## Dust drifting in the air over the heap and down the range: tiny lit specks, so they only show

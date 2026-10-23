@@ -15,7 +15,6 @@ const OLIVE := Color(0.29, 0.32, 0.21)
 const PRACTICE := Color(0.16, 0.27, 0.42)   # inert ordnance blue
 const INK := Color(0.06, 0.06, 0.06)
 const PAPER := Color(0.93, 0.9, 0.82)
-const FL := 14.0  # GameState.FIRING_LINE_X
 
 var b  # the arena builder (tools/build_arena.gd): add, block, collide, worn, _prop, _decal...
 var root: Node3D
@@ -71,10 +70,6 @@ func _bay_mouth() -> void:
 	for k in 4:  # dust, fading and rust over the board, a run under each bolt pair
 		b.sign_grime(header, at + Vector3(-0.02, 0, -3.15 + k * 2.1), Vector3(-1, 0, 0), Vector2(2.1, 0.95))
 	b.block(Vector3(0.035, 0.08, 8.4), at + Vector3(0, -0.44, 0), _flat(INK, 0.6), header)
-	var title: Label3D = b._range_label("POLİGON 7 · YIĞIN BÖLÜĞÜ", 150, Color(INK, 0.78), b.STENCIL)
-	title.pixel_size = 0.0028
-	title.transform = Transform3D(face, at + Vector3(-0.02, 0.08, 0.55))
-	b.add(title, header)
 	var tri := MeshInstance3D.new()
 	var prism := PrismMesh.new()
 	prism.size = Vector3(0.7, 0.62, 0.02)
@@ -83,9 +78,6 @@ func _bay_mouth() -> void:
 	tri.transform = Transform3D(face, at + Vector3(-0.025, -0.02, -3.45))
 	b.add(tri, header)
 	b.block(Vector3(0.03, 0.34, 0.11), at + Vector3(-0.04, 0.12, -3.45), _flat(Color(0.75, 0.55, 0.2), 0.35), header)  # the round
-	var sub: Label3D = b._range_label("ATIŞ ALANI · AZAMİ 30 m", 70, INK, b.STENCIL)
-	sub.transform = Transform3D(face, at + Vector3(-0.02, -0.28, 0.55))
-	b.add(sub, header)
 	for z in [-2.6, 2.6]:  # two small lamps washing the board from below
 		var lamp := SpotLight3D.new()
 		lamp.position = Vector3(27.4, 3.95, z)
@@ -98,17 +90,12 @@ func _bay_mouth() -> void:
 		b.add(lamp, header)
 		b.block(Vector3(0.12, 0.08, 0.16), lamp.position, _flat(INK, 0.5), header)
 	b.overhead(header)
-	# Range status lamps either side of the mouth: ATIŞ VAR lit red, ATIŞ YOK dark green.
+	# Range status lamps either side of the mouth: the red one lit, the green one dark.
 	for s in [-1.0, 1.0]:
 		var p := Vector3(27.93, 3.25, s * 13.0)
 		b.block(Vector3(0.12, 0.56, 0.62), p, _flat(INK, 0.5), root)
 		b.block(Vector3(0.02, 0.2, 0.52), p + Vector3(-0.06, 0.12, 0), _glow(Color(1.0, 0.12, 0.06), 5.0), root)
 		b.block(Vector3(0.02, 0.2, 0.52), p + Vector3(-0.06, -0.13, 0), _glow(Color(0.1, 0.5, 0.15), 0.25), root)
-		for row in [["ATIŞ VAR", 0.12], ["ATIŞ YOK", -0.13]]:
-			var l: Label3D = b._range_label(row[0], 26, Color(1, 1, 1, 0.9), b.STENCIL)
-			l.shaded = false
-			l.transform = Transform3D(face, p + Vector3(-0.075, row[1], 0))
-			b.add(l, root)
 		var red := OmniLight3D.new()
 		red.position = p + Vector3(-0.4, 0.12, 0)
 		red.light_color = Color(1.0, 0.15, 0.08)
@@ -118,7 +105,6 @@ func _bay_mouth() -> void:
 		b.add(red, root)
 		_flag(Vector3(27.45, 0, s * 13.9))
 		_sandbags(Vector3(28.75, 0, s * 11.55), 3, 3, 0.0)  # inside the mouth, against the bay walls
-		_sign(["KUM SETİ", "GİRMEYİNİZ"], Vector3(39.2, 2.0, s * 11.95), _wall(-s), Vector2(0.9, 0.5), true)
 
 
 ## A red range flag on a pole.
@@ -142,8 +128,6 @@ func _flag(at: Vector3) -> void:
 
 func _firing_line() -> void:
 	var west := Basis(Vector3.UP, -PI / 2)
-	for z in [-24.0, -10.0, 10.0, 24.0]:  # under the counter, facing the shooters
-		_sign(["ATIŞ HATTI", "GEÇMEK YASAKTIR"], Vector3(FL - 0.04, 0.8, z), west, Vector2(0.8, 0.34), true)
 	# Four shooting stations: rubber mats with taped numbers, brass all round them.
 	var mat: Material = load("res://materials/env/rubber_floor.tres")
 	var stations := [-18.0, -6.0, 6.0, 18.0]
@@ -216,8 +200,6 @@ func _ordnance_row() -> void:
 		b.block(Vector3(0.24, 0.12, 0.42), Vector3(25.2 + dx, 0.06, z - 0.1), wood, root)
 	_bomb(Vector3(25.2, 0.12 + 0.137, z - 0.1), "olive", -0.15)
 	_sandbags(Vector3(27.0, 0, -26.9), 3, 4, PI / 2)
-	_sign(["ETKİSİZ MÜHİMMAT", "DOKUNMAYIN"], Vector3(21.0, 2.05, -27.95), _wall(1.0), Vector2(1.4, 0.6), true)
-	_stencil("TATBİKAT · İNERT", Vector3(22.4, 1.3, -27.955), _wall(1.0), 70, Color(PRACTICE, 0.9))
 
 
 func _mortar_profile() -> Array:
@@ -295,9 +277,6 @@ func _armour_corner() -> void:
 	var shield := Transform3D(Basis(Vector3.UP, PI) * Basis(Vector3.RIGHT, -0.2), Vector3(21.9, 0.52, 27.72))
 	b.add(_mesh(b._stone_block(Vector3(0.56, 1.05, 0.035), 91, 0.03, 0.002), paint.black, shield), root)
 	b.block(Vector3(0.28, 0.07, 0.01), shield * Vector3(0, 0.33, 0.02), _flat(Color(0.2, 0.25, 0.28, 0.7), 0.1), root, shield.basis)
-	var tag: Label3D = b._range_label("KALKAN", 50, Color(0.85, 0.85, 0.8), b.STENCIL)
-	tag.transform = Transform3D(shield.basis, shield * Vector3(0, 0.05, 0.022))
-	b.add(tag, root)
 	b._prop(root, MODELS + "rubber_boots/rubber_boots_1k.gltf", Vector3(20.4, 0, 27.4), PI + 0.5)
 	b._prop(root, MODELS + "old_tyre/old_tyre_1k.gltf", Vector3(23.4, 0, 27.3), 0.3)
 	b._prop(root, MODELS + "cement_bag/cement_bag_1k.gltf", Vector3(24.4, 0, 27.4), 1.2)
@@ -342,67 +321,6 @@ func _shooters_side() -> void:
 	b._prop(root, MODELS + "medical_box/medical_box_1k.gltf", Vector3(12.0, 1.02, -27.8), 0.0)
 	b._prop(root, MODELS + "metal_tool_chest/metal_tool_chest_1k.gltf", Vector3(12.9, 0, -27.5), 0.0)
 	b._prop(root, MODELS + "fire_alarm/fire_alarm_1k.gltf", Vector3(13.4, 1.45, -28.0), 0.0)
-	_sign(["KULAKLIK VE GÖZLÜK", "TAKMADAN ATEŞ ETME"], Vector3(10.8, 2.45, -27.97), _wall(1.0), Vector2(1.6, 0.55), false)
-	# South wall: a steel bench with ammo cans and a rifle, a warm caged lamp over it.
-	var bench := Vector3(10.9, 0, 27.3)
-	b.block(Vector3(3.0, 0.05, 0.75), bench + Vector3(0, 0.9, 0), wood, root)
-	b.block(Vector3(2.9, 0.03, 0.6), bench + Vector3(0, 0.3, 0), steel, root)
-	for sx in [-1.42, 1.42]:
-		for sz in [-0.32, 0.32]:
-			b.block(Vector3(0.05, 0.9, 0.05), bench + Vector3(sx, 0.45, sz), steel, root)
-	var body := StaticBody3D.new()
-	b.add(body, root)
-	b.collide(Vector3(3.0, 0.95, 0.75), bench + Vector3(0, 0.475, 0), body)
-	for k in 3:
-		_ammo_can(bench + Vector3(-1.2 + k * 0.34, 0.925, -0.1 + (k % 2) * 0.12), rng.randf_range(-0.2, 0.2))
-	_ammo_can(bench + Vector3(1.0, 0.0, 0.1), 0.4)
-	_ammo_can(bench + Vector3(1.05, 0.19, 0.08), 0.1)
-	b._prop(root, MODELS + "bolt_action_rifle_7_62/bolt_action_rifle_7_62_1k.gltf", bench + Vector3(0.1, 0.94, 0.05), 0.15, 1.0, Basis(Vector3.RIGHT, PI / 2))
-	b._prop(root, MODELS + "service_pistol/service_pistol_1k.gltf", bench + Vector3(0.8, 0.93, -0.15), 1.9, 1.0, Basis(Vector3.RIGHT, PI / 2))
-	b._prop(root, MODELS + "spray_paint_bottles/spray_paint_bottles_1k.gltf", bench + Vector3(1.25, 0.925, 0.2), 0.7)
-	b._prop(root, MODELS + "can_rusted/can_rusted_1k.gltf", bench + Vector3(-0.35, 0.925, 0.25), 0.0)
-	# A factory pendant over it on a strut under the trusses.
-	b.strut(10.9, 21.0, 27.85)
-	b.pendant(Vector3(10.9, 4.3, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.72, 0.42), 4.0, 55.0)
-	_boss_desk(Vector3(5.0, 0, 25.5))
-	# Brass sweeping by the railing's south end.
-	b._prop(root, MODELS + "metal_trash_can/metal_trash_can_1k.gltf", Vector3(13.35, 0, 26.9), 0.2)
-	b._prop(root, MODELS + "plastic_broom/plastic_broom_1k.gltf", Vector3(13.55, 0, 27.6), 0.0, 1.0, Basis(Vector3.RIGHT, 0.18))
-	b._prop(root, MODELS + "dustpan/dustpan_1k.gltf", Vector3(12.9, 0, 27.55), 0.8)
-	b._prop(root, MODELS + "standing_chalkboard_01/standing_chalkboard_01_1k.gltf", Vector3(1.9, 0, 27.0), PI + 0.3)
-
-
-## The boss's desk off the office pack (tools/build_office.py) against the south wall, its armchair
-## to the wall and the safe at its east end, its visitor side to the hall: the player walks up to
-## it. The cash on it heaps up with the player's gold (scripts/money_pile.gd); the desk lamp is lit
-## and a pendant hangs over it.
-func _boss_desk(at: Vector3) -> void:
-	for part in ["desk", "chair", "safe"]:
-		b._prop(root, b.OFFICE + part + ".gltf", at, PI)
-	var desk := Node3D.new()
-	desk.transform = Transform3D(Basis(Vector3.UP, PI), at)
-	b.add(desk, root)
-	var cash := MultiMeshInstance3D.new()
-	cash.name = "Cash"
-	cash.set_script(preload("res://scripts/money_pile.gd"))
-	cash.position = Vector3(-0.12, 0.862, 0.05)  # the desk mat, clear of the lamp, the box file and the adding machine
-	b.add(cash, desk)
-	var lamp := OmniLight3D.new()
-	lamp.position = Vector3(-0.72, 1.22, 0.3)  # in the desk lamp's shade
-	lamp.light_color = Color(1.0, 0.74, 0.45)
-	lamp.light_energy = 0.8
-	lamp.omni_range = 2.6
-	lamp.light_volumetric_fog_energy = 0.0
-	b.add(lamp, desk)
-	b.strut(at.x, 21.0, 27.85)
-	b.pendant(at + Vector3(0, 4.3, 0), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.72, 0.42), 3.0, 50.0)
-
-
-func _ammo_can(at: Vector3, yaw: float) -> void:
-	var basis := Basis(Vector3.UP, yaw)
-	b.block(Vector3(0.29, 0.16, 0.15), at + Vector3(0, 0.08, 0), paint.olive, root, basis)
-	b.block(Vector3(0.3, 0.025, 0.16), at + Vector3(0, 0.17, 0), paint.olive, root, basis)
-	b.block(Vector3(0.12, 0.012, 0.02), at + Vector3(0, 0.19, 0), paint.black, root, basis)
 
 
 # --- east wall flanks, either side of the bay -----------------------------------------------
@@ -494,8 +412,6 @@ func _posters() -> void:
 	# hanging off or fallen; not posters spaced out one by one on a bare wall.
 	_board(Vector3(5.4, 1.75, -27.97), _wall(1.0), ["fly_bomber", "john_not_dull", "dont_mix_em", "heat_ruins_ammo"])
 	_board(Vector3(5.6, 1.75, 27.97), _wall(-1.0), ["firecrackers", "six_out_of_ten", "oops", "black_widow"])
-	_sign(["ATIŞ VAR", "GİRİLMEZ"], Vector3(12.6, 2.3, -27.97), _wall(1.0), Vector2(0.8, 0.5), true)
-	_sign(["ATIŞ VAR", "GİRİLMEZ"], Vector3(12.6, 2.3, 27.97), _wall(-1.0), Vector2(0.8, 0.5), true)
 
 
 ## A 3.2 x 1.5 m pin board: posters and papers overlapping, scraps of torn-off ones, one poster
@@ -577,27 +493,6 @@ func _wall(facing: float) -> Basis:
 
 func _wall_east() -> Basis:
 	return Basis(Vector3.UP, -PI / 2)
-
-
-## An official sign: a yellow board with black stencil lines, or a white one with a red header
-## strip when `danger` (the first line goes in the strip).
-func _sign(lines: Array, at: Vector3, face: Basis, size: Vector2, danger: bool) -> void:
-	face = face * Basis(Vector3.BACK, rng.randf_range(-0.05, 0.05))  # a bolt or two gone slack
-	var out := face * Vector3(0, 0, 1)
-	b.block(Vector3(size.x, size.y, 0.015), at + out * 0.0075, _flat((Color(0.94, 0.93, 0.9) if danger else YELLOW).lerp(Color(0.75, 0.72, 0.62), 0.3), 0.7), root, face)
-	b.sign_grime(root, at + out * 0.016, out, size)
-	var body: Array = lines
-	var y := 0.0
-	if danger:
-		b.block(Vector3(size.x, size.y * 0.36, 0.004), at + out * 0.017 + face * Vector3(0, size.y * 0.32, 0), _flat(Color(0.75, 0.08, 0.06), 0.5), root, face)
-		var head: Label3D = b._range_label(lines[0], _fit([lines[0]], Vector2(size.x * 0.85, size.y * 0.3)), Color.WHITE, b.STENCIL)
-		head.transform = Transform3D(face, at + out * 0.021 + face * Vector3(0, size.y * 0.32, 0))
-		b.add(head, root)
-		body = lines.slice(1)
-		y = -size.y * 0.15
-	var text: Label3D = b._range_label("\n".join(body), _fit(body, Vector2(size.x * 0.88, size.y * (0.5 if danger else 0.8))), INK, b.STENCIL)
-	text.transform = Transform3D(face, at + out * 0.017 + face * Vector3(0, y, 0))
-	b.add(text, root)
 
 
 ## A paper poster taped on: a yellowed sheet, dark text, a shot-up target drawn on it if `target`.
@@ -745,12 +640,6 @@ func _sandbags(at: Vector3, across: int, courses: int, yaw: float) -> void:
 	var body := StaticBody3D.new()
 	b.add(body, root)
 	b.collide(Vector3(across * 0.5, courses * 0.14 + 0.02, 0.32), at + Vector3(0, courses * 0.07, 0), body, basis)
-
-
-func _stencil(text: String, at: Vector3, face: Basis, size: int, colour: Color) -> void:
-	var l: Label3D = b._range_label(text, size, colour, b.STENCIL)
-	l.transform = Transform3D(face, at)
-	b.add(l, root)
 
 
 ## A surface of revolution round +Z from (z, radius) points, nose to tail.

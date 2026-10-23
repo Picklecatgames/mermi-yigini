@@ -516,7 +516,6 @@ func _camp() -> void:
 	b.block(Vector3(6.06, 2.59, 2.44), c_at + Vector3(0, 1.295, 0), box, cont)
 	b.collide(Vector3(6.06, 2.59, 2.44), c_at + Vector3(0, 1.295, 0), cont)
 	b.block(Vector3(0.04, 2.3, 2.2), c_at + Vector3(3.04, 1.25, 0), steel, cont)  # its doors' end
-	_stencil_on("ÜS · Y-7", c_at + Vector3(0, 1.9, 1.225), Basis(), 150, Color(0.9, 0.9, 0.86, 0.85))
 	# The desk outside it with the radio and the paperwork, chairs round the stove.
 	var desk := Vector3(-22.4, 0, -23.7)
 	b._prop(root, m.call("metal_office_desk"), desk, PI + 0.06)
@@ -579,12 +578,6 @@ func _pallet(at: Vector3, yaw: float) -> void:
 	var body := StaticBody3D.new()
 	b.add(body, root)
 	b.collide(Vector3(1.2, 0.14, 0.8), at + Vector3(0, 0.07, 0), body, basis)
-
-
-func _stencil_on(text: String, at: Vector3, face: Basis, size: int, colour: Color) -> void:
-	var l: Label3D = b._range_label(text, size, colour, b.STENCIL)
-	l.transform = Transform3D(face, at)
-	b.add(l, root)
 
 
 # --- the crew's work lights ---------------------------------------------------------------------
@@ -961,9 +954,6 @@ func _crew_work() -> void:
 	# The key board on the office: twelve numbered hooks, all empty until the heap gives them up.
 	var board_at := Vector3(-21.4, 1.55, -25.31)
 	b.block(Vector3(1.1, 0.6, 0.02), board_at, load("res://materials/env/plywood_2.tres"), root)
-	var title: Label3D = b._range_label("ANAHTARLAR", 40, Color(0.08, 0.08, 0.08, 0.85), b.STENCIL)
-	title.position = board_at + Vector3(0, 0.22, 0.012)
-	b.add(title, root)
 	for i in 12:
 		var hook := board_at + Vector3(-0.42 + (i % 6) * 0.168, 0.04 - (i / 6) * 0.25, 0.012)
 		b.block(Vector3(0.012, 0.012, 0.05), hook + Vector3(0, 0, 0.025), steel, root)

@@ -1,0 +1,14 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_carpet/dirty_carpet_diff_2k.jpg" id="1_e1hkr"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_carpet/dirty_carpet_nor_gl_2k.jpg" id="2_rjpav"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_carpet/dirty_carpet_arm_2k.jpg" id="3_c8isy"]
+
+[resource]
+albedo_texture = ExtResource("1_e1hkr")
+orm_texture = ExtResource("3_c8isy")
+normal_enabled = true
+normal_texture = ExtResource("2_rjpav")
+uv1_scale = Vector3(1.6666666, 1.6666666, 1.6666666)
+uv1_triplanar = true
+texture_filter = 5
