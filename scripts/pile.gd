@@ -380,6 +380,11 @@ func _loose_near(at: Vector3, radius: float, max_results := 32) -> Array[Diction
 
 
 ## Id of the loose bullet a ray hit (resting or moving), or -1 if it hit something else.
+## Whether the loose bullet `id` is lying here (not yet picked up).
+func has_loose(id: int) -> bool:
+	return _id_index.has(id)
+
+
 func loose_id(collider: Object, rid: RID) -> int:
 	if _spill_index.has(rid):
 		return _spill_id[_spill_index[rid]]

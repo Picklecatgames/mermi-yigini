@@ -126,6 +126,7 @@ class Character extends Node3D:
 	var _flash_left := 0.0
 	var _fx: Node3D
 	var _tag_box: StandardMaterial3D
+	var _tag_label: Label3D
 	## What others collide with and shoot at; carries the peer id as meta "peer".
 	var body: AnimatableBody3D
 
@@ -270,7 +271,7 @@ class Character extends Node3D:
 	## through walls and the heap so teammates stay findable.
 	func _name_tag() -> void:
 		var label := Label3D.new()
-		label.text = "Oyuncu %d" % peer  # ponytail: Steam name in Faz 6
+		label.text = GameState.display_name(peer)
 		label.position.y = LABEL_HEIGHT
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.no_depth_test = true
@@ -281,6 +282,7 @@ class Character extends Node3D:
 		label.render_priority = 2  # over the box
 		label.outline_render_priority = 1
 		add_child(label)
+		_tag_label = label
 		var px := label.font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, TAG_FONT) if label.font 			else ThemeDB.fallback_font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, TAG_FONT)
 		var quad := QuadMesh.new()
 		quad.size = (Vector2(px.x, TAG_FONT) + TAG_PAD * 2.0) * label.pixel_size
@@ -302,6 +304,7 @@ class Character extends Node3D:
 		GameState.player_slots.connect(_tint_tag.unbind(1))
 
 	func _tint_tag() -> void:
+		_tag_label.text = GameState.display_name(peer)  # the slot may come after the player
 		var c := GameState.color_of(peer)
 		c.a = 0.8
 		_tag_box.albedo_color = c

@@ -106,6 +106,7 @@ var _dizzy_t := 0.0  # s into it, for the sways
 var _special_sound: AudioStreamPlayer
 
 @onready var _head: Node3D = $Head
+@onready var _shop: CanvasLayer = $UpgradeMenu
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _reach: RayCast3D = $Head/Camera3D/Reach
@@ -294,6 +295,7 @@ func _setup_viewmodel_world() -> void:
 	_vm_env.sdfgi_enabled = false
 	_vm_env.volumetric_fog_enabled = false
 	_vm_env.glow_enabled = false
+	_vm_env.ssr_enabled = false
 	_vm_camera.environment = _vm_env
 	# A soft key light from over the left shoulder keeps the gun readable between lamps, and a rim
 	# from ahead draws a thin line on edges; both on the gun's layer only, or they would light the hall.
@@ -309,6 +311,11 @@ func _setup_viewmodel_world() -> void:
 	for l: DirectionalLight3D in [key, rim]:
 		l.light_cull_mask = 1 << 1
 		_vm_camera.add_child(l)
+
+
+## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
+func _hands_busy() -> bool:
+	return GameState.player().placing or _shop.visible
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -415,13 +422,13 @@ func _physics_process(delta: float) -> void:
 		velocity += get_gravity() * delta
 		if _drifting:
 			velocity.y = maxf(velocity.y, -BALLOON_FALL)
-	elif Input.is_action_just_pressed("jump") and not GameState.player().placing:
+	elif Input.is_action_just_pressed("jump") and not _hands_busy():
 		velocity.y = JUMP_VELOCITY
 	if is_on_floor() and _balloon == 0.0:
 		_drifting = false
 
-	# Placement mode: WASD moves the overview camera, not us.
-	var input := Vector2.ZERO if GameState.player().placing else Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# Placement mode: WASD moves the overview camera, not us; the Q menu holds us still.
+	var input := Vector2.ZERO if _hands_busy() else Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
 	# Dizzy (punch round): the aim wanders off and the legs head somewhere near where we steer.
 	_dizzy = maxf(_dizzy - delta, 0.0)
@@ -473,7 +480,7 @@ func _physics_process(delta: float) -> void:
 	# Holding E keeps grabbing, one bullet at a time, until the hand is full.
 	_grab_timer -= delta
 	var looking := _looking_at_pile()
-	if Input.is_action_pressed("pick_up") and _grab_timer <= 0.0 and looking and not GameState.player().placing:
+	if Input.is_action_pressed("pick_up") and _grab_timer <= 0.0 and looking and not _hands_busy():
 		_grab_timer = GRAB_REPEAT
 		var at := _reach.get_collision_point()
 		var shown_before := mini(GameState.carried, HAND_MAX)

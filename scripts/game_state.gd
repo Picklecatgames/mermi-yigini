@@ -191,7 +191,9 @@ const REQUESTS := {
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
 ## PLACE_GAP from any target's origin and with nothing solid in the way.
-const PLACE_ZONES: Array[Rect2] = [Rect2(15.0, -25.0, 11.5, 45.0), Rect2(26.5, -11.2, 13.0, 22.4)]
+const PLACE_ZONES: Array[Rect2] = [Rect2(20.0, -25.0, 6.5, 45.0), Rect2(26.5, -11.2, 13.0, 22.4)]
+## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
+const RANGE_BONUS_MAX := 12.0
 const PLACE_ROOM := 0.35  # m: a piece's footing needs this much clear of walls, columns, props
 const PLACE_GAP := 1.6  # m
 ## Render layer of what hangs over the range (roof, lamps, the bay's lid and baffles, ducts): the
@@ -496,12 +498,12 @@ func _preview_of(peer: int, id: String, pos: Vector3, yaw: float) -> void:
 
 ## What a player is called on screen (name tag, Q menu).
 func display_name(peer := 0) -> String:
-	return "Oyuncu %d" % (local_peer() if peer == 0 else peer)  # ponytail: Steam name in Faz 6
+	return "Oyuncu %d" % (slots.get(local_peer() if peer == 0 else peer, 0) + 1)  # ponytail: Steam name in Faz 6
 
 
 ## Demo key: next level of an upgrade for free, back to the start after the last one.
 func request_debug_level_up(id: String, peer := 0) -> void:
-	if not UPGRADES.has(id):
+	if not OS.is_debug_build() or not UPGRADES.has(id):
 		return
 	_send(&"request_debug_level_up", [id], peer)
 	var p := player(peer)
@@ -583,6 +585,9 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 	if _send(&"request_pick_up_loose", [id], peer):
 		_set_carried(peer, p.carried + 1)  # the bullet itself goes when the host says loose_taken
 		return 1
+	var heap := get_tree().get_first_node_in_group("bullet_pile")
+	if heap and not heap.has_loose(id):
+		return 0  # no such bullet lying here: a made-up id would only grow _taken_loose
 	_taken_loose[id] = true
 	pile -= 1
 	_world(&"pile_changed", [pile])
@@ -685,12 +690,12 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	# Slack for frame timing on the caller, more for a remote one's network jitter, never so much
 	# that a client could fire faster than its gun does.
 	var interval: float = GUNS[p.gun].interval
-	if p.gun == 0 or (p.loaded <= 0 and p.armed == "") or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
+	if p.gun == 0 or p.placing or (p.loaded <= 0 and p.armed == "") or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
 		return false
 	# A remote round leaves from that player's synced eye, or not at all.
 	if not _is_local(peer) and not (p.has_pose and from.distance_to(p.pos + Vector3.UP * EYE) <= FIRE_FROM_SLACK):
 		return false
-	p.cooldown = interval
+	p.cooldown += interval  # the slack is lent, not given: early shots make the next one wait longer
 	var special := p.armed
 	if special != "":  # an armed special goes instead of a magazine round
 		p.specials.erase(special)
@@ -751,7 +756,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 		var base = target.hit_gold_at(hit.position) if target.has_method("hit_gold_at") else target.get("hit_gold")
 		if bounces > 0 and base is int:
 			base *= RICOCHET_MULT
-		var behind := maxf(FIRING_LINE_X - from.x, 0.0)  # m behind the railing
+		var behind := clampf(FIRING_LINE_X - from.x, 0.0, RANGE_BONUS_MAX)  # m behind the railing
 		var bonus := upgrade_value("gold_bonus", peer) + roundi(upgrade_value("range_bonus", peer) * behind)
 		var raw := float((base if base is int else 1) * (WEAK_MULT if weak else 1) * chain) * (100 + bonus) / 100.0 + p.gold_rest
 		gold = floori(raw)
@@ -791,8 +796,8 @@ func request_push(target: int, vel: Vector3, peer := 0) -> void:
 		return
 	var who := local_peer() if peer == 0 else peer
 	var a := player(who)
-	var b := player(target)
-	if target == who or not b.has_pose or not a.has_pose or a.pos.distance_to(b.pos) > PUSH_REACH:
+	var b: PlayerState = _players.get(target)
+	if target == who or not b or not b.has_pose or not a.has_pose or a.pos.distance_to(b.pos) > PUSH_REACH:
 		return
 	vel = Vector3(vel.x, 0.0, vel.z).limit_length(PUSH_MAX)
 	if target == local_peer():
@@ -827,8 +832,8 @@ func cue_target(target: Node, cue: Array) -> void:
 ## Host (or solo): `target` pays `peer` on its own, outside a shot (bonus_paid). Flat: no combo,
 ## no gold upgrades. A client's own call is dropped; it learns of the gold from the event.
 func pay_bonus(peer: int, target: Node, gold: int) -> void:
-	if Net.is_client or gold <= 0:
-		return
+	if Net.is_client or gold <= 0 or not (_is_local(peer) or _players.has(peer)):
+		return  # gone: player() would open a ghost record for them
 	var p := player(peer)
 	p.gold += gold
 	if _is_local(peer):

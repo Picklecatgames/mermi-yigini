@@ -124,6 +124,8 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("upgrades") or (visible and event.is_action_pressed("ui_cancel")):
 		toggle()
 		get_viewport().set_input_as_handled()
+	elif visible and event is InputEventKey:
+		get_viewport().set_input_as_handled()  # no gun swap, B, throw or the like behind the menu
 
 
 ## A click or wheel turn the cards let pass would reach player.gd, which takes the mouse back
@@ -413,6 +415,8 @@ func _to_placing(id: String) -> void:
 # --- state ------------------------------------------------------------------------------------
 
 func _refresh() -> void:
+	if not visible:
+		return  # opening refreshes (_show_tab); money changes many times a second while shooting
 	if visible and roundi(_gold_shown) != GameState.gold:  # the figure counts to it
 		create_tween().tween_method(func(v: float) -> void:
 			_gold_shown = v

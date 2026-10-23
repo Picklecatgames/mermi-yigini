@@ -10,8 +10,8 @@ const PORT := 24692  # not Net.PORT or net_check's
 const LOG := "user://join_check_client.log"
 const WORLD := "user://join_check_client.json"
 const LOOSE := 7  # a starting spill bullet the host takes
-const DUMMY_AT := Vector3(18, 0, 15)   # gear the host puts up before anyone joins
-const POPPER_AT := Vector3(18, 0, 8)   # and the joiner puts up
+const DUMMY_AT := Vector3(22, 0, 15)   # gear the host puts up before anyone joins
+const POPPER_AT := Vector3(22, 0, 8)   # and the joiner puts up
 
 var gs: Node
 var net: Node
