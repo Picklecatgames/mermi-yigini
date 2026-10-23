@@ -112,7 +112,7 @@ Toplam ~32 saat. Her adım kendi başına oynanabilir bir şey bırakır.
    - Komuta çarpanı.
    - Taret geliştirmenin külçeye geçmesi (12. adım bitince).
    - Robot taşıyıcı (yığından şarjöre, oyuncunun yerine yürür).
-   - Bant modifiye karoları (seken mermi vb., mermi tipi altyapısı 14. adımdan sonra).
+   - ~~Bant modifiye karoları~~ (2026-10-23: yerine mermi tarifi, `ayrintilar.md` → "Mermi tarifi"; taret takımın tarifiyle kendisi işler).
 
 ## Gerekmeyenler
 

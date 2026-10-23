@@ -10,12 +10,12 @@ CLAUDE.md'nin eski uzun hâli (2026-10-20'de ayrıldı). Özet CLAUDE.md'de; bir
 - **Upgrade'ler:** taşıma kapasitesi, ateş hızı, gold çarpanı.
 - **Silah sırası:** tek atımlık tabanca → 6'lık revolver → Uzi → AK (30'luk).
 - **Otomasyon:** taretler, mermi taşıyan bantlar, taşıyıcı robotlar, yeni dummy'ler.
-- **Bant modifiyeleri:** Bandın üstüne konan bir karo, oradan geçen mermiyi dönüştürür. Örnek: seken mermi, 2–3 dummy arasında seker.
+- **Mermi tarifi:** (2026-10-23, bant modifiye karolarının yerine) üretim masasında blueprint'lerle mermiye özellik eklenir; ayrıntı "Mermi tarifi".
 
 ### Tasarım kuralları
 
 - **Yığın hem hedef hem yakıt.** Ateş edilen her mermi ilerleme sayılır ve gold'a dönüşür.
-- **Modifiyeler gold'u çarpar, yığını değil.** Yığına ya da envantere mermi ekleyen mekanik yok. Bölünen mermi serbest: yığından yine 1 mermi düşer, ikinci parça yalnızca ek isabet (gold) demek.
+- **Modifiyeler gold'u çarpar, yığını değil.** Yığına ya da envantere mermi ekleyen mekanik yok. Klon ve sekme bedava değil: bir atış, tarifin maliyeti kadar mermiyi yığından yer (aşağıda "Mermi tarifi").
 - **Tempo tablosu baştan planlanır.** Örnek: finalde saniyede 50 bin mermi harcanırsa 100M yaklaşık 33 dakikada biter. Oyuncu son saatte yığının gözle görülür şekilde küçüldüğünü görmeli.
 - **Orta oyunda oyuncunun aktif bir işi kalmalı:** manuel ateş bonusu, yerleşim optimizasyonu, HP'li zırhlı dummy'ler.
 - **Bantlar basit:** grid üzerinde, tek yönlü, splitter yok, oran hesabı yok.
@@ -69,6 +69,31 @@ Yığından nadiren özel mermi çıkar; co-op'ta güzel bir anı bırakmak içi
 - **Deneme alanı (N, debug, yalnız tek kişilik; F tuşu olmayan klavyeler için harf):** `scripts/special_demo.gd`. Önüne 6 m ötede bir "test arkadaşı" koyar (pozunu kendisi yayınlar, `remote_players` onu gerçek bir oyuncu gibi çizer; sahte peer 990001), cebi her özel mermiden 3'er doldurur (`SPECIALS`'a eklenen yeni mermi kendiliğinden gelir). Ateş eden olarak: R basılı tutup çarktan seç, ona sık; atış gerçek yoldan (`request_fire` → `player_shot`) gider, uçması/balonla kalkması görünür. Vurulan olarak: **J** arkadaş dönüp sana takılı mermiyle sıkar (harcanmaz), etki kendi ekranında oynar. N tekrar: cebi doldurur; Shift+N kapatır. Botun hareketi `player.gd`'nin özel mermi fiziğinin kopyası; ikisi birlikte değişmeli.
 - **Çığlık sesi:** "Jumpscare Sound (remake)", thetvbunny, CC0, https://freesound.org/s/753746/. Baştaki 0,07 sn sessiz giriş kesildi (yüz ekrana geldiği an ses tam şiddette), 2,3 sn'den sonrası atıldı. Kayıt zaten 0 dBFS'de; oyuncuda +7,6 dB (`SCREAM_DB`; kullanıcı +%20 istedi), Master'daki hard limiter tepeleri tutar. Yumruk ve Balon sesleri yok, dosya gelince aynı yere `punch.wav` / `balloon.wav` konur, kod değişmez.
 - **Uç ölçüsü:** `tools/build_tips.py` ucu en çok `length` uzunluğa ve en geniş yerinde 1,25 birime (kovan 0,99) sığdırır; balon demeti önce 2 birim genişti, elde yanındaki mermilere taşıyordu. Elde özel mermi 1,15 kat, sıradaki yeri 1,6 birim (`SPECIAL_IN_HAND`, `SPECIAL_ROOM`).
+
+### Mermi tarifi (2026-10-23, kullanıcı kararı)
+
+Bant modifiye karolarının yerini alır. Fikir: güç arttıkça atış başına yenen mermi de artar, yani **güçlenmek yığını daha hızlı eritmek demek**. Ürün zinciri yok: tek tarif, üstüne özellik eklenir.
+
+- **Üretim masası:** arenada fiziksel bir yer; arayüzü Q menüsünde bir sekme. Masa mermiyi yığından alır, tarife göre işler, oyuncunun eline verir; El Kapasitesi işlenmiş mermiyi sayar. Taretlerde hat ham mermi getirir, taret takımın tarifiyle kendisi işler. (Öneri, uygulamada netleşecek.)
+- **Blueprint'ler kasalardan çıkar** (görevler blueprint açmaz). Her blueprint mermiye bir özellik ekler, özellikler birlikte çalışır: klon (atış 2, sonra 4 mermi), sekme (1, sonra 3 kez), delici, yıldırım sekmesi, yakıcı; yer çekimi vb. tam sürüme. Demo için 4-5 özellik.
+- **Maliyet:** her özellik ve her güçlendirme atış başına yenen mermiyi artırır. Örnek sıra: normal 1 → klon 5 → klon+sekme 25 → güçlendikçe 50, 100 → yıldırım ~200. Sayılar yer tutucu, denge turunda.
+- **Maliyetin asıl etkisi taşıma:** atış 100 mermi yiyorsa el ve şarjör hemen boşalır (El Kapasitesi, Şarjör değerlenir); tarette hat hızı ve kapasitesi darboğaz olur.
+- **Gold: isabet başına, görsel çarpım ayrı.** Klon ve sekme isabetleri komboyu büyütmez, kombo çarpanı onlara uygulanmaz; her biri düz "isabet altını" öder (başta $1, kendi geliştirmesiyle artar). Ana merminin ilk isabeti eskisi gibi kombo ve hedef ödemesiyle. Ekranda tatmin için merminin kaç yere çarptığı ve zincirin büyük yazısı görünür, ama gold o çarpımla çarpılmaz.
+- **Co-op:** blueprint'ler bütün takıma (kasa kuralı); oyuncunun mermi tarifi ve güçlendirmeleri kişisel, kendi gold'uyla (herkes farklı yapı kurar); taret tarifleri ortak kasadan. Sekme hedeflerini host seçer, istemciye atış başına tek olay gider, efektleri istemci çizer. Başkalarının efektleri daha soluk.
+- **Teknik:** sekme ve yıldırım anlık raycast zinciri; uçan mermi, mermi başına node yok.
+- **Görevler (asker + garaj kapısı):** şimdilik yok. Gelirse makul gold verir, blueprint açmaz.
+
+**Yığın 100M kalıyor (hesap 2026-10-23).** 250M yığın sığmıyor: 45° koni olarak 100M = 380 m³, 7,1 m yükseklik, 14,3 m taban; 250M = 950 m³, 9,7 m (8 m'deki kirişin üstü), 19,4 m taban (20 m'lik ızgaranın sınırı). Ayrıca incremental oyunda yığının büyüklüğü kozmetik: bütün maliyetleri 2,5 ile çarpmakla aynı şey. Tempo hedefi (4 oyuncu, 60 dk):
+
+| Evre | Dakika | Yığın/sn | Toplam |
+|---|---|---|---|
+| El, Deagle | 0-10 | ~3 | ~1,5 bin |
+| Masa, klon (maliyet 5) | 10-20 | ~100 | ~60 bin |
+| Sekme, ilk taretler (25) | 20-35 | ~1.500 | ~1,4M |
+| Taret çoğalması (100) | 35-48 | ~25.000 | ~21M |
+| Final: ~12 taret × 40 atış/sn × ~200 | 48-60 | ~100.000 | ~93M |
+
+Kalan ~7M dökülme ve oyuncu atışları. Yığının ~%70'i son 12 dakikada gider: "son saatte gözle görülür küçülme" kuralını karşılar.
 
 ### Arayüz (2026-10-22)
 
