@@ -362,7 +362,7 @@ func _roof() -> void:
 	ResourceSaver.save(roof_mat)
 	var shut := mesh_at("skylight", Transform3D(), roof_mat, roof)
 	shut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
-	_lantern(roof, steel)
+	_lantern(roof, steel, roof_mat.get_shader_parameter("grime_tex"))
 	_sun(roof)
 	var clad: Material = load("res://materials/env/corrugated_iron_02.tres")
 	for s in [-1.0, 1.0]:
@@ -374,7 +374,7 @@ func _roof() -> void:
 ## A greenhouse lantern over the LANTERN rect: glass side walls standing on the roof sheet, a
 ## glass gable over them at LANTERN_PITCH, glass gable ends down to the old roof line, all on a
 ## grid of slim steel glazing bars. The glass casts no shadow, the bars do.
-func _lantern(roof: Node3D, steel: Material) -> void:
+func _lantern(roof: Node3D, steel: Material, grime: Texture2D) -> void:
 	var e1 := LANTERN.z
 	var z0 := LANTERN.y
 	var z1 := LANTERN.w
@@ -416,12 +416,9 @@ func _lantern(roof: Node3D, steel: Material) -> void:
 				bar.call(Vector3(s * x, sheet.call(x), gz), Vector3(s * x, glass_y.call(x), gz))
 				x += 2.5
 	panes.generate_normals()
-	var glass := StandardMaterial3D.new()
-	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
-	glass.albedo_color = Color(0.5, 0.58, 0.58, 0.1)  # old greenhouse glass: a faint green-grey film
-	glass.roughness = 0.06
-	glass.metallic_specular = 0.6  # catches the lamps and the heap in it
+	var glass := ShaderMaterial.new()
+	glass.shader = load("res://materials/env/lantern_glass.gdshader")
+	glass.set_shader_parameter("grime_tex", grime)
 	var g := MeshInstance3D.new()
 	g.name = "LanternGlass"
 	g.mesh = panes.commit()
@@ -429,6 +426,17 @@ func _lantern(roof: Node3D, steel: Material) -> void:
 	g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	g.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	add(g, roof)
+	# The shed's probe stops under the roof: without its own the glass has nothing to mirror. Captured
+	# from down in the hall, so the panes show the lamps and the heap's glow, as greenhouse glass does at night.
+	var probe := ReflectionProbe.new()
+	probe.name = "LanternReflections"
+	probe.size = Vector3(e1 * 2.0 + 1.0, ridge - base + 1.5, z1 - z0 + 1.0)
+	probe.position = Vector3(0, (ridge + base) / 2.0, (z0 + z1) / 2.0)
+	probe.origin_offset = Vector3(0, 4.5 - probe.position.y, 0)
+	probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+	probe.max_distance = 80.0
+	add(probe, roof)
 	var f := MeshInstance3D.new()
 	f.name = "LanternFrame"
 	f.mesh = bars.commit()
@@ -449,6 +457,7 @@ func _sun(roof: Node3D) -> void:
 	sky.mesh = dome
 	var lid := ShaderMaterial.new()
 	lid.shader = load("res://materials/env/night_sky.gdshader")
+	lid.set_shader_parameter("panorama", load("res://assets/env/hdri/rogland_clear_night_4k.hdr"))
 	sky.material_override = lid
 	sky.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	sky.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
