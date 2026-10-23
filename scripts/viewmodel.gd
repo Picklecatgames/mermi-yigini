@@ -24,6 +24,8 @@ const LAYER := 2
 ## on the spring alone, which settles inside one interval: a steady buzz that climbs. The Deagle
 ## is one heavy shove and flip; the UZI's heavy open bolt a regular, mostly vertical thump; the
 ## Scorpion lighter per round, faster, and the more it fires the more it wanders sideways.
+## paint lifts the gun's colour map: the SMGs' are near black (linear 0.02-0.04, the Deagle's ~0.1)
+## and in the hall they drew as a flat silhouette with none of the map's wear and parts showing.
 const SETS := {
 	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 50.0},
 	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
@@ -31,10 +33,10 @@ const SETS := {
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
 		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0},
 	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
-		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true,
+		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 2.5,
 		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75},
 	"scorpion": {"mesh": "CZScorpion", "clips": "Scorpion_", "bone": "Scorpion Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
-		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339),
+		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339), "paint": 4.0,
 		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34,
 		"clip_fire": false, "move": 0.75, "kick": 0.26, "climb": 0.0071, "yaw": 0.0089, "bloom": 0.0013, "jiggle": 0.22, "flash": 0.65},
 	# Held at the hip, no sights: the aim button spins the barrels up without firing. spin: we turn
@@ -45,7 +47,7 @@ const SETS := {
 	# picks up from the speed they still have. walk: share of walking speed left while they turn
 	# (no sprint); rumble: the gun's shake at full speed. Heaviest to move with, lightest kick per round.
 	"minigun": {"mesh": "Minigun", "clips": "Minigun_", "bone": "Minigun_M-134_Body", "eye": Vector3(-0.0082, 1.4235, 0.0212), "fov": 50.0,
-		"muzzle": Vector3(0.0, 0.9167, -0.0359), "port": Vector3(0.126, 0.124, -0.025), "run": "Sprint", "no_aim": true,
+		"muzzle": Vector3(0.0, 0.9167, -0.0359), "port": Vector3(0.126, 0.124, -0.025), "run": "Sprint", "no_aim": true, "paint": 1.6,
 		"spin": {"bone": "Minigun_M-134_Guns", "axis": Vector3.DOWN, "speed": 11.8, "up": 0.6, "down": 1.3,
 			"ramp": 1.5, "first": 0.16, "walk": 0.5, "rumble": 0.25},
 		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
@@ -270,6 +272,8 @@ func _ready() -> void:
 				var steel := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
 				steel.roughness *= GUN_ROUGHNESS
 				steel.metallic *= GUN_METALLIC
+				var k: float = each.get("paint", 1.0)
+				steel.albedo_color = Color(k, k, k)
 				mi.set_surface_override_material(i, steel)
 
 
