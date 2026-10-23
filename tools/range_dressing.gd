@@ -458,11 +458,11 @@ func _workshop() -> void:
 	_sandbags(Vector3(13.45, 0, 24.1), 2, 2, PI / 2)
 	_sticker("ghs_explos", Vector3(13.1, 0.25, 25.4), Vector3(-1, 0, 0), 0.18)
 	_sticker("ghs_flamme", Vector3(hopper.x, 0.72, 26.78), Vector3(0, 0, -1), 0.14)
-	# Light: a failing pendant over the bench, the barrel's fire, the crucible's glow, a dim wash.
-	b.strut(x, 21.0, 27.85)
-	var pendant: Node3D = b.pendant(Vector3(x, 5.0, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 5.0, 62.0, 0.05, true)
-	for spot: SpotLight3D in pendant.find_children("*", "SpotLight3D", false, false):
-		spot.set_script(b.FLICKER)
+	# Light: a steady pendant over the corner's middle, the barrel's fire, the crucible's glow, a dim
+	# wash. The hall lamps round it are dead (build_arena _lamps): a warm island in the dark.
+	var mid: float = b.WORKSHOP.x
+	b.strut(mid, 21.0, 27.85)
+	b.pendant(Vector3(mid, 5.0, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 5.0, 62.0, 0.05, true)
 	for f in [[barrel + Vector3(0, 1.0, 0), Color(1.0, 0.45, 0.15), 2.2, 4.5, true], [hopper + Vector3(0, 0.3, 0), Color(1.0, 0.5, 0.2), 0.8, 1.8, false]]:
 		var fire := OmniLight3D.new()
 		fire.position = f[0]
@@ -542,8 +542,9 @@ func _overhead() -> void:
 	var run := _piece(SET, SET + "_tripple_01", "duct_run")
 	var joint := _piece(SET, SET + "_connector_01", "duct_joint")
 	var wire := _piece(SET, SET + "_brace_wire_01", "duct_wire")
-	# One run along the hall over the shooters, one across the range near the north wall.
-	for r in [[Vector3(6.5, 6.9, -26.0), Basis(), 29], [Vector3(6.9, 6.6, -24.6), Basis(Vector3.UP, PI / 2), 11]]:
+	# One run along the hall over the shooters, one across the range near the north wall. The long
+	# run sits halfway between the hall lamps' rows at x 6 and 12; at x 6.5 they hung inside it.
+	for r in [[Vector3(9.0, 6.9, -26.0), Basis(), 29], [Vector3(9.4, 6.6, -24.6), Basis(Vector3.UP, PI / 2), 11]]:
 		var start: Vector3 = r[0]
 		var basis: Basis = r[1]
 		for k in r[2]:

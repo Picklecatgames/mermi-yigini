@@ -65,6 +65,8 @@ const RANGE_LIGHT := Color(0.88, 0.94, 1.0)  # cool daylight, against the hall's
 const STENCIL := preload("res://assets/fonts/SairaStencilOne-Regular.ttf")  # signs (OFL)
 const SPRAY := preload("res://assets/fonts/RubikSprayPaint-Regular.ttf")  # graffiti (OFL)
 const FLICKER := preload("res://scripts/flicker_lamp.gd")
+const WORKSHOP := Vector3(10.5, 0, 26.0)  # the crew's corner (range_dressing _workshop), between the columns at x 7 and 14
+const WORKSHOP_DARK := 11.0  # m round it with the hall lamps dead, so the corner stands out lit
 const CHEST_X := -23.0  # between the heap's paint ring (x -19.6) and the west wall
 const CHEST_COUNT := 12
 const STAND_GAP := 3.0
@@ -366,6 +368,7 @@ func _roof() -> void:
 	glass.set_shader_parameter("grime_tex", roof_mat.get_shader_parameter("grime_tex"))
 	glass.set_shader_parameter("holes", SKY_HOLES)
 	glass.set_shader_parameter("hole_count", SKY_HOLES.size())
+	glass.set_shader_parameter("daylight", Color(0.05, 0.065, 0.11))  # night behind it: barely there
 	ResourceSaver.save(glass, "res://materials/env/skylight.tres")
 	var shut := mesh_at("skylight", Transform3D(), load("res://materials/env/skylight.tres"), roof)
 	shut.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
@@ -378,9 +381,9 @@ func _roof() -> void:
 
 
 
-## Daylight outside the closed hall: a bright overcast sky lid over the roof (seen only through the
-## holes) and one shadowed sun. The roof shades it everywhere but the holes, so it comes in as
-## hard shafts through the dust. Kept out of the GI, so nothing outside leaks in evenly.
+## Night outside the closed hall, about 21:30: a starry sky lid over the roof (night_sky.gdshader,
+## seen only through the holes) and one shadowed moon. The roof shades it everywhere but the holes,
+## so it comes in as faint cold shafts through the dust. Kept out of the GI, so nothing outside leaks in evenly.
 func _sun(roof: Node3D) -> void:
 	var sky := MeshInstance3D.new()
 	sky.name = "SkyLid"
@@ -388,9 +391,8 @@ func _sun(roof: Node3D) -> void:
 	pm.size = Vector2(160, 160)
 	pm.flip_faces = true  # seen from below
 	sky.mesh = pm
-	var lid := StandardMaterial3D.new()
-	lid.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	lid.albedo_color = Color(0.86, 0.9, 0.96)
+	var lid := ShaderMaterial.new()
+	lid.shader = load("res://materials/env/night_sky.gdshader")
 	sky.material_override = lid
 	sky.position = Vector3(0, 16.0, 0)
 	sky.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -399,8 +401,8 @@ func _sun(roof: Node3D) -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.transform = Transform3D(Basis.looking_at(SUN_DIR.normalized(), Vector3.FORWARD), Vector3(0, 20, 0))
-	sun.light_color = Color(0.82, 0.9, 1.0)  # cold daylight: the abandonment, against the crew's warm lamps
-	sun.light_energy = 0.95
+	sun.light_color = Color(0.6, 0.72, 1.0)  # cold moonlight: the abandonment, against the crew's warm lamps
+	sun.light_energy = 0.22
 	sun.light_volumetric_fog_energy = 0.0  # the fog ignores the roof's shadow: shafts are drawn (sun_shaft.gdshader)
 	sun.light_cull_mask = 1  # not the gun's layer
 	sun.shadow_enabled = true
@@ -444,6 +446,8 @@ func _lamps() -> void:
 				wear = 9 if wear < 8 else wear  # where players dig and build, the crew keeps the tubes working
 			if downrange:  # its own circuit, kept up better: one in six dead or failing
 				wear = 9 if wear < 4 else (wear if wear in [4, 5] else 9)
+			if Vector2(x - WORKSHOP.x, z - WORKSHOP.z).length() < WORKSHOP_DARK:
+				wear = 0  # dark round the crew's corner
 			if not near_spot:  # the stage spots' clamps sit on these chords
 				var lamp := ceiling_lamp(lamps)
 				lamp.position = Vector3(x, y, z)

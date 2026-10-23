@@ -77,6 +77,8 @@ func _shafts() -> void:
 	var beam := ShaderMaterial.new()
 	beam.shader = load("res://materials/env/sun_shaft.gdshader")
 	beam.set_shader_parameter("noise_tex", nt)
+	beam.set_shader_parameter("color", Color(0.55, 0.68, 1.0))  # moonlight
+	beam.set_shader_parameter("strength", 0.03)
 	ResourceSaver.save(beam, "res://materials/env/sun_shaft.tres")
 	beam = load("res://materials/env/sun_shaft.tres")
 	var unit := BoxMesh.new()
@@ -440,14 +442,14 @@ func _loading_door() -> void:
 		slat.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 		y -= 0.1
 	b.block(Vector3(3.9, 0.05, 0.07), Vector3(DOOR_X, (LEFT + RIGHT) / 2.0, z + 0.02), frame, root, Basis(Vector3.BACK, -tilt))
-	# Daylight outside, seen only through the slits: a bright plane right behind the shutter.
+	# The night outside, seen only through the slits: a dim blue plane right behind the shutter.
 	var day := MeshInstance3D.new()
 	var q := QuadMesh.new()
 	q.size = Vector2(4.2, 4.0)
 	day.mesh = q
 	var dm := StandardMaterial3D.new()
 	dm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dm.albedo_color = Color(0.9, 0.93, 0.97)
+	dm.albedo_color = Color(0.06, 0.08, 0.14)
 	day.material_override = dm
 	day.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	day.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
