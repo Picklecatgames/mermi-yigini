@@ -9,6 +9,7 @@ extends SceneTree
 const SHED := "res://assets/env/shed/"
 const TEX := "res://assets/env/textures/"
 const MODELS := "res://assets/env/models/"
+const FLOOR_PAINT := 1 << 5  # the floor alone also sits on layer 6; floor decals print only there
 const OFFICE := "res://assets/props/office/"  # tools/build_office.py
 const LAMP_DROP := 1.34  # hanging_industrial_lamp: rod top to the shade's rim
 const BULB_Y := -1.06  # the model's own bulb, up in the glass under the reflector
@@ -270,6 +271,7 @@ func _floor() -> void:
 		mi.mesh = pm
 		mi.position = Vector3(r.get_center().x, 0, r.get_center().y)
 		mi.material_override = part[1]
+		mi.layers = 1 | FLOOR_PAINT
 		add(mi, body)
 	var cs := CollisionShape3D.new()
 	cs.shape = WorldBoundaryShape3D.new()
@@ -1868,7 +1870,7 @@ func _decal(parent: Node, tex: Texture2D, pos: Vector3, yaw: float, size: Vector
 	d.rotation.y = yaw
 	d.upper_fade = 0.1
 	d.lower_fade = 0.1
-	d.cull_mask = 1  # floor and heap only; not the gun (layer 2)
+	d.cull_mask = FLOOR_PAINT  # the floor only: crates, cables and the railing standing in it stay clean
 	add(d, parent)
 	return d
 

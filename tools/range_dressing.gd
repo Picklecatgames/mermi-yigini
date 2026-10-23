@@ -136,6 +136,7 @@ func _firing_line() -> void:
 		var z: float = stations[i]
 		var m: MeshInstance3D = b.block(Vector3(2.4, 0.012, 1.5), Vector3(12.5, 0.006, z), mat, root)
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		m.layers = 1 | b.FLOOR_PAINT
 		var n: Label3D = b._range_label(str(i + 1), 220, Color(0.92, 0.9, 0.84, 0.9), b.STENCIL)
 		n.transform = Transform3D(Basis(Vector3.UP, -PI / 2) * Basis(Vector3.RIGHT, -PI / 2), Vector3(11.65, 0.016, z))
 		b.add(n, root)
