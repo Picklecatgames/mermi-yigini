@@ -10,7 +10,7 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 - Kombo: 1,5 sn içindeki isabetler zinciri büyütür; ödenen çarpan = zincir, tavanı Kombo Tavanı upgrade'i (x2→x20). Kafa ve gövde ayrı zincir. Taret/bant zinciri büyütmez.
 - Mermi tarifi (planlı): blueprint'ler (kasadan) mermiye özellik ekler (klon, sekme, yıldırım...), her özellik atış başına yenen mermiyi artırır; maliyet şarjörden düşer, tarif mermi çarkından seçilir. Klon/sekme isabeti komboyu büyütmez, düz isabet altını öder; ekrandaki çarpım yalnız görsel. Yığın 100M kalır (250M 8 m kirişe sığmaz).
 - Hedefler x = 14'teki korkuluğun arkasında (kauçuk zeminli poligon + doğu duvarından 30 m'ye uzanan atış koridoru); korkuluğun ötesinden atış para vermez, oyuncu korkuluğu hiç geçmez; yerleştirme modu (B) kuş bakışı kamera + fare imleci + sağda takım deposu (`scripts/placement.gd`). Küçük/hareketli/zamanlı hedef daha çok öder.
-- 12 anahtar yığına gömülü (derinlik nadirliğe bağlı, `scripts/key_cache.gd`); her biri bir kasa açar (mermi tipi, benzersiz silah, özel dummy). Kasa açılınca özellik bütün takıma açılır. Kasalar henüz yok.
+- 12 anahtar yığına gömülü (derinlik nadirliğe bağlı, `scripts/key_cache.gd`); her biri bir kasa açar (mermi tipi, benzersiz silah, özel dummy). Kasa açılınca özellik bütün takıma açılır. Kasalar henüz yok. Demoda yalnız ilk 6 kasa açılır; tam oyunun 26 kasası görünür, 7. ve sonrası mühürlü ("tam sürümde").
 - Planlananlar: kovan → fırın → külçe (taret geliştirme), taretler (yığına kendiliğinden hortum uzatır), HP'li dummy.
 - Yok: bant döşeme, ürün zinciri, kablolama, büyük tech tree, idle ağırlık, konuşma animasyonu, dummy yıpranması.
 
