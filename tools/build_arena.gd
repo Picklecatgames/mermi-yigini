@@ -791,45 +791,103 @@ func _props() -> void:
 	var ext := MODELS + "korean_fire_extinguisher_01/korean_fire_extinguisher_01_1k.gltf"
 	for p in [Vector3(-27.4, 0, -13.4), Vector3(27.4, 0, 16.4), Vector3(13.4, 0, -27.4), Vector3(-13.4, 0, 27.4)]:
 		_prop(props, ext, p, randf() * TAU)
-	# The melting hopper against the south wall, in front of the column at x 0.
-	_prop(props, "res://assets/props/workbench/hopper.glb", Vector3(-0.75, 0, 26.65), PI)
 	_workshop(props)
 
 
-## The upgrade workshop in the south-west corner: the bullet workbench (assembled in Blender,
-## docs/ayrintilar.md "Mermi tezgâhı") pushed into the corner on a worn carpet, under a low warm
-## pendant and a wash on the wall behind it, so it stands out of the dark hall.
+## The upgrade workshop in the shooters' corner, where the railing meets the south wall: the bullet
+## workbench (assembled in Blender, docs/ayrintilar.md "Mermi tezgâhı") a size up and pushed into the
+## corner, the melting hopper on its right, both on a worn carpet; caged wall lamps either side, a low
+## pendant, a glow on the bench top and a wash on the wall, so it is the brightest corner of the dark
+## hall. Hazard plates over it (ambientCG) and GHS stickers on the stock (Wikimedia Commons).
 func _workshop(props: Node) -> void:
-	var at := Vector3(-26.33, 0, 27.4)  # the bench's west end against the corner column, its back on the wall
-	_prop(props, "res://assets/props/workbench/workbench.glb", at, PI)
-	var carpet := pbr_box("dirty_carpet", 0.6, Color.WHITE, false)  # the scan is 0.6 m square
+	const BENCH := 1.2  # the Blender bench, scaled up to stand out
+	var at := Vector3(12.3, 0, 27.4)  # its east end against the column at x 14, its back on the wall
+	_prop(props, "res://assets/props/workbench/workbench.glb", at, PI, BENCH)
+	var x := at.x - 0.09 * BENCH  # the bench's middle
+	var west := at.x - 1.22 * BENCH  # its west end
+	# The hopper on its right (looking at it), the bucket on the bench side.
+	_prop(props, "res://assets/props/workbench/hopper.glb", Vector3(west - 1.0, 0, 27.15), PI)
 	var rug := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(3.2, 2.4)
+	plane.size = Vector2(4.6, 2.6)
 	rug.mesh = plane
-	rug.material_override = carpet
-	rug.transform = Transform3D(Basis(Vector3.UP, 0.04), Vector3(-25.75, 0.006, 26.35))  # under the bench, out in front for whoever stands at it
+	rug.material_override = pbr_box("dirty_carpet", 0.6, Color.WHITE, false)  # the scan is 0.6 m square
+	rug.transform = Transform3D(Basis(Vector3.UP, 0.03), Vector3(11.3, 0.006, 26.3))  # under the bench and hopper, out in front
+	rug.layers = 1 << 4  # off the floor paint's layer: the walkway decal printed over it
 	add(rug, props)
-	# Stock along the west wall beside it: crates of rounds stacked, ammo boxes on top.
+	# Stock along the railing beside it: crates of rounds stacked, ammo boxes on top.
 	var crate := MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf"
-	for p in [Vector3(-27.4, 0, 25.6), Vector3(-27.35, 0.35, 25.55), Vector3(-27.4, 0, 24.85)]:
+	for p in [Vector3(13.45, 0, 25.6), Vector3(13.4, 0.35, 25.55), Vector3(13.45, 0, 24.85)]:
 		_prop(props, crate, p, randf_range(-0.2, 0.2))
-	for p in [Vector3(-27.35, 0.7, 25.6), Vector3(-27.4, 0.35, 24.85)]:
+	for p in [Vector3(13.4, 0.7, 25.6), Vector3(13.45, 0.35, 24.85)]:
 		_prop(props, MODELS + "ammo_box/ammo_box_1k.gltf", p, PI / 2 + randf_range(-0.4, 0.4))
-	var x := at.x - 0.09  # the bench's middle
+	_sticker("ghs_explos", Vector3(13.1, 0.2, 25.6), Vector3(-1, 0, 0), 0.16)
+	_sticker("ghs_explos", Vector3(13.15, 0.55, 25.55), Vector3(-1, 0, 0), 0.16)
+	_sticker("ghs_flamme", Vector3(west - 1.0, 0.72, 26.78), Vector3(0, 0, -1), 0.14)
+	# Hazard plates on the wall over it: heat by the hopper, high voltage by the coil, explosives by the stock.
+	for sg in [["013", Vector3(west - 1.0, 2.0, 27.97), 0.04], ["009", Vector3(x - 0.5, 2.55, 27.97), -0.03], ["018", Vector3(x + 0.75, 2.45, 27.97), 0.05]]:
+		_plate(props, sg[0], sg[1], sg[2])
 	strut(x, 21.0, 27.85)
-	pendant(Vector3(x, 3.9, 27.0), BOTTOM - CHORD / 2.0 - 0.065, Color(1.0, 0.7, 0.4), 6.0, 62.0, 0.05, true)
+	pendant(Vector3(x, 3.9, 26.9), BOTTOM - CHORD / 2.0 - 0.065, Color(1.0, 0.7, 0.4), 7.0, 62.0, 0.06, true)
+	for lx in [west - 1.75, at.x + 1.3]:  # caged lamps either side, the hopper's and the railing's
+		var lamp: Node3D = (load(MODELS + "industrial_wall_lamp/industrial_wall_lamp_1k.gltf") as PackedScene).instantiate()
+		lamp.transform = Transform3D(Basis(Vector3.UP, PI), Vector3(lx, 2.3, 27.97))
+		add(lamp, props)
+		var glow := OmniLight3D.new()
+		glow.position = Vector3(lx, 2.2, 27.6)
+		glow.light_color = Color(1.0, 0.68, 0.35)
+		glow.light_energy = 1.6
+		glow.omni_range = 3.2
+		glow.light_volumetric_fog_energy = 0.6
+		add(glow, props)
+	var top := OmniLight3D.new()  # the bench top, lit as if by its own work light
+	top.position = Vector3(x, 1.55 * BENCH, 26.9)
+	top.light_color = Color(1.0, 0.82, 0.6)
+	top.light_energy = 0.8
+	top.omni_range = 1.8
+	top.light_volumetric_fog_energy = 0.0
+	add(top, props)
 	var wash := SpotLight3D.new()
-	wash.position = Vector3(-23.2, 4.4, 23.8)
-	wash.basis = Basis.looking_at(Vector3(x, 1.2, 27.9) - wash.position, Vector3.UP)
+	wash.position = Vector3(8.6, 4.6, 23.6)
+	wash.basis = Basis.looking_at(Vector3(x - 0.6, 1.4, 27.9) - wash.position, Vector3.UP)
 	wash.light_color = Color(1.0, 0.78, 0.5)
-	wash.light_energy = 3.0
-	wash.spot_range = 9.0
-	wash.spot_angle = 24.0
+	wash.light_energy = 4.0
+	wash.spot_range = 10.0
+	wash.spot_angle = 26.0
 	wash.spot_angle_attenuation = 1.6
 	wash.light_volumetric_fog_energy = 0.0
 	wash.shadow_enabled = true
 	add(wash, props)
+
+
+## One of ambientCG's hazard plates (assets/env/signs/, CC0) screwed to the wall at `at`, facing the hall.
+func _plate(parent: Node, id: String, at: Vector3, roll: float) -> void:
+	const DIR := "res://assets/env/signs/sign"
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load(DIR + id + "_color.png")
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.normal_enabled = true
+	m.normal_texture = load(DIR + id + "_normal.png")
+	m.roughness_texture = load(DIR + id + "_rough.png")
+	m.metallic = 0.6
+	var q := QuadMesh.new()
+	q.size = Vector2(0.62, 0.62)
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = m
+	mi.transform = Transform3D(Basis(Vector3.UP, PI) * Basis(Vector3.BACK, roll), at)
+	add(mi, parent)
+
+
+## A GHS hazard sticker (assets/env/stickers/, public domain) on the face at `at` looking along `out`.
+func _sticker(id: String, at: Vector3, out: Vector3, size: float) -> void:
+	var d := Decal.new()
+	d.texture_albedo = load("res://assets/env/stickers/" + id + ".png")
+	d.modulate = Color(0.85, 0.82, 0.75)  # sun and grime
+	d.size = Vector3(size, 0.4, size)
+	d.transform = Transform3D(Basis(out.cross(Vector3.UP), out, Vector3.DOWN), at)
+	d.cull_mask = 1
+	add(d, arena)
 
 
 ## Dust drifting in the air over the heap and down the range: tiny lit specks, so they only show
