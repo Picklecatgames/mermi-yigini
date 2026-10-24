@@ -80,7 +80,7 @@ func _initialize() -> void:
 	check.call(absf(early - 0.16) < 0.02 and absf(late - gs.GUNS[MINIGUN].interval) < 0.01,
 		"rate climbs: %.3f s between the first rounds, %.3f s at the top (%d rounds in 2 s)" % [early, late, shots.size()])
 	check.call(is_equal_approx(vm.walk_share, 0.5), "turning, the player walks at %.2f" % vm.walk_share)
-	var snd: AudioStreamPlayer3D = vm._spin_sound
+	var snd: AudioStreamPlayer = vm._spin_sound
 	check.call(snd.stream == vm.SPIN_LOOP and snd.playing and snd.stream.loop_mode == AudioStreamWAV.LOOP_FORWARD,
 		"firing plays the looping minigun sound, not a shot per round")
 

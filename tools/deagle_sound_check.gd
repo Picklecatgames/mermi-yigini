@@ -19,7 +19,12 @@ func _initialize() -> void:
 	vm.set_process(false)
 	root.add_child(vm)
 	await process_frame
-	var shot: AudioStreamPlayer3D = vm.get_node("ShotSound")
+	var shot: AudioStreamPlayer = vm._shot_sound
+	check.call(shot.bus == vm.GUN_BUS and vm._dry_sound.bus == vm.GUN_BUS and vm._mag_sound.bus == vm.GUN_BUS,
+		"our own gun's sounds play flat on the gun bus, not placed in the hall")
+	var bus := AudioServer.get_bus_index(vm.GUN_BUS)
+	check.call((AudioServer.get_bus_effect(bus, 0) as AudioEffectPanner).pan > 0.0, "the gun bus leans right")
+	check.call(vm._dry_sound.stream.random_pitch <= vm.GUN_PITCH, "the dry click's pitch varies at most ±%.1f%%" % ((vm.GUN_PITCH - 1.0) * 100.0))
 	vm._want_gun = UZI
 	vm._swap()
 	check.call(shot.stream == vm.plain_shot, "UZI keeps the plain shot")
@@ -28,7 +33,7 @@ func _initialize() -> void:
 	check.call(shot.stream == vm.SETS.deagle.shot, "Deagle shoots its own shot")
 
 	var anim: AnimationPlayer = vm.get_node("Model/AnimationPlayer")
-	var players := [vm.get_node("MagSound"), vm.get_node("SlideSound")]
+	var players := [vm._mag_sound, vm._slide_sound]
 	for clip in ["reload", "reload_empty"]:
 		vm._next_cue_player = 0
 		vm._play(clip)

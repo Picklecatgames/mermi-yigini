@@ -10,8 +10,18 @@ signal kicked(amount: float, yaw: float)  # rad of view climb, and of sideways t
 
 const LAYER := 2
 const MAG_OUT := preload("res://assets/weapons/sounds/mag_out.wav")
-const MAG_IN := preload("res://assets/weapons/sounds/deagle_mag_in.tres")
-const CLACK := preload("res://assets/weapons/sounds/deagle_clack.tres")
+const MAG_IN := preload("res://assets/weapons/sounds/mag_enter.wav")
+const MAG_SEAT := preload("res://assets/weapons/sounds/mag_seat.wav")
+const SLIDE := preload("res://assets/weapons/sounds/slide_release.wav")
+## Our own gun is heard in our head, not placed in the hall: a 3D source this close to the ear
+## flipped left and right with every sway and lagged behind a turn of the head. Its sounds play
+## flat on this bus, panned to the right where the gun is held, with a touch of room that varies
+## a little per round. (Other players' guns stay 3D, scripts/impacts.gd.)
+const GUN_BUS := &"Silah"
+const GUN_PAN := 0.35
+const GUN_WET := Vector2(0.07, 0.11)  # reverb wet per round, picked between these
+const GUN_PITCH := 1.015  # at most this much higher or lower per round
+const SHOT_DB := 2.0  # the shot over the rest of the gun's sounds
 ## Per GameState.GUNS id. eye: the set's camera in our glTF space (y up, looking +Z), printed by
 ## build_arms.py; the clips were framed for it. bone: the gun's own bone; muzzle / port (ejection) and
 ## rear / front (sights, aimed by moving the whole rig) are in its space, read off the meshes at Idle.
@@ -39,8 +49,8 @@ const SETS := {
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
 		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0,
 		"shot": preload("res://assets/weapons/sounds/deagle_shot.tres"),
-		"cues": {"reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, CLACK]],
-			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, CLACK], [2.28, CLACK]]}},
+		"cues": {"reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
+			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
 	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
 		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 1.6,
 		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75},
@@ -224,11 +234,13 @@ var _world_flash: OmniLight3D  # the gun lives in its own world; this one lights
 @onready var _port := Node3D.new()
 @onready var _flash: Node3D = $Flash
 @onready var _flash_light: OmniLight3D = $Flash/Light
-@onready var _shot_sound: AudioStreamPlayer3D = $ShotSound
-@onready var _dry_sound: AudioStreamPlayer3D = $DrySound
-@onready var _slide_sound: AudioStreamPlayer3D = $SlideSound
-@onready var _mag_sound: AudioStreamPlayer3D = $MagSound
-@onready var _spin_sound: AudioStreamPlayer3D = _shot_sound.duplicate()  # same place and loudness as a shot
+# Flat copies of the scene's 3D sound nodes (GUN_BUS); ShotSound itself stays the template
+# other players' shots are copied from (scripts/impacts.gd).
+@onready var _shot_sound := _flat($ShotSound, SHOT_DB)
+@onready var _dry_sound := _flat($DrySound)
+@onready var _slide_sound := _flat($SlideSound)
+@onready var _mag_sound := _flat($MagSound)
+@onready var _spin_sound := _flat($ShotSound, SHOT_DB)
 @onready var plain_shot: AudioStream = _shot_sound.stream  # a gun with no "shot" of its own
 var _cue_at := 0.0  # s into the clip at the last frame, for its cues
 var _next_cue_player := 0  # cues take turns on MagSound and SlideSound, so one doesn't cut the last
@@ -237,7 +249,6 @@ var _next_cue_player := 0  # cues take turns on MagSound and SlideSound, so one 
 
 func _ready() -> void:
 	add_to_group("first_person_gun")
-	add_child(_spin_sound)
 	_spin_sound.max_polyphony = 1
 	var loop: AudioStreamWAV = SPIN_LOOP
 	loop.loop_mode = AudioStreamWAV.LOOP_FORWARD  # the file's end is crossfaded into its start
@@ -296,6 +307,38 @@ func _ready() -> void:
 				mi.set_surface_override_material(i, steel)
 	if Wishlist.golden():
 		gild()
+
+
+func _flat(from: AudioStreamPlayer3D, louder := 0.0) -> AudioStreamPlayer:
+	var p := AudioStreamPlayer.new()
+	p.stream = from.stream
+	if p.stream is AudioStreamRandomizer:  # a round should sound like the last, only a hair off
+		p.stream = p.stream.duplicate()
+		p.stream.random_pitch = minf(p.stream.random_pitch, GUN_PITCH)
+	p.volume_db = from.volume_db + louder
+	p.max_polyphony = from.max_polyphony
+	p.bus = gun_bus()
+	add_child(p)
+	return p
+
+
+## GUN_BUS, made the first time it is asked for: panned right, a small room, on to Master.
+static func gun_bus() -> StringName:
+	if AudioServer.get_bus_index(GUN_BUS) < 0:
+		var i := AudioServer.bus_count
+		AudioServer.add_bus(i)
+		AudioServer.set_bus_name(i, GUN_BUS)
+		AudioServer.set_bus_send(i, &"Master")
+		var pan := AudioEffectPanner.new()
+		pan.pan = GUN_PAN
+		AudioServer.add_bus_effect(i, pan)
+		var room := AudioEffectReverb.new()
+		room.room_size = 0.3
+		room.damping = 0.5
+		room.predelay_msec = 20.0
+		room.wet = GUN_WET.x
+		AudioServer.add_bus_effect(i, room)
+	return GUN_BUS
 
 
 ## The wishlist reward (scripts/wishlist.gd): the Deagle in gold. Also called on the claim.
@@ -653,7 +696,7 @@ func _cues() -> void:
 	var now := _anim.current_animation_position
 	for c: Array in cues:
 		if c[0] > _cue_at and c[0] <= now:
-			var p: AudioStreamPlayer3D = [_mag_sound, _slide_sound][_next_cue_player]
+			var p: AudioStreamPlayer = [_mag_sound, _slide_sound][_next_cue_player]
 			_next_cue_player = 1 - _next_cue_player
 			p.stream = c[1]
 			p.play()
@@ -708,6 +751,8 @@ func _effects() -> void:
 	_world_flash.visible = true
 	_flash_left = FLASH_TIME
 	_flash_frames = 2
+	var room := AudioServer.get_bus_effect(AudioServer.get_bus_index(GUN_BUS), 1) as AudioEffectReverb
+	room.wet = randf_range(GUN_WET.x, GUN_WET.y)
 	if not _kit.has("spin"):
 		_shot_sound.play()
 	elif _spin_sound.stream != SPIN_LOOP or not _spin_sound.playing:
