@@ -71,7 +71,14 @@ const STAND_GAP := 3.0
 const FINAL_GAP := 4.5  # level 11 to level 12, room for the big square
 const FINAL_SQUARE := 4.2  # m
 const STAND_TOP := 1.1  # m, level 11's top
-const STAND_RAIL_X := CHEST_X + 1.8  # the stands' spot track under the trusses, toward the heap
+const TWIN_SPOT := MODELS + "twin_spot_light/"
+const TWIN_SPOT_SCALE := 0.13  # the FBX is in decimetres: a 50 cm box
+## The floor lamp between crate n and n + 1: yaw (deg; 180 faces the row), roll about its length
+## (±90: knocked over, on its back or its face, the eyes still turned onto the crates), tilt (deg,
+## one end up on rubble).
+const LAMP_POSES: Array[Vector3] = [Vector3(195, 0, 0), Vector3(142, 0, 0), Vector3(10, 90, 0),
+	Vector3(215, 0, 7), Vector3(168, -90, 0), Vector3(128, 0, 0), Vector3(200, 0, -6),
+	Vector3(-25, 90, 0), Vector3(155, 0, 0), Vector3(232, 0, 0), Vector3(176, -90, 0)]
 const RARE_FROM := 4  # index of the first rare stand; legendary from LEGEND_FROM
 const LEGEND_FROM := 9
 
@@ -660,7 +667,7 @@ func _stage_spot(spot_name: String, at: Vector3, aim: Vector3, angle: float, ene
 	spot.spot_attenuation = 0.2
 	spot.spot_angle = angle
 	spot.spot_angle_attenuation = edge
-	spot.shadow_enabled = not spot_name.begins_with("StandSpot")  # 13 shadow passes for crates already sitting in their own pool
+	spot.shadow_enabled = true
 	spot.light_size = 0.05
 	spot.light_volumetric_fog_energy = 8.0 * strength  # the beam shows in the dust as much as its cone
 	add(spot, head)
@@ -1445,10 +1452,12 @@ func _chest_stands() -> void:
 	stands.name = "ChestStands"
 	add(stands)
 	var last := CHEST_COUNT - 2  # the last stand; the final crate has none
+	var tops: Array[float] = []
 	for i in CHEST_COUNT:
 		var t := float(i - 1) / (last - 1)  # 0 at the first stack, 1 at the last
 		var final := i == CHEST_COUNT - 1
 		var top := 0.0 if i == 0 or final else lerpf(0.25, STAND_TOP, pow(t, 1.3))
+		tops.append(top)
 		var body := StaticBody3D.new()
 		body.name = "ChestStand%d" % (i + 1)
 		body.position = chest_pos(i)
@@ -1466,7 +1475,6 @@ func _chest_stands() -> void:
 		_aura(body, i + 1, FINAL_SQUARE * 0.42 if final else 0.85)
 		if final:
 			continue  # lit by its own two stage spots
-		_stand_spots(i, top)
 		if i == 0:
 			continue  # level 1 sits on the bare floor
 		var w := lerpf(0.75, 0.95, t)  # top width, the crate's footing
@@ -1488,6 +1496,7 @@ func _chest_stands() -> void:
 		cs.shape = box
 		cs.position.y = top / 2.0
 		add(cs, body)
+	_crate_lamps(tops)
 
 
 ## A timber pallet `size` m square, 14 cm high, from `y`; returns its top.
@@ -1532,25 +1541,123 @@ func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel:
 		add(n, body)
 
 
-## The light on stand `i` (2026-10-24, the user: pendants over the stands looked bad, then tripods
-## on the floor cluttered the row): small theatre spots on a track under the trusses, out of sight
-## from the floor, so only their pools of light show, a gallery's. The tier is in the light: a
-## narrow cold spot on the common stands, a wider neutral one from rare up, two
-## warm spots crossing with gold beams on the legendary ones; the final crate has the big pair.
-func _stand_spots(i: int, top: float) -> void:
-	var at := chest_pos(i)
-	var aim := at + Vector3(0, top + 0.3, 0)
-	var y := BOTTOM - CHORD / 2.0 - 0.115  # clamped under the track
-	if i == 0:
-		strut(STAND_RAIL_X, chest_pos(0).z + 1.0, chest_pos(CHEST_COUNT - 2).z - 1.0)
-	if i >= LEGEND_FROM:
+## The crates' light (2026-10-25, the user, replacing the theatre spots on a track): rusty twin
+## spot emergency lamps left on the floor in front of the row, one between each pair of crates,
+## one eye on each, lighting them from below. Not set out in a line: some turned, some knocked
+## over (LAMP_POSES). The tier is in the light: cold on the common crates, neutral from rare
+## up, warm on the legendary ones and the final crate (which keeps its stage spots too).
+func _crate_lamps(tops: Array[float]) -> void:
+	var lamp := _twin_spot()
+	var root := Node3D.new()
+	root.name = "CrateLamps"
+	add(root)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 25
+	var box: AABB = (lamp.body as Mesh).get_aabb()
+	var lenses := {}
+	for n in CHEST_COUNT - 1:
+		var pose: Vector3 = LAMP_POSES[n]
+		var at := Vector3(CHEST_X + rng.randf_range(0.85, 1.35), 0, (chest_pos(n).z + chest_pos(n + 1).z) / 2.0 + rng.randf_range(-0.45, 0.45))
+		var basis := Basis(Vector3.UP, deg_to_rad(pose.x)) * Basis(Vector3.BACK, deg_to_rad(pose.y)) * Basis(Vector3.RIGHT, deg_to_rad(pose.z))
+		var low := INF  # rest it on the floor by its lowest corner, standing or fallen
+		for k in 8:
+			low = minf(low, (basis * (box.get_endpoint(k) * TWIN_SPOT_SCALE)).y)
+		var body := StaticBody3D.new()
+		body.name = "CrateLamp%d" % (n + 1)
+		body.transform = Transform3D(basis, at - Vector3(0, low, 0))
+		add(body, root)
+		var cs := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = box.size * TWIN_SPOT_SCALE
+		cs.shape = shape
+		cs.position = box.get_center() * TWIN_SPOT_SCALE
+		add(cs, body)
+		var model := Node3D.new()
+		model.scale = Vector3.ONE * TWIN_SPOT_SCALE
+		add(model, body)
+		var mi := MeshInstance3D.new()
+		mi.mesh = lamp.body
+		add(mi, model)
+		# The eye nearer each crate looks at it (a fallen lamp has them the other way round).
+		var heads: Array = lamp.heads.duplicate()
+		heads.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (body.transform * (a.at * TWIN_SPOT_SCALE)).z > (body.transform * (b.at * TWIN_SPOT_SCALE)).z)
 		for k in 2:
-			var from := Vector3(STAND_RAIL_X, y, at.z + (0.9 if k == 0 else -0.9))
-			_stage_spot("StandSpot%d%s" % [i + 1, "ab"[k]], from, aim, 13.0, 6.0, 0.012, 0.8, 0.6, Color(1.0, 0.78, 0.45))
-	elif i >= RARE_FROM:
-		_stage_spot("StandSpot%d" % (i + 1), Vector3(STAND_RAIL_X, y, at.z), aim, 11.0, 5.0, 0.0, 0.7, 0.5, Color(1.0, 0.93, 0.82))
-	else:
-		_stage_spot("StandSpot%d" % (i + 1), Vector3(STAND_RAIL_X, y, at.z), aim, 9.0, 4.0, 0.0, 0.6, 0.35, Color(0.85, 0.92, 1.0))
+			var head: Dictionary = heads[k]
+			var ti := n + k  # chest_pos z falls with i: the larger-z eye takes crate n
+			var target := chest_pos(ti) + Vector3(0, tops[ti] + 0.35, 0)
+			var pivot: Vector3 = body.transform * (head.at * TWIN_SPOT_SCALE)
+			var want := basis.inverse() * (target - pivot)
+			var turn := Basis(Quaternion((head.fwd as Vector3).normalized(), want.normalized()))
+			var colour := Color(1.0, 0.78, 0.45) if ti >= LEGEND_FROM else (Color(1.0, 0.93, 0.82) if ti >= RARE_FROM else Color(0.85, 0.92, 1.0))
+			if not lenses.has(colour):
+				var lens := StandardMaterial3D.new()
+				lens.albedo_texture = load(TWIN_SPOT + "heads_albedo.png")
+				lens.emission_enabled = true
+				lens.emission = colour
+				lens.emission_energy_multiplier = 6.0
+				lenses[colour] = lens
+			var hi := MeshInstance3D.new()
+			hi.name = "Eye%d" % (k + 1)
+			hi.mesh = head.mesh
+			hi.transform = Transform3D(turn, head.at)
+			hi.set_surface_override_material(1, lenses[colour])
+			add(hi, model)
+			var spot := SpotLight3D.new()
+			spot.name = "%s_Eye%d" % [body.name, k + 1]
+			var from: Vector3 = body.transform * ((head.at + turn * head.lens) * TWIN_SPOT_SCALE)
+			spot.transform = Transform3D(Basis.looking_at(target - from), from)
+			spot.light_color = colour
+			spot.light_energy = 6.0 if ti >= LEGEND_FROM else (5.0 if ti >= RARE_FROM else 4.0)
+			spot.spot_range = 7.0
+			spot.spot_angle = 28.0
+			spot.spot_angle_attenuation = 0.9
+			spot.light_volumetric_fog_energy = 0.6
+			spot.shadow_enabled = false  # 22 of them; each crate already sits in its own pool
+			add(spot, root)
+
+
+## The twin spot's parts, cut from its FBX once per build and saved as meshes: the body (box, top
+## bar, the eyes' swivel posts) from its bottom centre, and the two eyes (housing, glass as
+## surface 1) round their swivels, each with `at` (its swivel), `fwd` (where it looks) and `lens`
+## (its glass from the swivel), all in model units.
+func _twin_spot() -> Dictionary:
+	var scene: Node = (load(TWIN_SPOT + "twin_spot_light.fbx") as PackedScene).instantiate()
+	var steel := StandardMaterial3D.new()
+	steel.albedo_texture = load(TWIN_SPOT + "body_albedo.png")
+	steel.normal_enabled = true
+	steel.normal_texture = load(TWIN_SPOT + "body_normal.png")
+	steel.roughness_texture = load(TWIN_SPOT + "body_rough.png")
+	steel.metallic = 1.0
+	steel.metallic_texture = load(TWIN_SPOT + "body_metal.png")
+	ResourceSaver.save(steel, TWIN_SPOT + "body.tres")
+	steel = load(TWIN_SPOT + "body.tres")
+	var centre := func(part: String) -> Vector3:
+		var mi: MeshInstance3D = scene.get_node(part)
+		var c := Vector3.ZERO
+		var v: PackedVector3Array = mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		for p in v:
+			c += mi.transform * p
+		return c / v.size()
+	var bake := func(parts: Array, origin: Vector3, save_as: String) -> ArrayMesh:
+		var out := ArrayMesh.new()
+		for part: String in parts:
+			var mi: MeshInstance3D = scene.get_node(part)
+			var st := SurfaceTool.new()
+			st.begin(Mesh.PRIMITIVE_TRIANGLES)
+			st.append_from(mi.mesh, 0, Transform3D(Basis(), -origin) * mi.transform)
+			st.commit(out)
+			out.surface_set_material(out.get_surface_count() - 1, steel)
+		ResourceSaver.save(out, TWIN_SPOT + save_as + ".res")
+		return load(TWIN_SPOT + save_as + ".res")
+	var bottom := Vector3(-0.59, -1.004, 0.52)  # the box's bottom centre
+	var out := {"body": bake.call(["Cube_001", "Cube_003", "Cylinder_002", "Cylinder_004"], bottom, "body"), "heads": []}
+	for eye in [["Cylinder_002", "light frame", "light glass", "eye_a"], ["Cylinder_004", "light frame_001", "light glass_001", "eye_b"]]:
+		var swivel: Vector3 = centre.call(eye[0])
+		var glass: Vector3 = centre.call(eye[2])
+		out.heads.append({"mesh": bake.call([eye[1], eye[2]], swivel, eye[3]), "at": swivel - bottom,
+			"fwd": glass - centre.call(eye[1]), "lens": glass - swivel})
+	scene.free()
+	return out
 
 
 ## A steel lighting strut along z at `x`, bolted under the trusses' bottom chords from `z0` to

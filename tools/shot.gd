@@ -38,6 +38,8 @@ const SHOTS := {
 	"walk7": [Vector3(-19.50, 1.7, -23.50), Vector3(-23.0, 1.5, -26.0)],
 	"stands": [Vector3(-18.5, 1.8, -1.0), Vector3(-23.0, 1.0, 9.0)],
 	"stands_south": [Vector3(-18.5, 1.8, 1.0), Vector3(-23.0, 1.0, -10.0)],
+	"crate_lamps": [Vector3(-20.6, 0.7, 5.0), Vector3(-22.2, 0.2, 3.3)],
+	"crate_lamp_close": [Vector3(-21.3, 0.55, 4.5), Vector3(-22.0, 0.1, 3.6)],
 	"stands_front": [Vector3(-14.5, 1.7, 3.0), Vector3(-23.0, 1.0, 3.0)],
 	"stands_legend": [Vector3(-17.0, 1.7, -5.0), Vector3(-23.0, 1.2, -12.0)],
 	"up": [Vector3(0.0, 1.7, 6.0), Vector3(-6.0, 9.0, -4.0)],
