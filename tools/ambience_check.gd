@@ -27,7 +27,8 @@ func _initialize() -> void:
 	quit()
 
 
-## process_frame fires before the nodes' _process: two of them, so Ambience has run once since.
+## The camera eases after the body over a few frames, and process_frame fires before the nodes'
+## _process: give both time to settle.
 func _frames() -> void:
-	await process_frame
-	await process_frame
+	for i in 30:
+		await process_frame
