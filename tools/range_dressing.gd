@@ -430,6 +430,9 @@ func _workshop() -> void:
 	var x := at.x - 0.09 * BENCH  # the bench's middle
 	var hopper := Vector3(at.x - 1.22 * BENCH - 1.0, 0, 27.15)  # on its right (looking at it), the bucket on the bench side
 	b._prop(root, "res://assets/props/workbench/hopper.glb", hopper, PI)
+	# Past the hopper the investigation board (tools/build_board.py) stands on its own feet, turned
+	# 45° so it faces the bench's front and the hall at once; its feet run back toward the barrel.
+	b._prop(root, "res://assets/props/investigation_board/board.glb", Vector3(8.9, 0, 25.4), PI / 4)
 	_radio(at, BENCH)
 	var rug := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
