@@ -12,8 +12,8 @@ const INFO := {  # name, value format, icon colour, what it does
 	"carry": ["El Kapasitesi", "%d", Color(0.36, 0.72, 1.0), "Yığından bir avuçta aldığın mermi"],
 	"magazine": ["Şarjör", "%d", Color(1.0, 0.55, 0.25), "Şarjöre giren mermi"],
 	"combo_cap": ["Kombo Tavanı", "x%d", Color(0.85, 0.4, 1.0), "Seri isabetle büyüyen çarpanın üst sınırı"],
-	"gold_bonus": ["Altın", "+%d%%", Color(1.0, 0.8, 0.25), "Her isabetin altınına eklenen pay"],
-	"range_bonus": ["Uzak Atış", "+%d%%/m", Color(0.35, 0.9, 0.75), "Korkuluktan uzaklaştıkça metre başı ek altın"],
+	"gold_bonus": ["Para Bonusu", "+%d%%", Color(1.0, 0.8, 0.25), "Her isabetten kazandığın paraya eklenen pay"],
+	"range_bonus": ["Uzak Atış", "+%d%%/m", Color(0.35, 0.9, 0.75), "Korkuluktan uzaklaştıkça metre başı ek para"],
 }
 const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 	"dummy": [1, 1],
@@ -292,7 +292,7 @@ func _process(_delta: float) -> void:
 ## Gold | tabs over a line on what the tab is | vault.
 func _header() -> Control:
 	var row := HBoxContainer.new()
-	row.add_child(_wallet("Altının", false))
+	row.add_child(_wallet("Paran", false))
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -366,7 +366,7 @@ func _show_tab(index: int) -> void:
 		b.add_theme_color_override("font_hover_color", UiStyle.WHITE)
 		_marks[i].color = SIGNAL if on else Color(1, 1, 1, 0.0)
 		_pages[i].visible = on
-	_subtitle.text = ["Kendi altınınla alırsın, yalnız sende kalır", "Takım kasasından alınır, B ile kurulur, herkes vurur"][index]
+	_subtitle.text = ["Kendi paranla alırsın, yalnız sende kalır", "Takım kasasından alınır, B ile kurulur, herkes vurur"][index]
 	if index == 1 and not _models_built:  # built on first look: twelve small worlds
 		_models_built = true
 		for id in GameState.GEAR:
