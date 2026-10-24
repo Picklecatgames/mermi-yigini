@@ -708,41 +708,6 @@ func _final_spots() -> void:
 		_stage_spot("FinalSpot%d" % int(absf(z)), at, target, 22.0, 6.0, 0.1, 1.4, 1.6)  # was 60 / 0.4: the brightest thing in the hall, lighting an empty square
 
 
-## A halo round crate `level`'s stand that grows up the row: a soft additive glow pooled on the
-## floor under its lamp, faint and cool at level 1, bright and gold at 12. `radius` is the halo's.
-func _aura(parent: Node3D, level: int, radius: float) -> void:
-	var k := float(level) / CHEST_COUNT  # 0.08 .. 1
-	var colour := Color(0.8, 0.88, 1.0).lerp(Color(1.0, 0.78, 0.35), k)
-	# Floor glow: a radial blob lying on the floor, just above the paint.
-	var blob := GradientTexture2D.new()
-	blob.width = 128
-	blob.height = 128
-	blob.fill = GradientTexture2D.FILL_RADIAL
-	blob.fill_from = Vector2(0.5, 0.5)
-	blob.fill_to = Vector2(1.0, 0.5)
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 1))
-	g.set_color(1, Color(1, 1, 1, 0))
-	g.add_point(0.45, Color(1, 1, 1, 0.45))
-	blob.gradient = g
-	var glow := StandardMaterial3D.new()
-	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	glow.albedo_texture = blob
-	glow.albedo_color = Color(colour, 0.12 + 0.75 * k * k)
-	var floor_quad := QuadMesh.new()
-	floor_quad.size = Vector2.ONE * radius * (2.2 + 1.2 * k)
-	floor_quad.orientation = PlaneMesh.FACE_Y
-	var f := MeshInstance3D.new()
-	f.name = "AuraFloor"
-	f.mesh = floor_quad
-	f.material_override = glow
-	f.position.y = 0.012
-	f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add(f, parent)
-
-
 ## Dust, glitter and gold flakes over crate `level`'s stand, more and richer each level: a few slow
 ## motes at level 1, a shimmering column at 11, a shower of gold at 12. `top` is the stand's top,
 ## `area` the painted square's side. Soft dot sprites drawn here, no texture files.
@@ -1472,7 +1437,6 @@ func _chest_stands() -> void:
 		socket.add_to_group("chest_socket", true)
 		add(socket, body)
 		_sparkle(body, i + 1, top, FINAL_SQUARE if final else 2.0)
-		_aura(body, i + 1, FINAL_SQUARE * 0.42 if final else 0.85)
 		if final:
 			continue  # lit by its own two stage spots
 		if i == 0:
@@ -1488,7 +1452,7 @@ func _chest_stands() -> void:
 		var h := (top - y) / crates
 		for k in crates:
 			var cw := w + (0.08 if k == 0 and crates == 2 else 0.0)
-			_stand_crate(body, Vector3(cw, h, cw), y, olive, steel, i, k == crates - 1, rare, legend)
+			_stand_crate(body, Vector3(cw, h, cw), y, olive, steel, rare, legend)
 			y += h
 		var cs := CollisionShape3D.new()
 		var box := BoxShape3D.new()
@@ -1509,9 +1473,8 @@ func _stand_pallet(body: Node3D, y: float, size: float, wood: Material) -> float
 	return y + 0.14
 
 
-## An olive army crate `size`, standing on `y`: a lid band, rope handles, a stencilled number on
-## its front (+Z); rare ones a yellow band, legendary ones steel corners and a hazard stripe.
-func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel: Material, i: int, top_one: bool, rare: bool, legend: bool) -> void:
+## An olive army crate `size`, standing on `y`: a lid band, rope handles; rare ones a yellow band, legendary ones steel corners and a hazard stripe.
+func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel: Material, rare: bool, legend: bool) -> void:
 	block(size, Vector3(0, y + size.y / 2.0, 0), olive, body)
 	if size.y > 0.16:
 		block(Vector3(size.x + 0.02, 0.035, size.z + 0.02), Vector3(0, y + size.y - 0.03, 0), olive, body)  # lid
@@ -1535,10 +1498,6 @@ func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel:
 		hz.albedo_texture = stripe
 		hz.roughness = 0.7
 		block(Vector3(size.x - 0.06, 0.07, 0.004), Vector3(0, y + size.y * 0.78, front), hz, body)
-	if top_one:
-		var n := _range_label("Y7-%02d" % (i + 1), 56, Color(0.92, 0.9, 0.82, 0.8), STENCIL)
-		n.position = Vector3(0, y + size.y * 0.5, front + 0.002)
-		add(n, body)
 
 
 ## The crates' light (2026-10-25, the user, replacing the theatre spots on a track): rusty twin
@@ -1584,7 +1543,7 @@ func _crate_lamps(tops: Array[float]) -> void:
 		for k in 2:
 			var head: Dictionary = heads[k]
 			var ti := n + k  # chest_pos z falls with i: the larger-z eye takes crate n
-			var target := chest_pos(ti) + Vector3(0, tops[ti] + 0.35, 0)
+			var target := chest_pos(ti) + Vector3(0, tops[ti] * 0.6 + 0.25, 0)  # low on the stand: the beam climbs the stack and spills on the floor before it
 			var pivot: Vector3 = body.transform * (head.at * TWIN_SPOT_SCALE)
 			var want := basis.inverse() * (target - pivot)
 			var turn := Basis(Quaternion((head.fwd as Vector3).normalized(), want.normalized()))
@@ -1607,9 +1566,9 @@ func _crate_lamps(tops: Array[float]) -> void:
 			var from: Vector3 = body.transform * ((head.at + turn * head.lens) * TWIN_SPOT_SCALE)
 			spot.transform = Transform3D(Basis.looking_at(target - from), from)
 			spot.light_color = colour
-			spot.light_energy = 6.0 if ti >= LEGEND_FROM else (5.0 if ti >= RARE_FROM else 4.0)
+			spot.light_energy = 9.0 if ti >= LEGEND_FROM else (7.5 if ti >= RARE_FROM else 6.0)
 			spot.spot_range = 7.0
-			spot.spot_angle = 28.0
+			spot.spot_angle = 34.0
 			spot.spot_angle_attenuation = 0.9
 			spot.light_volumetric_fog_energy = 0.6
 			spot.shadow_enabled = false  # 22 of them; each crate already sits in its own pool
