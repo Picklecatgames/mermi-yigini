@@ -1790,18 +1790,18 @@ func _markings() -> void:
 	var worn := func(x: float, y: float) -> float:  # 0..1 paint left
 		return smoothstep(-0.35, 0.15, wear.get_noise_2d(x, y))
 
-	# Ring: radius 10.6 m (heap 8.6 m + spill), 12 cm line and a thinner one 35 cm outside.
+	# Ring: radius 9.6 m (heap 8.6 m + spill), 12 cm line and a thinner one 35 cm outside.
 	var ring_px := 1536
-	var ring_m := 22.4
+	var ring_m := 20.4
 	var ring := _decal_tex("ring", ring_px, ring_px, func(img: Image) -> void:
 		var c := ring_px * 0.5
 		for y in ring_px:
 			for x in ring_px:
 				var r := Vector2(x - c, y - c).length() * ring_m / ring_px
 				var a := 0.0
-				if absf(r - 10.6) < 0.06:
+				if absf(r - 9.6) < 0.06:
 					a = 1.0
-				elif absf(r - 10.95) < 0.03:
+				elif absf(r - 9.95) < 0.03:
 					a = 0.8
 				if a > 0.0:
 					img.set_pixel(x, y, Color(paint, a * worn.call(x * 1.0, y * 1.0))))

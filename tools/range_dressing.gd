@@ -439,9 +439,9 @@ func _workshop() -> void:
 	b.add(rug, root)
 	# The wall behind: posters over the bench's shelf and round the hopper, guns on nails.
 	var face := _wall(-1.0)
-	for pz in [["fifty_cal", Vector3(x, 2.85, 27.96), 0.66, 0.02], ["both_barrels", Vector3(11.0, 2.7, 27.955), 0.6, -0.04],
-			["bonds_bullets", Vector3(13.5, 2.75, 27.955), 0.7, 0.03], ["pass_ammo", Vector3(9.85, 2.0, 27.96), 0.85, -0.02],
-			["keep_shooting", Vector3(9.1, 2.15, 27.955), 0.9, 0.05], ["keep_firing", Vector3(8.2, 1.65, 27.96), 0.75, -0.03]]:
+	for pz in [["fifty_cal", Vector3(x, 2.85, 27.96), 0.66, 0.0], ["both_barrels", Vector3(11.0, 2.7, 27.955), 0.6, 0.0],
+			["bonds_bullets", Vector3(13.5, 2.75, 27.955), 0.7, 0.0], ["pass_ammo", Vector3(9.85, 2.0, 27.96), 0.85, 0.0],
+			["keep_shooting", Vector3(9.1, 2.15, 27.955), 0.9, 0.0], ["keep_firing", Vector3(8.2, 1.65, 27.96), 0.75, 0.0]]:  # all square on the wall
 		_poster(pz[0], pz[1], face, pz[2], pz[3])
 	b._prop(root, MODELS + "bolt_action_rifle_7_62/bolt_action_rifle_7_62_1k.gltf", Vector3(10.25, 1.3, 27.9), 0.04)
 	b._prop(root, MODELS + "service_pistol/service_pistol_1k.gltf", Vector3(10.55, 1.75, 27.94), -0.3)
@@ -519,16 +519,11 @@ func _board(at: Vector3, face: Basis, posters: Array) -> void:
 		var size := Vector2(h * tex.get_width() / tex.get_height(), h)
 		var sx := clampf(slots[i].x, -1.75 + size.x / 2.0, 1.75 - size.x / 2.0)  # never past the frame
 		var p: Vector3 = at + face * Vector3(sx, slots[i].y, 0) + out * z
-		if i == 2:  # this one's bottom pins are gone: it hangs off the board from the top
-			var hinge := p + face * Vector3(0, size.y / 2.0, 0)
-			var xf := Transform3D(face * Basis(Vector3.RIGHT, -0.32) * Basis(Vector3.BACK, 0.05), hinge)
-			b.add(_sheet(size, m, xf * Transform3D(Basis(), Vector3(0, -size.y / 2.0, 0))), root)
-			continue
-		_taped(m, p, face, size, rng.randf_range(-0.05, 0.05))
+		_taped(m, p, face, size, 0.0)  # square on the board: tilted ones read as a mistake
 	for k in 4:  # notices over and between them
 		z += 0.003
 		_paper([], at + face * Vector3(rng.randf_range(-1.45, 1.45), rng.randf_range(-0.5, 0.55), 0) + out * z, face,
-			Vector2(0.21, 0.297), rng.randf_range(-0.12, 0.12), k == 1)
+			Vector2(0.21, 0.297), 0.0, k == 1)
 	# The one that came down, lying curled at the wall foot.
 	var fallen := _aged_poster(posters[0])
 	var floor_at := Vector3(at.x + 1.9, 0.004, at.z) + out * 0.5

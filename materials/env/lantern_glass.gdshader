@@ -7,7 +7,7 @@ render_mode cull_disabled, depth_draw_never, blend_premul_alpha;
 // frame, so the reflections break pane by pane; years of dust in patches and streaks dull them.
 
 uniform sampler2D grime_tex : hint_default_white, filter_linear_mipmap, repeat_enable;  // seamless noise
-uniform vec3 tint : source_color = vec3(0.42, 0.44, 0.4);
+uniform vec3 tint : source_color = vec3(0.15, 0.16, 0.15);  // dark: the night light from above must not grey the sky out
 uniform float pane_skew = 0.05;  // how far a pane leans off its neighbours
 uniform vec3 sheen : source_color = vec3(0.1, 0.095, 0.09);  // the hall's dim light caught in the glass: faint and grey, never a glowing ceiling
 
@@ -39,7 +39,7 @@ void fragment() {
 	float pane = 0.5 + hash(cell + 9.1);  // no two panes catch the light alike
 	EMISSION = sheen * ((0.1 + 2.0 * fresnel) * pane * (1.0 - 0.5 * dirt) + 0.15 * dirt);  // the dust glows dull in the light too
 	ALBEDO = tint;
-	ALPHA = 0.06 + 0.45 * dirt;
+	ALPHA = 0.04 + 0.3 * dirt;
 	ROUGHNESS = mix(0.02, 0.6, dirt);
 	SPECULAR = 0.5;
 }

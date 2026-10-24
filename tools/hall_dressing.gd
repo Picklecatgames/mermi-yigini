@@ -217,10 +217,10 @@ func _wall_decay() -> void:
 	# Under the eaves water has run down the panels for years: long wet streaks, moss at their feet.
 	var moss := _moss_tex()
 	for side in 4:
-		for k in 9:
-			if rng.randf() < 0.35:
+		for k in 13:  # years of it: most panels streaked
+			if rng.randf() < 0.15:
 				continue
-			var along := -24.0 + k * 6.0 + rng.randf_range(-1.5, 1.5)
+			var along := -25.0 + k * 4.2 + rng.randf_range(-1.2, 1.2)
 			if side == 1 and absf(along) < b.BAY_HALF + 1.5:
 				continue
 			var h := rng.randf_range(2.6, 3.9)
@@ -229,15 +229,106 @@ func _wall_decay() -> void:
 			if rng.randf() < 0.6:
 				var m := _on_wall(moss, side, along + rng.randf_range(-0.4, 0.4), 0.35, Vector2(rng.randf_range(1.4, 2.8), 0.8))
 				m.modulate = Color(1, 1, 1, rng.randf_range(0.6, 1.0))
-	# Sprayed slogans from the years it stood empty, at arm's height, clear of the columns (every 7 m).
-	# [side, along, y, height m, image, colour]
-	for t in [[0, DOOR_X - 4.5, 1.9, 1.2, "86", RED], [0, DOOR_X + 3.4, 1.6, 1.1, "16", RED],
-			[0, -17.5, 1.8, 1.3, "07", WHITE], [0, 1.9, 1.45, 0.45, "83", BLACK],
-			[2, -10.5, 1.7, 1.3, "57", WHITE], [2, 2.0, 1.8, 0.8, "36", RED], [2, 9.5, 1.9, 0.9, "30", RED],
-			[3, -10.5, 1.7, 1.0, "66", RED], [3, -3.5, 2.1, 2.0, "53", WHITE], [3, 3.5, 1.7, 1.0, "78", WHITE],
-			[3, 10.5, 1.6, 0.9, "85", ACID], [3, 18.5, 1.6, 1.2, "80", WHITE]]:
-		var tex := _spray(t[4], t[5])
-		_on_wall(tex, t[0], t[1], t[2], Vector2(t[3] * tex.get_width() / tex.get_height(), t[3]))
+	# Soot, smears and old dirt all over: blotches at every height, heavier low down.
+	var soot := _soot_tex()
+	for k in 70:
+		var side := rng.randi() % 4
+		var along := rng.randf_range(-26.5, 26.5)
+		if side == 1 and absf(along) < b.BAY_HALF + 1.0:
+			continue
+		var y := rng.randf_range(0.3, 1.4) if rng.randf() < 0.6 else rng.randf_range(1.4, 3.4)
+		var d := _on_wall(soot, side, along, y, Vector2(rng.randf_range(1.0, 3.6), rng.randf_range(0.7, 2.4)))
+		d.modulate = Color(1, 1, 1, rng.randf_range(0.35, 0.85))
+	_graffiti()
+
+
+# Tags and punk slogans from the years it stood empty (2026-10-24: the Russian set out, the user's
+# call). Made-up crew names and old punk lines, no brands.
+const TAGS := ["NO FUTURE", "RIOT", "KAOS", "VEXO", "SMOG", "HAZE", "DUSK", "ZERO", "NOIZ", "ANTI",
+	"ROT", "GHOST", "WASTED", "DEAD END", "NO GODS", "BURN", "RATZ", "TOXIC", "KRASH", "STAY OUT",
+	"VOID", "OI", "PUNX", "SKUM", "FUZZ", "GRIM", "HEX", "LOST"]
+const PAINTS: Array[Color] = [RED, WHITE, BLACK, ACID, Color(0.85, 0.2, 0.55), Color(0.15, 0.35, 0.85),
+	Color(0.72, 0.72, 0.75), Color(0.95, 0.5, 0.05)]
+
+
+## Sprayed in the spray font (OFL) along the bare walls: every one its own size, slant, height and
+## colour, some sprayed over others, some half scrubbed off, a few high up where someone climbed,
+## the big ones with paint run down under them. Clear of the range lining, the door, the notice
+## boards, the workshop and the camp.
+func _graffiti() -> void:
+	var drips := _drip_tex()
+	var layer := 0
+	# [side (0 south, 2 north, 3 west), from, to] in _on_wall's `along`
+	for span in [[0, -26.5, -9.0], [0, -3.0, 3.2], [2, 7.5, 15.5], [2, -3.0, 3.2], [2, -13.0, -8.0],
+			[3, -19.0, -7.0], [3, -3.5, 3.5], [3, 7.5, 26.5]]:
+		var along: float = span[1] + rng.randf_range(0.0, 1.0)
+		while along < span[2]:
+			for k in (2 if rng.randf() < 0.35 else 1):  # now and then one sprayed over another
+				layer += 1
+				_tag(span[0], along + rng.randf_range(-0.6, 0.6), layer, drips)
+			along += rng.randf_range(1.4, 3.0)
+
+
+func _tag(side: int, along: float, layer: int, drips: Texture2D) -> void:
+	var word: String = TAGS[rng.randi() % TAGS.size()]
+	var h := rng.randf_range(0.18, 0.6) if rng.randf() < 0.65 else rng.randf_range(0.6, 1.4)  # letter height, m
+	var y := rng.randf_range(0.6, 2.5) if rng.randf() < 0.85 else rng.randf_range(2.7, 3.5)
+	var colour: Color = PAINTS[rng.randi() % PAINTS.size()]
+	var alpha := rng.randf_range(0.6, 0.85) if rng.randf() < 0.7 else rng.randf_range(0.25, 0.5)  # soaked into the concrete; some scrubbed
+	var l := Label3D.new()
+	l.text = word
+	l.font = b.SPRAY
+	l.font_size = 96
+	l.pixel_size = h / 70.0
+	l.modulate = Color(colour, alpha)
+	l.outline_size = 0
+	if rng.randf() < 0.12:  # now and then a "piece", thinly outlined in a second colour
+		l.outline_size = 6
+		l.outline_modulate = Color(PAINTS[rng.randi() % PAINTS.size()], alpha)
+	l.shaded = true
+	l.double_sided = false
+	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	var wall := Basis(Vector3.UP, side * PI / 2.0)
+	l.transform = Transform3D(wall * Basis(Vector3.UP, PI) * Basis(Vector3.BACK, rng.randf_range(-0.2, 0.2)),
+		wall * Vector3(along, 0, 27.988 - layer * 0.0004) + Vector3(0, y, 0))
+	b.add(l, root)
+	if h > 0.5 and rng.randf() < 0.6:  # the paint ran
+		var run := rng.randf_range(0.25, 0.7)
+		var d := _on_wall(drips, side, along, y - h * 0.3 - run / 2.0, Vector2(h * word.length() * 0.45, run))
+		d.modulate = Color(colour, alpha * 0.9)
+
+
+## Paint runs under a sprayed word: thin streaks at random down from the top, each ending in a bead.
+func _drip_tex() -> Texture2D:
+	return b._decal_tex("spray_drips", 256, 256, func(img: Image) -> void:
+		var r := RandomNumberGenerator.new()
+		r.seed = 5
+		for k in 26:
+			var x := r.randi_range(4, 251)
+			var run := r.randi_range(40, 250)
+			var w := r.randi_range(1, 3)
+			for y in run:
+				var a := 1.0 - 0.5 * float(y) / run
+				for dx in range(-w, w + 1):
+					img.set_pixel(clampi(x + dx, 0, 255), y, Color(1, 1, 1, a))
+			for dy in range(-3, 4):  # the bead at its end
+				for dx in range(-w - 1, w + 2):
+					if dx * dx + dy * dy <= (w + 1) * (w + 1):
+						img.set_pixel(clampi(x + dx, 0, 255), clampi(run + dy, 0, 255), Color(1, 1, 1, 0.6)))
+
+
+## Soot and old grime: a dark soft blotch with a ragged edge.
+func _soot_tex() -> Texture2D:
+	var noise := FastNoiseLite.new()
+	noise.seed = 33
+	noise.frequency = 0.012
+	noise.fractal_octaves = 5
+	return b._decal_tex("wall_soot", 256, 256, func(img: Image) -> void:
+		for y in 256:
+			for x in 256:
+				var r := Vector2(x - 128, y - 128).length() / 128.0
+				var a := clampf((1.0 - r) * 1.6 + noise.get_noise_2d(x, y) * 1.1 - 0.2, 0.0, 1.0)
+				img.set_pixel(x, y, Color(0.07, 0.06, 0.05, a * 0.8)))
 
 
 ## An ambientCG decal: its colour map with the opacity map as alpha, saved once.
@@ -256,20 +347,6 @@ func _acg(id: String) -> Texture2D:
 			c.a = op.get_pixel(x, y).r
 			col.set_pixel(x, y, c)
 	return _save_tex(col, path)
-
-
-## A real sprayed wall slogan (OpenGameArt "Russian graffiti, labels and tags vol 1", CC0; white
-## on clear) in spray colour `colour`, saved once.
-func _spray(id: String, colour: Color) -> Texture2D:
-	var path := DECALS + "spray_%s.res" % id
-	if ResourceLoader.exists(path):
-		return load(path)
-	var img := Image.load_from_file(ProjectSettings.globalize_path(ACG + "RussianGraffiti/img_%s.png" % id))
-	img.convert(Image.FORMAT_RGBA8)
-	for y in img.get_height():
-		for x in img.get_width():
-			img.set_pixel(x, y, Color(colour, img.get_pixel(x, y).a * 0.9))
-	return _save_tex(img, path)
 
 
 func _moss_tex() -> Texture2D:
@@ -440,7 +517,6 @@ func _camp() -> void:
 		b._prop(root, ammo, at + Vector3(0.1, 0.605, 0.25), rng.randf() * TAU)
 	# The covered car they came in, by the loading door.
 	b._prop(root, m.call("covered_car"), Vector3(-17.6, 0, 24.6), PI / 2 + 0.08)
-	b._prop(root, MODELS + "rusted_spade_01/rusted_spade_01_1k.gltf", Vector3(-14.9, 0.5, 27.8), 0.0, 1.0, Basis(Vector3.RIGHT, -0.25))
 	# Light: factory pendants on a strut over the desk and the stove, and one sodium tripod.
 	b.strut(-22.4, -27.85, -21.0)
 	b.strut(-18.8, -27.85, -21.0)
@@ -476,9 +552,9 @@ func _heap_lights() -> void:
 	_tripod(heap + Vector3(-7.6, 0, 9.4), aim, 2)
 	_tripod(heap + Vector3(5.3, 0, 11.6), aim + Vector3(0, 1.0, 0), 1)
 	var g := Vector2(GENERATOR.x, GENERATOR.z)
-	_cable([g + Vector2(0.4, 0.3), Vector2(-15.6, -23.5), Vector2(-16.0, -19.0), Vector2(-16.4, -9.6)])
-	_cable([Vector2(-16.4, -9.4), Vector2(-17.4, -4.0), Vector2(-17.6, 3.0), Vector2(-17.0, 8.0), Vector2(-16.6, 9.4)])
-	_cable([Vector2(-16.5, 9.6), Vector2(-14.0, 12.4), Vector2(-9.0, 13.9), Vector2(-5.0, 13.4), Vector2(-3.7, 11.6)])
+	_cable([g + Vector2(0.4, 0.3), Vector2(-15.6, -23.5), Vector2(-16.0, -19.0), Vector2(-16.4, -9.6)], 0.5, 1.5, true)
+	_cable([Vector2(-16.4, -9.6), Vector2(-17.4, -4.0), Vector2(-17.6, 3.0), Vector2(-17.0, 8.0), Vector2(-16.6, 9.4)], 1.5, 1.5, false, true)
+	_cable([Vector2(-16.6, 9.4), Vector2(-14.0, 12.4), Vector2(-9.0, 13.9), Vector2(-5.0, 13.4), Vector2(-3.7, 11.6)], 1.5, 1.5, true, true)
 
 
 ## The office pack's two-head flood on its tripod (tools/build_office.py), turned to face `aim`;
@@ -522,26 +598,59 @@ func _rod(parent: Node3D, from: Vector3, to: Vector3, r: float) -> void:
 	b.add(_mesh(c, dark, Transform3D(Basis(side, up, side.cross(up)), (from + to) / 2.0)), parent)
 
 
-## A power cable lying on the floor through `points` (x, z), with a little slack wander.
-func _cable(points: Array, height := 0.012) -> void:
-	var path := PackedVector3Array()
+## A power cable through `points` (x, z): a smooth curve through them, lying on its own thickness and
+## wandering loose the way a dragged cable settles, never in a regular wave. It climbs `rise_a` /
+## `rise_b` m up a stand at its ends (a tripod's mast, the generator's socket), and leaves a loose
+## coil of spare on the floor before the end if `coil`. Orange if `orange` (a site extension lead).
+func _cable(points: Array, rise_a := 0.0, rise_b := 0.0, coil := false, orange := false) -> void:
+	const R := 0.015
+	var noise := FastNoiseLite.new()
+	noise.seed = rng.randi()
+	noise.frequency = 0.25
+	var total := 0.0
 	for i in points.size() - 1:
-		var a: Vector2 = points[i]
-		var c: Vector2 = points[i + 1]
-		var n := maxi(2, int(a.distance_to(c) / 0.4))
-		var normal := (c - a).orthogonal().normalized()
+		total += (points[i] as Vector2).distance_to(points[i + 1])
+	var path := PackedVector3Array()
+	var first: Vector2 = points[0]
+	if rise_a > 0.0:  # down from the stand
+		for k in 5:
+			path.append(Vector3(first.x + 0.05, lerpf(rise_a, R, k / 5.0), first.y + 0.04))
+	var s := 0.0
+	for i in points.size() - 1:
+		var p0: Vector2 = points[maxi(i - 1, 0)]
+		var p1: Vector2 = points[i]
+		var p2: Vector2 = points[i + 1]
+		var p3: Vector2 = points[mini(i + 2, points.size() - 1)]
+		var n := maxi(4, int(p1.distance_to(p2) / 0.12))
 		for k in n:
 			var t := float(k) / n
-			var p := a.lerp(c, t) + normal * sin(t * PI * 2.0 + i) * 0.08
-			path.append(Vector3(p.x, height, p.y))
+			var p := p1.cubic_interpolate(p2, p0, p3, t)
+			var side := (p1.cubic_interpolate(p2, p0, p3, t + 0.01) - p).orthogonal().normalized()
+			var fade := clampf(minf(s, total - s) / 0.8, 0.0, 1.0)  # pinned where it plugs in
+			p += side * noise.get_noise_1d(s * 2.0) * 0.3 * fade  # long lazy bends, a couple of metres each
+			path.append(Vector3(p.x, R, p.y))
+			s += p1.distance_to(p2) / n
 	var last: Vector2 = points[-1]
-	path.append(Vector3(last.x, height, last.y))
-	b.add(_mesh(_tube(path, 0.012), cord, Transform3D()), root)
+	if coil:  # the spare, dropped in two loose loops beside the stand
+		var dir := (last - (points[-2] as Vector2)).normalized()
+		var centre := last - dir * 0.6 + dir.orthogonal() * 0.35
+		for k in 33:
+			var a := TAU * 2.0 * k / 32.0 + dir.angle() - PI / 2.0
+			var r := 0.32 + 0.04 * sin(a * 1.7)
+			path.append(Vector3(centre.x + cos(a) * r, R + (0.025 if k > 16 else 0.0), centre.y + sin(a) * r))
+	path.append(Vector3(last.x, R, last.y))
+	if rise_b > 0.0:  # up the stand
+		for k in range(1, 6):
+			path.append(Vector3(last.x + 0.05, lerpf(R, rise_b, k / 5.0), last.y + 0.04))
+	var mat: Material = cord
+	if orange:
+		mat = _flat(Color(0.55, 0.22, 0.05), 0.6)
+	b.add(_mesh(_tube(path, R), mat, Transform3D()), root)
 
 
 ## A round tube along `path`.
 func _tube(path: PackedVector3Array, r: float) -> ArrayMesh:
-	const SEGS := 6
+	const SEGS := 8
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rings: Array = []
@@ -857,7 +966,7 @@ func _prints_tex() -> Texture2D:
 
 ## What the crew does here, in sight of the heap: a sieve table on the north wall where they sift
 ## the brass for keys, buckets of it, a wheelbarrow; the board on the office where the keys will
-## hang (twelve hooks, all empty); spades left by the work lights; sagging roof insulation; the
+## hang (twelve hooks, all empty); sagging roof insulation; the
 ## army's cameras still on two columns; the army's boxes on the west shelves.
 func _crew_work() -> void:
 	var m := func(n: String) -> String: return MODELS + n + "/" + n + "_1k.gltf"
@@ -896,11 +1005,6 @@ func _crew_work() -> void:
 		var n: Label3D = b._range_label(str(i + 1), 22, Color(0.08, 0.08, 0.08, 0.8), b.STENCIL)
 		n.position = hook + Vector3(0, -0.065, 0.001)
 		b.add(n, root)
-	# Spades left by the work lights.
-	var spade: String = m.call("rusted_spade_01")
-	for sp in [[Vector3(-16.0, 0.5, -9.15), 0.4], [Vector3(-16.2, 0.5, 9.85), 2.0], [Vector3(-3.4, 0.5, 12.0), 2.6]]:
-		b._prop(root, spade, sp[0], sp[1], 1.0, Basis(Vector3.RIGHT, 0.32))
-	b._prop(root, MODELS + "rubber_boots/rubber_boots_1k.gltf", Vector3(-15.5, 0, -10.2), 0.8)
 	# The army's cameras, still on two columns, watching the heap; a cut cable under each.
 	var cam: String = m.call("security_camera_01")
 	for c in [Vector3(27.55, 5.0, -27.55), Vector3(-27.55, 5.0, 27.55)]:
@@ -930,7 +1034,7 @@ func _insulation() -> void:
 	var noise := FastNoiseLite.new()
 	noise.seed = 12
 	noise.frequency = 0.9
-	for spot in [Vector2(-20, -18), Vector2(-2, -4), Vector2(8, 11), Vector2(20, 24), Vector2(-14, 21), Vector2(3, -22), Vector2(-24, 4), Vector2(13, -9), Vector2(-4, 19), Vector2(22, -14)]:
+	for spot in [Vector2(-20, -18), Vector2(20, 24), Vector2(-14, 21), Vector2(3, -22), Vector2(-24, 4), Vector2(-4, 19), Vector2(22, -14), Vector2(-21, -6)]:  # none under the glass lantern
 		var x: float = spot.x
 		var top: float = b.top_chord(x) + 0.05
 		var drop := rng.randf_range(0.7, 1.6)
