@@ -9,6 +9,7 @@
 [ext_resource type="Script" uid="uid://p8fuybjj7fx" path="res://scripts/remote_players.gd" id="14"]
 [ext_resource type="Script" uid="uid://bxkg3gqpjicie" path="res://scripts/placement.gd" id="15"]
 [ext_resource type="Script" uid="uid://0sa05q7tkj15" path="res://scripts/chests.gd" id="16"]
+[ext_resource type="Script" path="res://scripts/ambience.gd" id="ambience"]
 
 [node name="Main" type="Node3D" unique_id=603565990]
 
@@ -37,3 +38,6 @@ script = ExtResource("5")
 
 [node name="RemotePlayers" type="Node3D" parent="." unique_id=79780794]
 script = ExtResource("14")
+
+[node name="Ambience" type="Node" parent="."]
+script = ExtResource("ambience")
