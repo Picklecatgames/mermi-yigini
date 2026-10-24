@@ -325,10 +325,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_wheel.steer(event.relative.x)  # the view holds still while picking
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var sens := MOUSE_SENSITIVITY / _zoom  # the same mouse travel moves the same share of the screen
+		sens *= Settings.value("sensitivity") * lerpf(1.0, Settings.value("ads_sensitivity") / 100.0, _viewmodel.aim)
 		_yaw -= event.relative.x * sens
-		_pitch = clampf(_pitch - event.relative.y * sens, -1.5, 1.5)
-	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		_pitch = clampf(_pitch - event.relative.y * sens * (-1.0 if Settings.value("invert_y") else 1.0), -1.5, 1.5)
 	elif event is InputEventMouseButton and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("infinite_ammo"):
@@ -387,6 +386,7 @@ func _process(delta: float) -> void:
 		_reload_held = 0.0
 		_wheel.close()
 	_zoom = lerpf(1.0, ADS_ZOOM, _viewmodel.aim)
+	_hip_fov = Settings.value("fov")
 	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom))
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
 	_crosshair.visible = not GameState.player().placing  # the overview has its own cursor
@@ -525,7 +525,7 @@ func _head_bob(delta: float) -> void:
 		if floor((_bob + PI / 4.0) / PI) != floor((before + PI / 4.0) / PI):
 			_step_sound.play()
 	_bob_amount = move_toward(_bob_amount, 1.0 if moving else 0.0, delta * 5.0)
-	_bob_offset = Vector3(cos(_bob) * BOB_AMP, sin(_bob * 2.0) * BOB_AMP, 0.0) * _bob_amount
+	_bob_offset = Vector3(cos(_bob) * BOB_AMP, sin(_bob * 2.0) * BOB_AMP, 0.0) * _bob_amount * Settings.value("head_bob") / 100.0
 
 
 func _looking_at_pile() -> bool:

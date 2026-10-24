@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 BeckettRuntime="*uid://do68dqybesb7r"
 GameState="*res://scripts/game_state.gd"
 Net="*res://scripts/net.gd"
+Settings="*res://scripts/settings.gd"
 
 [beckett]
 

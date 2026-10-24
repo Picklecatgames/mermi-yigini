@@ -21,6 +21,11 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var r := RADIUS + _shown
-	draw_arc(offset, r, 0.0, TAU, 32, Color(0, 0, 0, 0.35), 3.0, true)
-	draw_arc(offset, r, 0.0, TAU, 32, Color(1, 1, 1, 0.9), 1.5, true)
+	var k: float = Settings.value("crosshair_size") / 100.0  # the pause menu's OYUN page
+	var color: Color = Settings.CROSSHAIR_COLORS[Settings.value("crosshair_color")]
+	var r := RADIUS * k + _shown
+	draw_arc(offset, r, 0.0, TAU, 32, Color(0, 0, 0, 0.35), 3.0 * k, true)
+	draw_arc(offset, r, 0.0, TAU, 32, Color(color, 0.9), 1.5 * k, true)
+	if Settings.value("crosshair_dot"):
+		draw_circle(offset, 1.6 * k, Color(0, 0, 0, 0.35))
+		draw_circle(offset, 1.0 * k, Color(color, 0.95))
