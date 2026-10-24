@@ -46,7 +46,7 @@ func _ready() -> void:
 	GameState.player_shot.connect(_on_player_shot)
 	refill()
 	# Top left, out of the HUD's symmetric middle (scripts/hud.gd).
-	_hint = UiStyle.caption("özel mermi denemesi\nR basılı tut  ·  mermi seç\nsol tık  ·  arkadaşına sık\nJ  ·  arkadaşın sana sıksın\nN  ·  doldur      shift N  ·  kapat")
+	_hint = UiStyle.caption("Özel mermi denemesi\nR basılı tut: mermi seç\nSol tık: arkadaşına sık\nJ: arkadaşın sana sıksın\nN: doldur    Shift N: kapat")
 	_hint.position = Vector2(30, 24)
 	me.get_node("HUD").add_child(_hint)
 

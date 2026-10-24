@@ -5,6 +5,7 @@ extends Control
 ## turning 3D model with name and count; the picked one is bright with a short accent rule and what
 ## it does, the rest faded. Moving the mouse sideways picks; letting R go loads it: a special becomes
 ## the next shot (request_arm_special), the plain round takes it back out.
+## The picker stands on a dark steel panel, its keys as key caps (UiStyle.hint).
 ## Note: picking up a special brings its model, name and use up top for a few seconds.
 
 signal picked(id: String)  # "" for the plain round
@@ -18,7 +19,7 @@ const NOTE_TIME := 3.5  # s
 const FADED := 0.38
 
 var _dim: ColorRect
-var _picker: VBoxContainer
+var _picker: PanelContainer
 var _row: HBoxContainer
 var _ids: Array[String] = []
 var _pick := 0
@@ -35,21 +36,29 @@ func _ready() -> void:
 	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dim.visible = false
 	add_child(_dim)
-	_picker = VBoxContainer.new()
+	_picker = UiStyle.panel(22, 8)
 	_picker.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_picker.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_picker.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_picker.add_theme_constant_override("separation", 22)
-	_picker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_picker.visible = false
 	add_child(_picker)
-	_picker.add_child(_centred(UiStyle.caption("mermi seç")))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 16)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_picker.add_child(col)
+	col.add_child(_centred(UiStyle.display("Mermi seç", 26, UiStyle.BOLD)))
 	_row = HBoxContainer.new()
 	_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_row.add_theme_constant_override("separation", 0)
 	_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_picker.add_child(_row)
-	_picker.add_child(_centred(UiStyle.caption("fare ile kaydır  ·  R bırak")))
+	col.add_child(_row)
+	var foot := HBoxContainer.new()
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
+	foot.add_theme_constant_override("separation", 22)
+	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(foot)
+	foot.add_child(UiStyle.label("Fareyi sağa sola kaydır", 14, UiStyle.MEDIUM, UiStyle.DIM))
+	foot.add_child(UiStyle.hint("R", "Bırak: tak"))
 
 
 var is_open: bool:
@@ -116,14 +125,14 @@ func column(id: String, count: int) -> VBoxContainer:
 	col.add_theme_constant_override("separation", 6)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(round_view(id))
-	col.add_child(_centred(UiStyle.label("Normal" if id == "" else GameState.SPECIALS[id].name, 17, UiStyle.MEDIUM)))
-	col.add_child(_centred(UiStyle.caption(str(count))))
-	var mark := UiStyle.line(28, UiStyle.ACCENT)
+	col.add_child(_centred(UiStyle.display("Normal" if id == "" else GameState.SPECIALS[id].name, 22, UiStyle.SEMIBOLD)))
+	col.add_child(_centred(UiStyle.caption("×%d" % count)))
+	var mark := UiStyle.line(36, UiStyle.ACCENT)
 	mark.name = "Mark"
 	mark.custom_minimum_size.y = 2
 	mark.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(mark)
-	var use := UiStyle.label("Şarjördeki sıradan mermi." if id == "" else GameState.SPECIALS[id].desc, 13, UiStyle.REGULAR, UiStyle.DIM)
+	var use := UiStyle.label("Şarjördeki sıradan mermi." if id == "" else GameState.SPECIALS[id].desc, 14, UiStyle.REGULAR, UiStyle.DIM)
 	use.name = "Use"
 	use.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	use.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -181,21 +190,22 @@ func round_view(id: String, px := MODEL_PX) -> SubViewportContainer:
 func note(id: String) -> void:
 	if is_instance_valid(_note):
 		_note.queue_free()
-	var n := VBoxContainer.new()
-	n.add_theme_constant_override("separation", 4)
-	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	n.add_child(_centred(UiStyle.caption("özel mermi buldun", UiStyle.ACCENT)))
-	n.add_child(round_view(id, 120))
-	n.add_child(_centred(UiStyle.label(GameState.SPECIALS[id].name, 22, UiStyle.MEDIUM)))
-	var rule := UiStyle.line(120)
-	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	n.add_child(rule)
-	n.add_child(_centred(UiStyle.label(GameState.SPECIALS[id].desc, 13, UiStyle.REGULAR, UiStyle.DIM)))
-	n.add_child(_centred(UiStyle.caption("R basılı tut  ·  seç")))
+	var n := UiStyle.panel(16, 8)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 4)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	n.add_child(col)
+	col.add_child(_centred(UiStyle.label("Özel mermi buldun", 14, UiStyle.SEMIBOLD, UiStyle.ACCENT)))
+	col.add_child(round_view(id, 110))
+	col.add_child(_centred(UiStyle.display(GameState.SPECIALS[id].name, 28, UiStyle.BOLD)))
+	col.add_child(_centred(UiStyle.label(GameState.SPECIALS[id].desc, 14, UiStyle.REGULAR, UiStyle.DIM)))
+	var how := UiStyle.hint("R", "Basılı tut: seç")
+	how.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.add_child(how)
 	add_child(n)
 	n.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	n.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	n.offset_top = 96  # under the heap's line and the key count
+	n.offset_top = 112  # under the heap's line and the key count
 	n.modulate.a = 0.0
 	var t := n.create_tween()
 	t.tween_property(n, "modulate:a", 1.0, 0.2)

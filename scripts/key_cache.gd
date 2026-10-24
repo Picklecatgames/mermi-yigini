@@ -27,7 +27,7 @@ const KEYS := [
 	["Antika Anahtar", 1], ["Kafatası Anahtarı", 1], ["Buhar Anahtarı", 1], ["Demir İskelet", 1],
 	["Viktorya Anahtarı", 1], ["Rulmanlı Anahtar", 2], ["Altın Düğüm", 2], ["Dişli Anahtar", 2],
 ]
-const TIER_NAMES := ["SIRADAN", "NADİR", "EFSANEVİ"]
+const TIER_NAMES := ["Sıradan", "Nadir", "Efsanevi"]
 const TIER_COLORS := [Color(0.85, 0.9, 1.0), Color(0.35, 0.65, 1.0), Color(1.0, 0.72, 0.2)]
 ## m below the starting surface, by rank. Commons by hand in the first twenty minutes, rares once
 ## belts dig, legendaries in the last quarter hour.
@@ -209,7 +209,7 @@ func _on_revealed(rank: int, at: Vector3) -> void:
 	if _reveal.stream:
 		_reveal.global_position = at
 		_reveal.play()
-	_say("YIĞINDAN BİR ANAHTAR ÇIKTI", TIER_COLORS[tier])
+	_say("Yığından bir anahtar çıktı", TIER_COLORS[tier])
 
 
 func _on_taken(rank: int, peer: int) -> void:
@@ -219,7 +219,7 @@ func _on_taken(rank: int, peer: int) -> void:
 	if peer != GameState.local_peer():
 		return
 	var tier: int = KEYS[rank - 1][1]
-	_say("ANAHTAR: %s · %s" % [KEYS[rank - 1][0], TIER_NAMES[tier]], TIER_COLORS[tier])
+	_say("Anahtar alındı: %s (%s)" % [KEYS[rank - 1][0], TIER_NAMES[tier].to_lower()], TIER_COLORS[tier])
 	if _take.stream:
 		_take.play()
 
@@ -228,11 +228,11 @@ func _build_hud() -> void:
 	var hud := CanvasLayer.new()
 	add_child(hud)
 	# The count lives in the HUD under the heap (scripts/hud.gd); this is only the news.
-	_toast = UiStyle.label("", 26, UiStyle.MEDIUM, UiStyle.WHITE, 2)
+	_toast = UiStyle.display("", 32, UiStyle.BOLD)
 	_toast.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_toast.offset_left = -500.0
 	_toast.offset_right = 500.0
-	_toast.offset_top = 130.0  # under the heap's lines (up to 1440p's HUD scale)
+	_toast.offset_top = 112.0  # under the heap's lines (up to 1440p's HUD scale)
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_toast.modulate.a = 0.0
 	hud.add_child(_toast)

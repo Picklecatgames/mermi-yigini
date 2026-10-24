@@ -15,72 +15,38 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"chest_Material.002_0"
+			"name":"wooden_military_crate"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Material.002",
+			"name":"wooden_military_crate",
 			"normalTexture":{
 				"index":0
 			},
-			"occlusionTexture":{
-				"index":1
-			},
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
-					"index":2
-				},
-				"metallicRoughnessTexture":{
 					"index":1
-				}
-			}
-		},
-		{
-			"doubleSided":true,
-			"name":"Material.003",
-			"normalTexture":{
-				"index":3
-			},
-			"occlusionTexture":{
-				"index":4
-			},
-			"pbrMetallicRoughness":{
-				"baseColorTexture":{
-					"index":5
 				},
 				"metallicRoughnessTexture":{
-					"index":4
+					"index":2
 				}
 			}
 		}
 	],
 	"meshes":[
 		{
-			"name":"chest_Material.002_0.001",
+			"name":"Cube.002",
 			"primitives":[
 				{
 					"attributes":{
 						"POSITION":0,
 						"NORMAL":1,
-						"TEXCOORD_0":2,
-						"TEXCOORD_1":3,
-						"TEXCOORD_2":4
+						"TEXCOORD_0":2
 					},
-					"indices":5,
+					"indices":3,
 					"material":0
-				},
-				{
-					"attributes":{
-						"POSITION":6,
-						"NORMAL":7,
-						"TEXCOORD_0":8,
-						"TEXCOORD_1":9,
-						"TEXCOORD_2":10
-					},
-					"indices":11,
-					"material":1
 				}
 			]
 		}
@@ -97,217 +63,84 @@
 		{
 			"sampler":0,
 			"source":2
-		},
-		{
-			"sampler":0,
-			"source":3
-		},
-		{
-			"sampler":0,
-			"source":4
-		},
-		{
-			"sampler":0,
-			"source":5
 		}
 	],
 	"images":[
 		{
-			"mimeType":"image/png",
-			"name":"Image_5",
-			"uri":"chest_04/Image_5.png"
-		},
-		{
-			"mimeType":"image/png",
-			"name":"Image_4",
-			"uri":"chest_04/Image_4.png"
+			"mimeType":"image/jpeg",
+			"name":"wooden_military_crate_nor_gl_4k",
+			"uri":"chest_04/wooden_military_crate_nor_gl_4k.jpg"
 		},
 		{
 			"mimeType":"image/jpeg",
-			"name":"Image_3",
-			"uri":"chest_04/Image_3.jpg"
-		},
-		{
-			"mimeType":"image/png",
-			"name":"Image_8",
-			"uri":"chest_04/Image_8.png"
-		},
-		{
-			"mimeType":"image/png",
-			"name":"Image_7",
-			"uri":"chest_04/Image_7.png"
+			"name":"wooden_military_crate_diff_4k",
+			"uri":"chest_04/wooden_military_crate_diff_4k.jpg"
 		},
 		{
 			"mimeType":"image/jpeg",
-			"name":"Image_6",
-			"uri":"chest_04/Image_6.jpg"
+			"name":"wooden_military_crate_arm_4k",
+			"uri":"chest_04/wooden_military_crate_arm_4k.jpg"
 		}
 	],
 	"accessors":[
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":15338,
+			"count":17182,
 			"max":[
 				0.5,
-				0.4653468430042267,
-				0.30482709407806396
+				0.3742276132106781,
+				0.20923961699008942
 			],
 			"min":[
 				-0.5,
-				0.06354932487010956,
-				-0.30482712388038635
+				0,
+				-0.20923961699008942
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":15338,
+			"count":17182,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":15338,
+			"count":17182,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
-			"componentType":5126,
-			"count":15338,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":4,
-			"componentType":5126,
-			"count":15338,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":5,
 			"componentType":5123,
-			"count":45252,
-			"type":"SCALAR"
-		},
-		{
-			"bufferView":6,
-			"componentType":5126,
-			"count":254,
-			"max":[
-				0.48323142528533936,
-				0.45541441440582275,
-				0.24605688452720642
-			],
-			"min":[
-				-0.48323142528533936,
-				0,
-				-0.28828656673431396
-			],
-			"type":"VEC3"
-		},
-		{
-			"bufferView":7,
-			"componentType":5126,
-			"count":254,
-			"type":"VEC3"
-		},
-		{
-			"bufferView":8,
-			"componentType":5126,
-			"count":254,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":9,
-			"componentType":5126,
-			"count":254,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":10,
-			"componentType":5126,
-			"count":254,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":11,
-			"componentType":5123,
-			"count":624,
+			"count":68958,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":184056,
+			"byteLength":206184,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":184056,
-			"byteOffset":184056,
+			"byteLength":206184,
+			"byteOffset":206184,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":122704,
-			"byteOffset":368112,
+			"byteLength":137456,
+			"byteOffset":412368,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":122704,
-			"byteOffset":490816,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":122704,
-			"byteOffset":613520,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":90504,
-			"byteOffset":736224,
-			"target":34963
-		},
-		{
-			"buffer":0,
-			"byteLength":3048,
-			"byteOffset":826728,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":3048,
-			"byteOffset":829776,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":2032,
-			"byteOffset":832824,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":2032,
-			"byteOffset":834856,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":2032,
-			"byteOffset":836888,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":1248,
-			"byteOffset":838920,
+			"byteLength":137916,
+			"byteOffset":549824,
 			"target":34963
 		}
 	],
@@ -319,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":840168,
+			"byteLength":687740,
 			"uri":"chest_04.bin"
 		}
 	]

@@ -15,13 +15,13 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"TreasureChest_01 - Default_0"
+			"name":"ammo_box_handle_ring_b"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"01_-_Default",
+			"name":"ammo_box",
 			"normalTexture":{
 				"index":0
 			},
@@ -37,7 +37,7 @@
 	],
 	"meshes":[
 		{
-			"name":"TreasureChest_01 - Default_0.001",
+			"name":"Plane.001",
 			"primitives":[
 				{
 					"attributes":{
@@ -67,80 +67,80 @@
 	],
 	"images":[
 		{
-			"mimeType":"image/png",
-			"name":"Image_2",
-			"uri":"chest_05/Image_2.png"
+			"mimeType":"image/jpeg",
+			"name":"ammo_box_nor_gl_4k",
+			"uri":"chest_05/ammo_box_nor_gl_4k.jpg"
 		},
 		{
-			"mimeType":"image/png",
-			"name":"Image_0",
-			"uri":"chest_05/Image_0.png"
+			"mimeType":"image/jpeg",
+			"name":"ammo_box_diff_4k",
+			"uri":"chest_05/ammo_box_diff_4k.jpg"
 		},
 		{
-			"mimeType":"image/png",
-			"name":"Image_1",
-			"uri":"chest_05/Image_1.png"
+			"mimeType":"image/jpeg",
+			"name":"ammo_box_arm_4k",
+			"uri":"chest_05/ammo_box_arm_4k.jpg"
 		}
 	],
 	"accessors":[
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":3446,
+			"count":4073,
 			"max":[
 				0.5,
-				0.6952329874038696,
-				0.3625333309173584
+				0.6882200837135315,
+				0.1678377389907837
 			],
 			"min":[
 				-0.5,
 				0,
-				-0.3625333309173584
+				-0.1678377389907837
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":3446,
+			"count":4073,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":3446,
+			"count":4073,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5123,
-			"count":9696,
+			"count":13146,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":41352,
+			"byteLength":48876,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":41352,
-			"byteOffset":41352,
+			"byteLength":48876,
+			"byteOffset":48876,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":27568,
-			"byteOffset":82704,
+			"byteLength":32584,
+			"byteOffset":97752,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":19392,
-			"byteOffset":110272,
+			"byteLength":26292,
+			"byteOffset":130336,
 			"target":34963
 		}
 	],
@@ -152,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":129664,
+			"byteLength":156628,
 			"uri":"chest_05.bin"
 		}
 	]

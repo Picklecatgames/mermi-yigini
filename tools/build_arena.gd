@@ -62,7 +62,6 @@ const BAFFLE_SHIFT: Array[float] = [0.15, -0.1, 0.0, 0.2]
 const BRIDGE_Y := 5.0     # the light bridge over the firing line
 const RANGE_LIGHT := Color(0.88, 0.94, 1.0)  # cool daylight, against the hall's warm 4000 K
 const STENCIL := preload("res://assets/fonts/SairaStencilOne-Regular.ttf")  # signs (OFL)
-const SPRAY := preload("res://assets/fonts/RubikSprayPaint-Regular.ttf")  # graffiti (OFL)
 const FLICKER := preload("res://scripts/flicker_lamp.gd")
 const WORKSHOP := Vector3(10.5, 0, 26.0)  # the crew's corner (range_dressing _workshop), between the columns at x 7 and 14
 const WORKSHOP_DARK := 11.0  # m round it with the hall lamps dead, so the corner stands out lit
@@ -72,7 +71,7 @@ const STAND_GAP := 3.0
 const FINAL_GAP := 4.5  # level 11 to level 12, room for the big square
 const FINAL_SQUARE := 4.2  # m
 const STAND_TOP := 1.1  # m, level 11's top
-const STAND_LAMP_Y := 5.5  # every stand's pendant hangs from one height (rim ~4.2 m), a straight row over the crates
+const STAND_RAIL_X := CHEST_X + 1.8  # the stands' spot track under the trusses, toward the heap
 const RARE_FROM := 4  # index of the first rare stand; legendary from LEGEND_FROM
 const LEGEND_FROM := 9
 
@@ -108,6 +107,7 @@ func _initialize() -> void:
 	_markings()
 	_spawns()
 	preload("res://tools/hall_dressing.gd").new(self).build()
+	_lighten(arena, Transform3D())
 	for path in ["Roof", "Lamps", "UpperWalls", "Range/LightBridge", "Range/Baffles", "Range/BayCeiling"]:
 		overhead(arena.get_node(path))
 	var scene := PackedScene.new()
@@ -225,7 +225,7 @@ func _environment() -> void:
 	env.volumetric_fog_length = 70.0
 	env.volumetric_fog_sky_affect = 0.0
 	env.ssr_enabled = true  # the puddles under the roof holes mirror the shafts and lamps
-	env.ssr_max_steps = 96
+	env.ssr_max_steps = 48  # puddles only; 96 cost ~3 ms at 1080p for no visible gain
 	env.ssr_fade_in = 0.1
 	env.ssr_fade_out = 2.0
 	env.adjustment_enabled = true  # AgX washes colour out; give the brass, paint and signs back some punch
@@ -260,8 +260,8 @@ func _floor() -> void:
 	# Rubber: 1 m mats each with its own tone, some replaced; grime, and a scuffed band of
 	# brass and soot just past the railing. Warmed: the cool range light turned it pool blue.
 	var rubber := worn("rubber_tiles", "rubber_floor", {"tint": Color(1.2, 1.1, 1.0), "tex_size": 2.0,
-		"cell_size": 1.0, "cell_tone": 0.16, "odd_cells": 0.14, "antitile": 0.45, "grime": 0.7,
-		"grime_scale": 0.11, "wear_x": fl + 2.2, "wear_width": 2.6})
+		"cell_size": 1.0, "cell_tone": 0.22, "odd_cells": 0.22, "antitile": 0.45, "grime": 0.95,
+		"grime_scale": 0.15, "wear_x": fl + 2.2, "wear_width": 2.6})
 	for part in [[Rect2(-28.0, -28.0, fl + 28.0, 56.0), load("res://materials/concrete.tres")],
 			[Rect2(fl, -28.0, 28.15 - fl, 56.0), rubber],
 			[Rect2(28.15, -BAY_HALF - 0.3, BAY_END - 28.15, 2.0 * BAY_HALF + 0.6), rubber]]:
@@ -492,8 +492,8 @@ func _sun(roof: Node3D) -> void:
 
 
 ## Enamel pendants (ceiling_lamp()) hung under every truss's bottom chord, LAMP_STEP apart: a bulb
-## in each shade and one wide, soft, shadowless light. Many and even, so the hall reads bright and
-## the roof catches their bounce; none of them light the dust much.
+## in each shade and one wide, soft, shadowless light. Only every other spot, staggered, so the hall
+## is pools of light with dark between, not a lit, safe-feeling grid.
 func _lamps() -> void:
 	var lamps := Node3D.new()
 	lamps.name = "Lamps"
@@ -507,9 +507,14 @@ func _lamps() -> void:
 	lens = load("res://materials/env/lamp_diffuser.tres")
 	var paint: Material = load("res://materials/env/metal_plate_02.tres")
 	var y := BOTTOM - CHORD / 2
+	var row := 0
 	for z in BAYS.slice(1, BAYS.size() - 1):
+		row += 1
 		var x := -LAMP_SPAN
 		while x <= LAMP_SPAN + 0.01:
+			if (row + roundi((x + LAMP_SPAN) / LAMP_STEP)) % 2 == 1:  # every other one, staggered: a full grid read safe and lit
+				x += LAMP_STEP
+				continue
 			var near_spot := false
 			for s in HEAP_SPOTS + [Vector3(CHEST_X, 0, -14), Vector3(CHEST_X, 0, -21)]:
 				near_spot = near_spot or (absf(s.z - z) < 0.1 and absf(s.x - x) < 1.4)
@@ -581,8 +586,8 @@ func _heap_spot() -> void:
 
 ## A theatre spot hanging from a truss at `at`, aimed at `aim`, with a visible beam cone.
 ## `angle` is the half angle, `strength` the beam cone's glow, `size` scales the fixture.
-## `edge` is the angle attenuation: low is a hard theatre edge, high a soft wash.
-func _stage_spot(spot_name: String, at: Vector3, aim: Vector3, angle: float, energy: float, strength: float, size := 1.0, edge := 0.12) -> void:
+## `edge` is the angle attenuation: low is a hard theatre edge, high a soft wash; `colour` the light's.
+func _stage_spot(spot_name: String, at: Vector3, aim: Vector3, angle: float, energy: float, strength: float, size := 1.0, edge := 0.12, colour := Color.WHITE) -> void:
 	var paint := ORMMaterial3D.new()  # black stage paint over the steel scan
 	paint.albedo_texture = load(TEX + "metal_plate_02/metal_plate_02_diff_2k.jpg")
 	paint.albedo_color = Color(0.09, 0.09, 0.1)
@@ -649,13 +654,13 @@ func _stage_spot(spot_name: String, at: Vector3, aim: Vector3, angle: float, ene
 	var spot := SpotLight3D.new()
 	spot.name = "Beam"
 	spot.position = Vector3(0, 0, -0.36)  # at the lens; a SpotLight shines down its -Z
-	spot.light_color = Color(1.0, 1.0, 1.0)  # stage white
+	spot.light_color = colour
 	spot.light_energy = energy
 	spot.spot_range = 20.0 / size
 	spot.spot_attenuation = 0.2
 	spot.spot_angle = angle
 	spot.spot_angle_attenuation = edge
-	spot.shadow_enabled = true
+	spot.shadow_enabled = not spot_name.begins_with("StandSpot")  # 13 shadow passes for crates already sitting in their own pool
 	spot.light_size = 0.05
 	spot.light_volumetric_fog_energy = 8.0 * strength  # the beam shows in the dust as much as its cone
 	add(spot, head)
@@ -674,6 +679,7 @@ func _stage_spot(spot_name: String, at: Vector3, aim: Vector3, angle: float, ene
 	var beam := ShaderMaterial.new()
 	beam.shader = load("res://materials/light_cone.gdshader")
 	beam.set_shader_parameter("strength", strength)
+	beam.set_shader_parameter("color", Vector3(colour.r, colour.g, colour.b))
 	beam.set_shader_parameter("edge_softness", 0.9 if edge < 1.0 else 2.4)  # a soft wash has no visible rim
 	var m := MeshInstance3D.new()
 	m.name = "BeamCone"
@@ -1002,12 +1008,13 @@ func _range() -> void:
 	var range_node := Node3D.new()
 	range_node.name = "Range"
 	add(range_node)
-	var ply: Array[Material] = []  # four cuts of the sheet so neighbours differ
+	# Four sheets' worth so neighbours differ: years of damp and dust took the fresh orange out of
+	# them (2026-10-24, the user: weather it like the rest), greyed, darkened, blotched with grime.
+	var ply: Array[Material] = []
 	for k in 4:
-		var m := pbr_box("plywood", 1.1, [Color(0.95, 0.9, 0.84), Color(0.84, 0.79, 0.73), Color(1.0, 0.95, 0.88), Color(0.9, 0.85, 0.78)][k], false, "plywood_%d" % k)
-		m.uv1_offset = Vector3(0.37, 0.61, 0.13) * k
-		ResourceSaver.save(m, m.resource_path)
-		ply.append(m)
+		ply.append(worn("plywood", "plywood_%d" % k, {"tint": [Color(0.6, 0.57, 0.53), Color(0.52, 0.5, 0.48),
+			Color(0.66, 0.62, 0.57), Color(0.5, 0.49, 0.48)][k], "tex_size": 1.1, "cell_size": 100.0, "cell_tone": 0.0,
+			"odd_cells": 0.0, "antitile": 0.3, "grime": 0.6, "grime_scale": 0.12, "grime_color": Color(0.12, 0.11, 0.1)}))
 	var steel := pbr_box("metal_plate_02", 1.0, Color(0.3, 0.31, 0.33), true, "range_steel")
 	var dark := pbr_box("metal_plate_02", 1.0, Color(0.1, 0.1, 0.11), true, "range_steel_dark")
 
@@ -1342,7 +1349,7 @@ func _light_bridge(parent: Node, dark: Material) -> void:
 	for k in zs.size():
 		var z := zs[k]
 		var aim := Vector3(20.5 + 3.0 * fposmod(k * 0.37, 1.0), 0.9, z * 0.85 + (0.8 if k % 2 else -0.8))
-		_flood(bridge, Vector3(bx, BRIDGE_Y - 0.22, z), aim, dark, 4.0, k % 3 == 1, k % 4 == 1 or k % 4 == 2)
+		_flood(bridge, Vector3(bx, BRIDGE_Y - 0.22, z), aim, dark, 4.0, false, k % 4 == 1 or k % 4 == 2)  # the bay floods keep the shadows
 	var red := StandardMaterial3D.new()
 	red.albedo_color = Color(0.6, 0.05, 0.03)
 	red.emission_enabled = true
@@ -1459,7 +1466,7 @@ func _chest_stands() -> void:
 		_aura(body, i + 1, FINAL_SQUARE * 0.42 if final else 0.85)
 		if final:
 			continue  # lit by its own two stage spots
-		_stand_lamp(i, top)
+		_stand_spots(i, top)
 		if i == 0:
 			continue  # level 1 sits on the bare floor
 		var w := lerpf(0.75, 0.95, t)  # top width, the crate's footing
@@ -1525,16 +1532,25 @@ func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel:
 		add(n, body)
 
 
-## The lamp over stand `i`: a factory pendant on the row's strut, brighter, wider and warmer up
-## the row, its beam drawn down onto the crate. The crate stack under it shows the tier.
-func _stand_lamp(i: int, _top: float) -> void:
-	var last := CHEST_COUNT - 2
+## The light on stand `i` (2026-10-24, the user: pendants over the stands looked bad, then tripods
+## on the floor cluttered the row): small theatre spots on a track under the trusses, out of sight
+## from the floor, so only their pools of light show, a gallery's. The tier is in the light: a
+## narrow cold spot on the common stands, a wider neutral one from rare up, two
+## warm spots crossing with gold beams on the legendary ones; the final crate has the big pair.
+func _stand_spots(i: int, top: float) -> void:
 	var at := chest_pos(i)
-	var colour := Color(0.85, 0.92, 1.0).lerp(Color(1.0, 0.8, 0.45), float(i) / last)
-	var energy := 1.0 * pow(1.33, i)  # 1 at level 1, 17 at level 11
+	var aim := at + Vector3(0, top + 0.3, 0)
+	var y := BOTTOM - CHORD / 2.0 - 0.115  # clamped under the track
 	if i == 0:
-		strut(CHEST_X, -21.0, 21.0)  # the row's lamps all hang off one strut under the trusses
-	pendant(Vector3(at.x, STAND_LAMP_Y, at.z), BOTTOM - CHORD / 2.0 - 0.065, colour, energy, 20.0 + 1.2 * i, 0.03 + 0.02 * i)
+		strut(STAND_RAIL_X, chest_pos(0).z + 1.0, chest_pos(CHEST_COUNT - 2).z - 1.0)
+	if i >= LEGEND_FROM:
+		for k in 2:
+			var from := Vector3(STAND_RAIL_X, y, at.z + (0.9 if k == 0 else -0.9))
+			_stage_spot("StandSpot%d%s" % [i + 1, "ab"[k]], from, aim, 13.0, 6.0, 0.012, 0.8, 0.6, Color(1.0, 0.78, 0.45))
+	elif i >= RARE_FROM:
+		_stage_spot("StandSpot%d" % (i + 1), Vector3(STAND_RAIL_X, y, at.z), aim, 11.0, 5.0, 0.0, 0.7, 0.5, Color(1.0, 0.93, 0.82))
+	else:
+		_stage_spot("StandSpot%d" % (i + 1), Vector3(STAND_RAIL_X, y, at.z), aim, 9.0, 4.0, 0.0, 0.6, 0.35, Color(0.85, 0.92, 1.0))
 
 
 ## A steel lighting strut along z at `x`, bolted under the trusses' bottom chords from `z0` to
@@ -1957,6 +1973,40 @@ func _decal(parent: Node, tex: Texture2D, pos: Vector3, yaw: float, size: Vector
 	d.cull_mask = FLOOR_PAINT  # the floor only: crates, cables and the railing standing in it stay clean
 	add(d, parent)
 	return d
+
+
+## Cheaper to draw (2026-10-24, the user: "the game got heavy"): small things stop drawing a little
+## way off (a can at 25 m is a pixel; 2,300 meshes made 3,400 draw calls), cast no shadow when tiny,
+## small decals fade out with distance, and lights smaller than a room stay out of the fog.
+func _lighten(n: Node, parent_xf: Transform3D) -> void:
+	var xf := parent_xf * (n as Node3D).transform if n is Node3D else parent_xf
+	for c in n.get_children():
+		_lighten(c, xf)
+	if n is GeometryInstance3D and not n is MultiMeshInstance3D:
+		var g := n as GeometryInstance3D
+		var size := g.get_aabb().size.length() * xf.basis.get_scale().x
+		if size < 0.5:
+			g.visibility_range_end = 18.0
+			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		elif size < 1.2:
+			g.visibility_range_end = 30.0
+		elif size < 2.5:
+			g.visibility_range_end = 45.0
+		if g.visibility_range_end > 0.0:
+			g.visibility_range_end_margin = 2.0  # hysteresis: no flicker at the edge
+	elif n is Decal:
+		var d := n as Decal
+		var size := Vector2(d.size.x, d.size.z).length()
+		if size < 4.0:
+			d.distance_fade_enabled = true
+			d.distance_fade_begin = 16.0 if size < 1.5 else 30.0
+			d.distance_fade_length = 6.0
+	elif n is OmniLight3D and (n as OmniLight3D).omni_range < 3.5:
+		var l := n as OmniLight3D
+		l.light_volumetric_fog_energy = 0.0
+		l.distance_fade_enabled = true
+		l.distance_fade_begin = 25.0
+		l.distance_fade_length = 5.0
 
 
 func _decal_tex(id: String, w: int, h: int, paint: Callable) -> Texture2D:

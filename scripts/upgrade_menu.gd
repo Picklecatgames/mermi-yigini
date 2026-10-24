@@ -1,6 +1,6 @@
 extends CanvasLayer
-## The workshop, toggled with Q (Esc also closes), dressed like the range's own kit: olive drab,
-## brass and stencilled names (the range's sign face). Top: the player's gold and what it earns a
+## The workshop, toggled with Q (Esc also closes), in UiStyle: a dark steel panel under a brass
+## edge, names and numbers in Barlow Condensed. Top: the player's gold and what it earns a
 ## second on the left, the team vault on the right, two tabs between them (the player's own
 ## upgrades, GameState.UPGRADES, paid from their gold; the team's gear, GameState.GEAR, paid from
 ## the vault). The upgrades are long rows, the gear a grid of cards turning their target's model.
@@ -29,11 +29,9 @@ const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 	"gold_dummy": [10, 4],
 	"ricochet": [9, 5],
 }
-const HUD := preload("res://scripts/hud.gd")  # its dotted numbers
-const STENCIL := preload("res://assets/fonts/SairaStencilOne-Regular.ttf")  # the range's signs (OFL)
 const COLUMNS := 6  # gear cards
-const CARD_W := 168.0  # px, a gear card
-const MODEL_H := 72.0  # px, a gear card's turning model
+const CARD_W := 182.0  # px, a gear card: six fill the panel
+const MODEL_H := 74.0  # px, a gear card's turning model
 const GAUGE_W := 210.0  # px, an upgrade row's price gauge
 const MAX_SIZE := Vector2(1200, 720)  # px; small windows keep a margin round it
 const PAD := 22  # px inside the panel
@@ -41,14 +39,16 @@ const HOVER_ROOM := Vector2(PAD, 10)  # px the pages' clip reaches past them, fo
 const SIDE_W := 250.0  # px, the gold and the vault: equal so the tabs sit in the middle
 const DEAGLE_ICON := Vector2(96, 48)  # px, the wishlist line's gold Deagle
 const RATE_WINDOW := 10.0  # s of income the "+$N / sn" figure averages
-const BUY := Color(0.24, 0.86, 0.38)  # what the money reaches
-const BRASS := Color(0.85, 0.64, 0.26)  # a gauge filling
+const BUY := UiStyle.MONEY  # what the money reaches
+const BRASS := UiStyle.ACCENT  # a gauge filling
 const MAXED := Color(1.0, 0.78, 0.3)
-const SIGNAL := UiStyle.ACCENT  # the team's orange-red: the open tab
-const PANEL := Color(0.105, 0.115, 0.09, 0.96)  # olive drab, near dark
-const CARD := Color(0.15, 0.165, 0.13)
-const CARD_EDGE := Color(1, 1, 1, 0.07)
+const SIGNAL := UiStyle.ACCENT  # the open tab
+const PANEL := Color(0.075, 0.08, 0.088, 0.97)  # dark steel
+const CARD := Color(0.115, 0.122, 0.132)
+const CARD_EDGE := Color(1, 1, 1, 0.06)
 const WAITING := 0.82  # a card the money does not reach yet
+const BUY_DB := -12.0  # the till, under the gunfire
+const BUY_PITCH := Vector2(0.9, 1.12)  # every purchase rings a little differently
 
 var _tab := 0
 var _frame: VBoxContainer
@@ -65,6 +65,7 @@ var _last_gold := 0
 var _earned: Array = []  # [msec, gold] of every gain in the last RATE_WINDOW
 var _shown_at := 0  # msec: cards that come in reach right after opening do not pop
 var _models_built := false
+var _till := AudioStreamPlayer.new()
 var _cards := {}  # id -> {card, style, need, button, gauge, ready, and level/value/next/track or stock/model}
 
 
@@ -130,28 +131,28 @@ class Gauge extends Control:
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
 		var box := StyleBoxFlat.new()
-		box.set_corner_radius_all(8)
+		box.set_corner_radius_all(5)
 		box.anti_aliasing = true
-		if full:  # the glow swells and fades
-			var a := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 4.0)
-			box.bg_color = BUY.lerp(Color.WHITE, flash * 0.6)
-			box.shadow_color = Color(BUY, 0.45)
-			box.shadow_size = roundi(4 + 9 * a)
+		if full:  # breathes a little brighter and back
+			var a := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 3.0)
+			box.bg_color = BUY.lerp(Color.WHITE, flash * 0.6 + 0.08 * a)
+			box.border_width_bottom = 2
+			box.border_color = BUY.darkened(0.35)
 			draw_style_box(box, r)
 			return
-		box.bg_color = Color(0, 0, 0, 0.35)
-		box.border_color = Color(MAXED, 0.6) if maxed else Color(1, 1, 1, 0.1)
+		box.bg_color = Color(0, 0, 0, 0.4)
+		box.border_color = Color(MAXED, 0.6) if maxed else Color(1, 1, 1, 0.12)
 		box.set_border_width_all(1)
 		draw_style_box(box, r)
 		if maxed or fill < 0.005:
 			return
 		var w := maxf(16.0, size.x * fill)
 		var lit := StyleBoxFlat.new()
-		lit.set_corner_radius_all(8)
+		lit.set_corner_radius_all(5)
 		lit.anti_aliasing = true
-		lit.bg_color = Color(BRASS, 0.55).lerp(Color.WHITE, flash * 0.6)
+		lit.bg_color = Color(BRASS, 0.35).lerp(Color.WHITE, flash * 0.6)
 		draw_style_box(lit, Rect2(Vector2.ZERO, Vector2(w, size.y)))
-		draw_rect(Rect2(w - 2.0, 3, 2, size.y - 6), Color(1.0, 0.85, 0.5, 0.9))  # where the brass stops
+		draw_rect(Rect2(w - 2.0, 4, 2, size.y - 8), Color(BRASS, 0.95))  # where the brass stops
 
 
 ## The upgrade's emblem, drawn: a disc in its colour with a white symbol.
@@ -168,8 +169,8 @@ class Icon extends Control:
 
 	func _draw() -> void:
 		var c := size / 2.0
-		draw_circle(c, 26.0, Color(color, 0.18))
-		draw_arc(c, 25.0, 0.0, TAU, 48, Color(color, 0.9), 2.0, true)
+		draw_circle(c, 26.0, Color(color, 0.12))
+		draw_arc(c, 25.0, 0.0, TAU, 48, Color(color, 0.7), 1.5, true)
 		var w := Color(1, 1, 1, 0.95)
 		match id:
 			"carry":  # three rounds standing side by side
@@ -190,7 +191,7 @@ class Icon extends Control:
 			"gold_bonus":  # a coin
 				draw_circle(c, 13.0, Color(1.0, 0.8, 0.25))
 				draw_arc(c, 10.0, 0.0, TAU, 32, Color(0.75, 0.5, 0.1), 2.0, true)
-				draw_string(UiStyle.face(UiStyle.BOLD), c + Vector2(-5, 6), "$", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.55, 0.35, 0.05))
+				draw_string(UiStyle.face(UiStyle.BOLD, 0, true), c + Vector2(-5, 6), "$", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.55, 0.35, 0.05))
 			"range_bonus":  # a target
 				for k in 3:
 					draw_arc(c, 14.0 - 5.0 * k, 0.0, TAU, 32, w if k % 2 == 0 else Color(color, 1.0), 2.5, true)
@@ -199,17 +200,20 @@ class Icon extends Control:
 
 func _ready() -> void:
 	layer = 5
+	_till.stream = preload("res://assets/sounds/ui/purchase.ogg")
+	_till.volume_db = BUY_DB
+	add_child(_till)
 	visible = false
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
+	dim.color = Color(0, 0, 0, 0.66)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	_center = CenterContainer.new()
 	add_child(_center)
 	var panel := PanelContainer.new()
-	var frame := _box(PANEL, Color(BRASS, 0.5), 14, PAD)
+	var frame := _box(PANEL, BRASS, 8, PAD)
 	frame.set_border_width_all(0)
-	frame.border_width_top = 3
+	frame.border_width_top = 2
 	panel.add_theme_stylebox_override("panel", frame)
 	_center.add_child(panel)
 	_frame = VBoxContainer.new()
@@ -225,9 +229,10 @@ func _ready() -> void:
 		stack.add_child(p)
 	var foot := HBoxContainer.new()
 	foot.add_child(_wishlist_row())
-	var close := UiStyle.label("Q ile kapat", 14, UiStyle.MEDIUM, UiStyle.DIM)
-	close.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	close.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(gap)
+	var close := UiStyle.hint("Q", "Kapat")
 	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	foot.add_child(close)
 	_frame.add_child(foot)
@@ -285,7 +290,7 @@ func _process(_delta: float) -> void:
 		sum += e[1]
 	var rate := sum / RATE_WINDOW
 	_rate.text = ("+$%.1f / sn" % rate).replace(".", ",") if rate < 10.0 else "+$%d / sn" % roundi(rate)
-	_rate.add_theme_color_override("font_color", HUD.MONEY if sum > 0 else UiStyle.DIM)
+	_rate.add_theme_color_override("font_color", BUY if sum > 0 else UiStyle.DIM)
 
 
 # --- layout -----------------------------------------------------------------------------------
@@ -314,15 +319,15 @@ func _header() -> Control:
 func _wallet(caption: String, right: bool) -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.custom_minimum_size.x = SIDE_W
-	col.add_theme_constant_override("separation", -4)
+	col.add_theme_constant_override("separation", -2)
 	var align := HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
-	var c := UiStyle.label(caption, 14, UiStyle.MEDIUM, UiStyle.DIM)
+	var c := UiStyle.caption(caption)
 	c.horizontal_alignment = align
 	col.add_child(c)
-	var big := UiStyle.label("", 42, UiStyle.BOLD, HUD.MONEY)
+	var big := UiStyle.display("", 46, UiStyle.BOLD, BUY)
 	big.horizontal_alignment = align
 	col.add_child(big)
-	var under := UiStyle.label("bütün takımın", 15, UiStyle.MEDIUM, UiStyle.DIM)
+	var under := UiStyle.label("Bütün takımın", 14, UiStyle.MEDIUM, UiStyle.DIM)
 	under.horizontal_alignment = align
 	col.add_child(under)
 	if right:
@@ -333,18 +338,18 @@ func _wallet(caption: String, right: bool) -> VBoxContainer:
 	return col
 
 
-## A tab is a stencilled word over an underline, lit orange when open. Names are set in _show_tab:
+## A tab is a condensed word over an underline, lit brass when open. Names are set in _show_tab:
 ## the player's arrives after joining.
 func _tab_button(index: int) -> Control:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 0)
 	var b := _flat_button()
-	b.add_theme_font_override("font", STENCIL)
-	b.add_theme_font_size_override("font_size", 30)
+	b.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD, 0, true))
+	b.add_theme_font_size_override("font_size", 32)
 	b.pressed.connect(_show_tab.bind(index))
 	col.add_child(b)
 	var mark := ColorRect.new()
-	mark.custom_minimum_size.y = 4
+	mark.custom_minimum_size.y = 3
 	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(mark)
 	_tabs.append(b)
@@ -368,7 +373,7 @@ func _show_tab(index: int) -> void:
 		var b := _tabs[i]
 		b.text = titles[i]
 		for s in ["font_color", "font_pressed_color"]:
-			b.add_theme_color_override(s, UiStyle.WHITE if on else Color(UiStyle.DIM, 0.7))
+			b.add_theme_color_override(s, UiStyle.WHITE if on else Color(UiStyle.DIM, 0.6))
 		b.add_theme_color_override("font_hover_color", UiStyle.WHITE)
 		_marks[i].color = SIGNAL if on else Color(1, 1, 1, 0.0)
 		_pages[i].visible = on
@@ -378,7 +383,7 @@ func _show_tab(index: int) -> void:
 		for id in GameState.GEAR:
 			var model: Control = _cards[id].model
 			model.add_child(_model_view(id))
-			model.move_child(model.get_child(-1), 0)  # under the stock count
+			model.move_child(model.get_child(-1), 0)
 	_refresh()
 
 
@@ -418,9 +423,9 @@ func _page(ids: Array, make: Callable, columns: int) -> Control:
 ## button added at the end, what is missing under the gauge. Hovered, it lifts a little.
 func _card(id: String, box: BoxContainer, buy: Callable, gauge_w: float) -> PanelContainer:
 	var card := PanelContainer.new()
-	var style := _box(CARD, CARD_EDGE, 10, 12)
+	var style := _box(CARD, CARD_EDGE, 6, 12)
 	style.set_border_width_all(0)
-	style.border_width_left = 4
+	style.border_width_left = 3
 	card.add_theme_stylebox_override("panel", style)
 	card.mouse_filter = Control.MOUSE_FILTER_PASS
 	card.resized.connect(func() -> void: card.pivot_offset = card.size / 2.0)
@@ -438,7 +443,7 @@ func _card(id: String, box: BoxContainer, buy: Callable, gauge_w: float) -> Pane
 	col.add_child(gauge)
 	var button := _flat_button()
 	button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	button.add_theme_font_override("font", STENCIL)
+	button.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD, 0, true))
 	button.add_theme_font_size_override("font_size", 22)
 	button.mouse_entered.connect(func() -> void: card.mouse_entered.emit())
 	button.pressed.connect(func() -> void:
@@ -446,6 +451,7 @@ func _card(id: String, box: BoxContainer, buy: Callable, gauge_w: float) -> Pane
 			_celebrate(id))
 	gauge.add_child(button)
 	var need := _centred(UiStyle.label("", 13, UiStyle.MEDIUM, UiStyle.DIM))
+	need.custom_minimum_size.y = 16  # keeps the rows level when it is empty
 	col.add_child(need)
 	_cards[id] = {"card": card, "style": style, "need": need, "button": button, "gauge": gauge, "ready": false}
 	return card
@@ -462,14 +468,14 @@ func _upgrade_card(id: String) -> Control:
 	about.add_theme_constant_override("separation", -2)
 	about.custom_minimum_size.x = 330
 	about.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	about.add_child(_stencil(INFO[id][0], 26))
+	about.add_child(_stencil(INFO[id][0], 28))
 	about.add_child(UiStyle.label(INFO[id][3], 14, UiStyle.REGULAR, UiStyle.DIM))
 	row.add_child(about)
 	var steps := VBoxContainer.new()
 	steps.add_theme_constant_override("separation", 6)
 	steps.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	steps.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var level := UiStyle.label("", 13, UiStyle.BOLD, color)
+	var level := UiStyle.label("", 13, UiStyle.MEDIUM, UiStyle.DIM)
 	steps.add_child(level)
 	var track := Track.new(GameState.UPGRADES[id].costs.size(), color)
 	steps.add_child(track)
@@ -479,9 +485,9 @@ func _upgrade_card(id: String) -> Control:
 	values.custom_minimum_size.x = 170
 	values.alignment = BoxContainer.ALIGNMENT_END
 	values.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var value := UiStyle.label("", 34, UiStyle.BOLD)
+	var value := UiStyle.display("", 38, UiStyle.SEMIBOLD)
 	values.add_child(value)
-	var next := UiStyle.label("", 20, UiStyle.BOLD, BUY)
+	var next := UiStyle.display("", 22, UiStyle.SEMIBOLD, BUY)
 	next.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	values.add_child(next)
 	row.add_child(values)
@@ -502,25 +508,27 @@ func _gear_card(id: String) -> Control:
 	model.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stage.add_child(model)
 	body.add_child(stage)
-	var stock := UiStyle.label("", 12, UiStyle.BOLD)  # in the stage's top right corner
-	stock.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	stock.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	stock.position += Vector2(-6, 4)
-	model.add_child(stock)
-	var diff := _pips(5)  # difficulty, along the stage's foot
+	var badge := UiStyle.panel(0, 4)  # "Depoda N" in the stage's top left, only while some wait
+	(badge.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_left = 7
+	(badge.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_right = 7
+	badge.position = Vector2(6, 6)
+	var stock := UiStyle.label("", 12, UiStyle.SEMIBOLD, UiStyle.ACCENT)
+	badge.add_child(stock)
+	model.add_child(badge)
+	var diff := _pips(5)  # difficulty: five short bars along the stage's foot, lit as hard as it is to hit
 	for i in GEAR_INFO[id][1]:
-		(diff.get_child(i) as ColorRect).color = Color(1.0, 0.45, 0.3)
+		(diff.get_child(i) as ColorRect).color = Color(BRASS, 0.9)
 	diff.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	diff.offset_left = 8
 	diff.offset_right = -8
-	diff.offset_top = -10
+	diff.offset_top = -9
 	diff.offset_bottom = -6
 	model.add_child(diff)
-	body.add_child(_stencil(GameState.GEAR[id].name, 19))
+	body.add_child(_stencil(GameState.GEAR[id].name, 22))
 	var values := HBoxContainer.new()
-	values.add_theme_constant_override("separation", 6)
+	values.add_theme_constant_override("separation", 5)
 	body.add_child(values)
-	var value := UiStyle.label("$%d" % GEAR_INFO[id][0], 20, UiStyle.BOLD, HUD.MONEY)
+	var value := UiStyle.display("$%d" % GEAR_INFO[id][0], 20, UiStyle.SEMIBOLD, BUY)
 	values.add_child(value)
 	var per := UiStyle.label("isabet başı", 13, UiStyle.MEDIUM, UiStyle.DIM)
 	per.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -531,7 +539,7 @@ func _gear_card(id: String) -> Control:
 		_to_placing.call_deferred(id)  # after the "+1" floats up: shut the workshop, go put it up
 		return true, 0.0)
 	card.custom_minimum_size.x = CARD_W
-	(_cards[id].style as StyleBoxFlat).set_content_margin_all(9)
+	(_cards[id].style as StyleBoxFlat).set_content_margin_all(10)
 	_cards[id].merge({"stock": stock, "model": model, "value": value, "color": BRASS})
 	return card
 
@@ -613,15 +621,15 @@ func _wishlist_row() -> Control:
 	row.add_child(icon)
 	icon.add_child(_deagle_view())
 	var b := _flat_button()
-	b.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD))
-	b.add_theme_font_size_override("font_size", 17)
+	b.add_theme_font_override("font", UiStyle.face(UiStyle.SEMIBOLD))
+	b.add_theme_font_size_override("font_size", 16)
 	for s in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
 		b.add_theme_color_override(s, Wishlist.GOLD)
 	var claimed := func() -> void:
-		b.text = "Altın Deagle senin  ·  teşekkürler"
+		b.text = "Altın Deagle senin. Teşekkürler!"
 		b.disabled = true
 		b.mouse_default_cursor_shape = Control.CURSOR_ARROW
-	b.text = "İstek listesine ekle  ·  Altın Deagle'ı kap"
+	b.text = "İstek listesine ekle, Altın Deagle'ı al"
 	b.pressed.connect(func() -> void:
 		Wishlist.claim(get_tree())
 		claimed.call())
@@ -693,11 +701,11 @@ func _refresh() -> void:
 	if visible and roundi(_gold_shown) != GameState.gold:  # the figure counts to it
 		create_tween().tween_method(func(v: float) -> void:
 			_gold_shown = v
-			_money.text = "$" + HUD._dotted(roundi(v)), _gold_shown, float(GameState.gold), 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+			_money.text = "$" + UiStyle.dotted(roundi(v)), _gold_shown, float(GameState.gold), 0.45).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 	else:
 		_gold_shown = GameState.gold
-		_money.text = "$" + HUD._dotted(GameState.gold)
-	_vault.text = "$" + HUD._dotted(floori(GameState.vault))
+		_money.text = "$" + UiStyle.dotted(GameState.gold)
+	_vault.text = "$" + UiStyle.dotted(floori(GameState.vault))
 	for id in GameState.UPGRADES:
 		var c: Dictionary = _cards[id]
 		var level: int = GameState.player().levels[id]
@@ -715,15 +723,15 @@ func _refresh() -> void:
 	for id in GameState.GEAR:
 		var c: Dictionary = _cards[id]
 		var n: int = GameState.gear_stock.get(id, 0)
-		(c.stock as Label).text = "depoda %d" % n
-		(c.stock as Label).add_theme_color_override("font_color", UiStyle.WHITE if n > 0 else UiStyle.DIM)
+		(c.stock as Label).text = "Depoda %d" % n
+		(c.stock as Label).get_parent().visible = n > 0
 		_price(c, GameState.GEAR[id].cost, floori(GameState.vault), false)
 
 
 ## The gauge, its button and the line under it. Money enough: the gauge is full and green, the
-## card's stripe goes green, "AL $N"; short: the brass shows how far along the money is, the price
-## alone and "$N eksik" under it, the card a little dimmed. Maxed: a gold "MAKS" that no longer
-## clicks. A card that comes in reach while the menu is open hops.
+## card's stripe goes green, "Al  $N"; short: the brass shows how far along the money is, the price
+## alone and "$N eksik" under it, the card a little dimmed. Maxed: a gold "Tamamlandı" that no
+## longer clicks. A card that comes in reach while the menu is open hops.
 func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	var need: Label = c.need
 	var b: Button = c.button
@@ -735,10 +743,10 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	gauge.maxed = maxed
 	gauge.full = false
 	if maxed:
-		b.text = "MAKS"
+		b.text = "Tamamlandı"
 		b.disabled = true
 		_text_color(b, MAXED)
-		need.text = "tamamlandı"
+		need.text = ""
 		need.add_theme_color_override("font_color", MAXED)
 		style.border_color = MAXED
 		card.modulate.a = 1.0
@@ -747,10 +755,10 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	c.ready = ok
 	gauge.full = ok
 	gauge.goal = clampf(float(have) / cost, 0.0, 1.0) if cost > 0 else 1.0
-	b.text = "AL  $%d" % cost if ok else "$%d" % cost
+	b.text = "Al  $%d" % cost if ok else "$%d" % cost
 	b.disabled = not ok
-	_text_color(b, Color(0.03, 0.1, 0.05) if ok else UiStyle.WHITE)
-	need.text = "alınabilir" if ok else "$%d eksik" % (cost - have)
+	_text_color(b, Color(0.03, 0.09, 0.05) if ok else UiStyle.WHITE)
+	need.text = "" if ok else "$%d eksik" % (cost - have)
 	need.add_theme_color_override("font_color", BUY if ok else UiStyle.DIM)
 	style.border_color = BUY if ok else Color(c.color, 0.5)
 	card.modulate.a = 1.0 if ok else WAITING
@@ -767,6 +775,8 @@ func _text_color(b: Button, color: Color) -> void:
 ## A purchase: the card pops and flashes, coins burst off the gauge, which drains to what is left,
 ## the newest pip swells, the value swells green and settles, and "+1" floats up.
 func _celebrate(id: String) -> void:
+	_till.pitch_scale = randf_range(BUY_PITCH.x, BUY_PITCH.y)
+	_till.play()
 	var c: Dictionary = _cards[id]
 	var card: Control = c.card
 	card.scale = Vector2.ONE * 1.08
@@ -804,7 +814,7 @@ func _celebrate(id: String) -> void:
 	var v := value.create_tween().set_parallel()
 	v.tween_property(value, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	v.tween_property(value, "modulate", Color.WHITE, 0.6)
-	var up := _stencil("+1 SEVİYE" if _tab == 0 else "+1 DEPOYA", 26, BUY)
+	var up := _stencil("+1 seviye" if _tab == 0 else "+1 depoda", 26, BUY)
 	up.top_level = true  # floats free of the card's container layout
 	card.add_child(up)
 	up.global_position = gauge.global_position + Vector2(gauge.size.x / 2.0 - 52, -30)
@@ -816,11 +826,9 @@ func _celebrate(id: String) -> void:
 
 # --- helpers ----------------------------------------------------------------------------------
 
-## A label in the range's stencil face.
+## A name or headline: Barlow Condensed, bold.
 func _stencil(text: String, size: int, color := UiStyle.WHITE) -> Label:
-	var l := UiStyle.label(text, size, UiStyle.REGULAR, color)
-	l.add_theme_font_override("font", STENCIL)
-	return l
+	return UiStyle.display(text, size, UiStyle.BOLD, color)
 
 
 ## A rounded box in `fill` with a 1 px `edge`, `pad` px inside.
@@ -842,7 +850,7 @@ func _pips(count: int) -> HBoxContainer:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for i in count:
 		var p := UiStyle.line(0, Color(1, 1, 1, 0.12))
-		p.custom_minimum_size.y = 4
+		p.custom_minimum_size.y = 3
 		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(p)
 	return row

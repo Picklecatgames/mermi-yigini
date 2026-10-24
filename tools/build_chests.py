@@ -1,4 +1,4 @@
-# Blender (5.x, background): the crates on the chest stands, from Sketchfab downloads (credits in
+# Blender (5.x, background): the crates on the chest stands, from Sketchfab and Poly Haven downloads (credits in
 # docs/ayrintilar.md), made ready for a game: every part baked and joined into one mesh (no welding:
 # the split normals stay), decimated only past a triangle budget, textures kept up to 4K in their own
 # format, the long side along X and the front (lock side) toward glTF +Z, centred with its bottom
@@ -6,7 +6,8 @@
 # (scripts/chests.gd), so the reward grows down the row. A preview of each, seen from the front, goes
 # next to it (<name>_front.png) to check the turn.
 # Run: blender -b --factory-startup -P tools/build_chests.py -- <downloads dir> <out_dir>
-#   <downloads dir> holds chest<level>.glb as Sketchfab's "glb" download.
+#   <downloads dir> holds chest<level>.glb as Sketchfab's "glb" download, or chest<level>/ with
+#   Poly Haven's glTF (chest<level>.gltf, its .bin and textures/).
 import bpy, math, os, sys
 from mathutils import Euler, Vector, Matrix
 
@@ -17,15 +18,15 @@ TEX = 4096     # largest texture side kept: the crates are the reward, seen up c
 BUDGET = 40000  # triangles
 # level: extra turn about the up axis (degrees) after the long side is laid along X, so the
 # front faces +Z; read off the previews.
-TURN = {1: 180, 2: 180, 3: 180, 5: 180, 6: 180}
-# level: materials of what came with the model but is not the chest (a sand dune, a book; steam cards).
-DROP = {4: {"sand"}, 7: {"Props", "Steam"}}  # 7 keeps the gold spilled at its feet
-# Sat tilted 19° on its dune: the chest's own turn is dropped, glTF's Y-up turn kept.
-UPRIGHT = {4}
-# The model holds two chests, the other with its lid open; only the closed one (x > 400) is kept.
-KEEP_X = {2: 400.0}
+TURN = {1: 180}
+# level: materials of what came with the model but is not the chest.
+DROP = {}
+# Sat tilted on its base: the chest's own turn is dropped, glTF's Y-up turn kept.
+UPRIGHT = set()
+# level: which parts to keep (by their centre) when the file holds more than one crate.
+KEEP = {2: lambda c: c.x < 0.0}  # two crates, the one on the left has its lid on
 # Modelled with the lid thrown open (its thumbnail too): the lid is swung shut about its hinge.
-CLOSE = {5}
+CLOSE = set()
 
 
 def close_lid(o):
@@ -128,7 +129,7 @@ def load(path, level):
         if o.type != "MESH":
             continue
         c = sum((o.matrix_world @ Vector(v) for v in o.bound_box), Vector()) / 8
-        if any(m and m.name in DROP.get(level, ()) for m in o.data.materials) or (level in KEEP_X and c.x < KEEP_X[level]):
+        if any(m and m.name in DROP.get(level, ()) for m in o.data.materials) or (level in KEEP and not KEEP[level](c)):
             bpy.data.objects.remove(o)
     meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
     for o in meshes:  # bake the Sketchfab node chain into the mesh, drop the empties
@@ -143,7 +144,7 @@ def load(path, level):
     for o in list(bpy.context.scene.objects):
         if o.type != "MESH":
             bpy.data.objects.remove(o)
-    for a in list(bpy.data.actions):  # chest 7's lid animation: not used yet
+    for a in list(bpy.data.actions):  # lid animations: not used
         bpy.data.actions.remove(a)
     bpy.ops.object.select_all(action="DESELECT")
     for o in meshes:
@@ -179,9 +180,11 @@ def preview(o, path):
         bpy.ops.render.render(write_still=True)
 
 
-for name in sorted(f for f in os.listdir(SRC) if f.startswith("chest") and f.endswith(".glb")):
-    level = int(name[5:-4])
-    o = load(os.path.join(SRC, name), level)
+# chest<level>.glb (Sketchfab), or chest<level>/chest<level>.gltf with its textures (Poly Haven).
+for name in sorted(f for f in os.listdir(SRC) if f.startswith("chest")):
+    level = int(os.path.splitext(name)[0][5:])
+    path = os.path.join(SRC, name, name + ".gltf") if os.path.isdir(os.path.join(SRC, name)) else os.path.join(SRC, name)
+    o = load(path, level)
     if level in CLOSE:
         o = close_lid(o)
     tris = sum(len(p.vertices) - 2 for p in o.data.polygons)

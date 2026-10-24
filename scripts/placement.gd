@@ -55,7 +55,7 @@ var _banner_sub: Label
 var _bar: Control
 var _keys := {}              # action -> prompt row
 var _hold_fill: ColorRect
-var _nudge: Label            # outside placement mode, when something waits in the stock
+var _nudge: HBoxContainer    # outside placement mode, when something waits in the stock
 var _panel: Control
 var _cards: VBoxContainer
 
@@ -252,7 +252,7 @@ func _update_own(delta: float) -> void:
 	_zone.visible = on
 	_nudge.visible = not on and stock_total > 0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if _nudge.visible:
-		_nudge.text = "depoda %d teçhizat  ·  b ile kur" % stock_total
+		(_nudge.get_child(0) as Label).text = "Depoda %d teçhizat var, kurmak için" % stock_total
 	if not on:
 		if _ghost:
 			_ghost.visible = false
@@ -321,15 +321,15 @@ func _update_own(delta: float) -> void:
 
 	# What the banner and the key row say.
 	if _aimed:
-		_banner_sub.text = "%s  ·  kurulu  ·  sağ tık kaldırır" % GameState.GEAR[_aimed.get_meta("gear")].name
+		_banner_sub.text = "%s kurulu. Sağ tık kaldırır." % GameState.GEAR[_aimed.get_meta("gear")].name
 		_banner_sub.modulate = Color.WHITE
 	elif id != "":
-		_banner_sub.text = "%s  ·  depoda %d" % [GameState.GEAR[id].name, GameState.gear_stock[id]]
-		_banner_sub.modulate = Color.WHITE if _spot_ok or not on_floor else UiStyle.ACCENT
+		_banner_sub.text = "%s, depoda %d" % [GameState.GEAR[id].name, GameState.gear_stock[id]]
+		_banner_sub.modulate = Color.WHITE if _spot_ok or not on_floor else UiStyle.WARN
 		if on_floor and not _spot_ok:
-			_banner_sub.text += "  ·  " + problem
+			_banner_sub.text += ". " + problem[0].to_upper() + problem.substr(1)
 	else:
-		_banner_sub.text = "depo boş  ·  teçhizat için q"
+		_banner_sub.text = "Depo boş. Teçhizat almak için Q."
 		_banner_sub.modulate = UiStyle.DIM
 	var up := not GameState.placed.all(func(p: Variant) -> bool: return p == null)
 	_show_key("place", id != "", _spot_ok and not _aimed)
@@ -516,8 +516,8 @@ func _tint(ghost: Node3D, color: Color) -> void:
 
 # --- HUD --------------------------------------------------------------------------------------
 
-## In UiStyle, no boxes: the mode and what is in hand top centre under the heap's line, the keys
-## as text along the bottom, the team's stock as a ruled list on the right.
+## In UiStyle: the mode and what is in hand top centre under the heap's line, the keys as key
+## caps along the bottom on a dark strip, the team's stock as a panel on the right.
 func _build_hud() -> void:
 	var hud := CanvasLayer.new()
 	hud.layer = 3
@@ -526,28 +526,30 @@ func _build_hud() -> void:
 	var col := VBoxContainer.new()
 	col.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	col.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	col.offset_top = 100  # under the heap's line and the key count (hud.gd)
-	col.add_theme_constant_override("separation", 6)
+	col.offset_top = 112  # under the heap's line and the key count (hud.gd)
+	col.add_theme_constant_override("separation", 2)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(col)
 	_banner = col
-	col.add_child(_centred(UiStyle.caption("yerleştirme", UiStyle.ACCENT)))
-	_banner_sub = _centred(UiStyle.label("", 16))
+	col.add_child(_centred(UiStyle.display("Yerleştirme modu", 26, UiStyle.BOLD, UiStyle.ACCENT)))
+	_banner_sub = _centred(UiStyle.label("", 16, UiStyle.MEDIUM))
 	col.add_child(_banner_sub)
 	# Key row: one prompt per action; the ones that do nothing right now dim or hide.
-	_bar = HBoxContainer.new()
+	_bar = UiStyle.panel(10, 6)
 	_bar.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_bar.offset_bottom = -30
-	_bar.add_theme_constant_override("separation", 26)
-	_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bar.offset_bottom = -24
 	hud.add_child(_bar)
-	for k in [["place", "sol tık", "yerleştir"], ["remove", "sağ tık", "kaldır"], ["turn", "r", "döndür"],
-			["pick", "1-9", "seç"], ["all", "f", "hepsini kur"], ["clear", "x", "basılı: hepsini kaldır"],
-			["view", "wasd  ·  tekerlek", "kamera"], ["exit", "b", "çık"]]:
-		var row := _key_prompt(k[1], k[2])
-		_bar.add_child(row)
+	var keys := HBoxContainer.new()
+	keys.add_theme_constant_override("separation", 22)
+	keys.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bar.add_child(keys)
+	for k in [["place", ["Sol tık"], "Yerleştir"], ["remove", ["Sağ tık"], "Kaldır"], ["turn", ["R"], "Döndür"],
+			["pick", ["1-9"], "Seç"], ["all", ["F"], "Hepsini kur"], ["clear", ["X"], "Basılı tut: hepsini kaldır"],
+			["view", ["WASD", "Tekerlek"], "Kamera"], ["exit", ["B"], "Çık"]]:
+		var row := UiStyle.hint(k[1], k[2])
+		keys.add_child(row)
 		_keys[k[0]] = row
 	# The hold line fills under X's words.
 	var under := UiStyle.line(0)
@@ -561,28 +563,35 @@ func _build_hud() -> void:
 	_hold_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	under.add_child(_hold_fill)
 	# The team's stock, on the right.
+	var box := UiStyle.panel(14, 6)
+	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	box.offset_right = -36  # hud.gd MARGIN
+	box.custom_minimum_size.x = 270
+	box.mouse_filter = Control.MOUSE_FILTER_PASS
+	hud.add_child(box)
+	_panel = box
 	var stack := VBoxContainer.new()
-	stack.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	stack.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	stack.grow_vertical = Control.GROW_DIRECTION_BOTH
-	stack.offset_right = -30  # hud.gd MARGIN
-	stack.custom_minimum_size.x = 250
 	stack.add_theme_constant_override("separation", 8)
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(stack)
-	_panel = stack
-	stack.add_child(UiStyle.caption("takım deposu"))
+	box.add_child(stack)
+	stack.add_child(UiStyle.display("Takım deposu", 22, UiStyle.BOLD))
 	_cards = VBoxContainer.new()
 	_cards.add_theme_constant_override("separation", 0)
 	_cards.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(_cards)
-	stack.add_child(UiStyle.caption("teçhizat almak için q"))
+	stack.add_child(UiStyle.hint("Q", "Teçhizat al"))
 	# Outside the mode: a quiet reminder that something waits in the stock, over the guns.
-	_nudge = _centred(UiStyle.caption("", UiStyle.ACCENT))
+	_nudge = UiStyle.hint("B", "")
+	var nudge_text := UiStyle.label("", 14, UiStyle.SEMIBOLD, UiStyle.ACCENT)
+	nudge_text.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_nudge.add_child(nudge_text)
+	_nudge.move_child(nudge_text, 0)  # the words, then the key
 	_nudge.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_nudge.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_nudge.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_nudge.offset_bottom = -118
+	_nudge.offset_bottom = -132
 	hud.add_child(_nudge)
 
 
@@ -598,7 +607,7 @@ func _refresh_panel() -> void:
 	var owned := _owned()
 	if owned.is_empty():
 		_cards.add_child(UiStyle.line())
-		var empty := UiStyle.label("depo boş", 15, UiStyle.REGULAR, UiStyle.DIM)
+		var empty := UiStyle.label("Depo boş", 15, UiStyle.REGULAR, UiStyle.DIM)
 		empty.custom_minimum_size.y = 44
 		empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_cards.add_child(empty)
@@ -611,7 +620,7 @@ func _refresh_panel() -> void:
 		var picked := id == _pick_id and waiting > 0
 		_cards.add_child(UiStyle.line())
 		var row := HBoxContainer.new()
-		row.custom_minimum_size.y = 50
+		row.custom_minimum_size.y = 52
 		row.add_theme_constant_override("separation", 12)
 		row.mouse_filter = Control.MOUSE_FILTER_STOP
 		row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -621,32 +630,20 @@ func _refresh_panel() -> void:
 				_pick_id = id
 				_refresh_panel())
 		_cards.add_child(row)
-		var key := UiStyle.caption(str(i + 1) if i < 9 else "")
-		key.custom_minimum_size.x = 12
-		key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(key)
+		if i < 9:
+			row.add_child(UiStyle.keycap(str(i + 1), 13, UiStyle.ACCENT if picked else UiStyle.WHITE))
 		var text := VBoxContainer.new()
-		text.add_theme_constant_override("separation", 1)
+		text.add_theme_constant_override("separation", 0)
 		text.alignment = BoxContainer.ALIGNMENT_CENTER
 		text.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(text)
-		text.add_child(UiStyle.label(GameState.GEAR[id].name, 15, UiStyle.MEDIUM, UiStyle.ACCENT if picked else UiStyle.WHITE))
-		text.add_child(UiStyle.caption("hepsi kurulu" if waiting == 0 else "kurulu %d" % used if used > 0 else "henüz kurulmadı"))
-		var count := UiStyle.label("×%d" % waiting, 22, UiStyle.LIGHT)
+		text.add_child(UiStyle.display(GameState.GEAR[id].name, 20, UiStyle.SEMIBOLD, UiStyle.ACCENT if picked else UiStyle.WHITE))
+		text.add_child(UiStyle.label("Hepsi kurulu" if waiting == 0 else "%d kurulu" % used if used > 0 else "Henüz kurulmadı", 13, UiStyle.MEDIUM, UiStyle.DIM))
+		var count := UiStyle.display("×%d" % waiting, 26, UiStyle.SEMIBOLD)
 		count.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(count)
 	_cards.add_child(UiStyle.line())
-
-
-## A key's prompt in text: the key bright, what it does dim.
-func _key_prompt(key: String, action: String) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 7)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(UiStyle.label(key, 13, UiStyle.MEDIUM))
-	row.add_child(UiStyle.label(action, 13, UiStyle.REGULAR, UiStyle.DIM))
-	return row
 
 
 func _show_key(action: String, shown: bool, live: bool) -> void:

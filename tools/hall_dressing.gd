@@ -53,7 +53,9 @@ func build() -> void:
 	_beacons()
 	_overhead()
 	_range_wear()
+	_range_decay()
 	_crew_work()
+	_ruin()
 
 
 # --- floor --------------------------------------------------------------------------------------
@@ -242,79 +244,77 @@ func _wall_decay() -> void:
 	_graffiti()
 
 
-# Tags and punk slogans from the years it stood empty (2026-10-24: the Russian set out, the user's
-# call). Made-up crew names and old punk lines, no brands.
-const TAGS := ["NO FUTURE", "RIOT", "KAOS", "VEXO", "SMOG", "HAZE", "DUSK", "ZERO", "NOIZ", "ANTI",
-	"ROT", "GHOST", "WASTED", "DEAD END", "NO GODS", "BURN", "RATZ", "TOXIC", "KRASH", "STAY OUT",
-	"VOID", "OI", "PUNX", "SKUM", "FUZZ", "GRIM", "HEX", "LOST"]
-const PAINTS: Array[Color] = [RED, WHITE, BLACK, ACID, Color(0.85, 0.2, 0.55), Color(0.15, 0.35, 0.85),
-	Color(0.72, 0.72, 0.75), Color(0.95, 0.5, 0.05)]
+# Real hand-styled tags (2026-10-24: the font-drawn ones looked all alike, the user's call), from
+# ambientCG GraffitiSet001 (CC0), repainted as worn spray by tools/build_decals.py (the marker
+# lines read "drawn with a pen"): overspray, runs, flaked paint, filled throw-ups; plus grey buff
+# patches rolled over old ones and quick sprayed marks. Colours are baked into the textures.
+const SPRAY := "res://assets/env/decals/graffiti/"
+const THROWS := [3, 4, 6, 9]  # bubble-letter throw-ups: painted big
 
 
-## Sprayed in the spray font (OFL) along the bare walls: every one its own size, slant, height and
-## colour, some sprayed over others, some half scrubbed off, a few high up where someone climbed,
-## the big ones with paint run down under them. Clear of the range lining, the door, the notice
-## boards, the workshop and the camp.
+## Along the bare walls, side by side with a gap, never over one another: a tag or a throw-up,
+## now and then a buffed-out patch or a quick mark instead. Each tag comes once before any repeats.
+## Clear of the range lining, the door, the notice boards, the workshop and the camp.
 func _graffiti() -> void:
-	var drips := _drip_tex()
-	var layer := 0
+	var tags: Array[Texture2D] = []
+	for i in 16:
+		tags.append(_spray_tex("tag_%02d" % i))
+	var buffs: Array[Texture2D] = []
+	for i in 3:
+		buffs.append(_spray_tex("buff_%d" % i))
+	var marks: Array[Texture2D] = []
+	for i in 6:
+		marks.append(_spray_tex("scribble_%d" % i))
+	var order := range(tags.size())
 	# [side (0 south, 2 north, 3 west), from, to] in _on_wall's `along`
 	for span in [[0, -26.5, -9.0], [0, -3.0, 3.2], [2, 7.5, 15.5], [2, -3.0, 3.2], [2, -13.0, -8.0],
 			[3, -19.0, -7.0], [3, -3.5, 3.5], [3, 7.5, 26.5]]:
-		var along: float = span[1] + rng.randf_range(0.0, 1.0)
-		while along < span[2]:
-			for k in (2 if rng.randf() < 0.35 else 1):  # now and then one sprayed over another
-				layer += 1
-				_tag(span[0], along + rng.randf_range(-0.6, 0.6), layer, drips)
-			along += rng.randf_range(1.4, 3.0)
+		var along: float = span[1] + rng.randf_range(0.1, 0.6)
+		while true:
+			var roll := rng.randf()
+			var tex: Texture2D
+			var size: Vector2
+			var y: float
+			if roll < 0.15:  # someone rolled grey over it
+				tex = buffs[rng.randi() % buffs.size()]
+				var w := rng.randf_range(1.6, 3.2)
+				size = Vector2(w, w * rng.randf_range(0.4, 0.6))
+				y = rng.randf_range(0.7, 1.6)
+			elif roll < 0.3:  # a quick mark
+				tex = marks[rng.randi() % marks.size()]
+				var w := rng.randf_range(0.4, 0.9)
+				size = Vector2(w, w)
+				y = rng.randf_range(0.6, 2.0)
+			else:
+				if order.is_empty():
+					order = range(tags.size())
+				var i: int = order.pop_at(rng.randi() % order.size())
+				tex = tags[i]
+				var w := rng.randf_range(1.6, 2.8) if i in THROWS else rng.randf_range(0.8, 1.8)
+				size = Vector2(w, w)
+				y = rng.randf_range(0.9, 2.2) if rng.randf() < 0.85 else rng.randf_range(2.6, 3.3)
+				y = maxf(y, w * 0.32)  # throw-ups sit low but not in the floor
+			if along + size.x > span[2]:
+				break
+			var d := _on_wall(tex, span[0], along + size.x / 2.0, y, size)
+			d.modulate = Color(1, 1, 1, rng.randf_range(0.75, 0.95) if rng.randf() < 0.75 else rng.randf_range(0.4, 0.6))  # some scrubbed
+			along += size.x + rng.randf_range(0.3, 1.6)
 
 
-func _tag(side: int, along: float, layer: int, drips: Texture2D) -> void:
-	var word: String = TAGS[rng.randi() % TAGS.size()]
-	var h := rng.randf_range(0.18, 0.6) if rng.randf() < 0.65 else rng.randf_range(0.6, 1.4)  # letter height, m
-	var y := rng.randf_range(0.6, 2.5) if rng.randf() < 0.85 else rng.randf_range(2.7, 3.5)
-	var colour: Color = PAINTS[rng.randi() % PAINTS.size()]
-	var alpha := rng.randf_range(0.6, 0.85) if rng.randf() < 0.7 else rng.randf_range(0.25, 0.5)  # soaked into the concrete; some scrubbed
-	var l := Label3D.new()
-	l.text = word
-	l.font = b.SPRAY
-	l.font_size = 96
-	l.pixel_size = h / 70.0
-	l.modulate = Color(colour, alpha)
-	l.outline_size = 0
-	if rng.randf() < 0.12:  # now and then a "piece", thinly outlined in a second colour
-		l.outline_size = 6
-		l.outline_modulate = Color(PAINTS[rng.randi() % PAINTS.size()], alpha)
-	l.shaded = true
-	l.double_sided = false
-	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	var wall := Basis(Vector3.UP, side * PI / 2.0)
-	l.transform = Transform3D(wall * Basis(Vector3.UP, PI) * Basis(Vector3.BACK, rng.randf_range(-0.2, 0.2)),
-		wall * Vector3(along, 0, 27.988 - layer * 0.0004) + Vector3(0, y, 0))
-	b.add(l, root)
-	if h > 0.5 and rng.randf() < 0.6:  # the paint ran
-		var run := rng.randf_range(0.25, 0.7)
-		var d := _on_wall(drips, side, along, y - h * 0.3 - run / 2.0, Vector2(h * word.length() * 0.45, run))
-		d.modulate = Color(colour, alpha * 0.9)
-
-
-## Paint runs under a sprayed word: thin streaks at random down from the top, each ending in a bead.
-func _drip_tex() -> Texture2D:
-	return b._decal_tex("spray_drips", 256, 256, func(img: Image) -> void:
-		var r := RandomNumberGenerator.new()
-		r.seed = 5
-		for k in 26:
-			var x := r.randi_range(4, 251)
-			var run := r.randi_range(40, 250)
-			var w := r.randi_range(1, 3)
-			for y in run:
-				var a := 1.0 - 0.5 * float(y) / run
-				for dx in range(-w, w + 1):
-					img.set_pixel(clampi(x + dx, 0, 255), y, Color(1, 1, 1, a))
-			for dy in range(-3, 4):  # the bead at its end
-				for dx in range(-w - 1, w + 2):
-					if dx * dx + dy * dy <= (w + 1) * (w + 1):
-						img.set_pixel(clampi(x + dx, 0, 255), clampi(run + dy, 0, 255), Color(1, 1, 1, 0.6)))
+## A tools/build_graffiti.py texture, saved once as a decal resource.
+func _spray_tex(id: String) -> Texture2D:
+	var path := DECALS + "spray_%s.res" % id
+	if ResourceLoader.exists(path):
+		return load(path)
+	var img := Image.load_from_file(ProjectSettings.globalize_path(SPRAY + id + ".png"))
+	img.convert(Image.FORMAT_RGBA8)
+	img.generate_mipmaps()
+	# Basis, not lossless: 25 big RGBA decals uncompressed came to ~100 MB of video memory.
+	PortableCompressedTexture2D.set_keep_all_compressed_buffers(true)
+	var tex := PortableCompressedTexture2D.new()
+	tex.create_from_image(img, PortableCompressedTexture2D.COMPRESSION_MODE_BASIS_UNIVERSAL)
+	ResourceSaver.save(tex, path)
+	return load(path)
 
 
 ## Soot and old grime: a dark soft blotch with a ragged edge.
@@ -521,7 +521,7 @@ func _camp() -> void:
 	b.strut(-22.4, -27.85, -21.0)
 	b.strut(-18.8, -27.85, -21.0)
 	b.pendant(Vector3(-22.4, 4.4, -23.1), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 6.0, 50.0, 0.0, true)
-	b.pendant(Vector3(-18.8, 4.6, -24.0), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 6.0, 50.0, 0.0, true)
+	b.pendant(Vector3(-18.8, 4.6, -24.0), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 6.0, 50.0, 0.0, false)  # one shadowed pendant is enough
 	_tripod(Vector3(-25.8, 0, -19.8), Vector3(-20.5, 0.2, -24.0), 1)
 	_cable([Vector2(GENERATOR.x, GENERATOR.z + 0.4), Vector2(-17.5, -25.2), Vector2(-21.0, -24.5), Vector2(-25.0, -21.0), Vector2(-25.8, -19.9)])
 	_cable([Vector2(GENERATOR.x - 0.3, GENERATOR.z + 0.3), Vector2(-17.3, -27.6), Vector2(-22.0, -27.8)])
@@ -583,7 +583,7 @@ func _tripod(at: Vector3, aim: Vector3, heads: int) -> void:
 		spot.spot_angle = 48.0
 		spot.spot_angle_attenuation = 1.3
 		spot.light_volumetric_fog_energy = 0.5
-		spot.shadow_enabled = h == 0
+		spot.shadow_enabled = h == 0 and heads > 1  # the heap's two big tripods; the camp's has the pendants
 		b.add(spot, head)
 
 
@@ -761,7 +761,8 @@ func _festoons(parent: Node3D) -> void:
 	glow.emission_enabled = true
 	glow.emission = Color(1.0, 0.7, 0.38)
 	glow.emission_energy_multiplier = 16.0  # over the glow threshold: each bulb blooms a little
-	for run in [[14.0, 27.5, 10.5], [14.0, 27.5, 3.5], [-27.5, -14.0, -20.0], [-27.5, -14.0, -13.0]]:  # z0, z1, x
+	# z0, z1, x; the workshop pair straddles the bench's middle (x 12.2, range_dressing _workshop).
+	for run in [[14.0, 27.5, 11.0], [14.0, 27.5, 13.4], [-27.5, -14.0, -20.0], [-27.5, -14.0, -13.0]]:
 		var path := PackedVector3Array()
 		var spots: Array[Vector3] = []
 		var x: float = run[2]
@@ -895,6 +896,100 @@ func _range_wear() -> void:
 				var yaw: float = atan2(dir.x, dir.y) + PI * back
 				var d: Decal = b._decal(root, prints, Vector3(mid.x, 0, mid.y), yaw, Vector3(0.5, 0.4, p0.distance_to(p1)))
 				d.modulate = Color(1, 1, 1, rng.randf_range(0.08, 0.2))
+
+
+## The range, as far gone as the hall (2026-10-24, the user): the plywood lining shot through
+## where rounds went wide, black mould up the sheets' feet, rain run down from the cap, a few tags;
+## on the rubber, mats pulled up to the screed, spent cases kicked about past the railing, puddles.
+func _range_decay() -> void:
+	var fl: float = b.GS.FIRING_LINE_X
+	var holes: Array[Texture2D] = []
+	for i in 4:
+		holes.append(_spray_tex("holes_%d" % i))
+	var moulds: Array[Texture2D] = []
+	for i in 3:
+		moulds.append(_spray_tex("mould_%d" % i))
+	var leaks: Array[Texture2D] = [_acg("Leaking004"), _acg("Leaking005")]
+	# [from, to, fixed coordinate, along_x, out, downrange]: the lining faces, as in _range_wear;
+	# the bay's sides by the targets take the most stray rounds.
+	var faces := []
+	for s in [-1.0, 1.0]:
+		faces.append([fl + 0.3, 27.6, s * 27.96, true, Vector3(0, 0, -s), 0.5])
+		faces.append([s * b.BAY_HALF, s * 27.6, 27.96, false, Vector3(-1, 0, 0), 0.8])
+		faces.append([28.4, b.BAY_END - 0.2, s * (b.BAY_HALF - 0.04), true, Vector3(0, 0, -s), 1.0])
+	var tag_order := []
+	for f in faces:
+		var lo := minf(f[0], f[1])
+		var hi := maxf(f[0], f[1])
+		var at_face := func(c: float, y: float) -> Vector3:
+			return Vector3(c, y, f[2]) if f[3] else Vector3(f[2], y, c)
+		# Mould and rot up the feet, most of the run.
+		var t := lo
+		while t < hi - 0.5:
+			var w := minf(rng.randf_range(1.5, 3.5), hi - t)
+			if rng.randf() < 0.75:
+				var h := rng.randf_range(0.5, 1.1)
+				var d := _on_face(moulds[rng.randi() % 3], at_face.call(t + w / 2.0, h / 2.0), f[4], Vector2(w, h))
+				d.modulate = Color(1, 1, 1, rng.randf_range(0.6, 1.0))
+			t += w + rng.randf_range(-0.2, 0.6)
+		# Rain run down from the steel cap.
+		t = lo + rng.randf_range(0.0, 1.5)
+		while t < hi - 0.5:
+			var h := rng.randf_range(1.0, 2.2)
+			var d := _on_face(leaks[rng.randi() % 2], at_face.call(t, 2.44 - h / 2.0), f[4], Vector2(rng.randf_range(0.6, 1.4), h))
+			d.modulate = Color(0.5, 0.48, 0.44, rng.randf_range(0.5, 0.9))
+			t += rng.randf_range(1.5, 4.0)
+		# Stray rounds: loose groups at shoulder height and below.
+		t = lo + rng.randf_range(0.0, 1.0)
+		while t < hi - 0.4:
+			if rng.randf() < f[5]:
+				var s := rng.randf_range(0.45, 0.9)
+				_on_face(holes[rng.randi() % 4], at_face.call(t, rng.randf_range(0.5, 1.9)), f[4], Vector2(s, s))
+			t += rng.randf_range(1.2, 3.0)
+		# A tag or a quick mark now and then, low, under the distance boards.
+		t = lo + rng.randf_range(0.5, 3.0)
+		while t < hi - 1.2:
+			var d: Decal
+			if rng.randf() < 0.65:
+				if tag_order.is_empty():
+					tag_order = range(16).filter(func(i: int) -> bool: return not (i in THROWS))
+				var i: int = tag_order.pop_at(rng.randi() % tag_order.size())
+				var s := rng.randf_range(0.8, 1.1)
+				d = _on_face(_spray_tex("tag_%02d" % i), at_face.call(t, rng.randf_range(0.55, 0.75)), f[4], Vector2(s, s))
+			else:
+				var s := rng.randf_range(0.4, 0.7)
+				d = _on_face(_spray_tex("scribble_%d" % (rng.randi() % 6)), at_face.call(t, rng.randf_range(0.4, 1.0)), f[4], Vector2(s, s))
+			d.modulate = Color(1, 1, 1, rng.randf_range(0.6, 0.9))
+			t += rng.randf_range(4.0, 9.0)
+	# Mats pulled up to the bare screed, on the 1 m grid, clear of the distance lines.
+	var gaps: Array[Texture2D] = [_spray_tex("tile_gap_0"), _spray_tex("tile_gap_1")]
+	var placed := 0
+	while placed < 16:
+		var bay := rng.randf() < 0.3
+		var cell := Vector2(floorf(rng.randf_range(fl + 1.0, 43.0 if bay else 27.5)), floorf(rng.randf_range(-11.0, 11.0) if bay else rng.randf_range(-27.5, 27.5)))
+		var line := fposmod(cell.x + 0.5 - fl, 5.0)
+		if line < 0.7 or line > 4.3 or (cell.x > 27.0 and absf(cell.y + 0.5) > b.BAY_HALF - 1.0) or cell.x > b.BERM_TOE - 1.5:
+			continue
+		b._decal(root, gaps[rng.randi() % 2], Vector3(cell.x + 0.5, 0, cell.y + 0.5), (rng.randi() % 4) * PI / 2.0, Vector3(1.0, 0.4, 1.0))
+		placed += 1
+	# Spent cases kicked about where the shooters stood, thinning out downrange.
+	var cases: Array[Texture2D] = [_spray_tex("brass_0"), _spray_tex("brass_1"), _spray_tex("brass_2")]
+	var z := -27.0
+	while z < 27.0:
+		b._decal(root, cases[rng.randi() % 3], Vector3(fl + rng.randf_range(0.8, 1.8), 0, z), rng.randf() * TAU, Vector3(2.0, 0.4, 2.0))
+		if rng.randf() < 0.35:
+			var d: Decal = b._decal(root, cases[rng.randi() % 3], Vector3(fl + rng.randf_range(3.0, 9.0), 0, z), rng.randf() * TAU, Vector3(2.0, 0.4, 2.0))
+			d.modulate = Color(1, 1, 1, 0.6)
+		z += rng.randf_range(1.6, 2.6)
+	# Rain through the old roof here too, and glass on the rubber.
+	for p in [Vector3(19.5, 0, -21.5), Vector3(24.5, 0, 17.0), Vector3(21.0, 0, 6.5)]:
+		var k := rng.randi() % 3
+		var s := rng.randf_range(1.8, 3.0)
+		var d: Decal = b._decal(root, _spray_tex("puddle_%d" % k), p, rng.randf() * TAU, Vector3(s * 1.3, 0.4, s))
+		d.texture_orm = _spray_tex("puddle_%d_orm" % k)
+	for p in [Vector3(26.5, 0, -26.6), Vector3(26.6, 0, 25.8), Vector3(17.0, 0, 26.7)]:
+		var s := rng.randf_range(1.6, 2.4)
+		b._decal(root, _spray_tex("litter_%d" % (2 if rng.randf() < 0.5 else 1)), p, rng.randf() * TAU, Vector3(s, 0.4, s))
 
 
 func _tide_tex() -> Texture2D:
@@ -1124,3 +1219,150 @@ func _sieve_tex() -> Texture2D:
 			for x in 128:
 				var wire := x % 8 < 2 or y % 8 < 2
 				img.set_pixel(x, y, Color(0.35, 0.34, 0.32, 1.0) if wire else Color(0, 0, 0, 0)))
+
+
+# --- ruin ---------------------------------------------------------------------------------------
+# (2026-10-24, the user: "too clean and sterile, a better abandoned ruin") Years of nobody: rain
+# through the old roof pooled on the slab, concrete spalled off the wall feet, dead leaves and junk
+# blown in under the shutter, weeds in the joints, a squatter's corner from before the crew came.
+
+const SQUAT := Vector3(-25.4, 0, 25.6)  # south-west corner, behind the car, clear of the chest row
+
+
+func _ruin() -> void:
+	var m := func(n: String) -> String: return MODELS + n + "/" + n + "_1k.gltf"
+	# Standing water where the slab sags: dark, glassy in the middle, damp round it.
+	for p in [Vector3(-14.5, 0, 16.5), Vector3(-1.5, 0, 17.0), Vector3(3.0, 0, -19.0), Vector3(-26.6, 0, -1.0),
+			Vector3(-12.0, 0, 26.8), Vector3(-3.5, 0, -24.5), Vector3(-16.5, 0, -12.5), Vector3(8.5, 0, -12.5)]:
+		var k := rng.randi() % 3
+		var s := rng.randf_range(1.6, 3.6)
+		var d: Decal = b._decal(root, _spray_tex("puddle_%d" % k), p, rng.randf() * TAU, Vector3(s * rng.randf_range(1.0, 1.5), 0.4, s))
+		d.texture_orm = _spray_tex("puddle_%d_orm" % k)
+	# Years of grime trodden and rained into the open slab: big soft stains, so no stretch reads swept.
+	var soot := _soot_tex()
+	for k in 34:
+		var p := Vector3(rng.randf_range(-27.0, b.GS.FIRING_LINE_X - 1.5), 0, rng.randf_range(-27.0, 27.0))
+		if p.distance_to(b.HEAP) < 9.0:
+			continue
+		var s := rng.randf_range(2.5, 6.5)
+		var d: Decal = b._decal(root, soot, p, rng.randf() * TAU, Vector3(s, 0.4, s * rng.randf_range(0.5, 1.0)))
+		d.modulate = Color(1, 1, 1, rng.randf_range(0.2, 0.45))
+	# Junk blown in: leaves thickest by the shutter and in the corners, paper and glass along the walls.
+	for j in [[Vector3(DOOR_X + 0.5, 0, 25.6), 0], [Vector3(DOOR_X - 2.0, 0, 26.6), 0], [Vector3(-26.5, 0, 26.5), 0],
+			[Vector3(-26.8, 0, -26.8), 0], [Vector3(12.8, 0, -26.8), 0], [SQUAT + Vector3(0.8, 0, -0.6), 1],
+			[Vector3(-2.5, 0, 26.9), 2], [Vector3(-26.9, 0, 22.5), 1], [Vector3(0.5, 0, -26.9), 2],
+			[Vector3(-26.9, 0, -9.0), 2], [Vector3(-8.0, 0, -26.9), 1], [Vector3(-26.9, 0, 4.0), 0]]:
+		var s := rng.randf_range(1.8, 3.0)
+		var d: Decal = b._decal(root, _spray_tex("litter_%d" % j[1]), j[0], rng.randf() * TAU, Vector3(s, 0.4, s))
+		d.modulate = Color(1, 1, 1, rng.randf_range(0.8, 1.0))
+	# Concrete spalled off the wall feet: rubble heaps with dust round them.
+	var drift := _drift_tex()
+	for r in [[Vector3(-27.0, 0, -9.5), 0.9], [Vector3(-27.0, 0, 9.6), 0.6], [Vector3(-20.0, 0, 27.0), 0.7],
+			[Vector3(2.5, 0, 27.0), 0.5], [Vector3(-1.5, 0, -27.0), 0.8], [Vector3(10.0, 0, -27.0), 0.6],
+			[Vector3(-9.6, 0, -26.4), 0.5], [Vector3(-27.0, 0, -12.5), 0.5]]:
+		_rubble(r[0], r[1])
+		var d: Decal = b._decal(root, drift, r[0], rng.randf() * TAU, Vector3(r[1] * 4.0, 0.6, r[1] * 2.2))
+		d.modulate = Color(1, 1, 1, 0.8)
+	# Weeds: nettle clumps up the damp wall feet, rosettes in the floor joints out in the open.
+	var nettle: String = m.call("nettle_plant")
+	var weed: String = m.call("weed_plant_02")
+	for side in 4:
+		for k in 4:
+			var at := Basis(Vector3.UP, side * PI / 2.0) * Vector3(rng.randf_range(-26.5, 26.5), 0, 27.75)
+			if at.x > b.GS.FIRING_LINE_X - 1.0 or (at - SQUAT).length() < 1.5 or (absf(at.x - DOOR_X) < 2.5 and at.z > 27.0):
+				continue
+			for n in rng.randi_range(1, 3):  # each plant is ~7k triangles: clumps stay small
+				var p := at + Vector3(rng.randf_range(-0.4, 0.4), 0, rng.randf_range(-0.3, 0.3))
+				_plant(nettle, rng.randi() % 6, p.clamp(Vector3(-27.8, 0, -27.8), Vector3(27.8, 0, 27.8)), rng.randf_range(1.8, 3.4))
+	for k in 12:
+		var p := Vector3(roundf(rng.randf_range(-26, 12) / 4.0) * 4.0 + rng.randf_range(-0.1, 0.1), 0, rng.randf_range(-26, 26))
+		if rng.randf() < 0.5:
+			p = Vector3(rng.randf_range(-26, 12), 0, roundf(rng.randf_range(-26, 26) / 4.0) * 4.0 + rng.randf_range(-0.1, 0.1))
+		if p.distance_to(b.HEAP) < 10.5 or (p.x < -19.5 and absf(p.z) < 19.0) or p.x > b.GS.FIRING_LINE_X - 1.5:
+			continue  # not in the heap's spill, the chest row or the range
+		_plant(weed, rng.randi() % 5, p, rng.randf_range(1.0, 2.2))
+	# The squatter's corner: a sagging sofa facing an old set on a crate, cans, tyres, a burnt patch.
+	b._prop(root, m.call("sofa_02"), SQUAT + Vector3(0.5, 0, 0.7), 2.36)  # its front (+Z) out of the corner
+	b._prop(root, m.call("wooden_crate_01"), SQUAT + Vector3(1.9, 0, -1.3), -0.4)
+	b._prop(root, m.call("Television_01"), SQUAT + Vector3(1.9, 0.35, -1.3), -0.6)  # facing the sofa
+	b._prop(root, m.call("old_tyre"), SQUAT + Vector3(-0.9, 0.083, -1.6), 0.3, 1.0, Basis(Vector3.RIGHT, PI / 2))
+	b._prop(root, m.call("old_tyre"), SQUAT + Vector3(-0.85, 0.25, -1.55), 1.1, 1.0, Basis(Vector3.RIGHT, PI / 2))
+	var can: String = m.call("can_rusted")
+	for k in 7:
+		var c := SQUAT + Vector3(rng.randf_range(-0.5, 2.0), 0, rng.randf_range(-1.6, 0.0))
+		if rng.randf() < 0.6:  # most knocked over
+			b._prop(root, can, c + Vector3(0, 0.06, 0), rng.randf() * TAU, 1.0, Basis(Vector3.RIGHT, PI / 2))
+		else:
+			b._prop(root, can, c, rng.randf() * TAU)
+	b._prop(root, m.call("trashbag"), SQUAT + Vector3(-1.1, 0, 0.9), 0.7)
+	var burnt: Decal = b._decal(root, load(DECALS + "scorch.res"), SQUAT + Vector3(1.2, 0, 0.2), 0.3, Vector3(1.6, 0.5, 1.4))
+	burnt.modulate = Color(1, 1, 1, 0.9)
+	_lamp(Vector3(-27.98, 2.6, 24.6), Vector3(1, 0, 0), Color(1.0, 0.1, 0.05), 1.8)  # an army lamp still on its battery
+	var fill := OmniLight3D.new()  # its red bounced round the corner, so the sofa reads
+	fill.position = SQUAT + Vector3(1.2, 1.6, -0.6)
+	fill.light_color = Color(1.0, 0.25, 0.15)
+	fill.light_energy = 0.5
+	fill.omni_range = 4.5
+	fill.light_volumetric_fog_energy = 0.0
+	b.add(fill, root)
+	# A stack of old tyres and a rusted rim on the north wall, one leaning.
+	var tyre: String = m.call("old_tyre")
+	for k in 4:
+		b._prop(root, tyre, Vector3(1.0 + rng.randf_range(-0.04, 0.04), 0.083 + k * 0.165, -27.3 + rng.randf_range(-0.04, 0.04)), rng.randf() * TAU, 1.0, Basis(Vector3.RIGHT, PI / 2))
+	b._prop(root, tyre, Vector3(1.9, 0.29, -27.6), 0.2, 1.0, Basis(Vector3.FORWARD, 0.25))
+	b._prop(root, m.call("rusted_wheel_rim_01"), Vector3(0.1, 0.077, -26.6), 0.9, 1.0, Basis(Vector3.RIGHT, PI / 2))
+
+
+## A heap of spalled concrete `radius` m across at a wall foot: one merged mesh of angular chunks,
+## big ones low in the middle, small ones skittered out. No collision (ankle height).
+func _rubble(at: Vector3, radius: float) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in int(radius * 70.0):
+		var r := radius * pow(rng.randf(), 0.7)
+		var a := rng.randf() * TAU
+		var big := 1.0 - r / radius
+		var s := lerpf(0.025, 0.16, pow(rng.randf(), 2.0) * 0.4 + big * 0.6)
+		var size := Vector3(s * rng.randf_range(0.7, 1.5), s * rng.randf_range(0.4, 0.9), s * rng.randf_range(0.7, 1.5))
+		var basis := Basis.from_euler(Vector3(rng.randf_range(-0.6, 0.6), rng.randf() * TAU, rng.randf_range(-0.6, 0.6)))
+		var lift := big * radius * 0.25 * rng.randf()  # the heap rises in the middle
+		_chunk(st, Transform3D(basis, at + Vector3(cos(a) * r, size.y * 0.3 + lift, sin(a) * r)), size)
+	st.generate_normals()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = load("res://materials/env/concrete_slab_wall.tres")
+	b.add(mi, root)
+
+
+## One broken chunk: a box with its corners knocked about, flat faces, planar UVs a metre a tile.
+func _chunk(st: SurfaceTool, xf: Transform3D, size: Vector3) -> void:
+	var c: Array[Vector3] = []
+	for k in 8:
+		var v := Vector3(1 if k & 1 else -1, 1 if k & 2 else -1, 1 if k & 4 else -1) * size / 2.0
+		c.append(xf * (v * Vector3(rng.randf_range(0.55, 1.25), rng.randf_range(0.55, 1.25), rng.randf_range(0.55, 1.25))))
+	var off := Vector2(rng.randf(), rng.randf())
+	st.set_smooth_group(-1)  # flat: broken faces
+	for f in [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]]:
+		var q: Array[Vector3] = [c[f[0]], c[f[1]], c[f[2]], c[f[3]]]
+		var nrm := (q[1] - q[0]).cross(q[2] - q[0]).normalized()
+		var u := nrm.cross(Vector3.UP if absf(nrm.y) < 0.9 else Vector3.RIGHT).normalized()
+		var w := nrm.cross(u)
+		for idx in [0, 2, 1, 0, 3, 2]:  # Godot fronts are clockwise
+			st.set_uv(Vector2(q[idx].dot(u), q[idx].dot(w)) + off)
+			st.add_vertex(q[idx])
+
+
+## One plant from a Poly Haven set (its variants stand in a row in the file): variant `which`,
+## moved to `at`, `s` times its size, a random turn. No collision.
+func _plant(path: String, which: int, at: Vector3, s: float) -> void:
+	var pack: Node3D = (load(path) as PackedScene).instantiate()
+	var parts := pack.find_children("*", "MeshInstance3D", true, false)
+	var part: MeshInstance3D = parts[which % parts.size()]
+	var aabb := part.transform * part.mesh.get_aabb()
+	var centre := Vector3(aabb.get_center().x, 0, aabb.get_center().z)
+	var mi := MeshInstance3D.new()
+	mi.mesh = part.mesh
+	mi.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), at) * Transform3D(part.transform.basis, part.transform.origin - centre)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	b.add(mi, root)
+	pack.free()

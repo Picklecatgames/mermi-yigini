@@ -19,7 +19,8 @@ func _ready() -> void:
 		l.no_depth_test = true
 		l.fixed_size = true
 		l.pixel_size = 0.00066
-		l.font_size = 96
+		l.font = UiStyle.face(UiStyle.BOLD, 0, true)
+		l.font_size = 104
 		l.outline_size = 22
 		l.render_priority = 10
 		l.outline_render_priority = 9

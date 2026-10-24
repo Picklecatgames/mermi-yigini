@@ -22,7 +22,7 @@ func _initialize() -> void:
 	if not _ok(carry.disabled, "carry is shut with no gold"): return
 	gs.player().gold = 10
 	gs.gold_changed.emit(10)
-	if not _ok(not carry.disabled and carry.text == "AL  $6", "carry opens at $6 (%s)" % carry.text): return
+	if not _ok(not carry.disabled and carry.text == "Al  $6", "carry opens at $6 (%s)" % carry.text): return
 	carry.pressed.emit()
 	if not _ok(gs.player().levels["carry"] == 1 and gs.gold == 4, "one level bought, $6 paid"): return
 	if not _ok(menu._cards["carry"].need.text == "$11 eksik", "the next level shows what is missing (%s)" % menu._cards["carry"].need.text): return
@@ -39,7 +39,7 @@ func _initialize() -> void:
 	dummy.pressed.emit()
 	dummy.pressed.emit()
 	if not _ok(gs.gear_stock.get("dummy") == 2 and is_equal_approx(gs.vault, 10.0), "two dummies in stock, $40 out of the vault"): return
-	if not _ok(dummy.disabled and menu._cards["dummy"].stock.text == "depoda 2", "button shuts, the card says 2 in stock"): return
+	if not _ok(dummy.disabled and menu._cards["dummy"].stock.text == "Depoda 2", "button shuts, the card says 2 in stock"): return
 	if not _ok(not gs.request_buy_gear("texas_star") and not gs.request_buy_gear("nonsense"), "no buying past the vault or off the list"): return
 	# Put one up, take it down: it goes back to the stock, and its number is not reused.
 	if not _ok(gs.request_place_gear("dummy", Vector3(22, 0, 15), -PI / 2) and gs.gear_stock.dummy == 1, "a dummy goes up from the stock"): return

@@ -30,6 +30,10 @@ dock_revealed=true
 
 enabled=PackedStringArray("res://addons/beckett/plugin.cfg")
 
+[gui]
+
+theme/custom_font="res://assets/fonts/Barlow-Medium.ttf"
+
 [input]
 
 move_forward={

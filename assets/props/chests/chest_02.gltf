@@ -15,13 +15,13 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd__0"
+			"name":"old_military_crate_lid_a"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Scene_-_Root",
+			"name":"military_crate_m_01",
 			"normalTexture":{
 				"index":0
 			},
@@ -37,7 +37,7 @@
 	],
 	"meshes":[
 		{
-			"name":"\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd__0.001",
+			"name":"Mesh.001",
 			"primitives":[
 				{
 					"attributes":{
@@ -67,80 +67,80 @@
 	],
 	"images":[
 		{
-			"mimeType":"image/png",
-			"name":"Image_2",
-			"uri":"chest_02/Image_2.png"
+			"mimeType":"image/jpeg",
+			"name":"old_military_crate_nor_gl_4k",
+			"uri":"chest_02/old_military_crate_nor_gl_4k.jpg"
 		},
 		{
-			"mimeType":"image/png",
-			"name":"Image_0",
-			"uri":"chest_02/Image_0.png"
+			"mimeType":"image/jpeg",
+			"name":"old_military_crate_diff_4k",
+			"uri":"chest_02/old_military_crate_diff_4k.jpg"
 		},
 		{
-			"mimeType":"image/png",
-			"name":"Image_1",
-			"uri":"chest_02/Image_1.png"
+			"mimeType":"image/jpeg",
+			"name":"old_military_crate_arm_4k",
+			"uri":"chest_02/old_military_crate_arm_4k.jpg"
 		}
 	],
 	"accessors":[
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":5547,
+			"count":8567,
 			"max":[
 				0.5,
-				0.6836462616920471,
-				0.3147987425327301
+				0.3690680265426636,
+				0.32967501878738403
 			],
 			"min":[
-				-0.5,
+				-0.4999999701976776,
 				0,
-				-0.3147987425327301
+				-0.32967501878738403
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":5547,
+			"count":8567,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":5547,
+			"count":8567,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5123,
-			"count":16269,
+			"count":31428,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":66564,
+			"byteLength":102804,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":66564,
-			"byteOffset":66564,
+			"byteLength":102804,
+			"byteOffset":102804,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":44376,
-			"byteOffset":133128,
+			"byteLength":68536,
+			"byteOffset":205608,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":32538,
-			"byteOffset":177504,
+			"byteLength":62856,
+			"byteOffset":274144,
 			"target":34963
 		}
 	],
@@ -152,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":210044,
+			"byteLength":337000,
 			"uri":"chest_02.bin"
 		}
 	]

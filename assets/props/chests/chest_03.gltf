@@ -15,13 +15,13 @@
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"Cube_LP_Material_0"
+			"name":"Military Crate"
 		}
 	],
 	"materials":[
 		{
 			"doubleSided":true,
-			"name":"Material",
+			"name":"MilitaryCrate_MTL",
 			"normalTexture":{
 				"index":0
 			},
@@ -37,17 +37,15 @@
 	],
 	"meshes":[
 		{
-			"name":"Cube_LP_Material_0.001",
+			"name":"Cube.001",
 			"primitives":[
 				{
 					"attributes":{
 						"POSITION":0,
 						"NORMAL":1,
-						"TEXCOORD_0":2,
-						"TEXCOORD_1":3,
-						"TEXCOORD_2":4
+						"TEXCOORD_0":2
 					},
-					"indices":5,
+					"indices":3,
 					"material":0
 				}
 			]
@@ -70,103 +68,79 @@
 	"images":[
 		{
 			"mimeType":"image/png",
-			"name":"Image_2",
-			"uri":"chest_03/Image_2.png"
+			"name":"MilitaryCrate_MTL_Normal",
+			"uri":"chest_03/MilitaryCrate_MTL_Normal.png"
 		},
 		{
 			"mimeType":"image/png",
-			"name":"Image_0",
-			"uri":"chest_03/Image_0.png"
+			"name":"MilitaryCrate_MTL_BaseColor",
+			"uri":"chest_03/MilitaryCrate_MTL_BaseColor.png"
 		},
 		{
 			"mimeType":"image/png",
-			"name":"Image_1",
-			"uri":"chest_03/Image_1.png"
+			"name":"MilitaryCrate_MTL_Metallic-MilitaryCrate_MTL_Roughness",
+			"uri":"chest_03/MilitaryCrate_MTL_Metallic-MilitaryCrate_MTL_Roughness.png"
 		}
 	],
 	"accessors":[
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":9060,
+			"count":32226,
 			"max":[
 				0.5,
-				0.8537068367004395,
-				0.294293075799942
+				0.3432953953742981,
+				0.26960787177085876
 			],
 			"min":[
 				-0.5,
 				0,
-				-0.294293075799942
+				-0.26960787177085876
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":9060,
+			"count":32226,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":9060,
+			"count":32226,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
-			"componentType":5126,
-			"count":9060,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":4,
-			"componentType":5126,
-			"count":9060,
-			"type":"VEC2"
-		},
-		{
-			"bufferView":5,
 			"componentType":5123,
-			"count":21150,
+			"count":119997,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":108720,
+			"byteLength":386712,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":108720,
-			"byteOffset":108720,
+			"byteLength":386712,
+			"byteOffset":386712,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":72480,
-			"byteOffset":217440,
+			"byteLength":257808,
+			"byteOffset":773424,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":72480,
-			"byteOffset":289920,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":72480,
-			"byteOffset":362400,
-			"target":34962
-		},
-		{
-			"buffer":0,
-			"byteLength":42300,
-			"byteOffset":434880,
+			"byteLength":239994,
+			"byteOffset":1031232,
 			"target":34963
 		}
 	],
@@ -178,7 +152,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":477180,
+			"byteLength":1271228,
 			"uri":"chest_03.bin"
 		}
 	]

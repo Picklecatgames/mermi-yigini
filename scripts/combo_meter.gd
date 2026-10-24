@@ -54,7 +54,7 @@ func _draw() -> void:
 	var size := int(BASE_SIZE * (1.0 + GROW * clampf(t, 0.0, 1.0)))
 	var color := WHITE.lerp(GOLD, clampf(t * 2.0, 0.0, 1.0)).lerp(RED, clampf(t * 2.0 - 1.0, 0.0, 1.0))
 	var alpha := pow(frac, 0.6)  # holds a while, then fades out as the bar runs dry
-	var font := get_theme_default_font()
+	var font := UiStyle.face(UiStyle.BOLD, 0, true)
 	var text := "x%d" % _combo
 	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	draw_set_transform(cam.unproject_position(head) + OFFSET, 0.0, Vector2.ONE * (1.0 + _punch))

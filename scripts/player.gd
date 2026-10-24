@@ -36,6 +36,8 @@ const DIZZY_WALK := 1.1    # rad the legs head off from where we steer
 ## 3 m, a punch flies higher).
 const HALL_IN := 27.6  # m from the centre to a wall's inner face, less our radius
 const ROOF_IN := 6.0   # m: the feet stay this low, under the roof beams
+const LANTERN_IN := Vector2(14.6, 13.6)  # the glass roof's footprint (build_arena LANTERN) less our radius
+const LANTERN_ROOF_IN := 9.5  # m: under the glass the roof is 11.6 m up, so the ~7 m heap's top stays climbable
 ## Balloon: up for BALLOON_TIME, then a slow drift down; ~8 s in all from the floor (4 m up, under
 ## the 8 m roof beam even from a step).
 const BALLOON_TIME := 4.0  # s
@@ -111,7 +113,9 @@ var _special_sound: AudioStreamPlayer
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _reach: RayCast3D = $Head/Camera3D/Reach
 @onready var _hand: Node3D = $Head/Camera3D/Hand
-@onready var _prompt: Label = $HUD/Prompt
+@onready var _prompt: Label = $HUD/Prompt  # the scene's old text prompt, freed: key caps replace it
+var _grab_hint: Control  # under the crosshair while looking at the heap
+var _full_hint: Control
 @onready var _crosshair: Control = $HUD/Crosshair
 @onready var _hit_marker: Control = $HUD/HitMarker
 @onready var _vm_camera: Camera3D = $ViewmodelView/SubViewport/Camera
@@ -134,9 +138,9 @@ func _ready() -> void:
 	for old: Control in [$HUD/Counter, $HUD/Money, $HUD/Vault]:
 		old.visible = false
 	$HUD.add_child(HUD.new())
-	_prompt.add_theme_font_override("font", UiStyle.face(UiStyle.MEDIUM, 1))
-	_prompt.add_theme_font_size_override("font_size", 14)
-	_prompt.add_theme_color_override("font_shadow_color", UiStyle.SHADOW)
+	_prompt.queue_free()
+	_grab_hint = _crosshair_hint(UiStyle.hint("E", "Basılı tut: mermi al"))
+	_full_hint = _crosshair_hint(UiStyle.hint("G", "Elin dolu: fırlat"))
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
@@ -195,7 +199,8 @@ static func punch_bounce(shove: Vector3) -> Vector3:
 static func keep_in_hall(body: CharacterBody3D, inside: bool) -> void:
 	var p := body.global_position
 	var x_max := GameState.FIRING_LINE_X - 0.4 if inside else INF
-	var c := Vector3(clampf(p.x, -HALL_IN, x_max), minf(p.y, ROOF_IN), clampf(p.z, -HALL_IN, HALL_IN))
+	var roof := LANTERN_ROOF_IN if absf(p.x) < LANTERN_IN.x and absf(p.z) < LANTERN_IN.y else ROOF_IN
+	var c := Vector3(clampf(p.x, -HALL_IN, x_max), minf(p.y, roof), clampf(p.z, -HALL_IN, HALL_IN))
 	if c != p:
 		body.global_position = c
 		if c.y < p.y:
@@ -490,8 +495,9 @@ func _physics_process(delta: float) -> void:
 		if got > 0:
 			_fly_to_hand(at, shown_before)
 
-	_prompt.visible = looking
-	_prompt.text = "[E] Mermi al (basılı tut)" if GameState.carried < GameState.carry_capacity else "Elin dolu  [G] Fırlat"
+	var room := GameState.carried < GameState.carry_capacity
+	_grab_hint.visible = looking and room
+	_full_hint.visible = looking and not room
 
 
 ## Bumped into another player's body: shove them along with how fast we walked into them.
@@ -625,3 +631,13 @@ func _on_specials_changed() -> void:
 			_wheel.note(id)
 	_pocket_seen = p.specials.duplicate()
 	_set_hand_count(GameState.carried)
+
+
+## A key hint a little under the crosshair.
+func _crosshair_hint(hint: Control) -> Control:
+	hint.visible = false
+	hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	hint.offset_top = 30
+	$HUD.add_child(hint)
+	return hint

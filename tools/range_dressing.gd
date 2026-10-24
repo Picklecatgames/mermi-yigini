@@ -425,10 +425,12 @@ func _posters() -> void:
 func _workshop() -> void:
 	const BENCH := 1.2  # the Blender bench, scaled up to stand out
 	var at := Vector3(12.3, 0, 27.4)  # its east end against the column at x 14, its back on the wall
-	b._prop(root, "res://assets/props/workbench/workbench.glb", at, PI, BENCH)
+	var bench: StaticBody3D = b._prop(root, "res://assets/props/workbench/workbench.glb", at, PI, BENCH)
+	bench.set_script(preload("res://scripts/bench_top.gd"))  # clears the top
 	var x := at.x - 0.09 * BENCH  # the bench's middle
 	var hopper := Vector3(at.x - 1.22 * BENCH - 1.0, 0, 27.15)  # on its right (looking at it), the bucket on the bench side
 	b._prop(root, "res://assets/props/workbench/hopper.glb", hopper, PI)
+	_radio(at, BENCH)
 	var rug := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(4.6, 2.6)
@@ -483,6 +485,32 @@ func _workshop() -> void:
 	wash.light_volumetric_fog_energy = 0.0
 	wash.shadow_enabled = true
 	b.add(wash, root)
+
+
+## The crew's 1967 radio on the bench's lower shelf, its east end, turned toward the hall, playing
+## four Hawaiian guitar 78s in a loop, quietly: heard only near the bench (docs/ayrintilar.md "Radyo").
+func _radio(bench: Vector3, scale: float) -> void:
+	# Shelf top at 1.293 in the bench's own frame, 19 cm deep (z -0.18..-0.37); a rail 25 cm over it
+	# leaves room for the radio at 1.1 (23 cm tall). The bench stands turned PI.
+	var shelf := bench + Vector3(0.38, 1.293, 0.275) * scale
+	var radio: Node3D = b._prop(root, "res://assets/props/radio/radio.glb", shelf, PI + 0.45, 1.1)
+	var list := AudioStreamPlaylist.new()
+	list.loop = true
+	list.fade_time = 1.5
+	var records := ["aloha_oe", "honolulu_bay", "mahina_malamalama", "la_paloma"]
+	list.stream_count = records.size()
+	for i in records.size():
+		list.set_list_stream(i, load("res://assets/props/radio/music/%s.ogg" % records[i]))
+	var sound := AudioStreamPlayer3D.new()
+	sound.name = "RadioMusic"
+	sound.stream = list
+	sound.autoplay = true
+	sound.bus = &"Dunya"
+	sound.volume_db = -10.0
+	sound.unit_size = 4.0
+	sound.max_distance = 25.0
+	sound.position = Vector3(0, 0.1, 0)
+	b.add(sound, radio)
 
 
 ## A GHS hazard sticker (assets/env/stickers/, public domain) on the face at `at` looking along `out`.

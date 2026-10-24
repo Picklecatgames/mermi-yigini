@@ -37,6 +37,9 @@ const SHOTS := {
 	"walk6": [Vector3(-17.00, 1.7, -21.86), Vector3(-23.0, 1.5, -26.0)],
 	"walk7": [Vector3(-19.50, 1.7, -23.50), Vector3(-23.0, 1.5, -26.0)],
 	"stands": [Vector3(-18.5, 1.8, -1.0), Vector3(-23.0, 1.0, 9.0)],
+	"stands_south": [Vector3(-18.5, 1.8, 1.0), Vector3(-23.0, 1.0, -10.0)],
+	"stands_front": [Vector3(-14.5, 1.7, 3.0), Vector3(-23.0, 1.0, 3.0)],
+	"stands_legend": [Vector3(-17.0, 1.7, -5.0), Vector3(-23.0, 1.2, -12.0)],
 	"up": [Vector3(0.0, 1.7, 6.0), Vector3(-6.0, 9.0, -4.0)],
 	"desk": [Vector3(5.0, 1.7, 22.3), Vector3(5.0, 0.9, 25.5)],
 	"cash": [Vector3(5.4, 1.45, 24.1), Vector3(5.12, 0.95, 25.45)],
@@ -44,6 +47,18 @@ const SHOTS := {
 	"workshop": [Vector3(10.0, 1.7, 21.5), Vector3(10.8, 1.6, 27.9)],
 	"lamps": [Vector3(2.0, 1.7, 16.0), Vector3(-2.0, 6.5, 2.0)],
 	"tripod": [Vector3(-12.5, 1.7, -14.5), Vector3(-16.4, 1.9, -9.6)],
+	"graf_w": [Vector3(-21.5, 1.7, 13.0), Vector3(-28.0, 1.5, 17.0)],
+	"graf_s": [Vector3(-17.0, 1.7, 21.0), Vector3(-19.0, 1.4, 28.0)],
+	"graf_n": [Vector3(12.0, 1.7, -21.0), Vector3(11.0, 1.4, -28.0)],
+	"squat": [Vector3(-22.6, 1.6, 23.0), Vector3(-25.4, 0.4, 26.0)],
+	"rubble": [Vector3(-24.5, 1.5, -7.2), Vector3(-27.0, 0.2, -9.5)],
+	"tyres": [Vector3(3.5, 1.7, -22.5), Vector3(0.0, 0.5, -27.5)],
+	"puddle": [Vector3(-7.0, 1.7, 21.0), Vector3(-13.0, 0.0, 16.0)],
+	"lining_s": [Vector3(17.0, 1.6, 22.0), Vector3(21.0, 1.2, 27.9)],
+	"lining_e": [Vector3(22.0, 1.6, 17.0), Vector3(27.9, 1.2, 21.0)],
+	"rubber": [Vector3(15.5, 1.7, -3.0), Vector3(21.0, 0.0, -8.0)],
+	"lining_close": [Vector3(26.0, 1.5, 15.5), Vector3(27.9, 0.9, 18.5)],
+	"brass": [Vector3(15.0, 1.5, -6.0), Vector3(15.8, 0.0, -4.5)],
 }
 
 

@@ -368,10 +368,10 @@ func _tile(id: String, caption: String) -> Control:
 func _update_status() -> void:
 	var p = GameState.player()
 	var pile: int = GameState.pile
-	_status.pile.text = HUD._dotted(pile)
+	_status.pile.text = UiStyle.dotted(pile)
 	_status.done.text = "%" + ("%.4f" % (100.0 * (1.0 - float(pile) / GameState.PILE_START))).replace(".", ",")
-	_status.gold.text = "$" + HUD._dotted(p.gold if p else 0)
-	_status.vault.text = "$" + HUD._dotted(int(GameState.vault))
+	_status.gold.text = "$" + UiStyle.dotted(p.gold if p else 0)
+	_status.vault.text = "$" + UiStyle.dotted(int(GameState.vault))
 	_status.gun.text = GameState.GUNS[p.gun].name if p else "—"
 	_status.keys.text = "%d / 12" % (p.keys.size() if p else 0)
 	_status.pile.add_theme_color_override("font_color", BRASS)
