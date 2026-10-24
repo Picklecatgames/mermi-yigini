@@ -536,6 +536,8 @@ func _lamps() -> void:
 				wear = 9 if wear < 4 else (wear if wear in [4, 5] else 9)
 			if Vector2(x - WORKSHOP.x, z - WORKSHOP.z).length() < WORKSHOP_DARK:
 				wear = 0  # dark round the crew's corner
+			if x < CHEST_X + 4.5:
+				wear = 0  # dark over the crate row (2026-10-25, the user): only the lamps on the floor light it
 			if absf(x) < LANTERN.z and absf(z) < LANTERN.w:  # none under the glass: there the sky and its cold light are the lamp
 				x += LAMP_STEP
 				continue
@@ -585,7 +587,7 @@ func _heap_spot() -> void:
 	bounce.position = HEAP + Vector3(0, 0.6, 0)
 	bounce.light_color = Color(1.0, 0.72, 0.4)
 	bounce.light_energy = 2.2
-	bounce.omni_range = 14.0
+	bounce.omni_range = 10.5  # short of the crate row (x -23), which only its floor lamps light
 	bounce.omni_attenuation = 1.2
 	bounce.light_volumetric_fog_energy = 0.0
 	add(bounce)
