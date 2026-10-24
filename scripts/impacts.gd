@@ -24,6 +24,10 @@ const TRAIL_POOL := 16  # the SMGs fire up to 10 a second
 const TRAIL_TIME := 0.3  # s: a brief streak, gone before you can walk into it
 const ROUND_SPEED := 400.0  # m/s the tracer races out at (a 9 mm round flies ~380)
 const TRAIL_SKIP := 0.9  # m: other players' shots start this far along, roughly at their muzzle
+const VIEWMODEL := preload("res://scripts/viewmodel.gd")
+## A spinning gun's rounds stopped coming this long ago (its slow first rounds and the
+## network's jitter, GameState.NET_JITTER, included): its loop gives way to the run-down.
+const SPIN_GAP := 0.4  # s
 
 var _fx: Array[Node3D] = []
 var _next_fx := 0
@@ -38,6 +42,8 @@ var _next_trail := 0
 var _shot_from := {}  # peer -> where its last shot started (fired comes just before shot_landed)
 var _bounced := {}  # peer -> true while its round flies on off a ricochet plate
 var _shot_sounds := {}  # peer -> AudioStreamPlayer3D for other players' shots
+var _shot_stream: AudioStream  # ShotSound's own; a spinning gun swaps in its loop
+var _spin_quiet := {}  # peer -> s since its last spinning-gun round, while the loop plays
 # A few drawn variants of each mark, picked at random and spun, so no two look alike.
 var _concrete_tex: Array[Texture2D] = _marks(MARK_CONCRETE)
 var _burlap_tex: Array[Texture2D] = _marks(MARK_BURLAP)
@@ -116,8 +122,17 @@ func _on_fired(peer: int, from: Vector3, dir: Vector3) -> void:
 		var s: AudioStreamPlayer3D = gun.get_node("ShotSound").duplicate()
 		add_child(s)
 		_shot_sounds[peer] = s
+		_shot_stream = s.stream
 	var p: AudioStreamPlayer3D = _shot_sounds[peer]
 	p.global_position = from
+	# Like our own (viewmodel.gd SPIN_*): one loop while the rounds come, not a shot per round.
+	if VIEWMODEL.SETS.get(GameState.GUNS[GameState.player(peer).gun].id, {}).has("spin"):
+		_spin_quiet[peer] = 0.0
+		if p.stream != VIEWMODEL.SPIN_LOOP or not p.playing:
+			p.stream = VIEWMODEL.SPIN_LOOP
+			p.play()
+		return
+	p.stream = _shot_stream
 	p.play()
 
 
@@ -230,6 +245,12 @@ func _trail(from: Vector3, to: Vector3) -> void:
 
 
 func _process(delta: float) -> void:
+	for peer: int in _spin_quiet.keys():
+		_spin_quiet[peer] += delta
+		if _spin_quiet[peer] > SPIN_GAP:
+			_spin_quiet.erase(peer)
+			_shot_sounds[peer].stream = VIEWMODEL.SPIN_STOP
+			_shot_sounds[peer].play()
 	for i in TRAIL_POOL:
 		if _trail_life[i] >= 1.0:
 			continue

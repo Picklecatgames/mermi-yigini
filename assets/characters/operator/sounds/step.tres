@@ -1,4 +1,4 @@
-[gd_resource type="AudioStreamRandomizer" load_steps=22 format=3]
+[gd_resource type="AudioStreamRandomizer" load_steps=16 format=3]
 
 [ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_01.wav" id="1"]
 [ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_02.wav" id="2"]
@@ -15,17 +15,11 @@
 [ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_13.wav" id="13"]
 [ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_14.wav" id="14"]
 [ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_15.wav" id="15"]
-[ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_16.wav" id="16"]
-[ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_17.wav" id="17"]
-[ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_18.wav" id="18"]
-[ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_19.wav" id="19"]
-[ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_20.wav" id="20"]
-[ext_resource type="AudioStream" path="res://assets/characters/operator/sounds/step_21.wav" id="21"]
 
 [resource]
 random_pitch = 1.01
 random_volume_offset_db = 1.0
-streams_count = 21
+streams_count = 15
 stream_0/stream = ExtResource("1")
 stream_0/weight = 1.0
 stream_1/stream = ExtResource("2")
@@ -56,15 +50,3 @@ stream_13/stream = ExtResource("14")
 stream_13/weight = 1.0
 stream_14/stream = ExtResource("15")
 stream_14/weight = 1.0
-stream_15/stream = ExtResource("16")
-stream_15/weight = 1.0
-stream_16/stream = ExtResource("17")
-stream_16/weight = 1.0
-stream_17/stream = ExtResource("18")
-stream_17/weight = 1.0
-stream_18/stream = ExtResource("19")
-stream_18/weight = 1.0
-stream_19/stream = ExtResource("20")
-stream_19/weight = 1.0
-stream_20/stream = ExtResource("21")
-stream_20/weight = 1.0
