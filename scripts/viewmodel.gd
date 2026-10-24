@@ -9,6 +9,9 @@ extends Node3D
 signal kicked(amount: float, yaw: float)  # rad of view climb, and of sideways throw
 
 const LAYER := 2
+const MAG_OUT := preload("res://assets/weapons/sounds/mag_out.wav")
+const MAG_IN := preload("res://assets/weapons/sounds/deagle_mag_in.tres")
+const CLACK := preload("res://assets/weapons/sounds/deagle_clack.tres")
 ## Per GameState.GUNS id. eye: the set's camera in our glTF space (y up, looking +Z), printed by
 ## build_arms.py; the clips were framed for it. bone: the gun's own bone; muzzle / port (ejection) and
 ## rear / front (sights, aimed by moving the whole rig) are in its space, read off the meshes at Idle.
@@ -27,12 +30,17 @@ const LAYER := 2
 ## paint lifts the gun's colour map: the SMGs' are near black (linear 0.02-0.04, the Deagle's ~0.1)
 ## and in the hall they drew as a flat silhouette with none of the map's wear and parts showing.
 ## Kept low: at 2.5-4 the dark steel washed out into flat grey plastic.
+## shot: the gun's own shot sound in place of ShotSound's; cues: sounds at those seconds into a
+## clip, read off where its magazine and slide move (out, into the well, seated, slide home).
 const SETS := {
 	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 50.0},
 	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
 		"muzzle": Vector3(-0.0006, 0.0099, 0.111), "port": Vector3(-0.0202, 0.0184, -0.037),
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
-		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0},
+		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0,
+		"shot": preload("res://assets/weapons/sounds/deagle_shot.tres"),
+		"cues": {"reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, CLACK]],
+			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, CLACK], [2.28, CLACK]]}},
 	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
 		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 1.6,
 		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75},
@@ -221,6 +229,9 @@ var _world_flash: OmniLight3D  # the gun lives in its own world; this one lights
 @onready var _slide_sound: AudioStreamPlayer3D = $SlideSound
 @onready var _mag_sound: AudioStreamPlayer3D = $MagSound
 @onready var _spin_sound: AudioStreamPlayer3D = _shot_sound.duplicate()  # same place and loudness as a shot
+@onready var plain_shot: AudioStream = _shot_sound.stream  # a gun with no "shot" of its own
+var _cue_at := 0.0  # s into the clip at the last frame, for its cues
+var _next_cue_player := 0  # cues take turns on MagSound and SlideSound, so one doesn't cut the last
 @onready var _wisp: GPUParticles3D = $Wisp  # hot barrel: a cigarette-thin trail plume from the muzzle
 
 
@@ -357,6 +368,7 @@ func _swap() -> void:
 	spin = 0.0
 	_ramp = 0.0
 	_spin_sound.stop()
+	_shot_sound.stream = _kit.get("shot", plain_shot)
 	_want_fire = 0.0  # a click or R from before the swap is not for this gun
 	_want_reload = 0.0
 	_anim.play(_kit.clips + "Idle")
@@ -485,6 +497,7 @@ func _process(delta: float) -> void:
 	var want_aim := captured and live and gun > 0 and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
 	if _kit.has("spin"):
 		_spin(delta, want_aim)
+	_cues()
 	if _kit.get("no_aim", false):
 		want_aim = false  # no sights (the minigun's aim button only turns the barrels)
 	_aim_lin = move_toward(_aim_lin, 1.0 if want_aim else 0.0, delta / ADS_TIME)
@@ -629,6 +642,22 @@ func _play(clip: String) -> void:
 	var name: String = PUNCHES[_punch] if gun == 0 and clip == "fire" else CLIPS[clip]
 	_anim.play(_kit.clips + name, CLIP_BLEND)
 	_anim.seek(0.0, true)  # a second shot before the first ends restarts it
+	_cue_at = -1.0
+
+
+## Plays the clip's cues (SETS cues) it passed since the last frame.
+func _cues() -> void:
+	var cues: Array = _kit.get("cues", {}).get(_clip, [])
+	if cues.is_empty():
+		return
+	var now := _anim.current_animation_position
+	for c: Array in cues:
+		if c[0] > _cue_at and c[0] <= now:
+			var p: AudioStreamPlayer3D = [_mag_sound, _slide_sound][_next_cue_player]
+			_next_cue_player = 1 - _next_cue_player
+			p.stream = c[1]
+			p.play()
+	_cue_at = now
 
 
 ## Shoves the hand so the gun alone would peak at `amount` (1 = one shot).

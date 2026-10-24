@@ -122,17 +122,20 @@ func _on_fired(peer: int, from: Vector3, dir: Vector3) -> void:
 		var s: AudioStreamPlayer3D = gun.get_node("ShotSound").duplicate()
 		add_child(s)
 		_shot_sounds[peer] = s
-		_shot_stream = s.stream
+		_shot_stream = gun.plain_shot
 	var p: AudioStreamPlayer3D = _shot_sounds[peer]
 	p.global_position = from
+	var kit: Dictionary = VIEWMODEL.SETS.get(GameState.GUNS[GameState.player(peer).gun].id, {})
 	# Like our own (viewmodel.gd SPIN_*): one loop while the rounds come, not a shot per round.
-	if VIEWMODEL.SETS.get(GameState.GUNS[GameState.player(peer).gun].id, {}).has("spin"):
+	if kit.has("spin"):
 		_spin_quiet[peer] = 0.0
 		if p.stream != VIEWMODEL.SPIN_LOOP or not p.playing:
 			p.stream = VIEWMODEL.SPIN_LOOP
 			p.play()
 		return
-	p.stream = _shot_stream
+	var shot: AudioStream = kit.get("shot", _shot_stream)
+	if p.stream != shot:
+		p.stream = shot
 	p.play()
 
 
