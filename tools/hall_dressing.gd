@@ -634,7 +634,58 @@ func _overhead() -> void:
 		b.add(_mesh(_tube(path, 0.014), cord, Transform3D()), over)
 	for h in [[Vector3(4.5, 0, -21.0), 3.8], [Vector3(-14.0, 0, 7.0), 4.6], [Vector3(21.5, 0, -21.0), 4.2]]:
 		_hoist(over, h[0], h[1])
+	_festoons(over)
 	b.overhead(over)
+
+
+## The crew's string lights: bare warm bulbs on cables slung truss to truss over their corners
+## (the workshop, the desk, the camp), never under the glass. A dim light every few bulbs.
+func _festoons(parent: Node3D) -> void:
+	var y: float = b.BOTTOM - 0.12
+	var bulb := SphereMesh.new()
+	bulb.radius = 0.055
+	bulb.height = 0.11
+	bulb.radial_segments = 8
+	bulb.rings = 4
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = Color(1.0, 0.8, 0.5)
+	glow.emission_enabled = true
+	glow.emission = Color(1.0, 0.7, 0.38)
+	glow.emission_energy_multiplier = 16.0  # over the glow threshold: each bulb blooms a little
+	for run in [[14.0, 27.5, 10.5], [14.0, 27.5, 3.5], [-27.5, -14.0, -20.0], [-27.5, -14.0, -13.0]]:  # z0, z1, x
+		var path := PackedVector3Array()
+		var spots: Array[Vector3] = []
+		var x: float = run[2]
+		var z: float = run[0]
+		while z < run[1] - 0.01:  # one sag per bay, a bulb every ~0.9 m
+			var z_next := minf(z + 7.0, run[1])
+			var n := int((z_next - z) / 0.9)
+			for k in n:
+				var t := float(k) / n
+				var p := Vector3(x, y - 0.9 * sin(t * PI) * (z_next - z) / 7.0, lerpf(z, z_next, t))
+				path.append(p)
+				if k > 0:
+					spots.append(p + Vector3(0, -0.07, 0))
+			z = z_next
+		path.append(Vector3(x, y, run[1]))
+		b.add(_mesh(_tube(path, 0.008), cord, Transform3D()), parent)
+		# One merged mesh, not a MultiMesh: a headless build saves MultiMeshes without their transforms.
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for at in spots:
+			st.append_from(bulb, 0, Transform3D(Basis(), at))
+		var bulbs := _mesh(st.commit(), glow, Transform3D())
+		bulbs.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		b.add(bulbs, parent)
+		for i in range(1, spots.size(), 4):
+			var light := OmniLight3D.new()
+			light.position = spots[i]
+			light.light_color = Color(1.0, 0.72, 0.42)
+			light.light_energy = 0.7
+			light.omni_range = 4.5
+			light.omni_attenuation = 1.4
+			light.light_volumetric_fog_energy = 0.3  # a soft halo in the haze round each
+			b.add(light, parent)
 
 
 ## A chain hoist hanging from a truss down to `low` m, its hook free.

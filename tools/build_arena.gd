@@ -466,7 +466,7 @@ func _sun(roof: Node3D) -> void:
 	sun.name = "Sun"
 	sun.transform = Transform3D(Basis.looking_at(SUN_DIR.normalized(), Vector3.FORWARD), Vector3(0, 20, 0))
 	sun.light_color = Color(0.6, 0.72, 1.0)  # cold night light: the abandonment, against the crew's warm lamps
-	sun.light_energy = 0.18
+	sun.light_energy = 0.4  # the only light under the glass: the heap and the floor round it stay cold and readable
 	sun.light_volumetric_fog_energy = 0.0  # the fog ignores the roof's shadow: it would light the whole hall
 	sun.light_cull_mask = 1  # not the gun's layer
 	sun.shadow_enabled = true
@@ -477,6 +477,18 @@ func _sun(roof: Node3D) -> void:
 	sun.directional_shadow_blend_splits = true
 	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	add(sun)
+	# The lamps' bounce up off the floor: a faint warm light from below on the overhead layer
+	# alone, so the closed roof and its trusses show dimly instead of a black void.
+	var bounce := DirectionalLight3D.new()
+	bounce.name = "RoofBounce"
+	bounce.transform = Transform3D(Basis.looking_at(Vector3.UP, Vector3.FORWARD), Vector3(0, 2, 0))
+	bounce.light_color = Color(1.0, 0.88, 0.75)
+	bounce.light_energy = 0.25
+	bounce.light_cull_mask = 1 << (GS.OVERHEAD_LAYER - 1)
+	bounce.light_volumetric_fog_energy = 0.0
+	bounce.light_specular = 0.0
+	bounce.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	add(bounce)
 
 
 ## Enamel pendants (ceiling_lamp()) hung under every truss's bottom chord, LAMP_STEP apart: a bulb
@@ -512,6 +524,9 @@ func _lamps() -> void:
 				wear = 9 if wear < 4 else (wear if wear in [4, 5] else 9)
 			if Vector2(x - WORKSHOP.x, z - WORKSHOP.z).length() < WORKSHOP_DARK:
 				wear = 0  # dark round the crew's corner
+			if absf(x) < LANTERN.z and absf(z) < LANTERN.w:  # none under the glass: there the sky and its cold light are the lamp
+				x += LAMP_STEP
+				continue
 			if not near_spot:  # the stage spots' clamps sit on these chords
 				var lamp := ceiling_lamp(lamps)
 				lamp.position = Vector3(x, y, z)
