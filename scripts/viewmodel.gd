@@ -54,6 +54,11 @@ const SETS := {
 		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
+## A spinning gun is one sound, not one per round: barrels coming up, a firing loop while rounds
+## leave, the run-down when they stop (all cut from one recording).
+const SPIN_START := preload("res://assets/weapons/sounds/minigun_start.wav")
+const SPIN_LOOP := preload("res://assets/weapons/sounds/minigun_loop.wav")
+const SPIN_STOP := preload("res://assets/weapons/sounds/minigun_stop.wav")
 ## Our section names (the player reports them to others) -> the set's clips.
 const CLIPS := {"fire": "Fire", "reload": "Reload", "reload_empty": "Reload_Empty", "draw": "Equip", "holster": "Unequip"}
 const PUNCHES := ["Punch", "Punch_2"]  # fists' "fire", taking turns
@@ -215,11 +220,17 @@ var _world_flash: OmniLight3D  # the gun lives in its own world; this one lights
 @onready var _dry_sound: AudioStreamPlayer3D = $DrySound
 @onready var _slide_sound: AudioStreamPlayer3D = $SlideSound
 @onready var _mag_sound: AudioStreamPlayer3D = $MagSound
+@onready var _spin_sound: AudioStreamPlayer3D = _shot_sound.duplicate()  # same place and loudness as a shot
 @onready var _wisp: GPUParticles3D = $Wisp  # hot barrel: a cigarette-thin trail plume from the muzzle
 
 
 func _ready() -> void:
 	add_to_group("first_person_gun")
+	add_child(_spin_sound)
+	_spin_sound.max_polyphony = 1
+	var loop: AudioStreamWAV = SPIN_LOOP
+	loop.loop_mode = AudioStreamWAV.LOOP_FORWARD  # the file's end is crossfaded into its start
+	loop.loop_end = int(loop.get_length() * loop.mix_rate)
 	# The import auto-generates LODs and the arms are skinned: Godot judges their distance off the
 	# rest pose and draws the hands as a coarse blob. The gun is always at arm's length; full detail.
 	get_viewport().mesh_lod_threshold = 0.0
@@ -345,6 +356,7 @@ func _swap() -> void:
 	_aim_pose = false
 	spin = 0.0
 	_ramp = 0.0
+	_spin_sound.stop()
 	_want_fire = 0.0  # a click or R from before the swap is not for this gun
 	_want_reload = 0.0
 	_anim.play(_kit.clips + "Idle")
@@ -520,10 +532,19 @@ func _spin(delta: float, aim_held: bool) -> void:
 	var s: Dictionary = _kit.spin
 	var firing := _want_fire > 0.0 or Input.is_action_pressed("fire") and _was_captured
 	var turning := (firing or aim_held) and _clip in ADS_CLIPS and _low_lin == 0.0
+	if turning and spin == 0.0:
+		_spin_play(SPIN_START)
+	elif _spin_sound.stream == SPIN_LOOP and _spin_sound.playing and _since_fire > _interval() * 1.5:
+		_spin_play(SPIN_STOP)  # rounds stopped leaving
 	spin = move_toward(spin, 1.0 if turning else 0.0, delta / float(s.up if turning else s.down))
 	_ramp = move_toward(_ramp, 1.0 if firing and spin == 1.0 else 0.0, delta / float(s.ramp))
 	_barrel = fmod(_barrel + spin * float(s.speed) * delta, TAU)
 	_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * float(s.rumble) * spin * delta * 60.0
+
+
+func _spin_play(what: AudioStream) -> void:
+	_spin_sound.stream = what
+	_spin_sound.play()
 
 
 ## After the clip has posed the rig: the barrels' turn on top of it.
@@ -658,7 +679,10 @@ func _effects() -> void:
 	_world_flash.visible = true
 	_flash_left = FLASH_TIME
 	_flash_frames = 2
-	_shot_sound.play()
+	if not _kit.has("spin"):
+		_shot_sound.play()
+	elif _spin_sound.stream != SPIN_LOOP or not _spin_sound.playing:
+		_spin_play(SPIN_LOOP)
 	var fx := _muzzle_fx[_next_muzzle_fx]
 	_next_muzzle_fx = (_next_muzzle_fx + 1) % MUZZLE_FX_POOL
 	fx.global_transform = _muzzle.global_transform.orthonormalized().translated_local(Vector3(0.0, 0.0, 0.015))  # past the opening

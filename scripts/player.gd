@@ -18,6 +18,7 @@ const SPECIAL_IN_HAND := 1.15  # a special round in hand, this many times a plai
 const SPECIAL_ROOM := 1.6  # its share of the row (plain round 1.1): tips are at most 1.25 across (tools/build_tips.py)
 const AMMO_WHEEL := preload("res://scripts/ammo_wheel.gd")
 const HUD := preload("res://scripts/hud.gd")
+const RUN_STEPS := preload("res://assets/characters/operator/sounds/run.tres")  # sprinting; walking is StepSound's own
 const WHEEL_HOLD := 0.22  # s R is held before the ammo wheel opens; a shorter press reloads
 ## Special rounds that hit us (GameState.SPECIALS). Punch: thrown off somewhere near the shot's
 ## way, tumbling, bounced once on landing, then dizzy for a while: the view sways, the aim drifts,
@@ -108,6 +109,7 @@ var _special_sound: AudioStreamPlayer
 @onready var _head: Node3D = $Head
 @onready var _shop: CanvasLayer = $UpgradeMenu
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
+@onready var _walk_steps: AudioStream = _step_sound.stream
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _reach: RayCast3D = $Head/Camera3D/Reach
 @onready var _hand: Node3D = $Head/Camera3D/Hand
@@ -523,6 +525,7 @@ func _head_bob(delta: float) -> void:
 		_bob += delta * speed * BOB_FREQ
 		# Two steps per bob cycle, at the bottom of each vertical dip (sin(2·bob) = -1).
 		if floor((_bob + PI / 4.0) / PI) != floor((before + PI / 4.0) / PI):
+			_step_sound.stream = RUN_STEPS if speed > SPEED + 0.5 else _walk_steps
 			_step_sound.play()
 	_bob_amount = move_toward(_bob_amount, 1.0 if moving else 0.0, delta * 5.0)
 	_bob_offset = Vector3(cos(_bob) * BOB_AMP, sin(_bob * 2.0) * BOB_AMP, 0.0) * _bob_amount
