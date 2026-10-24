@@ -49,6 +49,27 @@ func _initialize() -> void:
 	await process_frame
 	if not _ok(not placed.has_node("Gear_0"), "and gone from the floor"): return
 	if not _ok(gs.request_place_gear("dummy", Vector3(22, 0, 15), -PI / 2) and placed.has_node("Gear_1"), "the next one is Gear_1"): return
+
+	# Every card, hovered (x1.02), stays inside the panel and the page's clip on small windows too.
+	var panel: Control = menu._center.get_child(0)
+	for res in [Vector2i(1920, 1080), Vector2i(1280, 720), Vector2i(1024, 600)]:
+		root.size = res
+		for tab in 2:
+			menu._show_tab(tab)
+			for i in 3:
+				await process_frame
+			var page: Control = menu._pages[tab]
+			var clip := page.get_global_rect().grow(0.5)
+			var screen := root.get_visible_rect()
+			if not _ok(screen.size == Vector2(res) and screen.encloses(panel.get_global_rect()), "%s: the panel fits the screen (%s)" % [res, panel.get_global_rect()]): return
+			if not _ok(panel.get_global_rect().grow(0.5).encloses(page.get_global_rect()), "%s tab %d: the page's clip stays in the panel" % [res, tab]): return
+			for id in menu._cards:
+				var card: Control = menu._cards[id].card
+				if not card.is_visible_in_tree():
+					continue
+				var r := card.get_global_rect()
+				var hovered := r.grow_individual(r.size.x * 0.01, 0, r.size.x * 0.01, 0)
+				if not _ok(hovered.position.x >= clip.position.x and hovered.end.x <= clip.end.x, "%s: %s hovered fits across (%s in %s)" % [res, id, hovered, clip]): return
 	if menu.visible:
 		menu.toggle()
 	print("shop_check OK")

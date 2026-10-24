@@ -37,6 +37,7 @@ const MODEL_H := 72.0  # px, a gear card's turning model
 const GAUGE_W := 210.0  # px, an upgrade row's price gauge
 const MAX_SIZE := Vector2(1200, 720)  # px; small windows keep a margin round it
 const PAD := 22  # px inside the panel
+const HOVER_ROOM := Vector2(PAD, 10)  # px the pages' clip reaches past them, for a hovered card
 const SIDE_W := 250.0  # px, the gold and the vault: equal so the tabs sit in the middle
 const DEAGLE_ICON := Vector2(96, 48)  # px, the wishlist line's gold Deagle
 const RATE_WINDOW := 10.0  # s of income the "+$N / sn" figure averages
@@ -51,6 +52,7 @@ const WAITING := 0.82  # a card the money does not reach yet
 
 var _tab := 0
 var _frame: VBoxContainer
+var _center: CenterContainer  # the whole menu, shrunk on screens it would not fit
 var _tabs: Array[Button] = []
 var _marks: Array[ColorRect] = []  # the open tab's underline
 var _pages: Array[Control] = []
@@ -202,15 +204,14 @@ func _ready() -> void:
 	dim.color = Color(0, 0, 0, 0.6)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
+	_center = CenterContainer.new()
+	add_child(_center)
 	var panel := PanelContainer.new()
 	var frame := _box(PANEL, Color(BRASS, 0.5), 14, PAD)
 	frame.set_border_width_all(0)
 	frame.border_width_top = 3
 	panel.add_theme_stylebox_override("panel", frame)
-	center.add_child(panel)
+	_center.add_child(panel)
 	_frame = VBoxContainer.new()
 	_frame.add_theme_constant_override("separation", 14)
 	panel.add_child(_frame)
@@ -355,7 +356,12 @@ func _show_tab(index: int) -> void:
 	_tab = index
 	_shown_at = Time.get_ticks_msec()
 	var screen := get_viewport().get_visible_rect().size
-	_frame.custom_minimum_size = Vector2(minf(MAX_SIZE.x, screen.x * 0.94), minf(MAX_SIZE.y, screen.y * 0.94)) - Vector2.ONE * PAD * 2
+	# The cards have fixed widths: a small window shrinks the whole menu rather than the panel.
+	var k := minf(1.0, minf(screen.x * 0.94 / MAX_SIZE.x, screen.y * 0.94 / MAX_SIZE.y))
+	_center.scale = Vector2.ONE * k
+	_center.position = Vector2.ZERO
+	_center.size = screen / k
+	_frame.custom_minimum_size = MAX_SIZE - Vector2.ONE * PAD * 2
 	var titles := [GameState.display_name(), "Teçhizat"]
 	for i in _tabs.size():
 		var on := i == index
@@ -380,10 +386,24 @@ func _page(ids: Array, make: Callable, columns: int) -> Control:
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# The scroll clips: it reaches into the panel's padding and pads the cards back in by the same,
+	# so a hovered card grows into room the clip still shows.
+	scroll.offset_left = -HOVER_ROOM.x
+	scroll.offset_right = HOVER_ROOM.x
+	scroll.offset_top = -HOVER_ROOM.y
+	scroll.offset_bottom = HOVER_ROOM.y
+	var room := MarginContainer.new()
+	room.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	room.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for side in ["left", "right"]:
+		room.add_theme_constant_override("margin_" + side, int(HOVER_ROOM.x))
+	for side in ["top", "bottom"]:
+		room.add_theme_constant_override("margin_" + side, int(HOVER_ROOM.y))
+	scroll.add_child(room)
 	var center := CenterContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL  # a short page sits in the middle
-	scroll.add_child(center)
+	room.add_child(center)
 	var grid := GridContainer.new()
 	grid.columns = columns
 	grid.add_theme_constant_override("h_separation", 12)
