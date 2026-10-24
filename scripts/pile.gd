@@ -21,6 +21,7 @@ const MIN_SLIDE := 1e-4        # m, smaller moves count as settled
 const SLIDE_STEP := MAX_STEP + MIN_SLIDE  # height difference that slides
 const DIG_RADIUS := 2          # cells
 const SURFACE_GRAB := 0.1      # m around a heap take point to pick the mesh bullet from
+const GRAB_DEPTH := 0.03       # m of heap under the crosshair before E grabs from it (two bullets)
 const COLLISION_INTERVAL := 0.25
 const SURFACE_LIFT := 0.014    # m, centre above the surface: resting on it (radius 0.0149)
 const TOE := 0.06              # m, how thick the heap's thinning foot is (softplus width)
@@ -364,9 +365,12 @@ func _overlaps(segments: Dictionary, cell: Vector2i, a: Vector3, b: Vector3) -> 
 	return false
 
 
-## True if a ray hit on `collider` / `rid` is part of this heap: the heap itself or a loose bullet.
-func is_grabbable(collider: Object, rid: RID) -> bool:
-	return collider == self or _spill_index.has(rid) or (collider is RigidBody3D and _awake.has(collider))
+## True if a ray hit at `at` on `collider` / `rid` is a bullet: a loose one, or the heap where it
+## is at least a bullet deep (the height field runs flat over the whole 20 m floor around it).
+func is_grabbable(collider: Object, rid: RID, at: Vector3) -> bool:
+	if collider == self:
+		return _height_at(to_local(at)) > GRAB_DEPTH
+	return _spill_index.has(rid) or (collider is RigidBody3D and _awake.has(collider))
 
 
 ## Loose bullets (resting or moving) whose hitbox is within `radius` of world point `at`.

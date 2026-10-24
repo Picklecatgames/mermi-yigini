@@ -508,7 +508,7 @@ func _board(at: Vector3, face: Basis, posters: Array) -> void:
 	var z := 0.028
 	for k in 6:  # scraps left where older sheets were torn off
 		var p := Vector3(rng.randf_range(-1.4, 1.4), rng.randf_range(-0.6, 0.6), 0)
-		b.add(_mesh(_quad(Vector2(rng.randf_range(0.08, 0.2), rng.randf_range(0.06, 0.16))), _aged_paper(),
+		b.add(_sheet(Vector2(rng.randf_range(0.08, 0.2), rng.randf_range(0.06, 0.16)), _aged_paper(),
 			Transform3D(face * Basis(Vector3.BACK, rng.randf_range(-0.5, 0.5)), at + face * p + out * z)), root)
 	var slots := [Vector3(-1.2, 0.1, 0), Vector3(-0.3, 0.18, 0), Vector3(0.62, -0.04, 0), Vector3(1.35, 0.22, 0)]
 	for i in posters.size():
@@ -522,7 +522,7 @@ func _board(at: Vector3, face: Basis, posters: Array) -> void:
 		if i == 2:  # this one's bottom pins are gone: it hangs off the board from the top
 			var hinge := p + face * Vector3(0, size.y / 2.0, 0)
 			var xf := Transform3D(face * Basis(Vector3.RIGHT, -0.32) * Basis(Vector3.BACK, 0.05), hinge)
-			b.add(_mesh(_quad(size), m, xf * Transform3D(Basis(), Vector3(0, -size.y / 2.0, 0))), root)
+			b.add(_sheet(size, m, xf * Transform3D(Basis(), Vector3(0, -size.y / 2.0, 0))), root)
 			continue
 		_taped(m, p, face, size, rng.randf_range(-0.05, 0.05))
 	for k in 4:  # notices over and between them
@@ -532,7 +532,7 @@ func _board(at: Vector3, face: Basis, posters: Array) -> void:
 	# The one that came down, lying curled at the wall foot.
 	var fallen := _aged_poster(posters[0])
 	var floor_at := Vector3(at.x + 1.9, 0.004, at.z) + out * 0.5
-	b.add(_mesh(_quad(Vector2(0.55, 0.75)), fallen, Transform3D(Basis(Vector3.UP, 0.7) * Basis(Vector3.RIGHT, -PI / 2), floor_at)), root)
+	b.add(_sheet(Vector2(0.55, 0.75), fallen, Transform3D(Basis(Vector3.UP, 0.7) * Basis(Vector3.RIGHT, -PI / 2), floor_at)), root)
 
 
 # --- overhead: ducts fill the black void under the roof ---------------------------------------
@@ -657,9 +657,9 @@ func _aged_paper() -> StandardMaterial3D:
 ## A sheet of `m` with tape on its corners; returns its transform.
 func _taped(m: Material, at: Vector3, face: Basis, size: Vector2, roll: float) -> Transform3D:
 	var xf := Transform3D(face * Basis(Vector3.BACK, roll), at)
-	b.add(_mesh(_quad(size), m, xf), root)
+	b.add(_sheet(size, m, xf), root)
 	for c in [Vector2(-1, 1), Vector2(1, 1), Vector2(-1, -1), Vector2(1, -1)]:  # tape
-		b.add(_mesh(_quad(Vector2(0.09, 0.035)), _flat(Color(0.85, 0.82, 0.7, 0.85), 0.6),
+		b.add(_sheet(Vector2(0.09, 0.035), _flat(Color(0.85, 0.82, 0.7, 0.85), 0.6),
 			xf * Transform3D(Basis(Vector3.BACK, c.x * c.y * 0.6), Vector3(c.x * size.x * 0.46, c.y * size.y * 0.46, 0.002))), root)
 	return xf
 
@@ -752,6 +752,15 @@ func _mesh(mesh: Mesh, mat: Material, xf: Transform3D) -> MeshInstance3D:
 	if mat:
 		m.material_override = mat
 	m.transform = xf
+	return m
+
+
+## A sheet of paper or tape: off layer 1 so the walls' leak, grime and tag decals don't print
+## over it, and no shadow, or sheets 3 mm apart shade each other in bands.
+func _sheet(size: Vector2, mat: Material, xf: Transform3D) -> MeshInstance3D:
+	var m := _mesh(_quad(size), mat, xf)
+	m.layers = 1 << 4
+	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return m
 
 

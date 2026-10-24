@@ -16,6 +16,10 @@ const MODELS := "res://assets/env/models/"
 const DECALS := "res://materials/env/decals/"
 const ACG := "res://assets/env/decals/"
 const SODIUM := Color(1.0, 0.6, 0.3)
+const RED := Color(0.72, 0.08, 0.06)  # spray paint
+const WHITE := Color(0.88, 0.86, 0.8)
+const BLACK := Color(0.06, 0.06, 0.065)
+const ACID := Color(0.72, 0.85, 0.1)
 const DOOR_X := -6.0  # the loading door's centre in the south wall (build_arena _walls skips that panel)
 const GENERATOR := Vector3(-16.6, 0, -26.9)
 
@@ -225,12 +229,15 @@ func _wall_decay() -> void:
 			if rng.randf() < 0.6:
 				var m := _on_wall(moss, side, along + rng.randf_range(-0.4, 0.4), 0.35, Vector2(rng.randf_range(1.4, 2.8), 0.8))
 				m.modulate = Color(1, 1, 1, rng.randf_range(0.6, 1.0))
-	# A few old tags from the years it stood empty, near the doors, at arm's height.
-	var tags := _graffiti()
-	for t in [[0, DOOR_X - 4.4, 1.6, 0, 1.0], [0, DOOR_X + 4.6, 1.35, 1, 0.8], [2, 12.0, 1.5, 2, 0.75],
-			[3, 18.5, 1.7, 3, 0.85], [2, -9.0, 1.45, 4, 0.7]]:
-		var d := _on_wall(tags[t[3]], t[0], t[1], t[2], Vector2(1.9, 1.9))
-		d.modulate = Color(1, 1, 1, t[4])
+	# Sprayed slogans from the years it stood empty, at arm's height, clear of the columns (every 7 m).
+	# [side, along, y, height m, image, colour]
+	for t in [[0, DOOR_X - 4.5, 1.9, 1.2, "86", RED], [0, DOOR_X + 3.4, 1.6, 1.1, "16", RED],
+			[0, -17.5, 1.8, 1.3, "07", WHITE], [0, 1.9, 1.45, 0.45, "83", BLACK],
+			[2, -10.5, 1.7, 1.3, "57", WHITE], [2, 2.0, 1.8, 0.8, "36", RED], [2, 9.5, 1.9, 0.9, "30", RED],
+			[3, -10.5, 1.7, 1.0, "66", RED], [3, -3.5, 2.1, 2.0, "53", WHITE], [3, 3.5, 1.7, 1.0, "78", WHITE],
+			[3, 10.5, 1.6, 0.9, "85", ACID], [3, 18.5, 1.6, 1.2, "80", WHITE]]:
+		var tex := _spray(t[4], t[5])
+		_on_wall(tex, t[0], t[1], t[2], Vector2(t[3] * tex.get_width() / tex.get_height(), t[3]))
 
 
 ## An ambientCG decal: its colour map with the opacity map as alpha, saved once.
@@ -251,26 +258,18 @@ func _acg(id: String) -> Texture2D:
 	return _save_tex(col, path)
 
 
-## Tags out of ambientCG's GraffitiSet001 atlas (4x4 cells), sprayed in our own colours.
-func _graffiti() -> Array[Texture2D]:
-	var out: Array[Texture2D] = []
-	var cells := [Vector2i(3, 0), Vector2i(3, 1), Vector2i(1, 3), Vector2i(0, 3), Vector2i(2, 2)]
-	var colours := [Color(0.08, 0.08, 0.09), Color(0.72, 0.12, 0.08), Color(0.85, 0.85, 0.82), Color(0.1, 0.2, 0.45), Color(0.08, 0.08, 0.09)]
-	var op: Image = null
-	for i in cells.size():
-		var path := DECALS + "tag_%d.res" % i
-		if ResourceLoader.exists(path):
-			out.append(load(path))
-			continue
-		if op == null:
-			op = Image.load_from_file(ProjectSettings.globalize_path(ACG + "GraffitiSet001/GraffitiSet001_2K-JPG_Opacity.jpg"))
-		var cell := op.get_region(Rect2i(cells[i] * 512, Vector2i(512, 512)))
-		var img := Image.create(512, 512, false, Image.FORMAT_RGBA8)
-		for y in 512:
-			for x in 512:
-				img.set_pixel(x, y, Color(colours[i], cell.get_pixel(x, y).r * 0.85))
-		out.append(_save_tex(img, path))
-	return out
+## A real sprayed wall slogan (OpenGameArt "Russian graffiti, labels and tags vol 1", CC0; white
+## on clear) in spray colour `colour`, saved once.
+func _spray(id: String, colour: Color) -> Texture2D:
+	var path := DECALS + "spray_%s.res" % id
+	if ResourceLoader.exists(path):
+		return load(path)
+	var img := Image.load_from_file(ProjectSettings.globalize_path(ACG + "RussianGraffiti/img_%s.png" % id))
+	img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			img.set_pixel(x, y, Color(colour, img.get_pixel(x, y).a * 0.9))
+	return _save_tex(img, path)
 
 
 func _moss_tex() -> Texture2D:

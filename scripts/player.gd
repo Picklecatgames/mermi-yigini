@@ -532,7 +532,7 @@ func _looking_at_pile() -> bool:
 	if not _reach.is_colliding():
 		return false
 	var pile := _pile()
-	return pile != null and pile.is_grabbable(_reach.get_collider(), _reach.get_collider_rid())
+	return pile != null and pile.is_grabbable(_reach.get_collider(), _reach.get_collider_rid(), _reach.get_collision_point())
 
 
 func _pile() -> Node:

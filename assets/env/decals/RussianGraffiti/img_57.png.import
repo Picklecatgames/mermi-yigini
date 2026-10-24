@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://coedu015mnhyo"
-path="res://.godot/imported/GraffitiSet001_2K-JPG_Opacity.jpg-1c3f3e2028a584cb997f42a900e4454e.ctex"
+uid="uid://bsbrgn21m6bpe"
+path="res://.godot/imported/img_57.png-2e21c193348e677f4f6080a1bc3ceaea.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/env/decals/GraffitiSet001/GraffitiSet001_2K-JPG_Opacity.jpg"
-dest_files=["res://.godot/imported/GraffitiSet001_2K-JPG_Opacity.jpg-1c3f3e2028a584cb997f42a900e4454e.ctex"]
+source_file="res://assets/env/decals/RussianGraffiti/img_57.png"
+dest_files=["res://.godot/imported/img_57.png-2e21c193348e677f4f6080a1bc3ceaea.ctex"]
 
 [params]
 
