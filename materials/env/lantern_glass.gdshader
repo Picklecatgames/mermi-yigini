@@ -9,7 +9,7 @@ render_mode cull_disabled, depth_draw_never, blend_premul_alpha;
 uniform sampler2D grime_tex : hint_default_white, filter_linear_mipmap, repeat_enable;  // seamless noise
 uniform vec3 tint : source_color = vec3(0.42, 0.44, 0.4);
 uniform float pane_skew = 0.05;  // how far a pane leans off its neighbours
-uniform vec3 sheen : source_color = vec3(0.55, 0.4, 0.25);  // the hall's warm lamplight caught in the glass
+uniform vec3 sheen : source_color = vec3(0.1, 0.095, 0.09);  // the hall's dim light caught in the glass: faint and grey, never a glowing ceiling
 
 varying vec3 world_pos;
 
@@ -37,7 +37,7 @@ void fragment() {
 	// The sheen: faint face on, strong at grazing angles; each pane's lean gives it its own brightness.
 	float fresnel = pow(1.0 - abs(dot(NORMAL, VIEW)), 5.0);
 	float pane = 0.5 + hash(cell + 9.1);  // no two panes catch the light alike
-	EMISSION = sheen * ((0.1 + 2.0 * fresnel) * pane * (1.0 - 0.5 * dirt) + 0.25 * dirt);  // the dust glows dull in the light too
+	EMISSION = sheen * ((0.1 + 2.0 * fresnel) * pane * (1.0 - 0.5 * dirt) + 0.15 * dirt);  // the dust glows dull in the light too
 	ALBEDO = tint;
 	ALPHA = 0.06 + 0.45 * dirt;
 	ROUGHNESS = mix(0.02, 0.6, dirt);
