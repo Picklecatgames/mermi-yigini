@@ -710,9 +710,8 @@ func _final_spots() -> void:
 		_stage_spot("FinalSpot%d" % int(absf(z)), at, target, 22.0, 6.0, 0.1, 1.4, 1.6)  # was 60 / 0.4: the brightest thing in the hall, lighting an empty square
 
 
-## Dust, glitter and gold flakes over crate `level`'s stand, more and richer each level: a few slow
-## motes at level 1, a shimmering column at 11, a shower of gold at 12. `top` is the stand's top,
-## `area` the painted square's side. Soft dot sprites drawn here, no texture files.
+## Dust hanging in the light over crate `level`'s stand, a little more each level. `top` is the
+## stand's top, `area` the painted square's side. Soft dot sprites drawn here, no texture files.
 func _sparkle(parent: Node3D, level: int, top: float, area: float) -> void:
 	var k := float(level) / CHEST_COUNT  # 0.08 .. 1
 	var dot := GradientTexture2D.new()
@@ -777,31 +776,58 @@ func _sparkle(parent: Node3D, level: int, top: float, area: float) -> void:
 	var dust := Gradient.new()
 	dust.set_color(0, Color(1, 0.97, 0.9, 0))
 	dust.set_color(1, Color(1, 0.97, 0.9, 0))
-	dust.add_point(0.3, Color(1, 0.97, 0.9, 0.35))
-	dust.add_point(0.7, Color(1, 0.97, 0.9, 0.35))
-	emitter.call("Dust", int(6 + 70 * pow(k, 1.4)), 7.0, Vector3(half * 0.8, 1.0, half * 0.8), top + 1.0,
-		0.08, 0.01, Vector2(0.015, 0.04), dust, false)
-	# Glitter: tiny points that twinkle on and off as they drift up, white turning gold up the row.
-	var tint := Color(1.6, 1.6, 1.7).lerp(Color(2.6, 2.0, 0.9), k)  # above 1: they bloom
-	var tw := Gradient.new()
-	tw.set_color(0, Color(tint, 0))
-	tw.set_color(1, Color(tint, 0))
-	for j in 5:  # five flashes over a life
-		tw.add_point(0.1 + j * 0.2, Color(tint, 1.0))
-		tw.add_point(0.2 + j * 0.2 - 0.01, Color(tint, 0.1))
-	emitter.call("Glitter", int(pow(k, 2.0) * 220) if level > 1 else 0, 3.0,
-		Vector3(half * 0.7, 0.8, half * 0.7), top + 0.9, 0.15, 0.12, Vector2(0.012, 0.03), tw, true)
-	# Gold flakes: from the legendary stands up, a slow shower falling through the light.
-	if level >= LEGEND_FROM + 1:
-		var flake := Gradient.new()
-		var gold := Color(2.4, 1.7, 0.6)
-		flake.set_color(0, Color(gold, 0))
-		flake.set_color(1, Color(gold, 0))
-		for j in 6:  # catching the light as they turn
-			flake.add_point(0.08 + j * 0.15, Color(gold, 0.9))
-			flake.add_point(0.15 + j * 0.15, Color(gold, 0.25))
-		emitter.call("GoldFlakes", int(40 + 260 * pow(k, 4.0)), 4.5, Vector3(half * 0.6, 0.3, half * 0.6),
-			top + 3.0, 0.1, -0.5, Vector2(0.02, 0.045), flake, true)
+	dust.add_point(0.3, Color(1, 0.97, 0.9, 0.18))
+	dust.add_point(0.7, Color(1, 0.97, 0.9, 0.18))
+	emitter.call("Dust", int(6 + 30 * k), 9.0, Vector3(half * 0.8, 0.8, half * 0.8), top + 0.8,
+		0.05, 0.005, Vector2(0.008, 0.02), dust, false)
+
+
+## Loose rounds round crate `level`'s stand, as if it leaks them: a few at level 1, a spill across
+## the painted square by the last ones (2026-10-25, the user: the glitter and gold flakes read as a
+## magic game). The brass catches the floor lamps, so the shine comes from the game's own stuff.
+## `area` is the square's side, `foot` the stand's half width.
+func _spilled_rounds(parent: Node3D, level: int, area: float, foot: float) -> void:
+	var scene: Node = (load("res://assets/bullet/bullet_9mm_lod.glb") as PackedScene).instantiate()
+	var mesh: Mesh = (scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
+	scene.free()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = level
+	var k := float(level) / CHEST_COUNT
+	# The glb is not in metres: bring it to the heap's round (pile.gd BULLET_LENGTH, 3x a real 9 mm), centred, its length along Y.
+	var box := mesh.get_aabb()
+	var size := preload("res://scripts/pile.gd").BULLET_LENGTH / box.get_longest_axis_size()
+	var upright := Basis() if box.size.y >= maxf(box.size.x, box.size.z) else (Basis(Vector3.RIGHT, PI / 2) if box.size.z > box.size.x else Basis(Vector3.BACK, PI / 2))
+	var unit := Transform3D(upright.scaled(Vector3.ONE * size), Vector3.ZERO) * Transform3D(Basis(), -box.get_center())
+	var radius := box.get_shortest_axis_size() * size / 2.0
+	# One merged mesh, not a MultiMesh: a headless build saves MultiMeshes without their transforms.
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var reach := area / 2.0 * 0.9
+	var spill := func(at: Vector3, lay: Basis) -> void:
+		st.append_from(mesh, 0, Transform3D(lay, at) * unit)
+	for i in int(6 + 110 * pow(k, 1.5)):
+		# Most spill out the front (+Z, toward the heap) in a fan, the rest anywhere round the foot.
+		var a := rng.randfn(0.0, 0.6) if i % 3 != 0 else rng.randf() * TAU
+		var r := lerpf(foot, reach, pow(rng.randf(), 0.9))
+		if rng.randf() < 0.08:  # one in a dozen landed standing
+			spill.call(Vector3(sin(a) * r, preload("res://scripts/pile.gd").BULLET_LENGTH / 2.0, cos(a) * r), Basis(Vector3.UP, rng.randf() * TAU))
+		else:  # on its side, any way round
+			spill.call(Vector3(sin(a) * r, radius, cos(a) * r), Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, PI / 2))
+	# From the rare crates up, a heap of them where they poured out at the stand's front.
+	if level > RARE_FROM:
+		var mound := lerpf(0.16, 0.34, k)
+		for i in int(20 + 90 * k):
+			var r := mound * sqrt(rng.randf())
+			var a := rng.randf() * TAU
+			var y := radius + 0.16 * k * (1.0 - r / mound) * rng.randf()
+			var tip := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, PI / 2 + rng.randf_range(-0.4, 0.4))
+			spill.call(Vector3(cos(a) * r, y, foot + mound * 0.7 + sin(a) * r), tip)
+	var mi := MeshInstance3D.new()
+	mi.name = "Rounds"
+	mi.mesh = st.commit()
+	mi.material_override = mesh.surface_get_material(0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add(mi, parent)
 
 
 ## The concrete walls stop at 4 m and the roof starts at 8-9 m; corrugated sheet closes the gap on
@@ -1439,6 +1465,7 @@ func _chest_stands() -> void:
 		socket.add_to_group("chest_socket", true)
 		add(socket, body)
 		_sparkle(body, i + 1, top, FINAL_SQUARE if final else 2.0)
+		_spilled_rounds(body, i + 1, FINAL_SQUARE if final else 2.0, 0.9 if final else (lerpf(0.75, 0.95, t) + 0.3) / 2.0 + 0.05)
 		if final:
 			continue  # lit by its own two stage spots
 		if i == 0:
