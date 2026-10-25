@@ -73,12 +73,18 @@ const FINAL_SQUARE := 4.2  # m
 const STAND_TOP := 1.1  # m, level 11's top
 const TWIN_SPOT := MODELS + "twin_spot_light/"
 const TWIN_SPOT_SCALE := 0.13  # the FBX is in decimetres: a 50 cm box
-## The floor lamp between crate n and n + 1: yaw (deg; 180 faces the row), roll about its length
-## (±90: knocked over, on its back or its face, the eyes still turned onto the crates), tilt (deg,
-## one end up on rubble).
-const LAMP_POSES: Array[Vector3] = [Vector3(195, 0, 0), Vector3(142, 0, 0), Vector3(10, 90, 0),
-	Vector3(215, 0, 7), Vector3(168, -90, 0), Vector3(128, 0, 0), Vector3(200, 0, -6),
-	Vector3(-25, 90, 0), Vector3(155, 0, 0), Vector3(232, 0, 0), Vector3(176, -90, 0)]
+## The floor lamp between crate n and n + 1: yaw (deg off facing its two crates), roll about its
+## length (±90: knocked over, on its back or its face, the eyes still turned onto the crates), tilt
+## (deg, one end up on rubble).
+const LAMP_POSES: Array[Vector3] = [Vector3(15, 0, 0), Vector3(-38, 0, 0), Vector3(10, 90, 0),
+	Vector3(35, 0, 7), Vector3(-12, -90, 0), Vector3(-52, 0, 0), Vector3(20, 0, -6),
+	Vector3(-25, 90, 0), Vector3(-25, 0, 0), Vector3(52, 0, 0), Vector3(-4, -90, 0)]
+## Where it stands (2026-10-26, the user: not all in one line): x off the row (+ toward the heap,
+## - behind it, near 0 in the gap between the squares), z off the middle of its two crates (toward
+## one crate's side).
+const LAMP_SPOTS: Array[Vector2] = [Vector2(1.1, 0.2), Vector2(-1.3, -0.3), Vector2(0.1, 0.1),
+	Vector2(1.4, -0.6), Vector2(-1.1, 0.5), Vector2(0.95, -1.0), Vector2(-0.2, 0.3),
+	Vector2(1.25, 0.9), Vector2(-1.4, 0.0), Vector2(0.25, -0.4), Vector2(1.0, 0.0)]
 const RARE_FROM := 4  # index of the first rare stand; legendary from LEGEND_FROM
 const LEGEND_FROM := 9
 
@@ -1551,7 +1557,7 @@ func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel:
 
 
 ## The crates' light (2026-10-25, the user, replacing the theatre spots on a track): rusty twin
-## spot emergency lamps left on the floor in front of the row, one between each pair of crates,
+## spot emergency lamps left on the floor round the row, one between each pair of crates,
 ## one eye on each, lighting them from below. Not set out in a line: some turned, some knocked
 ## over (LAMP_POSES). The tier is in the light: cold on the common crates, neutral from rare
 ## up, warm on the legendary ones and the final crate (which keeps its stage spots too).
@@ -1566,8 +1572,12 @@ func _crate_lamps(tops: Array[float]) -> void:
 	var lenses := {}
 	for n in CHEST_COUNT - 1:
 		var pose: Vector3 = LAMP_POSES[n]
-		var at := Vector3(CHEST_X + rng.randf_range(0.85, 1.35), 0, (chest_pos(n).z + chest_pos(n + 1).z) / 2.0 + rng.randf_range(-0.45, 0.45))
-		var basis := Basis(Vector3.UP, deg_to_rad(pose.x)) * Basis(Vector3.BACK, deg_to_rad(pose.y)) * Basis(Vector3.RIGHT, deg_to_rad(pose.z))
+		var spot_at := LAMP_SPOTS[n] + Vector2(rng.randf_range(-0.15, 0.15), rng.randf_range(-0.15, 0.15))
+		var at := Vector3(CHEST_X + spot_at.x, 0, (chest_pos(n).z + chest_pos(n + 1).z) / 2.0 + spot_at.y)
+		# Its front (+X, or the side the eyes lie on once knocked onto its back) toward its two crates.
+		var to := (chest_pos(n) + chest_pos(n + 1)) / 2.0 - at
+		var face := atan2(-to.z, to.x) + (PI if pose.y > 45.0 else 0.0)
+		var basis := Basis(Vector3.UP, face + deg_to_rad(pose.x)) * Basis(Vector3.BACK, deg_to_rad(pose.y)) * Basis(Vector3.RIGHT, deg_to_rad(pose.z))
 		var low := INF  # rest it on the floor by its lowest corner, standing or fallen
 		for k in 8:
 			low = minf(low, (basis * (box.get_endpoint(k) * TWIN_SPOT_SCALE)).y)
