@@ -782,6 +782,26 @@ func _sparkle(parent: Node3D, level: int, top: float, area: float) -> void:
 		0.05, 0.005, Vector2(0.008, 0.02), dust, false)
 
 
+## The crate's aura, an industrial one (2026-10-25, the user: an aura, but not magic): a cloud of
+## dust and powder hanging low round the stand, thicker and warmer up the row, that the floor
+## lamps' beams cut through and light from below. A FogVolume in the hall's volumetric fog, so it
+## only shows where light falls on it; `area` is the painted square's side, `top` the stand's top.
+func _haze(parent: Node3D, level: int, area: float, top: float) -> void:
+	var k := float(level) / CHEST_COUNT
+	var fog := FogMaterial.new()
+	fog.density = lerpf(0.1, 0.35, k)
+	fog.albedo = Color(0.85, 0.8, 0.7).lerp(Color(0.95, 0.78, 0.5), k)  # concrete dust, turning to brass powder
+	fog.height_falloff = 0.6  # settles toward the floor
+	fog.edge_fade = 0.8  # no box edges in the air
+	var v := FogVolume.new()
+	v.name = "Haze"
+	v.shape = RenderingServer.FOG_VOLUME_SHAPE_ELLIPSOID
+	v.size = Vector3(area * 0.95, top + 1.8, area * 0.95)
+	v.position.y = (top + 1.8) / 2.0 - 0.2
+	v.material = fog
+	add(v, parent)
+
+
 ## Loose rounds round crate `level`'s stand, as if it leaks them: a few at level 1, a spill across
 ## the painted square by the last ones (2026-10-25, the user: the glitter and gold flakes read as a
 ## magic game). The brass catches the floor lamps, so the shine comes from the game's own stuff.
@@ -1466,6 +1486,7 @@ func _chest_stands() -> void:
 		add(socket, body)
 		_sparkle(body, i + 1, top, FINAL_SQUARE if final else 2.0)
 		_spilled_rounds(body, i + 1, FINAL_SQUARE if final else 2.0, 0.9 if final else (lerpf(0.75, 0.95, t) + 0.3) / 2.0 + 0.05)
+		_haze(body, i + 1, FINAL_SQUARE if final else 2.0, top)
 		if final:
 			continue  # lit by its own two stage spots
 		if i == 0:
@@ -1599,7 +1620,7 @@ func _crate_lamps(tops: Array[float]) -> void:
 			spot.spot_range = 7.0
 			spot.spot_angle = 34.0
 			spot.spot_angle_attenuation = 0.9
-			spot.light_volumetric_fog_energy = 0.6
+			spot.light_volumetric_fog_energy = 1.6  # the beams show in the crates' dust (_haze)
 			spot.shadow_enabled = false  # 22 of them; each crate already sits in its own pool
 			add(spot, root)
 
