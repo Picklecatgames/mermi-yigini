@@ -795,7 +795,7 @@ func _sparkle(parent: Node3D, level: int, top: float, area: float) -> void:
 func _haze(parent: Node3D, level: int, area: float, top: float) -> void:
 	var k := float(level) / CHEST_COUNT
 	var fog := FogMaterial.new()
-	fog.density = lerpf(0.1, 0.35, k)
+	fog.density = lerpf(0.08, 0.26, k)
 	fog.albedo = Color(0.85, 0.8, 0.7).lerp(Color(0.95, 0.78, 0.5), k)  # concrete dust, turning to brass powder
 	fog.height_falloff = 0.6  # settles toward the floor
 	fog.edge_fade = 0.8  # no box edges in the air
@@ -1613,7 +1613,7 @@ func _crate_lamps(tops: Array[float]) -> void:
 				lens.albedo_texture = load(TWIN_SPOT + "heads_albedo.png")
 				lens.emission_enabled = true
 				lens.emission = colour
-				lens.emission_energy_multiplier = 6.0
+				lens.emission_energy_multiplier = 1.2  # a warm glass, not a flash: higher bloomed into a blown-out star
 				lenses[colour] = lens
 			var hi := MeshInstance3D.new()
 			hi.name = "Eye%d" % (k + 1)
@@ -1626,11 +1626,11 @@ func _crate_lamps(tops: Array[float]) -> void:
 			var from: Vector3 = body.transform * ((head.at + turn * head.lens) * TWIN_SPOT_SCALE)
 			spot.transform = Transform3D(Basis.looking_at(target - from), from)
 			spot.light_color = colour
-			spot.light_energy = 9.0 if ti >= LEGEND_FROM else (7.5 if ti >= RARE_FROM else 6.0)
+			spot.light_energy = 4.5 if ti >= LEGEND_FROM else (3.8 if ti >= RARE_FROM else 3.2)  # half what they were: the crate fronts burnt out white
 			spot.spot_range = 7.0
 			spot.spot_angle = 34.0
-			spot.spot_angle_attenuation = 0.9
-			spot.light_volumetric_fog_energy = 1.6  # the beams show in the crates' dust (_haze)
+			spot.spot_angle_attenuation = 2.2  # a soft-edged wash, no hard bright core
+			spot.light_volumetric_fog_energy = 1.0  # the beams show in the crates' dust (_haze)
 			spot.shadow_enabled = false  # 22 of them; each crate already sits in its own pool
 			add(spot, root)
 
