@@ -9,7 +9,11 @@ const VISE := AABB(Vector3(-0.37, 0.985, -0.16), Vector3(0.74, 0.3, 0.73))
 const HOOK := AABB(Vector3(-0.37, 0.5, 0.375), Vector3(0.74, 0.7, 0.5))  # its handle, hung over the front edge (z 0.366)
 
 
+const Reveal := preload("res://scripts/reveal.gd")
+
+
 func _ready() -> void:
+	Reveal.hold(self, "workbench", "Tezgâh")  # the first main quest opens it (GameState QUESTS m01)
 	var glb := get_child(0)
 	for n: Node3D in glb.get_children():
 		if n.name == "Desk":

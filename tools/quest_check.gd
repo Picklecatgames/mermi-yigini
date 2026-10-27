@@ -1,7 +1,8 @@
 extends SceneTree
 ## Headless check for the quest board (GameState QUESTS):
 ##   Godot.exe --headless --path . -s res://tools/quest_check.gd
-## Five slots of the right tiers, the main chain in order, `with` and `needs` respected, peak kinds,
+## The warmup first (alone, each done at once, the board's one only at the board), then five slots
+## of the right tiers, the main chain in order, `with` and `needs` respected, peak kinds,
 ## a done quest waiting on the board until its reward is claimed, rewards, targets growing with the
 ## team, and every quest in the pool reachable. Co-op
 ## mirroring over a real connection is in tools/net_check.gd; here the client side is _event fed
@@ -15,13 +16,32 @@ func _initialize() -> void:
 	await process_frame
 	seed(7)
 	gs.start_quests()
+	var mains: Array = gs.QUESTS.keys().filter(func(id: String) -> bool: return gs.QUESTS[id].tier == "main")
+	var warmup: Array = mains.filter(func(id: String) -> bool: return gs.QUESTS[id].get("warmup", false))
+
+	# The warmup: one thing at a time, the pool slots empty; each is done the moment it is reached,
+	# but for the trip to the board, which needs someone there.
+	_ok(gs.quest_board[0] == warmup[0] and gs.quest_board.slice(1).all(func(id: String) -> bool: return id == ""),
+		"the warmup comes alone")
+	for id: String in warmup:
+		_ok(gs.quest_board[0] == id, "the warmup in order: %s" % id)
+		if gs.QUESTS[id].kind == "board_claim":
+			gs.player().pos = gs.BOARD_POS + Vector3(20, 0, 0)
+			gs.player().has_pose = true
+			gs.request_claim_quests()
+			_ok(id not in gs.quests_done, "nothing is claimed far from the board")
+			gs.player().pos = gs.BOARD_POS + Vector3(1.5, 0, 0)
+			gs.request_claim_quests()
+			gs.player().has_pose = false
+		else:
+			gs.quest_add(gs.QUESTS[id].kind, gs.quest_target(id))
+		_ok(id in gs.quests_done, "%s is done right away" % id)
+	_ok(gs.unlocked("board") and gs.quest_board[0] == mains[warmup.size()], "the warmup over, the main chain begins")
 	var board: Array = gs.quest_board
 	_ok(board.size() == gs.QUEST_SLOTS.size(), "five slots")
 	for i in board.size():
 		_ok(board[i] != "" and gs.QUESTS[board[i]].tier == gs.QUEST_SLOTS[i], "slot %d holds a %s quest" % [i, gs.QUEST_SLOTS[i]])
 		_ok(board.count(board[i]) == 1, "no quest pinned twice")
-	var mains: Array = gs.QUESTS.keys().filter(func(id: String) -> bool: return gs.QUESTS[id].tier == "main")
-	_ok(board[0] == mains[0], "the main slot starts the chain")
 	for id: String in gs.QUESTS:
 		if gs.QUESTS[id].has("needs"):
 			_ok(gs.QUESTS.values().any(func(q: Dictionary) -> bool: return q.get("unlock") == gs.QUESTS[id].needs),
@@ -43,7 +63,7 @@ func _initialize() -> void:
 	gs.request_claim_quests()
 	_ok(m in gs.quests_done and m not in gs.quests_ready and done.size() == 1 and done[0][0] == m, "claimed, the main quest is done")
 	_ok(not q.has("unlock") or gs.unlocked(q.unlock), "its unlock is in")
-	_ok(gs.quest_board[0] == mains[1], "the main slot moves on to the next one")
+	_ok(gs.quest_board[0] == mains[mains.find(m) + 1], "the main slot moves on to the next one")
 
 	# Peak kinds keep the best value, and gold rewards reach the player.
 	for id: String in gs.quest_board:
@@ -68,7 +88,7 @@ func _initialize() -> void:
 		one[id] = gs.quest_target(id)
 	gs.slots = {1: 0, 2: 1, 3: 2, 4: 3}
 	for id: String in gs.QUESTS:
-		var want: int = one[id] if gs.QUESTS[id].kind in gs.QUEST_FIXED_KINDS else ceili(gs.QUESTS[id].target * (1.0 + gs.quest_scale * 3))
+		var want: int = one[id] if gs.QUESTS[id].kind in gs.QUEST_FIXED_KINDS or gs.QUESTS[id].get("warmup", false) else ceili(gs.QUESTS[id].target * (1.0 + gs.quest_scale * 3))
 		_ok(gs.quest_target(id) == want, "%s: %d for four" % [id, want])
 	gs.slots = {}
 

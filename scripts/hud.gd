@@ -7,8 +7,11 @@ extends Control
 ## and underlined in brass, and above them a special round's state. Top right: the Q key cap and
 ## "Geliştirmeler", brass when the gold reaches an upgrade, and test mode's hint under it; under
 ## them the quest board (GameState QUESTS), a line and a thin bar a slot, the main quest on top saying
-## what to do; a done one turns green with its tick and reward and waits for C, then folds away and
-## the next one comes in. Kept short: the screen is for the heap.
+## what to do; a done one turns green with its tick and reward and waits to be claimed at the board
+## (E there), then folds away and the next one comes in. Kept short: the screen is for the heap.
+## During the warmup the main quest has its key under it and the rest of the screen comes in as it
+## is learnt. Something just opened gets a line under the heap and, like the board while a reward
+## waits there, an arrow pointing the way (Reveal).
 ## Listens to GameState itself.
 
 const KeyCache := preload("res://scripts/key_cache.gd")
@@ -20,7 +23,7 @@ const QUEST_W := 230.0  # px, a quest's bar
 const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Yığından mermi taşı",
 	"bullets_fired": "Mermi ateşle", "hits": "Hedefe isabet", "weak_hits": "Kafa isabeti",
 	"combo": "Kombo zinciri", "crafted": "Tarife mermi işle", "bullets_melted": "Mermi erit",
-	"key_found": "Anahtar bul"}
+	"key_found": "Anahtar bul", "loaded": "Şarjöre mermi koy", "board_claim": "Panoya git"}
 ## What a quest's `with`, `unlock`, part and perk are called on screen; guns use their GUNS name.
 const NAMES := {"clone": "Klon", "obur": "Obur", "sekme": "Sekme", "yanki": "Yankı",
 	"workbench": "Tezgâh", "bucket": "Kova", "blueprints": "Tarif panosu", "hand_press": "El presi",
@@ -29,8 +32,10 @@ const NAMES := {"clone": "Klon", "obur": "Obur", "sekme": "Sekme", "yanki": "Yan
 	"melter_yield": "Verimli huni", "sweeper": "Süpürge robotu", "drone_teaser": "Dron planı",
 	"dual_pistol": "Çift tabanca", "clone_spread": "Klon yayılımı", "clone_count": "Klon sayısı",
 	"clone_count_2": "Klon sayısı II", "obur_more": "Obur iştahı", "sekme_more": "Fazla sekme",
-	"yanki_more": "Fazla yankı"}
+	"yanki_more": "Fazla yankı", "board": "Yan görevler"}
 const CLOSE_TIME := 0.45  # s, a claimed card folding away
+const BANNER_TIME := 3.5  # s a "… açıldı" line stays
+const POINT_EDGE := 70.0  # px from the screen's edge, the arrow to something off screen
 
 var _heap: Label
 var _heap_meter: Control
@@ -50,8 +55,13 @@ var _guns: HBoxContainer
 var _test: Control
 var _quests: VBoxContainer
 var _cards: Array[Dictionary] = []  # per QUEST_SLOTS slot: its nodes and the quest it shows
-var _claim: Control  # "[C] Ödülü al", while something is done
+var _claim: Control  # "[E] Panoda teslim et", while something is done
 var _claimed := {}  # quest ids just claimed: their card folds away before the next comes in
+var _hint: Control  # under the main quest during the warmup: its key and what to do
+var _left: Control  # the magazine's column
+var _right: Control  # gold's column
+var _banner: Label  # "Tezgâh açıldı", under the heap for a while
+var _pointer: Control  # arrows to what was just opened and to the board while something waits there
 
 
 func _ready() -> void:
@@ -68,10 +78,109 @@ func _ready() -> void:
 	GameState.gun_changed.connect(refresh.unbind(2))
 	GameState.key_taken.connect(refresh.unbind(2))
 	GameState.gold_changed.connect(func(_g: int) -> void: _pop(_gold))
-	GameState.quest_done.connect(func(id: String, _gold: int) -> void: _claimed[id] = true)
-	GameState.quests_changed.connect(func(_b: Array, _p: Dictionary, _r: Array) -> void: _refresh_quests())
+	GameState.quest_done.connect(_on_quest_done)
+	GameState.quests_changed.connect(func(_b: Array, _p: Dictionary, _r: Array) -> void:
+		_refresh_quests()
+		refresh())
+	_build_pointer()
 	refresh()
 	_refresh_quests()
+
+
+func _on_quest_done(id: String, _gold: int) -> void:
+	_claimed[id] = true
+	var what: String = GameState.QUESTS[id].get("unlock", "")
+	if what != "" and not what.begins_with("hud_"):
+		_announce("%s açıldı" % NAMES.get(what, what))
+	refresh()
+
+
+## One line under the heap for a few seconds: what just opened.
+func _announce(text: String) -> void:
+	_banner.text = text
+	_banner.modulate.a = 0.0
+	_banner.scale = Vector2.ONE * 1.25
+	_banner.pivot_offset = _banner.size * 0.5
+	var tw := _banner.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_banner, "modulate:a", 1.0, 0.25)
+	tw.parallel().tween_property(_banner, "scale", Vector2.ONE, 0.35)
+	tw.tween_interval(BANNER_TIME)
+	tw.tween_property(_banner, "modulate:a", 0.0, 0.6)
+
+
+## Still in the warmup: parts of the screen wait for what they show to be learnt.
+func _warming() -> bool:
+	var main: String = GameState.quest_board[0] if not GameState.quest_board.is_empty() else ""
+	return main != "" and GameState.QUESTS[main].get("warmup", false)
+
+
+func _shown(what: String) -> bool:
+	return not _warming() or GameState.unlocked(what)
+
+
+func _build_pointer() -> void:
+	_pointer = Control.new()
+	_pointer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pointer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_pointer)
+	_pointer.draw.connect(_draw_pointer)
+
+
+func _process(_delta: float) -> void:
+	_pointer.queue_redraw()
+
+
+## [world point, name] for each thing to point at.
+func _point_targets() -> Array:
+	var out := []
+	for m: Node3D in get_tree().get_nodes_in_group("reveal_marker"):
+		out.append([m.global_position + Vector3.UP * m.get_meta("height", 2.0), m.get_meta("label", "")])
+	var waits := not GameState.quests_ready.is_empty() or GameState.quest_board.any(func(id: String) -> bool:
+		return id != "" and GameState.QUESTS[id].kind == "board_claim")
+	if waits:
+		out.append([GameState.BOARD_POS + Vector3.UP * 2.3, "Pano"])
+	return out
+
+
+## On screen: a small chevron over the thing and its name. Off screen (or behind): an arrow at the
+## screen's edge turned towards it.
+func _draw_pointer() -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null or _pointer.size.x <= POINT_EDGE * 2.0 or _pointer.size.y <= POINT_EDGE * 2.0:
+		return
+	var font := UiStyle.face(UiStyle.SEMIBOLD)
+	var area := Rect2(Vector2.ZERO, _pointer.size)
+	var inner := area.grow(-POINT_EDGE)
+	var mid := area.get_center()
+	for t: Array in _point_targets():
+		var at: Vector3 = t[0]
+		var name_: String = t[1]
+		var s := cam.unproject_position(at) / scale
+		var behind := cam.is_position_behind(at)
+		var dist := cam.global_position.distance_to(at)
+		var label := "%s  %dm" % [name_, roundi(dist)]
+		if not behind and inner.has_point(s):
+			if dist < 4.5:
+				continue  # right there: the crosshair's own hint says it
+			var tip := s + Vector2(0, 8)
+			_pointer.draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-9, -12), tip + Vector2(9, -12)]), UiStyle.ACCENT)
+			var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+			_pointer.draw_string_outline(font, s + Vector2(-w * 0.5, -14), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, UiStyle.SHADOW)
+			_pointer.draw_string(font, s + Vector2(-w * 0.5, -14), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, UiStyle.ACCENT)
+			continue
+		var dir := (s - mid) * (-1.0 if behind else 1.0)
+		if dir.length() < 1.0:
+			dir = Vector2.DOWN
+		dir = dir.normalized()
+		# Out from the middle along dir until the inner rectangle's edge.
+		var k := minf(absf((inner.size.x * 0.5) / dir.x) if dir.x != 0.0 else INF, absf((inner.size.y * 0.5) / dir.y) if dir.y != 0.0 else INF)
+		var p := mid + dir * k
+		var side := dir.orthogonal()
+		_pointer.draw_colored_polygon(PackedVector2Array([p + dir * 16, p - dir * 8 + side * 12, p - dir * 8 - side * 12]), UiStyle.ACCENT)
+		var w2 := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
+		var lp := p - dir * 34 + Vector2(-w2 * 0.5, 5)
+		_pointer.draw_string_outline(font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, UiStyle.SHADOW)
+		_pointer.draw_string(font, lp, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UiStyle.ACCENT)
 
 
 func _build_heap() -> void:
@@ -94,11 +203,19 @@ func _build_heap() -> void:
 	under.add_child(left)
 	_keys = UiStyle.caption("")
 	under.add_child(_keys)
+	_banner = UiStyle.display("", 30, UiStyle.BOLD, UiStyle.ACCENT)
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.modulate.a = 0.0
+	col.add_child(_banner)
 
 
 func _build_sides() -> void:
 	for right in [false, true]:
 		var col := _column(Control.PRESET_BOTTOM_RIGHT if right else Control.PRESET_BOTTOM_LEFT)
+		if right:
+			_right = col
+		else:
+			_left = col
 		col.offset_left = 0 if right else MARGIN.x
 		col.offset_right = -MARGIN.x if right else 0
 		col.offset_bottom = -MARGIN.y
@@ -219,10 +336,14 @@ func _build_quests() -> void:
 		card.add_child(bar)
 		_quests.add_child(card)
 		if main:
+			_hint = HBoxContainer.new()  # filled per warmup quest (_show_hint)
+			_hint.alignment = BoxContainer.ALIGNMENT_END
+			_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_quests.add_child(_hint)
 			_quests.add_child(UiStyle.line(QUEST_W * 0.4))  # the main quest over the rest
 		_cards.append({"card": card, "tick": tick, "name": name_, "share": share, "bar": bar,
 			"main": main, "id": "", "pulse": null})
-	_claim = UiStyle.hint("C", "Ödülü al")
+	_claim = UiStyle.hint("E", "Panoda teslim et")
 	UiStyle.tint_keycap(_claim.get_child(0) as PanelContainer, UiStyle.ACCENT)
 	(_claim.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.ACCENT)
 	_quests.add_child(_claim)
@@ -250,6 +371,26 @@ func _refresh_quests() -> void:
 		elif not c.has("folding"):
 			_show_quest(c, id)
 	_claim.visible = not GameState.quests_ready.is_empty()
+	_show_hint(GameState.quest_board[0] if not GameState.quest_board.is_empty() else "")
+
+
+## The warmup quest's key and what to do, under it; none past the warmup.
+func _show_hint(id: String) -> void:
+	var hint: Array = GameState.QUESTS[id].get("hint", []) if id != "" else []
+	if _hint.get_meta("for", "") == id:
+		return
+	_hint.set_meta("for", id)
+	for n in _hint.get_children():
+		n.queue_free()
+	_hint.visible = not hint.is_empty()
+	if hint.is_empty():
+		return
+	var h := UiStyle.hint(hint[0], hint[1], 15)
+	UiStyle.tint_keycap(h.get_child(0) as PanelContainer, UiStyle.ACCENT)
+	(h.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.WHITE)
+	_hint.add_child(h)
+	h.modulate.a = 0.0
+	h.create_tween().tween_property(h, "modulate:a", 1.0, 0.4)
 
 
 ## A claimed card: ticked, it fades and shrinks away, then the slot's next quest comes in.
@@ -287,7 +428,10 @@ func _show_quest(c: Dictionary, id: String) -> void:
 	var what: String = KINDS.get(q.kind, q.kind)
 	if q.has("with"):
 		what += " (%s)" % _with_name(q.with)
-	c.name.text = ("%s %s" % [what, UiStyle.dotted(target)]) if c.main else q.name
+	if q.get("warmup", false):
+		c.name.text = q.name  # one thing to do, said plainly; no count of 1
+	else:
+		c.name.text = "%s %s" % [what, UiStyle.dotted(target)]  # what to do beats a name nobody knows yet
 	c.name.add_theme_color_override("font_color", UiStyle.MONEY if ready else (UiStyle.WHITE if c.main else UiStyle.DIM))
 	c.share.text = _reward_text(id) if ready else "%" + str(floori(100.0 * have / maxi(target, 1)))
 	c.share.add_theme_color_override("font_color", UiStyle.MONEY if ready else UiStyle.DIM)
@@ -378,6 +522,12 @@ func refresh() -> void:
 	_can_buy.add_theme_color_override("font_color", UiStyle.ACCENT if can else UiStyle.DIM)
 	UiStyle.tint_keycap(_q, UiStyle.ACCENT if can else UiStyle.WHITE)
 	_test.visible = GameState.infinite_ammo
+	# The warmup opens the screen bit by bit: the hand and guns once a bullet was taken, gold and
+	# upgrades once a hit paid (GameState QUESTS t01, t03).
+	_left.visible = _shown("hud_ammo")
+	_guns.visible = _shown("hud_ammo")
+	_right.visible = _shown("hud_gold")
+	_q.get_parent().visible = _shown("hud_gold")
 
 
 ## A number that went up gives a small start.

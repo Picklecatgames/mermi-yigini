@@ -116,6 +116,8 @@ var _special_sound: AudioStreamPlayer
 @onready var _prompt: Label = $HUD/Prompt  # the scene's old text prompt, freed: key caps replace it
 var _grab_hint: Control  # under the crosshair while looking at the heap
 var _full_hint: Control
+var _board_hint: Control  # at the quest board while something waits there (E claims)
+var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
 @onready var _crosshair: Control = $HUD/Crosshair
 @onready var _hit_marker: Control = $HUD/HitMarker
 @onready var _vm_camera: Camera3D = $ViewmodelView/SubViewport/Camera
@@ -141,6 +143,8 @@ func _ready() -> void:
 	_prompt.queue_free()
 	_grab_hint = _crosshair_hint(UiStyle.hint("E", "Basılı tut: mermi al"))
 	_full_hint = _crosshair_hint(UiStyle.hint("G", "Elin dolu: fırlat"))
+	_board_hint = _crosshair_hint(UiStyle.hint("E", "Görev panosu: ödülleri al"))
+	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
@@ -339,7 +343,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_toggle_infinite_ammo()
 	elif event.is_action_pressed("placement_mode"):
 		GameState.request_toggle_placing()
-	elif event.is_action_pressed("claim_quests"):
+	elif event.is_action_pressed("pick_up") and _board_has_something():
 		GameState.request_claim_quests()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
@@ -500,6 +504,19 @@ func _physics_process(delta: float) -> void:
 	var room := GameState.carried < GameState.carry_capacity
 	_grab_hint.visible = looking and room
 	_full_hint.visible = looking and not room
+	_board_hint.visible = not looking and _board_has_something()
+	var p := GameState.player()
+	_reload_hint.visible = not looking and not _board_hint.visible and p.gun != 0 and GameState.loaded == 0 \
+		and GameState.carried > 0 and not p.placing
+
+
+## Standing at the quest board with a reward waiting there (or the warmup's trip to it): E claims.
+func _board_has_something() -> bool:
+	var at := Vector2(global_position.x - GameState.BOARD_POS.x, global_position.z - GameState.BOARD_POS.z)
+	if at.length() > GameState.BOARD_REACH or _hands_busy():
+		return false
+	return not GameState.quests_ready.is_empty() or GameState.quest_board.any(func(id: String) -> bool:
+		return id != "" and GameState.QUESTS[id].kind == "board_claim")
 
 
 ## Bumped into another player's body: shove them along with how fast we walked into them.

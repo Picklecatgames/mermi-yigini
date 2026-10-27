@@ -34,7 +34,13 @@ Her adım ayrı commit. Sonunda ilgili `tools/*_check.gd` çalışır.
    - Çıktı: her görevin bitiş dakikası, açılışların dakikası, saniyede eritilen mermi eğrisi, ilk 60 dakikada yığından giden toplam.
    - Hedefler: demonun ana zinciri tek kişi orta beceride ~55-65 dk; 4 kişi en az ~35 dk; açılışların arası hiçbir yerde 6-7 dk'yı geçmesin.
    - Sonuçtan oyuncu sayısı ölçeği bulunur (ör. hedef × (1 + k·(n−1))).
-5. **Görev tahtası arayüzü** (~3-4 sa): soruşturma panosunda 5 görev kartı (yakına gelince okunur), biten kartın üstü çizilir ve yenisi iğnelenir; HUD'da odaklanılan görevin tek satırı ve ilerlemesi; bitişte bildirim. Parçalı blueprint panoda yarım görünür.
+5. **Görev tahtası arayüzü**: HUD kısmı yapıldı (sağ üstte 5 kart, ilerleme, bitişte yeşil + ödül). Kalan **pano = teslim yeri** (~3-4 sa, tasarım: ayrintilar.md "Pano = teslim yeri ve ısınma zinciri"):
+   - C kalkar; panonun önünde E ile teslim. `request_claim_quests` host'ta oyuncunun panoya yakınlığını kontrol eder. HUD kartında "Panoda teslim et" + yön işareti, bekleyen ödül varken pano parlar.
+   - Panoda 5 görev kartı (yakına gelince okunur); teslimde damga, kart sökülür, yenisi iğnelenir.
+   - Parçalı blueprint panoda yarım asılı, her teslim edilen parça üstüne iğnelenir; tamamlanınca açılış (adım 7 ile birlikte).
+   - `quest_sim.gd`: her teslim gezisine yürüme süresi (~10 s), süreler yeniden ölçülür.
+   - Kontrol: `quest_check` (uzaktan teslim reddedilir), `hud_check`, `net_check`.
+5b. **Isınma zinciri** (~3-4 sa): ana zincirin başına t01-t05 (mermi al, şarjöre koy, vur, kafaya vur, panoda teslim). t01-t04 biter bitmez sıradakine geçer, ödülleri panoda birikir. Yeni `kind`: şarjöre konan mermi (`loaded`), panoda teslim. HUD parça parça açılır (mermi sayacı t02, gold t03, yan slotlar t05; ısınması bitmiş takıma katılan her şeyi görür). Kişiye özel, duruma bağlı, bir kez gösterilen ipuçları ve dünyada tuş harfi (yığın, pano); ipucu durumu yerel, ağdan geçmez. Kontrol: `quest_check` (zincir sırası), `hud_check` (gizli göstergeler).
 6. **Tezgâh = geliştirme ağacı** (~4-6 sa): 1. görev tezgâhı açar; kişisel geliştirmeler Q'dan tezgâha taşınır; Q yalnız takım teçhizatı. Animasyonlar: silah masaya kayar, şarjör/dipçik/nişangâh takılır (sesler kullanıcıdan).
 7. **Blueprint parçaları ve ustalık perkleri** (~2-3 sa): parça sayacı, tamamlanınca açılış; perkler mermi ustalık görevlerinden.
 8. **Taşıma aletleri** (~4-6 sa): kova, kürek, el arabası (görsel taşıma, kapasite kademeleri). Modeller asetten.

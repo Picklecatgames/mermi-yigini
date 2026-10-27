@@ -189,10 +189,25 @@ const QUEST_SLOTS := ["main", "easy", "medium", "medium", "hard"]
 ## needs: drawn only once that is unlocked; unlock: the mechanic it opens; reward: gold (to every
 ## player), part (a blueprint piece for the team), perk (a mastery perk).
 ## Kinds: gold_earned, bullets_carried (off the heap), bullets_fired, hits, weak_hits, combo (the
-## longest chain), crafted (bullets made into recipe rounds), bullets_melted, key_found.
+## longest chain), crafted (bullets made into recipe rounds), bullets_melted, key_found, loaded
+## (rounds put in a magazine), board_claim (someone at the board pressed E).
 ## The demo's pool draft (docs/gorev_sistemi_plani.md, "Görev havuzu"); numbers from tools/quest_sim.gd.
+## warmup: the first minutes (docs/ayrintilar.md "Pano = teslim yeri ve ısınma zinciri"), one thing
+## each; the target doesn't grow with the team and the quest is done the moment it is reached, no
+## trip to the board, except t05, which is the trip. hint: the key and what to do, for the HUD.
+## Their unlocks open parts of the HUD; "board" also lets the four pool slots draw.
 # ponytail: crafted and bullets_melted have no hook until the bench and the melter exist (plan 6, 9).
 const QUESTS := {
+	"t01": {"tier": "main", "warmup": true, "name": "Yığından mermi al", "kind": "bullets_carried", "target": 1,
+		"unlock": "hud_ammo", "hint": ["E", "Yığına bak ve bas"], "reward": {}},  # the hand holds 1 at first
+	"t02": {"tier": "main", "warmup": true, "name": "Tabancayı doldur", "kind": "loaded", "target": 1,
+		"hint": ["1", "Tabancayı al, R ile doldur"], "reward": {}},
+	"t03": {"tier": "main", "warmup": true, "name": "Hedefi vur", "kind": "hits", "target": 1,
+		"unlock": "hud_gold", "hint": ["SOL TIK", "Korkuluğun arkasındaki hedefe ateş et"], "reward": {}},
+	"t04": {"tier": "main", "warmup": true, "name": "Kafasına vur", "kind": "weak_hits", "target": 1,
+		"hint": ["SAĞ TIK", "Nişan al: kafa iki kat öder"], "reward": {}},
+	"t05": {"tier": "main", "warmup": true, "name": "Panoda ödülünü al", "kind": "board_claim", "target": 1,
+		"unlock": "board", "hint": ["E", "Okun gösterdiği panoya git"], "reward": {"gold": 10}},
 	"m01": {"tier": "main", "name": "İlk kazanç", "kind": "gold_earned", "target": 6, "unlock": "workbench", "reward": {}},
 	"m02": {"tier": "main", "name": "Avuç avuç", "kind": "bullets_carried", "target": 19, "unlock": "bucket", "reward": {}},
 	"m03": {"tier": "main", "name": "Kova dolusu", "kind": "bullets_fired", "target": 130, "unlock": "uzi", "reward": {}},
@@ -245,6 +260,9 @@ const QUEST_FIXED_KINDS := ["combo", "key_found", "bullets_melted"]
 var quest_scale := 0.5  # tools/quest_sim.gd --sweep: four mid players finish the main chain in ~36 min
 ## A pool slot draws at random among this many of the easiest quests left in it.
 const QUEST_DRAW := 2
+## The quest board (investigation board, tools/range_dressing.gd), feet; rewards are claimed there.
+const BOARD_POS := Vector3(8.85, 0.0, 26.72)
+const BOARD_REACH := 3.0  # m
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
@@ -691,6 +709,7 @@ func request_reload(peer := 0) -> int:
 	_send(&"request_reload", [], peer)
 	_set_carried(peer, p.carried - n)
 	_set_loaded(peer, p.loaded + n)
+	quest_add("loaded", n)
 	return n
 
 
@@ -938,7 +957,7 @@ func _reset_quests() -> void:
 ## How much of quest `id` the team has to do, for as many as play now.
 func quest_target(id: String) -> int:
 	var q: Dictionary = QUESTS[id]
-	if q.kind in QUEST_FIXED_KINDS:
+	if q.kind in QUEST_FIXED_KINDS or q.get("warmup", false):
 		return q.target
 	return ceili(q.target * (1.0 + quest_scale * (quest_players - 1)))
 
@@ -955,12 +974,13 @@ func blueprint_parts(id: String) -> int:
 
 ## Host (or solo): `amount` more of `kind` happened. Every pinned quest of that kind counts it,
 ## unless it asks for a gun or round (`with`) that isn't among `tags`. One that reaches its target
-## waits, done, until someone claims it. A client's own call is dropped; it hears of the board
-## from quests_changed.
+## waits, done, until someone claims it at the board; a warmup one is done right away. A client's
+## own call is dropped; it hears of the board from quests_changed.
 func quest_add(kind: String, amount: int, tags: Array = []) -> void:
 	if Net.is_client or amount <= 0:
 		return
 	var moved := false
+	var warm := []
 	for id: String in quest_board:
 		if id == "" or id in quests_ready or QUESTS[id].kind != kind or (QUESTS[id].has("with") and QUESTS[id].with not in tags):
 			continue
@@ -968,15 +988,27 @@ func quest_add(kind: String, amount: int, tags: Array = []) -> void:
 		quest_progress[id] = mini(maxi(was, amount) if kind in QUEST_PEAK_KINDS else was + amount, quest_target(id))
 		moved = moved or quest_progress[id] != was
 		if quest_progress[id] >= quest_target(id):
-			quests_ready.append(id)
+			if QUESTS[id].get("warmup", false):
+				warm.append(id)
+			else:
+				quests_ready.append(id)
+	for id: String in warm:  # after the loop: the next one comes in fresh, not counting this
+		_finish_quest(id)
 	if moved:
 		_world(&"quests_changed", [quest_board, quest_progress, quests_ready])
 
 
-## Anyone (C) claims every done quest's reward for the team; the host decides, the board follows
-## (quest_done for each, then quests_changed).
+## Anyone at the board (E) claims every done quest's reward for the team; the host decides, the
+## board follows (quest_done for each, then quests_changed). Too far from it, nothing happens
+## (a player the host has no pose of yet, or a headless check, is let through).
 func request_claim_quests(peer := 0) -> void:
-	if _send(&"request_claim_quests", [], peer) or quests_ready.is_empty():
+	if _send(&"request_claim_quests", [], peer):
+		return
+	var p := player(peer)
+	if p.has_pose and Vector2(p.pos.x - BOARD_POS.x, p.pos.z - BOARD_POS.z).length() > BOARD_REACH + 1.0:
+		return  # +1 m: the pose is up to 50 ms old
+	quest_add("board_claim", 1)
+	if quests_ready.is_empty():
 		return
 	for id: String in quests_ready.duplicate():
 		_finish_quest(id)
@@ -1004,6 +1036,8 @@ func _fill_quests() -> void:
 	for i in QUEST_SLOTS.size():
 		if quest_board[i] != "":
 			continue
+		if QUEST_SLOTS[i] != "main" and not unlocked("board"):
+			continue  # the warmup first: one thing at a time
 		var left := QUESTS.keys().filter(func(id: String) -> bool:
 			var q: Dictionary = QUESTS[id]
 			return q.tier == QUEST_SLOTS[i] and id not in quests_done and id not in quest_board \

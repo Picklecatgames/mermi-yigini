@@ -154,8 +154,9 @@ func _run(n: int, skill: String, rng_seed: int) -> Dictionary:
 		for id: String in board:
 			if id != "" and not pinned.has(id):
 				pinned[id] = clock[0] / 60.0
-		if not ready.is_empty():
-			gs.request_claim_quests()  # the bots claim the moment a quest is done
+		# ponytail: the bots claim the moment a quest is done; the walk to the board (~10 s) isn't counted yet.
+		if not ready.is_empty() or board.any(func(id: String) -> bool: return id != "" and gs.QUESTS[id].kind == "board_claim"):
+			gs.request_claim_quests()
 	on_board.call(gs.quest_board, {}, [])
 	gs.quests_changed.connect(on_board)
 	var opened := [[0.0, "başlangıç"]]  # [minute, what], unlocks and finished blueprints

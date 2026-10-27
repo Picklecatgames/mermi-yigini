@@ -27,8 +27,21 @@ func _initialize() -> void:
 		var quests_gap: float = s.x - (quests.get_parent().position.x + quests.position.x + quests.size.x) * k
 		assert(absf(quests_gap - hud.MARGIN.x * k) < 2.0, "quests sit on the right edge at %s (gap %.0f)" % [s, quests_gap])
 		print("%s ok  scale %.2f" % [s, k])
-	# A done quest lights up and waits for C; claimed, its card folds away and the next comes in.
+	# The warmup: its key under the main quest, the hand and gold hidden until learnt.
 	var gs: Node = root.get_node("GameState")
+	gs.start_quests()
+	await process_frame
+	assert(gs.QUESTS[gs.quest_board[0]].get("warmup", false) and hud._hint.visible, "the warmup's key is shown")
+	assert(not hud._left.visible and not hud._right.visible, "hand and gold wait during the warmup")
+	while gs.QUESTS[gs.quest_board[0]].get("warmup", false):
+		var w: String = gs.quest_board[0]
+		gs.quest_add(gs.QUESTS[w].kind, gs.quest_target(w))
+		if gs.QUESTS[w].kind == "board_claim":
+			gs.request_claim_quests()
+	await create_timer(hud.CLOSE_TIME + 0.6).timeout
+	assert(hud._left.visible and hud._right.visible and not hud._hint.visible, "the warmup over, the whole screen")
+	# A done quest lights up and waits to be claimed at the board; claimed, its card folds away and
+	# the next comes in.
 	var first: String = gs.quest_board[0]
 	assert(hud._cards[0].id == first and not hud._claim.visible, "the main quest's card, nothing to claim")
 	gs.quest_add(gs.QUESTS[first].kind, gs.quest_target(first), [gs.QUESTS[first].get("with", "")])

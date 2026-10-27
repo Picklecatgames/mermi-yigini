@@ -61,6 +61,8 @@ func _host() -> void:
 	if gs.request_pick_up_loose(0) != 1:
 		return _fail("host takes loose bullet 0")
 	gs.request_select_gun(2)  # the UZI, before anyone is there to see it
+	while gs.QUESTS[gs.quest_board[0]].get("warmup", false):  # past the warmup, to a quest that waits for its claim
+		gs._finish_quest(gs.quest_board[0])
 	var client_id := [0]
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void:
 		client_id[0] = id
