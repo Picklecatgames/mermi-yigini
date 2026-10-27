@@ -581,6 +581,7 @@ func request_pick_up(at: Vector3, limit := 1 << 30, peer := 0) -> int:
 	var taken := request_take_bullets(want, at)
 	if taken > 0:
 		_set_carried(peer, p.carried + taken - _roll_specials(peer, taken))
+		quest_add("bullets_carried", taken)
 	return taken
 
 
@@ -635,6 +636,7 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 	_world(&"pile_changed", [pile])
 	_set_carried(peer, p.carried + 1 - _roll_specials(peer, 1))
 	_world(&"loose_taken", [id])
+	quest_add("bullets_carried", 1)
 	return 1
 
 
@@ -751,6 +753,8 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 		return true
 	var who := local_peer() if peer == 0 else peer
 	_world(&"fired", [who, from, dir])
+	var tags := [GUNS[p.gun].id, special]  # what quests with `with` look for
+	quest_add("bullets_fired", 1, tags)
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * SHOT_RANGE, SHOT_MASK)
 	var own := _body_of(who)  # the round starts inside the shooter
 	if own:
@@ -812,7 +816,18 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	else:
 		_break_chain(p)
 	_world(&"shot_landed", [who, hit.position, hit.normal, dir, target, gold, weak, chain])
+	if chain > 0:  # a paying hit
+		quest_hit(tags, weak, chain, gold)
 	return true
+
+
+## Host (or solo): a paying hit, for the quests. tools/quest_sim.gd counts its bots' hits here too.
+func quest_hit(tags: Array, weak: bool, chain: int, gold: int) -> void:
+	quest_add("hits", 1, tags)
+	if weak:
+		quest_add("weak_hits", 1, tags)
+	quest_add("combo", chain, tags)
+	quest_add("gold_earned", gold)
 
 
 ## The body standing for `peer` here: this machine's own player, or another's character.
@@ -971,6 +986,7 @@ func pay_bonus(peer: int, target: Node, gold: int) -> void:
 	vault += gold * VAULT_SHARE
 	_world(&"vault_changed", [vault])
 	_world(&"bonus_paid", [peer, target, gold])
+	quest_add("gold_earned", gold)
 
 
 ## The heap uncovered key `rank`; only buried keys can be revealed, once.
@@ -1040,6 +1056,7 @@ func request_take_key(rank: int, peer := 0) -> bool:
 	key_states[rank] = KeyState.TAKEN
 	player(peer).keys.append(rank)
 	_world(&"key_taken", [rank, local_peer() if peer == 0 else peer])
+	quest_add("key_found", 1)
 	return true
 
 

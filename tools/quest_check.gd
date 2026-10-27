@@ -77,6 +77,29 @@ func _initialize() -> void:
 	gs._event(&"quests_changed", [host_board, host_progress])
 	_ok(gs.quest_board == host_board and gs.quest_progress == host_progress and Array(gs.quests_done) == host_done, "the events carry the whole board")
 
+	# The hooks: a grab, a shot, a bonus and a key each count on a quest of their kind.
+	for hook: Array in [["bullets_carried", func() -> void: gs.request_pick_up(Vector3.ZERO, 1)],
+			["bullets_fired", func() -> void:
+				gs.player().gun = 1
+				gs.player().loaded = 1
+				gs.player().cooldown = 0.0
+				gs.request_fire(Vector3(0, 50, 0), Vector3.UP)],  # into the sky: a miss still counts as fired
+			["gold_earned", func() -> void: gs.pay_bonus(gs.local_peer(), null, 1)],
+			["key_found", func() -> void:
+				gs.key_states[1] = gs.KeyState.EXPOSED
+				gs.request_take_key(1)]]:
+		var id := ""
+		for k: String in gs.QUESTS:
+			if gs.QUESTS[k].kind == hook[0] and (not gs.QUESTS[k].has("with") or gs.QUESTS[k].with == "deagle") and k not in gs.quests_done:
+				id = k
+		if id == "":
+			continue  # nothing of that kind left in the pool
+		if id not in gs.quest_board:
+			gs.quest_board[1] = id
+		gs.quest_progress[id] = 0
+		hook[1].call()
+		_ok(gs.quest_progress.get(id, 0) == 1 or id in gs.quests_done, "%s counts on %s (%s)" % [hook[0], id, gs.quest_progress.get(id)])
+
 	# Every quest is reachable: keep finishing whatever is pinned until the board runs dry.
 	gs.start_quests()
 	for guard in 1000:
