@@ -72,6 +72,11 @@ signal pushed(vel: Vector3)
 ## What `peer` holds now: an index into GUNS (0 is bare fists).
 signal gun_changed(peer: int, gun: int)
 signal specials_changed  # local player: the special rounds pocket, or which one is armed
+## The quest board moved: what is pinned (one id per QUEST_SLOTS slot, "" when that pool is dry)
+## and how far along each pinned quest is (id -> count).
+signal quests_changed(board: Array, progress: Dictionary)
+## Quest `id` was finished; its unlock and part are the team's now, and every player got `gold`.
+signal quest_done(id: String, gold: int)
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -175,6 +180,33 @@ const SPECIALS := {
 	"scream": {"name": "Çığlık", "chance": 400, "tip": "res://assets/bullet/tips/scream.glb",
 		"desc": "Vurduğun takım arkadaşının ekranına palyaço fırlar, çığlık atar."},
 }
+## The quest board (docs/ayrintilar.md "Görev ağacı ve görev tahtası"), the team's: everyone's
+## work counts and there is no accepting, every pinned quest moves at once. The main slot walks the
+## main chain in order; each other slot draws from its tier's pool when its quest is done.
+const QUEST_SLOTS := ["main", "easy", "medium", "medium", "hard"]
+## Per tier, easiest first. kind: what counts (quest_add); target: how much for one player
+## (quest_target scales it with the team); with: only a hit or shot with that gun or round counts;
+## needs: drawn only once that is unlocked; unlock: the mechanic it opens; reward: gold (to every
+## player), part (a blueprint piece for the team), perk (a mastery perk).
+# ponytail: placeholder pool and numbers until the pool draft (docs/gorev_sistemi_plani.md 3).
+const QUESTS := {
+	"m01": {"tier": "main", "name": "İlk kazanç", "kind": "gold_earned", "target": 6, "unlock": "workbench", "reward": {}},
+	"m02": {"tier": "main", "name": "Yığına dal", "kind": "bullets_carried", "target": 80, "unlock": "bucket", "reward": {}},
+	"e01": {"tier": "easy", "name": "Kafadan", "kind": "weak_hits", "target": 10, "reward": {"gold": 20}},
+	"e02": {"tier": "easy", "name": "Seri", "kind": "combo", "target": 5, "reward": {"gold": 30}},
+	"o01": {"tier": "medium", "name": "Tetik", "kind": "bullets_fired", "target": 200, "reward": {"part": "dual_pistol"}},
+	"o02": {"tier": "medium", "name": "Hamal", "kind": "bullets_carried", "target": 300, "reward": {"part": "dual_pistol"}},
+	"o03": {"tier": "medium", "name": "Kova kova", "kind": "bullets_carried", "target": 600, "needs": "bucket", "reward": {"part": "dual_pistol"}},
+	"z01": {"tier": "hard", "name": "Anahtar", "kind": "key_found", "target": 1, "reward": {"perk": "key_sense"}},
+}
+## Kinds counted as the best single value rather than a sum (the longest combo chain).
+const QUEST_PEAK_KINDS := ["combo"]
+## Kinds that don't grow with the team: a combo chain is one player's, the keys are only so many.
+const QUEST_FIXED_KINDS := ["combo", "key_found"]
+## Each player past the first adds this share of a quest's target (quest_target).
+const QUEST_SCALE := 0.5  # placeholder until tools/quest_sim.gd
+## A pool slot draws at random among this many of the easiest quests left in it.
+const QUEST_DRAW := 2
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
@@ -204,7 +236,7 @@ const TOKEN_FILE := "user://player_token.txt"
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed",
-	&"bonus_paid"]
+	&"bonus_paid", &"quests_changed", &"quest_done"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0, &"bonus_paid": 1}
 
@@ -256,6 +288,9 @@ var _spawn_slots := {}  # host: peer -> spawn index
 var _token_of := {}  # peer -> token
 var _saved := {}     # token -> PlayerState of a player who left
 var key_at := {}     # rank -> where an exposed key came out, for joiners
+var quest_board := []      # pinned quest per QUEST_SLOTS slot, "" when its pool has none left
+var quest_progress := {}   # pinned quest -> how far along
+var quests_done: Array[String] = []  # in the order they were finished
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -268,6 +303,9 @@ var carry_capacity: int:
 	get: return carry_capacity_of(0)
 var mag_capacity: int:
 	get: return mag_capacity_of(0)
+## How many play together; quest targets grow with it.
+var quest_players: int:
+	get: return maxi(1, slots.size())
 ## Seconds between shots of the gun in hand.
 var fire_interval: float:
 	get: return GUNS[player().gun].interval
@@ -303,6 +341,7 @@ func mag_capacity_of(peer: int) -> int:
 
 
 func _ready() -> void:
+	_reset_quests()  # Net isn't in the tree yet; a joiner gets the host's board on joining
 	# Someone joined: they get the world as it is now, in one go, before any later event.
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		if multiplayer.is_server():
@@ -310,6 +349,9 @@ func _ready() -> void:
 			_event.rpc_id(id, &"key_layout", [key_seed])
 			_event.rpc_id(id, &"vault_changed", [vault])
 			_event.rpc_id(id, &"gear_changed", [gear_stock])
+			for q: String in quests_done:  # no gold: what the team got before is not theirs
+				_event.rpc_id(id, &"quest_done", [q, 0])
+			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress])
 			var heap := get_tree().get_first_node_in_group("bullet_pile")
 			_join.rpc_id(id, heap.snapshot() if heap else [], _taken_loose.keys())
 			for rank: int in key_states:
@@ -812,6 +854,94 @@ func _pushed(vel: Vector3) -> void:
 	pushed.emit(vel)
 
 
+## Host (or solo): a fresh board, nothing done.
+func start_quests() -> void:
+	if Net.is_client:
+		return
+	_reset_quests()
+	_world(&"quests_changed", [quest_board, quest_progress])
+
+
+func _reset_quests() -> void:
+	quests_done.clear()
+	quest_progress.clear()
+	quest_board.clear()
+	quest_board.resize(QUEST_SLOTS.size())
+	quest_board.fill("")
+	_fill_quests()
+
+
+## How much of quest `id` the team has to do, for as many as play now.
+func quest_target(id: String) -> int:
+	var q: Dictionary = QUESTS[id]
+	if q.kind in QUEST_FIXED_KINDS:
+		return q.target
+	return ceili(q.target * (1.0 + QUEST_SCALE * (quest_players - 1)))
+
+
+## Whether a finished quest has opened mechanic `what`.
+func unlocked(what: String) -> bool:
+	return quests_done.any(func(id: String) -> bool: return QUESTS[id].get("unlock") == what)
+
+
+## Blueprint pieces of `id` the team has from finished quests.
+func blueprint_parts(id: String) -> int:
+	return quests_done.filter(func(q: String) -> bool: return QUESTS[q].reward.get("part") == id).size()
+
+
+## Host (or solo): `amount` more of `kind` happened. Every pinned quest of that kind counts it,
+## unless it asks for a gun or round (`with`) that isn't among `tags`. A client's own call is
+## dropped; it hears of the board from quests_changed.
+func quest_add(kind: String, amount: int, tags: Array = []) -> void:
+	if Net.is_client or amount <= 0:
+		return
+	var moved := false
+	var finished: Array[String] = []
+	for id: String in quest_board:
+		if id == "" or QUESTS[id].kind != kind or (QUESTS[id].has("with") and QUESTS[id].with not in tags):
+			continue
+		var was: int = quest_progress[id]
+		quest_progress[id] = maxi(was, amount) if kind in QUEST_PEAK_KINDS else was + amount
+		moved = moved or quest_progress[id] != was
+		if quest_progress[id] >= quest_target(id):
+			finished.append(id)
+	for id in finished:
+		_finish_quest(id)
+	if moved:
+		_world(&"quests_changed", [quest_board, quest_progress])
+
+
+func _finish_quest(id: String) -> void:
+	quest_board[quest_board.find(id)] = ""
+	quest_progress.erase(id)
+	quests_done.append(id)
+	var gold: int = QUESTS[id].reward.get("gold", 0)
+	if gold > 0:
+		player()  # the host's own record, even before it did anything
+		for peer: int in _players:
+			_players[peer].gold += gold
+		gold_changed.emit(player().gold)
+	_world(&"quest_done", [id, gold])
+	_fill_quests()
+
+
+## Host: every empty slot draws its next quest. The main slot takes the chain's next one; a pool
+## slot rolls among the QUEST_DRAW easiest left, so the board climbs without being the same each game.
+func _fill_quests() -> void:
+	for i in QUEST_SLOTS.size():
+		if quest_board[i] != "":
+			continue
+		var left := QUESTS.keys().filter(func(id: String) -> bool:
+			var q: Dictionary = QUESTS[id]
+			return q.tier == QUEST_SLOTS[i] and id not in quests_done and id not in quest_board \
+				and (not q.has("needs") or unlocked(q.needs)))
+		if left.is_empty():
+			continue  # tried again when the next quest is done (a `needs` may have opened)
+		var id: String = left[0] if QUEST_SLOTS[i] == "main" else left[randi() % mini(QUEST_DRAW, left.size())]
+		quest_board[i] = id
+		quest_progress[id] = 0
+
+
 enum KeyState { BURIED, EXPOSED, TAKEN }
 var key_states := {}  # rank -> KeyState, for every key the heap holds
 
@@ -1095,6 +1225,15 @@ func _event(event: StringName, args: Array) -> void:
 		&"bonus_paid":
 			if args[0] == local_peer():  # the host's _state carries it too; this shows it now
 				player().gold += args[2]
+				gold_changed.emit(player().gold)
+		&"quests_changed":
+			quest_board = args[0].duplicate()
+			quest_progress = args[1].duplicate()
+		&"quest_done":
+			if args[0] not in quests_done:
+				quests_done.append(args[0])
+			if args[1] > 0:  # the host's _state carries it too; this shows it now
+				player().gold += args[1]
 				gold_changed.emit(player().gold)
 		&"gun_changed":
 			if args[0] == local_peer():

@@ -12,7 +12,9 @@ extends SceneTree
 ## Between players: the client shoots the host (no harm, no pay, the host's aim jumps), then
 ## walks into it: it can't pass through, and the host gets shoved. Name tags take slot colours.
 ## Guns: the host draws the UZI before the client joins and the client, bare-handed at first, the
-## Deagle; each sees the other's character holding the right one.
+## Deagle; each sees the other's character holding the right one. Quests: the host finishes the
+## main one as the client joins, the client's grabs and shots count on the host, and both end up
+## with the same board.
 
 const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the way
 const LOG := "user://net_check_client.log"
@@ -63,7 +65,9 @@ func _host() -> void:
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void:
 		client_id[0] = id
 		for d in DIGS:  # after GameState has told the newcomer the count and the key seed
-			gs.request_take_bullets(d[1], d[0]))
+			gs.request_take_bullets(d[1], d[0])
+		var main_quest: Dictionary = gs.QUESTS[gs.quest_board[0]]  # finished while the client is in
+		gs.quest_add(main_quest.kind, 1 << 20, [main_quest.get("with", "")]))
 	process_frame.connect(_sample)
 	var shots := []
 	var rp: Node = main.get_node("RemotePlayers")
@@ -271,6 +275,7 @@ func _client() -> void:
 	seen.heap = hash(pile._h)
 	seen.heights = Marshalls.raw_to_base64(pile._h.to_byte_array())
 	seen.keys = at
+	seen.quests = JSON.stringify([gs.quest_board, gs.quest_progress, gs.quests_done])
 	var f := FileAccess.open(WORLD, FileAccess.WRITE)
 	f.store_string(JSON.stringify(seen))
 	f.close()
@@ -314,6 +319,9 @@ func _world_agrees() -> bool:
 		worst = maxf(worst, absf(h[k] - pile._h[k]))
 	print("heap: host %d, client %d, largest difference %.6f m" % [hash(pile._h), int(theirs.heap), worst])
 	if not _ok(hash(pile._h) == int(theirs.heap), "both heaps have the same heights"): return false
+	var quests := JSON.stringify([gs.quest_board, gs.quest_progress, gs.quests_done])
+	print("quests: host %s, client %s" % [quests, theirs.quests])
+	if not _ok(gs.quests_done.size() >= 1 and quests == theirs.quests, "the client's quest board is the host's"): return false
 	var keys: Node = main.get_node("Keys")
 	if not _ok(theirs.keys.size() == keys._pos.size(), "as many keys on both"): return false
 	for rank: int in keys._pos:
