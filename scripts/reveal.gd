@@ -10,24 +10,34 @@ const BEAM := Color(1.0, 0.78, 0.35)
 
 
 ## Hides `prop` (and its collision) until `what` is unlocked. Already open: nothing happens.
-static func hold(prop: Node3D, what: String, label: String) -> void:
+## `extras` (what belongs with it: a radio, lamps, posters) are hidden too and come on, sound and
+## all, the moment it lands.
+static func hold(prop: Node3D, what: String, label: String, extras: Array = []) -> void:
 	if GameState.unlocked(what):
 		return
-	_set_there(prop, false)
+	for n: Node3D in [prop] + extras:
+		_set_there(n, false)
 	GameState.quest_done.connect(func(id: String, _gold: int) -> void:
 		if is_instance_valid(prop) and not prop.visible and GameState.QUESTS[id].get("unlock") == what:
-			_drop_in(prop, label))
+			_drop_in(prop, label, extras))
 
 
-static func _set_there(prop: Node3D, on: bool) -> void:
-	prop.visible = on
-	if prop is CollisionObject3D:
+static func _set_there(n: Node3D, on: bool) -> void:
+	n.visible = on
+	if n is CollisionObject3D:
 		if not on:
-			prop.set_meta("reveal_layer", prop.collision_layer)
-		prop.collision_layer = prop.get_meta("reveal_layer", prop.collision_layer) if on else 0
+			n.set_meta("reveal_layer", n.collision_layer)
+		n.collision_layer = n.get_meta("reveal_layer", n.collision_layer) if on else 0
+	# A hidden node still sounds: its players stop and start with it.
+	for s: Node in n.find_children("*", "AudioStreamPlayer3D", true, false):
+		if not on:
+			s.autoplay = false
+			s.stop()
+		else:
+			s.play()
 
 
-static func _drop_in(prop: Node3D, label: String) -> void:
+static func _drop_in(prop: Node3D, label: String, extras: Array) -> void:
 	_set_there(prop, true)
 	var foot := prop.global_position
 	var end := prop.position
@@ -36,6 +46,10 @@ static func _drop_in(prop: Node3D, label: String) -> void:
 	var tw := prop.create_tween()
 	tw.tween_property(prop, "position", end, FALL).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	# It lands: squashes a little and springs back.
+	tw.tween_callback(func() -> void:
+		for n: Node3D in extras:
+			if is_instance_valid(n):
+				_set_there(n, true))
 	tw.tween_property(prop, "scale", size * Vector3(1.06, 0.9, 1.06), 0.08)
 	tw.tween_property(prop, "scale", size, 0.35).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 	var beam := _beam(label)

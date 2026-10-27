@@ -12,8 +12,35 @@ const HOOK := AABB(Vector3(-0.37, 0.5, 0.375), Vector3(0.74, 0.7, 0.5))  # its h
 const Reveal := preload("res://scripts/reveal.gd")
 
 
+## The corner round the bench (range_dressing.gd _workshop), world x: on the wall over it the radio,
+## posters and their tape, the guns on nails, the lamp (z past WALL_Z; the string of bulbs hangs in
+## front of that and stays), low in front of it the carpet and the warm bounce light.
+const CORNER_X := Vector2(9.2, 14.0)
+const WALL_Z := 27.9
+const FLOOR_Z := 26.2
+const HOPPER_REACH := 0.8  # m round the hopper: its glow and sticker go with it
+
+
 func _ready() -> void:
-	Reveal.hold(self, "workbench", "Tezgâh")  # the first main quest opens it (GameState QUESTS m01)
+	# The first main quest opens the bench (GameState QUESTS m01), the corner coming on with it; the
+	# hopper waits for the melter.
+	var corner := []
+	var hopper := []
+	var hopper_body: Node3D = null
+	for n: Node in get_parent().get_children():
+		if n is Node3D and n != self and n.get_child_count() > 0 and String(n.get_child(0).name) == "hopper":
+			hopper_body = n
+	for n: Node in get_parent().get_children():
+		if not n is Node3D or n == self or n == hopper_body:
+			continue
+		var at: Vector3 = n.global_position
+		if hopper_body and at.y < 1.5 and Vector2(at.x, at.z).distance_to(Vector2(hopper_body.global_position.x, hopper_body.global_position.z)) < HOPPER_REACH:
+			hopper.append(n)
+		elif _in_corner(n, at):
+			corner.append(n)
+	Reveal.hold(self, "workbench", "Tezgâh", corner)
+	if hopper_body:
+		Reveal.hold(hopper_body, "melter", "Eritme hunisi", hopper)
 	var glb := get_child(0)
 	for n: Node3D in glb.get_children():
 		if n.name == "Desk":
@@ -23,6 +50,12 @@ func _ready() -> void:
 		elif n.name.begins_with("Wire") or (not n.name.begins_with("Paper_blue")
 				and n.position.y > 0.9 and n.position.y < 1.1):  # the top is at 0.98 in the glb
 			n.queue_free()
+
+
+func _in_corner(_n: Node3D, at: Vector3) -> bool:
+	if at.x < CORNER_X.x or at.x > CORNER_X.y:
+		return false
+	return at.z >= WALL_Z or (at.z >= FLOOR_Z and at.y < 1.0)
 
 
 func _drop_vise(desk: MeshInstance3D) -> void:
