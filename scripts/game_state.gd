@@ -72,10 +72,10 @@ signal pushed(vel: Vector3)
 ## What `peer` holds now: an index into GUNS (0 is bare fists).
 signal gun_changed(peer: int, gun: int)
 signal specials_changed  # local player: the special rounds pocket, or which one is armed
-## The quest board moved: what is pinned (one id per QUEST_SLOTS slot, "" when that pool is dry)
-## and how far along each pinned quest is (id -> count).
-signal quests_changed(board: Array, progress: Dictionary)
-## Quest `id` was finished; its unlock and part are the team's now, and every player got `gold`.
+## The quest board moved: what is pinned (one id per QUEST_SLOTS slot, "" when that pool is dry),
+## how far along each pinned quest is (id -> count) and which are done, their reward waiting.
+signal quests_changed(board: Array, progress: Dictionary, ready: Array)
+## Quest `id`'s reward was claimed; its unlock and part are the team's now, every player got `gold`.
 signal quest_done(id: String, gold: int)
 
 const PILE_START := 100_000_000
@@ -257,6 +257,7 @@ const REQUESTS := {
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
 	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
 	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
+	&"request_claim_quests": 0,
 }
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
@@ -328,7 +329,8 @@ var _saved := {}     # token -> PlayerState of a player who left
 var key_at := {}     # rank -> where an exposed key came out, for joiners
 var quest_board := []      # pinned quest per QUEST_SLOTS slot, "" when its pool has none left
 var quest_progress := {}   # pinned quest -> how far along
-var quests_done: Array[String] = []  # in the order they were finished
+var quests_done: Array[String] = []  # claimed, in that order
+var quests_ready: Array[String] = []  # target reached, reward not claimed yet: still pinned
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -389,7 +391,7 @@ func _ready() -> void:
 			_event.rpc_id(id, &"gear_changed", [gear_stock])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
 				_event.rpc_id(id, &"quest_done", [q, 0])
-			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress])
+			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress, quests_ready])
 			var heap := get_tree().get_first_node_in_group("bullet_pile")
 			_join.rpc_id(id, heap.snapshot() if heap else [], _taken_loose.keys())
 			for rank: int in key_states:
@@ -920,11 +922,12 @@ func start_quests() -> void:
 	if Net.is_client:
 		return
 	_reset_quests()
-	_world(&"quests_changed", [quest_board, quest_progress])
+	_world(&"quests_changed", [quest_board, quest_progress, quests_ready])
 
 
 func _reset_quests() -> void:
 	quests_done.clear()
+	quests_ready.clear()
 	quest_progress.clear()
 	quest_board.clear()
 	quest_board.resize(QUEST_SLOTS.size())
@@ -940,41 +943,50 @@ func quest_target(id: String) -> int:
 	return ceili(q.target * (1.0 + quest_scale * (quest_players - 1)))
 
 
-## Whether a finished quest has opened mechanic `what`.
+## Whether a claimed quest has opened mechanic `what`.
 func unlocked(what: String) -> bool:
 	return quests_done.any(func(id: String) -> bool: return QUESTS[id].get("unlock") == what)
 
 
-## Blueprint pieces of `id` the team has from finished quests.
+## Blueprint pieces of `id` the team has from claimed quests.
 func blueprint_parts(id: String) -> int:
 	return quests_done.filter(func(q: String) -> bool: return QUESTS[q].reward.get("part") == id).size()
 
 
 ## Host (or solo): `amount` more of `kind` happened. Every pinned quest of that kind counts it,
-## unless it asks for a gun or round (`with`) that isn't among `tags`. A client's own call is
-## dropped; it hears of the board from quests_changed.
+## unless it asks for a gun or round (`with`) that isn't among `tags`. One that reaches its target
+## waits, done, until someone claims it. A client's own call is dropped; it hears of the board
+## from quests_changed.
 func quest_add(kind: String, amount: int, tags: Array = []) -> void:
 	if Net.is_client or amount <= 0:
 		return
 	var moved := false
-	var finished: Array[String] = []
 	for id: String in quest_board:
-		if id == "" or QUESTS[id].kind != kind or (QUESTS[id].has("with") and QUESTS[id].with not in tags):
+		if id == "" or id in quests_ready or QUESTS[id].kind != kind or (QUESTS[id].has("with") and QUESTS[id].with not in tags):
 			continue
 		var was: int = quest_progress[id]
-		quest_progress[id] = maxi(was, amount) if kind in QUEST_PEAK_KINDS else was + amount
+		quest_progress[id] = mini(maxi(was, amount) if kind in QUEST_PEAK_KINDS else was + amount, quest_target(id))
 		moved = moved or quest_progress[id] != was
 		if quest_progress[id] >= quest_target(id):
-			finished.append(id)
-	for id in finished:
-		_finish_quest(id)
+			quests_ready.append(id)
 	if moved:
-		_world(&"quests_changed", [quest_board, quest_progress])
+		_world(&"quests_changed", [quest_board, quest_progress, quests_ready])
+
+
+## Anyone (C) claims every done quest's reward for the team; the host decides, the board follows
+## (quest_done for each, then quests_changed).
+func request_claim_quests(peer := 0) -> void:
+	if _send(&"request_claim_quests", [], peer) or quests_ready.is_empty():
+		return
+	for id: String in quests_ready.duplicate():
+		_finish_quest(id)
+	_world(&"quests_changed", [quest_board, quest_progress, quests_ready])
 
 
 func _finish_quest(id: String) -> void:
 	quest_board[quest_board.find(id)] = ""
 	quest_progress.erase(id)
+	quests_ready.erase(id)
 	quests_done.append(id)
 	var gold: int = QUESTS[id].reward.get("gold", 0)
 	if gold > 0:
@@ -1292,6 +1304,7 @@ func _event(event: StringName, args: Array) -> void:
 		&"quests_changed":
 			quest_board = args[0].duplicate()
 			quest_progress = args[1].duplicate()
+			quests_ready.assign(args[2])
 		&"quest_done":
 			if args[0] not in quests_done:
 				quests_done.append(args[0])

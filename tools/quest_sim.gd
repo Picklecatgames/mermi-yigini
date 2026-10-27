@@ -150,11 +150,13 @@ func _run(n: int, skill: String, rng_seed: int) -> Dictionary:
 	var clock := [0.0]  # s; in an array so the quest_done callback sees it move
 	var done := {}  # quest -> minute
 	var pinned := {}  # quest -> minute it went up on the board
-	var on_board := func(board: Array, _progress: Dictionary) -> void:
+	var on_board := func(board: Array, _progress: Dictionary, ready: Array) -> void:
 		for id: String in board:
 			if id != "" and not pinned.has(id):
 				pinned[id] = clock[0] / 60.0
-	on_board.call(gs.quest_board, {})
+		if not ready.is_empty():
+			gs.request_claim_quests()  # the bots claim the moment a quest is done
+	on_board.call(gs.quest_board, {}, [])
 	gs.quests_changed.connect(on_board)
 	var opened := [[0.0, "başlangıç"]]  # [minute, what], unlocks and finished blueprints
 	var on_done := func(id: String, _gold: int) -> void:

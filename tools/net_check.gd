@@ -13,8 +13,8 @@ extends SceneTree
 ## walks into it: it can't pass through, and the host gets shoved. Name tags take slot colours.
 ## Guns: the host draws the UZI before the client joins and the client, bare-handed at first, the
 ## Deagle; each sees the other's character holding the right one. Quests: the host finishes the
-## main one as the client joins, the client's grabs and shots count on the host, and both end up
-## with the same board.
+## main one as the client joins, the client claims its reward (C) through the host, the client's
+## grabs and shots count on the host, and both end up with the same board.
 
 const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the way
 const LOG := "user://net_check_client.log"
@@ -155,6 +155,10 @@ func _client() -> void:
 	if not await _until(func() -> bool: return net.is_client, "connect"): return
 	if not await _until(func() -> bool: return gs.pile == gs.PILE_START - 1 - DUG, "pile count and the host's digs on join"): return
 	if not _ok(gs.key_seed == main.get_node("Keys")._seed and gs.key_seed != 0, "keys laid out from the host's seed"): return
+	if not await _until(func() -> bool: return gs.quests_ready.size() == 1, "the host's main quest done, waiting for its claim"): return
+	var main_quest: String = gs.quests_ready[0]
+	gs.request_claim_quests()
+	if not await _until(func() -> bool: return main_quest in gs.quests_done and gs.quests_ready.is_empty(), "our claim to come back from the host"): return
 	await create_timer(0.6).timeout  # the star's first word from the host
 	process_frame.connect(_sample)
 	var watch_from := Time.get_ticks_msec()
@@ -275,7 +279,7 @@ func _client() -> void:
 	seen.heap = hash(pile._h)
 	seen.heights = Marshalls.raw_to_base64(pile._h.to_byte_array())
 	seen.keys = at
-	seen.quests = JSON.stringify([gs.quest_board, gs.quest_progress, gs.quests_done])
+	seen.quests = JSON.stringify([gs.quest_board, gs.quest_progress, gs.quests_done, gs.quests_ready])
 	var f := FileAccess.open(WORLD, FileAccess.WRITE)
 	f.store_string(JSON.stringify(seen))
 	f.close()
@@ -319,7 +323,7 @@ func _world_agrees() -> bool:
 		worst = maxf(worst, absf(h[k] - pile._h[k]))
 	print("heap: host %d, client %d, largest difference %.6f m" % [hash(pile._h), int(theirs.heap), worst])
 	if not _ok(hash(pile._h) == int(theirs.heap), "both heaps have the same heights"): return false
-	var quests := JSON.stringify([gs.quest_board, gs.quest_progress, gs.quests_done])
+	var quests := JSON.stringify([gs.quest_board, gs.quest_progress, gs.quests_done, gs.quests_ready])
 	print("quests: host %s, client %s" % [quests, theirs.quests])
 	if not _ok(gs.quests_done.size() >= 1 and quests == theirs.quests, "the client's quest board is the host's"): return false
 	var keys: Node = main.get_node("Keys")

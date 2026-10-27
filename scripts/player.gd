@@ -339,6 +339,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_toggle_infinite_ammo()
 	elif event.is_action_pressed("placement_mode"):
 		GameState.request_toggle_placing()
+	elif event.is_action_pressed("claim_quests"):
+		GameState.request_claim_quests()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:

@@ -2,7 +2,8 @@ extends SceneTree
 ## Headless check for the quest board (GameState QUESTS):
 ##   Godot.exe --headless --path . -s res://tools/quest_check.gd
 ## Five slots of the right tiers, the main chain in order, `with` and `needs` respected, peak kinds,
-## rewards, targets growing with the team, and every quest in the pool reachable. Co-op
+## a done quest waiting on the board until its reward is claimed, rewards, targets growing with the
+## team, and every quest in the pool reachable. Co-op
 ## mirroring over a real connection is in tools/net_check.gd; here the client side is _event fed
 ## the host's own events.
 
@@ -36,7 +37,11 @@ func _initialize() -> void:
 	gs.quest_add(q.kind, 1000, ["something_else"])
 	_ok(not q.has("with") or gs.quest_progress[m] == 1, "a quest with `with` ignores other guns and rounds")
 	gs.quest_add(q.kind, gs.quest_target(m), [q.get("with", "")])
-	_ok(m in gs.quests_done and done.size() >= 1 and done[0][0] == m, "the main quest finishes")
+	_ok(m in gs.quests_ready and gs.quest_board[0] == m and done.is_empty(), "a done quest waits on the board for its reward")
+	_ok(gs.quest_progress[m] == gs.quest_target(m), "its progress stops at the target")
+	_ok(not q.has("unlock") or not gs.unlocked(q.unlock), "nothing opens before the claim")
+	gs.request_claim_quests()
+	_ok(m in gs.quests_done and m not in gs.quests_ready and done.size() == 1 and done[0][0] == m, "claimed, the main quest is done")
 	_ok(not q.has("unlock") or gs.unlocked(q.unlock), "its unlock is in")
 	_ok(gs.quest_board[0] == mains[1], "the main slot moves on to the next one")
 
@@ -53,6 +58,8 @@ func _initialize() -> void:
 		if id != "" and gs.QUESTS[id].reward.has("gold"):
 			rewarded += gs.QUESTS[id].reward.gold
 			gs.quest_add(gs.QUESTS[id].kind, gs.quest_target(id), [gs.QUESTS[id].get("with", "")])
+	_ok(gs.gold == gold_before, "no gold before the claim")
+	gs.request_claim_quests()
 	_ok(gs.gold - gold_before >= rewarded, "gold rewards are paid ($%d)" % (gs.gold - gold_before))
 
 	# Targets grow with the team; fixed kinds don't.
@@ -69,13 +76,15 @@ func _initialize() -> void:
 	var host_board: Array = gs.quest_board.duplicate()
 	var host_progress: Dictionary = gs.quest_progress.duplicate()
 	var host_done: Array = gs.quests_done.duplicate()
+	var host_ready: Array = gs.quests_ready.duplicate()
 	gs.quest_board = []
+	gs.quests_ready.clear()
 	gs.quest_progress = {}
 	gs.quests_done.clear()
 	for id: String in host_done:
 		gs._event(&"quest_done", [id, 0])
-	gs._event(&"quests_changed", [host_board, host_progress])
-	_ok(gs.quest_board == host_board and gs.quest_progress == host_progress and Array(gs.quests_done) == host_done, "the events carry the whole board")
+	gs._event(&"quests_changed", [host_board, host_progress, host_ready])
+	_ok(gs.quest_board == host_board and gs.quest_progress == host_progress and Array(gs.quests_done) == host_done 		and Array(gs.quests_ready) == host_ready, "the events carry the whole board")
 
 	# The hooks: a grab, a shot, a bonus and a key each count on a quest of their kind.
 	for hook: Array in [["bullets_carried", func() -> void: gs.request_pick_up(Vector3.ZERO, 1)],
@@ -98,7 +107,7 @@ func _initialize() -> void:
 			gs.quest_board[1] = id
 		gs.quest_progress[id] = 0
 		hook[1].call()
-		_ok(gs.quest_progress.get(id, 0) == 1 or id in gs.quests_done, "%s counts on %s (%s)" % [hook[0], id, gs.quest_progress.get(id)])
+		_ok(gs.quest_progress.get(id, 0) == 1 or id in gs.quests_ready, "%s counts on %s (%s)" % [hook[0], id, gs.quest_progress.get(id)])
 
 	# Every quest is reachable: keep finishing whatever is pinned until the board runs dry.
 	gs.start_quests()
@@ -109,6 +118,7 @@ func _initialize() -> void:
 		for id: String in pinned:
 			if id in gs.quest_board:
 				gs.quest_add(gs.QUESTS[id].kind, gs.quest_target(id), [gs.QUESTS[id].get("with", "")])
+		gs.request_claim_quests()
 	_ok(gs.quests_done.size() == gs.QUESTS.size(), "all %d quests can be finished (%d were)" % [gs.QUESTS.size(), gs.quests_done.size()])
 	var chain: Array = Array(gs.quests_done).filter(func(id: String) -> bool: return gs.QUESTS[id].tier == "main")
 	_ok(chain == mains, "the main chain finished in its order")

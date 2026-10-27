@@ -22,6 +22,11 @@ func _initialize() -> void:
 	await _shot("note", 30)
 	await create_timer(5.0).timeout  # the note gone
 	await _shot("hud", 1)
+	for i in gs.quest_board.size():  # some way along each, the easy one done and waiting for C
+		var id: String = gs.quest_board[i]
+		if id != "":
+			gs.quest_add(gs.QUESTS[id].kind, gs.quest_target(id) if i == 1 else maxi(1, gs.quest_target(id) * (i + 1) / 7), [gs.QUESTS[id].get("with", "")])
+	await _shot("gorevler", 20)
 	Input.action_press("reload")  # held: the picker opens
 	await _shot("wheel", 60)
 	Input.action_release("reload")

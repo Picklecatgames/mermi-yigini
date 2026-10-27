@@ -5,13 +5,32 @@ extends Control
 ## Bottom left: the magazine big, the hand under it. Bottom right, its mirror: gold big in green,
 ## the team vault under it. Bottom centre: the guns as key caps with names, the one in hand bright
 ## and underlined in brass, and above them a special round's state. Top right: the Q key cap and
-## "Geliştirmeler", brass when the gold reaches an upgrade. Listens to GameState itself.
+## "Geliştirmeler", brass when the gold reaches an upgrade, and test mode's hint under it; under
+## them the quest board (GameState QUESTS), a line and a thin bar a slot, the main quest on top saying
+## what to do; a done one turns green with its tick and reward and waits for C, then folds away and
+## the next one comes in. Kept short: the screen is for the heap.
+## Listens to GameState itself.
 
 const KeyCache := preload("res://scripts/key_cache.gd")
 const MARGIN := Vector2(36, 28)  # px from the screen's edges
 const BIG := 60  # px, the two big numbers
 const HEAP_W := 340.0  # px, the heap's bar
 const MONEY := UiStyle.MONEY  # kept for older callers
+const QUEST_W := 230.0  # px, a quest's bar
+const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Yığından mermi taşı",
+	"bullets_fired": "Mermi ateşle", "hits": "Hedefe isabet", "weak_hits": "Kafa isabeti",
+	"combo": "Kombo zinciri", "crafted": "Tarife mermi işle", "bullets_melted": "Mermi erit",
+	"key_found": "Anahtar bul"}
+## What a quest's `with`, `unlock`, part and perk are called on screen; guns use their GUNS name.
+const NAMES := {"clone": "Klon", "obur": "Obur", "sekme": "Sekme", "yanki": "Yankı",
+	"workbench": "Tezgâh", "bucket": "Kova", "blueprints": "Tarif panosu", "hand_press": "El presi",
+	"shovel": "Kürek", "melter": "Eritme hunisi", "slot_machine": "Slot makinesi",
+	"electric_press": "Elektrikli pres", "wheelbarrow": "El arabası", "melter_speed": "Hızlı huni",
+	"melter_yield": "Verimli huni", "sweeper": "Süpürge robotu", "drone_teaser": "Dron planı",
+	"dual_pistol": "Çift tabanca", "clone_spread": "Klon yayılımı", "clone_count": "Klon sayısı",
+	"clone_count_2": "Klon sayısı II", "obur_more": "Obur iştahı", "sekme_more": "Fazla sekme",
+	"yanki_more": "Fazla yankı"}
+const CLOSE_TIME := 0.45  # s, a claimed card folding away
 
 var _heap: Label
 var _heap_meter: Control
@@ -29,6 +48,10 @@ var _can_buy: Label
 var _q: PanelContainer
 var _guns: HBoxContainer
 var _test: Control
+var _quests: VBoxContainer
+var _cards: Array[Dictionary] = []  # per QUEST_SLOTS slot: its nodes and the quest it shows
+var _claim: Control  # "[C] Ödülü al", while something is done
+var _claimed := {}  # quest ids just claimed: their card folds away before the next comes in
 
 
 func _ready() -> void:
@@ -38,17 +61,17 @@ func _ready() -> void:
 	_build_sides()
 	_build_middle()
 	_build_corner()
-	_test = UiStyle.hint("T", "Test modu: sınırsız mermi")
-	(_test.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.ACCENT)
-	_test.position = MARGIN
-	add_child(_test)
+	_build_quests()
 	for s: StringName in [&"pile_changed", &"carried_changed", &"loaded_changed", &"gold_changed", &"vault_changed", &"specials_changed", &"placing_changed"]:
 		GameState.connect(s, func(_a = null) -> void: refresh())
 	GameState.upgraded.connect(refresh.unbind(2))
 	GameState.gun_changed.connect(refresh.unbind(2))
 	GameState.key_taken.connect(refresh.unbind(2))
 	GameState.gold_changed.connect(func(_g: int) -> void: _pop(_gold))
+	GameState.quest_done.connect(func(id: String, _gold: int) -> void: _claimed[id] = true)
+	GameState.quests_changed.connect(func(_b: Array, _p: Dictionary, _r: Array) -> void: _refresh_quests())
 	refresh()
+	_refresh_quests()
 
 
 func _build_heap() -> void:
@@ -157,6 +180,158 @@ func _build_corner() -> void:
 	row.add_child(_can_buy)
 	_q = UiStyle.keycap("Q", 20)
 	row.add_child(_q)
+	_test = UiStyle.hint("T", "Test modu: sınırsız mermi")
+	_test.alignment = BoxContainer.ALIGNMENT_END
+	(_test.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.ACCENT)
+	corner.add_child(_test)
+
+
+func _build_quests() -> void:
+	# Under the Q, at the right edge: the left is the view's.
+	_quests = VBoxContainer.new()
+	_quests.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_quests.size_flags_horizontal = Control.SIZE_SHRINK_END
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 8
+	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_q.get_parent().get_parent().add_child(gap)
+	_q.get_parent().get_parent().add_child(_quests)
+	_quests.add_theme_constant_override("separation", 9)
+	for i in GameState.QUEST_SLOTS.size():
+		var main := i == 0
+		var card := VBoxContainer.new()
+		card.add_theme_constant_override("separation", 3)
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.custom_minimum_size.x = QUEST_W
+		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", 6)
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(top)
+		var tick := _tick()
+		top.add_child(tick)
+		var name_ := UiStyle.display("", 18 if main else 15, UiStyle.SEMIBOLD, UiStyle.WHITE if main else UiStyle.DIM)
+		name_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		top.add_child(name_)
+		var share := UiStyle.label("", 14 if main else 13, UiStyle.SEMIBOLD, UiStyle.DIM)
+		share.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		top.add_child(share)
+		var bar := UiStyle.meter(QUEST_W, UiStyle.WHITE, 3.0 if main else 2.0)
+		card.add_child(bar)
+		_quests.add_child(card)
+		if main:
+			_quests.add_child(UiStyle.line(QUEST_W * 0.4))  # the main quest over the rest
+		_cards.append({"card": card, "tick": tick, "name": name_, "share": share, "bar": bar,
+			"main": main, "id": "", "pulse": null})
+	_claim = UiStyle.hint("C", "Ödülü al")
+	UiStyle.tint_keycap(_claim.get_child(0) as PanelContainer, UiStyle.ACCENT)
+	(_claim.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.ACCENT)
+	_quests.add_child(_claim)
+
+
+## A check mark, drawn: Barlow has no glyph for it.
+func _tick() -> Control:
+	var t := Control.new()
+	t.custom_minimum_size = Vector2(16, 16)
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	t.draw.connect(func() -> void:
+		t.draw_polyline(PackedVector2Array([Vector2(2, 8.5), Vector2(6.5, 13), Vector2(14, 3.5)]), UiStyle.MONEY, 2.6, true))
+	return t
+
+
+## The board as GameState has it. A slot whose quest was just claimed folds its card away first.
+func _refresh_quests() -> void:
+	for c: Dictionary in _cards:
+		var i := _cards.find(c)
+		var id: String = GameState.quest_board[i] if i < GameState.quest_board.size() else ""
+		if c.id != id and _claimed.has(c.id):
+			_claimed.erase(c.id)
+			_fold(c)
+		elif not c.has("folding"):
+			_show_quest(c, id)
+	_claim.visible = not GameState.quests_ready.is_empty()
+
+
+## A claimed card: ticked, it fades and shrinks away, then the slot's next quest comes in.
+func _fold(c: Dictionary) -> void:
+	c.folding = true
+	_set_pulse(c, false)
+	c.tick.visible = true
+	c.share.text = "Alındı"
+	var card: Control = c.card
+	card.pivot_offset = Vector2(0, card.size.y * 0.5)
+	var tw := card.create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_interval(0.25)
+	tw.tween_property(card, "modulate:a", 0.0, CLOSE_TIME)
+	tw.parallel().tween_property(card, "scale:y", 0.6, CLOSE_TIME)
+	tw.tween_callback(func() -> void:
+		c.erase("folding")
+		card.scale = Vector2.ONE
+		var i := _cards.find(c)
+		_show_quest(c, GameState.quest_board[i] if i < GameState.quest_board.size() else "")
+		card.create_tween().tween_property(card, "modulate:a", 1.0, 0.3))
+
+
+func _show_quest(c: Dictionary, id: String) -> void:
+	c.id = id
+	(c.card as Control).visible = id != ""
+	if id == "":
+		_set_pulse(c, false)
+		return
+	var q: Dictionary = GameState.QUESTS[id]
+	var target := GameState.quest_target(id)
+	var have: int = GameState.quest_progress.get(id, 0)
+	var ready := id in GameState.quests_ready
+	# One line: what to do (the main quest says it plainly, the rest by name), the share done; a done
+	# one swaps the share for its reward.
+	var what: String = KINDS.get(q.kind, q.kind)
+	if q.has("with"):
+		what += " (%s)" % _with_name(q.with)
+	c.name.text = ("%s %s" % [what, UiStyle.dotted(target)]) if c.main else q.name
+	c.name.add_theme_color_override("font_color", UiStyle.MONEY if ready else (UiStyle.WHITE if c.main else UiStyle.DIM))
+	c.share.text = _reward_text(id) if ready else "%" + str(floori(100.0 * have / maxi(target, 1)))
+	c.share.add_theme_color_override("font_color", UiStyle.MONEY if ready else UiStyle.DIM)
+	(c.bar.get_child(0) as ColorRect).color = UiStyle.MONEY if ready else (UiStyle.ACCENT if c.main else Color(UiStyle.WHITE, 0.6))
+	UiStyle.set_meter(c.bar, float(have) / maxi(target, 1))
+	c.tick.visible = ready
+	_set_pulse(c, ready)
+
+
+## The reward in a word or two: "+$30", "Parça", "Perk", what it opens.
+func _reward_text(id: String) -> String:
+	var q: Dictionary = GameState.QUESTS[id]
+	if q.reward.has("gold"):
+		return "+$" + UiStyle.dotted(q.reward.gold)
+	if q.has("unlock"):
+		return NAMES.get(q.unlock, q.unlock)
+	return "Parça" if q.reward.has("part") else "Perk"
+
+
+## A done card breathes until it is claimed: brighter and back, a little bigger and back.
+func _set_pulse(c: Dictionary, on: bool) -> void:
+	var card: Control = c.card
+	if on == (c.pulse != null):
+		return
+	if c.pulse:
+		(c.pulse as Tween).kill()
+		c.pulse = null
+		card.modulate = Color.WHITE
+		card.scale = Vector2.ONE
+		return
+	card.pivot_offset = Vector2(0, card.size.y * 0.5)
+	var tw := card.create_tween().set_loops().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(card, "modulate", Color(1.35, 1.2, 0.85), 0.55)
+	tw.parallel().tween_property(card, "scale", Vector2.ONE * 1.03, 0.55)
+	tw.tween_property(card, "modulate", Color.WHITE, 0.55)
+	tw.parallel().tween_property(card, "scale", Vector2.ONE, 0.55)
+	c.pulse = tw
+
+
+func _with_name(with: String) -> String:
+	for g: Dictionary in GameState.GUNS:
+		if g.id == with:
+			return g.name
+	return NAMES.get(with, with)
 
 
 ## Everything from GameState as it is now.
@@ -193,6 +368,7 @@ func refresh() -> void:
 		var on := i + 1 == p.gun
 		var gun := _guns.get_child(i) as Control
 		gun.get_child(1).modulate.a = 1.0 if on else 0.0  # the underline
+		gun.get_child(0).get_child(1).visible = on  # the others are only their key
 		gun.modulate.a = 1.0 if on else (0.5 if GameState.gun_open(i + 1) else 0.22)
 	_guns.get_parent().visible = not p.placing  # placement keeps its keys here
 	var can := GameState.UPGRADES.keys().any(func(id: String) -> bool:

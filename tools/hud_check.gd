@@ -23,6 +23,22 @@ func _initialize() -> void:
 		var heap: Control = hud._heap.get_parent()
 		var mid := (heap.position.x + heap.size.x * 0.5) * k
 		assert(absf(mid - s.x * 0.5) < 2.0, "heap is centred at %s (%.0f)" % [s, mid])
+		var quests: Control = hud._quests
+		var quests_gap: float = s.x - (quests.get_parent().position.x + quests.position.x + quests.size.x) * k
+		assert(absf(quests_gap - hud.MARGIN.x * k) < 2.0, "quests sit on the right edge at %s (gap %.0f)" % [s, quests_gap])
 		print("%s ok  scale %.2f" % [s, k])
+	# A done quest lights up and waits for C; claimed, its card folds away and the next comes in.
+	var gs: Node = root.get_node("GameState")
+	var first: String = gs.quest_board[0]
+	assert(hud._cards[0].id == first and not hud._claim.visible, "the main quest's card, nothing to claim")
+	gs.quest_add(gs.QUESTS[first].kind, gs.quest_target(first), [gs.QUESTS[first].get("with", "")])
+	var card: Dictionary = hud._cards[0]
+	assert(card.tick.visible and card.pulse != null and hud._claim.visible, "done: ticked, pulsing, C offered")
+	assert(card.share.text == hud._reward_text(first), "its reward in place of the share (%s)" % card.share.text)
+	gs.request_claim_quests()
+	assert(card.has("folding") and card.tick.visible, "claimed: the ticked card folds")
+	await create_timer(hud.CLOSE_TIME + 0.6).timeout
+	assert(card.id == gs.quest_board[0] and card.id != first and not card.has("folding") and not hud._claim.visible, "the next main quest came in")
+	print("quests ok: %s -> %s" % [first, card.id])
 	print("hud_check ok")
 	quit()
