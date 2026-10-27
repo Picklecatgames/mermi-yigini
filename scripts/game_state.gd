@@ -194,53 +194,55 @@ const QUEST_SLOTS := ["main", "easy", "medium", "medium", "hard"]
 # ponytail: crafted and bullets_melted have no hook until the bench and the melter exist (plan 6, 9).
 const QUESTS := {
 	"m01": {"tier": "main", "name": "İlk kazanç", "kind": "gold_earned", "target": 6, "unlock": "workbench", "reward": {}},
-	"m02": {"tier": "main", "name": "Avuç avuç", "kind": "bullets_carried", "target": 60, "unlock": "bucket", "reward": {}},
-	"m03": {"tier": "main", "name": "Kova dolusu", "kind": "bullets_fired", "target": 400, "unlock": "uzi", "reward": {}},
-	"m04": {"tier": "main", "name": "Seri atış", "kind": "hits", "with": "uzi", "target": 600, "unlock": "blueprints", "reward": {}},
-	"m05": {"tier": "main", "name": "İlk tarif", "kind": "hits", "with": "clone", "target": 300, "unlock": "hand_press", "reward": {}},
-	"m06": {"tier": "main", "name": "Pres başında", "kind": "crafted", "target": 2000, "unlock": "shovel", "reward": {}},
-	"m07": {"tier": "main", "name": "Kürek kürek", "kind": "bullets_carried", "target": 6000, "unlock": "melter", "reward": {}},
-	"m08": {"tier": "main", "name": "İlk erime", "kind": "bullets_melted", "target": 3000, "unlock": "slot_machine", "reward": {}},
-	"m09": {"tier": "main", "name": "Kumarbaz", "kind": "gold_earned", "target": 8000, "unlock": "scorpion", "reward": {}},
-	"m10": {"tier": "main", "name": "Kompakt", "kind": "hits", "with": "scorpion", "target": 3000, "unlock": "electric_press", "reward": {}},
-	"m11": {"tier": "main", "name": "Seri üretim", "kind": "crafted", "target": 30000, "unlock": "wheelbarrow", "reward": {}},
-	"m12": {"tier": "main", "name": "El arabası", "kind": "bullets_carried", "target": 60000, "unlock": "melter_speed", "reward": {}},
-	"m13": {"tier": "main", "name": "Harlı pota", "kind": "bullets_melted", "target": 50000, "unlock": "melter_yield", "reward": {}},
-	"m14": {"tier": "main", "name": "Pirinç nehri", "kind": "bullets_melted", "target": 150000, "unlock": "sweeper", "reward": {}},
-	"m15": {"tier": "main", "name": "Yarım plan", "kind": "bullets_fired", "target": 100000, "unlock": "drone_teaser", "reward": {}},
-	"e01": {"tier": "easy", "name": "Kafadan", "kind": "weak_hits", "target": 10, "reward": {"gold": 20}},
+	"m02": {"tier": "main", "name": "Avuç avuç", "kind": "bullets_carried", "target": 19, "unlock": "bucket", "reward": {}},
+	"m03": {"tier": "main", "name": "Kova dolusu", "kind": "bullets_fired", "target": 130, "unlock": "uzi", "reward": {}},
+	"m04": {"tier": "main", "name": "Seri atış", "kind": "bullets_fired", "with": "uzi", "target": 420, "unlock": "blueprints", "reward": {}},
+	"m05": {"tier": "main", "name": "İlk tarif", "kind": "bullets_fired", "with": "clone", "target": 520, "unlock": "hand_press", "reward": {}},
+	"m06": {"tier": "main", "name": "Pres başında", "kind": "crafted", "target": 650, "unlock": "shovel", "reward": {}},
+	"m07": {"tier": "main", "name": "Kürek kürek", "kind": "bullets_carried", "target": 1500, "unlock": "melter", "reward": {}},
+	"m08": {"tier": "main", "name": "İlk erime", "kind": "bullets_melted", "target": 730, "unlock": "slot_machine", "reward": {}},
+	"m09": {"tier": "main", "name": "Kumarbaz", "kind": "gold_earned", "target": 20000, "unlock": "scorpion", "reward": {}},
+	"m10": {"tier": "main", "name": "Kompakt", "kind": "bullets_fired", "with": "scorpion", "target": 1000, "unlock": "electric_press", "reward": {}},
+	"m11": {"tier": "main", "name": "Seri üretim", "kind": "crafted", "target": 750, "unlock": "wheelbarrow", "reward": {}},
+	"m12": {"tier": "main", "name": "El arabası", "kind": "bullets_carried", "target": 8600, "unlock": "melter_speed", "reward": {}},
+	"m13": {"tier": "main", "name": "Harlı pota", "kind": "bullets_melted", "target": 9200, "unlock": "melter_yield", "reward": {}},
+	"m14": {"tier": "main", "name": "Pirinç nehri", "kind": "bullets_melted", "target": 9600, "unlock": "sweeper", "reward": {}},
+	"m15": {"tier": "main", "name": "Yarım plan", "kind": "bullets_fired", "target": 1600, "unlock": "drone_teaser", "reward": {}},
+	"e01": {"tier": "easy", "name": "Kafadan", "kind": "weak_hits", "target": 4, "reward": {"gold": 20}},
 	"e02": {"tier": "easy", "name": "Seri", "kind": "combo", "target": 5, "reward": {"gold": 30}},
-	"e03": {"tier": "easy", "name": "Hamal", "kind": "bullets_carried", "target": 200, "reward": {"gold": 40}},
-	"e04": {"tier": "easy", "name": "Tabancacı", "kind": "hits", "with": "deagle", "target": 150, "reward": {"gold": 50}},
-	"e05": {"tier": "easy", "name": "Tetik", "kind": "bullets_fired", "target": 1000, "needs": "uzi", "reward": {"gold": 120}},
-	"e06": {"tier": "easy", "name": "Uzun seri", "kind": "combo", "target": 10, "needs": "workbench", "reward": {"gold": 150}},
-	"e07": {"tier": "easy", "name": "Nişancı", "kind": "weak_hits", "target": 200, "needs": "uzi", "reward": {"gold": 300}},
-	"e08": {"tier": "easy", "name": "Isınma", "kind": "bullets_melted", "target": 2000, "needs": "melter", "reward": {"gold": 600}},
-	"e09": {"tier": "easy", "name": "Taşıyıcı", "kind": "bullets_carried", "target": 20000, "needs": "shovel", "reward": {"gold": 1000}},
-	"e10": {"tier": "easy", "name": "Kombo ustası", "kind": "combo", "target": 20, "needs": "workbench", "reward": {"gold": 2000}},
-	"o01": {"tier": "medium", "name": "Sabırlı", "kind": "bullets_fired", "target": 300, "reward": {"part": "dual_pistol"}},
-	"o02": {"tier": "medium", "name": "Kova kova", "kind": "bullets_carried", "target": 500, "reward": {"part": "dual_pistol"}},
-	"o03": {"tier": "medium", "name": "Mikro", "kind": "hits", "with": "uzi", "target": 800, "needs": "uzi", "reward": {"part": "obur"}},
-	"o04": {"tier": "medium", "name": "Çırak", "kind": "crafted", "target": 1000, "needs": "blueprints", "reward": {"part": "dual_pistol"}},
-	"o05": {"tier": "medium", "name": "Kafa avcısı", "kind": "weak_hits", "target": 500, "needs": "uzi", "reward": {"part": "obur"}},
-	"o06": {"tier": "medium", "name": "Pota bekçisi", "kind": "bullets_melted", "target": 5000, "needs": "melter", "reward": {"part": "sekme"}},
-	"o07": {"tier": "medium", "name": "Klon yağmuru", "kind": "hits", "with": "clone", "target": 3000, "needs": "hand_press", "reward": {"part": "sekme"}},
-	"o08": {"tier": "medium", "name": "Akrep", "kind": "hits", "with": "scorpion", "target": 4000, "needs": "scorpion", "reward": {"part": "yanki"}},
-	"o09": {"tier": "medium", "name": "Usta", "kind": "crafted", "target": 20000, "needs": "electric_press", "reward": {"part": "yanki"}},
-	"o10": {"tier": "medium", "name": "Erime noktası", "kind": "bullets_melted", "target": 40000, "needs": "melter_speed", "reward": {"part": "yanki"}},
+	"e03": {"tier": "easy", "name": "Hamal", "kind": "bullets_carried", "target": 420, "reward": {"gold": 40}},
+	"e04": {"tier": "easy", "name": "İsabetçi", "kind": "hits", "target": 250, "reward": {"gold": 50}},
+	"e05": {"tier": "easy", "name": "Tetik", "kind": "bullets_fired", "target": 640, "needs": "uzi", "reward": {"gold": 120}},
+	"e06": {"tier": "easy", "name": "Uzun seri", "kind": "combo", "target": 8, "needs": "workbench", "reward": {"gold": 150}},
+	"e07": {"tier": "easy", "name": "Nişancı", "kind": "weak_hits", "target": 24, "needs": "uzi", "reward": {"gold": 300}},
+	"e08": {"tier": "easy", "name": "Isınma", "kind": "bullets_melted", "target": 650, "needs": "melter", "reward": {"gold": 600}},
+	"e09": {"tier": "easy", "name": "Taşıyıcı", "kind": "bullets_carried", "target": 1500, "needs": "shovel", "reward": {"gold": 1000}},
+	"e10": {"tier": "easy", "name": "Kombo ustası", "kind": "combo", "target": 10, "needs": "workbench", "reward": {"gold": 2000}},
+	"o01": {"tier": "medium", "name": "Sabırlı", "kind": "bullets_fired", "target": 140, "reward": {"part": "dual_pistol"}},
+	"o02": {"tier": "medium", "name": "Kova kova", "kind": "bullets_carried", "target": 180, "reward": {"part": "dual_pistol"}},
+	"o03": {"tier": "medium", "name": "Mikro", "kind": "bullets_fired", "with": "uzi", "target": 970, "needs": "uzi", "reward": {"part": "obur"}},
+	"o04": {"tier": "medium", "name": "Çırak", "kind": "crafted", "target": 1500, "needs": "blueprints", "reward": {"part": "dual_pistol"}},
+	"o05": {"tier": "medium", "name": "Kafa avcısı", "kind": "weak_hits", "target": 61, "needs": "uzi", "reward": {"part": "obur"}},
+	"o06": {"tier": "medium", "name": "Pota bekçisi", "kind": "bullets_melted", "target": 1200, "needs": "melter", "reward": {"part": "sekme"}},
+	"o07": {"tier": "medium", "name": "Klon yağmuru", "kind": "bullets_fired", "with": "clone", "target": 1600, "needs": "hand_press", "reward": {"part": "sekme"}},
+	"o08": {"tier": "medium", "name": "Akrep", "kind": "bullets_fired", "with": "scorpion", "target": 1700, "needs": "scorpion", "reward": {"part": "yanki"}},
+	"o09": {"tier": "medium", "name": "Usta", "kind": "crafted", "target": 1200, "needs": "electric_press", "reward": {"part": "yanki"}},
+	"o10": {"tier": "medium", "name": "Erime noktası", "kind": "bullets_melted", "target": 12000, "needs": "melter_speed", "reward": {"part": "yanki"}},
 	"z01": {"tier": "hard", "name": "Kazıcı", "kind": "key_found", "target": 1, "reward": {"perk": "clone_spread"}},
-	"z02": {"tier": "hard", "name": "Ritim", "kind": "combo", "target": 15, "needs": "workbench", "reward": {"perk": "clone_count"}},
-	"z03": {"tier": "hard", "name": "Klon ordusu", "kind": "hits", "with": "clone", "target": 10000, "needs": "hand_press", "reward": {"perk": "clone_count_2"}},
-	"z04": {"tier": "hard", "name": "Doymaz", "kind": "bullets_melted", "target": 30000, "needs": "melter", "reward": {"perk": "obur_more"}},
+	"z02": {"tier": "hard", "name": "Ritim", "kind": "combo", "target": 12, "needs": "workbench", "reward": {"perk": "clone_count"}},
+	"z03": {"tier": "hard", "name": "Klon ordusu", "kind": "bullets_fired", "with": "clone", "target": 2800, "needs": "hand_press", "reward": {"perk": "clone_count_2"}},
+	"z04": {"tier": "hard", "name": "Doymaz", "kind": "bullets_melted", "target": 20000, "needs": "melter", "reward": {"perk": "obur_more"}},
 	"z05": {"tier": "hard", "name": "Anahtarcı", "kind": "key_found", "target": 3, "reward": {"perk": "sekme_more"}},
-	"z06": {"tier": "hard", "name": "Servet", "kind": "gold_earned", "target": 200000, "needs": "scorpion", "reward": {"perk": "yanki_more"}},
+	"z06": {"tier": "hard", "name": "Servet", "kind": "gold_earned", "target": 43000, "needs": "scorpion", "reward": {"perk": "yanki_more"}},
 }
 ## Kinds counted as the best single value rather than a sum (the longest combo chain).
 const QUEST_PEAK_KINDS := ["combo"]
-## Kinds that don't grow with the team: a combo chain is one player's, the keys are only so many.
-const QUEST_FIXED_KINDS := ["combo", "key_found"]
-## Each player past the first adds this share of a quest's target (quest_target).
-const QUEST_SCALE := 0.5  # placeholder until tools/quest_sim.gd
+## Kinds that don't grow with the team: a combo chain is one player's, the keys are only so many,
+## and the melter is one for everybody (more hands don't melt faster).
+const QUEST_FIXED_KINDS := ["combo", "key_found", "bullets_melted"]
+## Each player past the first adds this share of a quest's target (quest_target). A var only so
+## tools/quest_sim.gd can sweep it.
+var quest_scale := 0.5  # tools/quest_sim.gd --sweep: four mid players finish the main chain in ~36 min
 ## A pool slot draws at random among this many of the easiest quests left in it.
 const QUEST_DRAW := 2
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
@@ -838,11 +840,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 		var base = target.hit_gold_at(hit.position) if target.has_method("hit_gold_at") else target.get("hit_gold")
 		if bounces > 0 and base is int:
 			base *= RICOCHET_MULT
-		var behind := clampf(FIRING_LINE_X - from.x, 0.0, RANGE_BONUS_MAX)  # m behind the railing
-		var bonus := upgrade_value("gold_bonus", peer) + roundi(upgrade_value("range_bonus", peer) * behind)
-		var raw := float((base if base is int else 1) * (WEAK_MULT if weak else 1) * chain) * (100 + bonus) / 100.0 + p.gold_rest
-		gold = floori(raw)
-		p.gold_rest = raw - gold
+		gold = hit_pay(peer, base if base is int else 1, weak, chain, FIRING_LINE_X - from.x)
 		p.gold += gold
 		if _is_local(peer):
 			gold_changed.emit(p.gold)
@@ -855,6 +853,18 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	if chain > 0:  # a paying hit
 		quest_hit(tags, weak, chain, gold)
 	return true
+
+
+## What a paying hit gives `peer`: the target's `base`, twice on a weak spot, times the chain, with
+## the percent upgrades for standing `behind` m back of the railing. The cents left over wait for
+## the next hit. tools/quest_sim.gd pays its bots with it too.
+func hit_pay(peer: int, base: int, weak: bool, chain: int, behind: float) -> int:
+	var p := player(peer)
+	var bonus := upgrade_value("gold_bonus", peer) + roundi(upgrade_value("range_bonus", peer) * clampf(behind, 0.0, RANGE_BONUS_MAX))
+	var raw := float(base * (WEAK_MULT if weak else 1) * chain) * (100 + bonus) / 100.0 + p.gold_rest
+	var gold := floori(raw)
+	p.gold_rest = raw - gold
+	return gold
 
 
 ## Host (or solo): a paying hit, for the quests. tools/quest_sim.gd counts its bots' hits here too.
@@ -927,7 +937,7 @@ func quest_target(id: String) -> int:
 	var q: Dictionary = QUESTS[id]
 	if q.kind in QUEST_FIXED_KINDS:
 		return q.target
-	return ceili(q.target * (1.0 + QUEST_SCALE * (quest_players - 1)))
+	return ceili(q.target * (1.0 + quest_scale * (quest_players - 1)))
 
 
 ## Whether a finished quest has opened mechanic `what`.

@@ -11,6 +11,7 @@ func _initialize() -> void:
 	var dummy: Node3D = main.get_node("Dummy")
 	for i in 3:
 		await physics_frame
+	gs.quest_board.fill("")  # no quests: a finished one's gold reward would land in the totals
 	assert(not gs.request_fire(Vector3.ZERO, Vector3.FORWARD), "bare fists fire nothing")
 	gs.request_select_gun(1)
 	assert(gs.player().gun == 1, "number key 1 draws the first gun")

@@ -61,7 +61,7 @@ func _initialize() -> void:
 		one[id] = gs.quest_target(id)
 	gs.slots = {1: 0, 2: 1, 3: 2, 4: 3}
 	for id: String in gs.QUESTS:
-		var want: int = one[id] if gs.QUESTS[id].kind in gs.QUEST_FIXED_KINDS else ceili(gs.QUESTS[id].target * (1.0 + gs.QUEST_SCALE * 3))
+		var want: int = one[id] if gs.QUESTS[id].kind in gs.QUEST_FIXED_KINDS else ceili(gs.QUESTS[id].target * (1.0 + gs.quest_scale * 3))
 		_ok(gs.quest_target(id) == want, "%s: %d for four" % [id, want])
 	gs.slots = {}
 
