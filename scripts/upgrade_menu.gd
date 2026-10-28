@@ -44,6 +44,7 @@ const RATE_WINDOW := 10.0  # s of income the "+$N / sn" figure averages
 const BUY := UiStyle.MONEY  # what the money reaches
 const BRASS := UiStyle.ACCENT  # a gauge filling
 const MAXED := Color(1.0, 0.78, 0.3)
+const ARMY := Color(0.25, 0.36, 0.17)  # a full gauge, ready to buy
 const SIGNAL := UiStyle.ACCENT  # the open tab
 const PANEL := Color(0.075, 0.08, 0.088, 0.97)  # dark steel
 const CARD := Color(0.115, 0.122, 0.132)
@@ -137,9 +138,10 @@ class Gauge extends Control:
 		box.anti_aliasing = true
 		if full:  # breathes a little brighter and back
 			var a := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 3.0)
-			box.bg_color = BUY.lerp(Color.WHITE, flash * 0.6 + 0.08 * a)
+			box.bg_color = ARMY.lerp(Color.WHITE, flash * 0.5 + 0.06 * a)  # army green, not a web button's mint
+			box.border_width_top = 2
 			box.border_width_bottom = 2
-			box.border_color = BUY.darkened(0.35)
+			box.border_color = ARMY.lightened(0.25)
 			draw_style_box(box, r)
 			return
 		box.bg_color = Color(0, 0, 0, 0.4)
@@ -410,7 +412,7 @@ func _card(id: String, box: BoxContainer, buy: Callable, gauge_w: float) -> Pane
 	col.add_child(gauge)
 	var button := _flat_button()
 	button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	button.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD, 0, true))
+	button.add_theme_font_override("font", UiStyle.STENCIL)
 	button.add_theme_font_size_override("font_size", 22)
 	button.mouse_entered.connect(func() -> void: card.mouse_entered.emit())
 	button.pressed.connect(func() -> void:
@@ -723,7 +725,7 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	gauge.goal = clampf(float(have) / cost, 0.0, 1.0) if cost > 0 else 1.0
 	b.text = "$%d" % cost
 	b.disabled = not ok
-	_text_color(b, Color(0.03, 0.09, 0.05) if ok else UiStyle.WHITE)
+	_text_color(b, UiStyle.WHITE)
 	need.text = ""  # the brass in the gauge shows how far
 	need.add_theme_color_override("font_color", BUY if ok else UiStyle.DIM)
 	style.border_color = BUY if ok else Color(c.color, 0.5)
