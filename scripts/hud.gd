@@ -23,7 +23,7 @@ const QUEST_W := 230.0  # px, a quest's bar
 const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Yığından mermi taşı",
 	"bullets_fired": "Mermi ateşle", "hits": "Hedefe isabet", "weak_hits": "Kafa isabeti",
 	"combo": "Kombo zinciri", "crafted": "Tarife mermi işle", "bullets_melted": "Mermi erit",
-	"key_found": "Anahtar bul", "loaded": "Şarjöre mermi koy", "board_claim": "Panoya git"}
+	"key_found": "Anahtar bul", "loaded": "Şarjöre mermi koy", "board_claim": "Panoya git", "bench_bought": "Tezgâhta geliştirme al"}
 ## What a quest's `with`, `unlock`, part and perk are called on screen; guns use their GUNS name.
 const NAMES := {"clone": "Klon", "obur": "Obur", "sekme": "Sekme", "yanki": "Yankı",
 	"workbench": "Tezgâh", "bucket": "Kova", "blueprints": "Tarif panosu", "hand_press": "El presi",
@@ -54,6 +54,7 @@ var _q: PanelContainer
 var _guns: HBoxContainer
 var _test: Control
 var _quests: VBoxContainer
+var _sheet: PanelContainer  # the paper the quests are typed on
 var _cards: Array[Dictionary] = []  # per QUEST_SLOTS slot: its nodes and the quest it shows
 var _claim: Control  # "[E] Panoda teslim et", while something is done
 var _claimed := {}  # quest ids just claimed: their card folds away before the next comes in
@@ -187,23 +188,23 @@ func _build_heap() -> void:
 	var col := _column(Control.PRESET_CENTER_TOP)
 	col.offset_top = MARGIN.y - 8
 	col.add_theme_constant_override("separation", 6)
-	_heap = UiStyle.display("", 40, UiStyle.BOLD)
+	_heap = UiStyle.stencil("", 44)
 	_heap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(_heap)
 	_heap_meter = UiStyle.meter(HEAP_W, UiStyle.ACCENT, 3.0)
 	_heap_meter.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(_heap_meter)
-	var under := HBoxContainer.new()
+	var under := HBoxContainer.new()  # the keys found, at the bar's right end
 	under.custom_minimum_size.x = HEAP_W
 	under.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	under.alignment = BoxContainer.ALIGNMENT_END
+	under.add_theme_constant_override("separation", 5)
 	under.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(under)
-	var left := UiStyle.caption("Yığında kalan")
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	under.add_child(left)
+	under.add_child(UiStyle.icon("key", 15))
 	_keys = UiStyle.caption("")
 	under.add_child(_keys)
-	_banner = UiStyle.display("", 30, UiStyle.BOLD, UiStyle.ACCENT)
+	_banner = UiStyle.stencil("", 30, UiStyle.ACCENT)
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.modulate.a = 0.0
 	col.add_child(_banner)
@@ -220,27 +221,32 @@ func _build_sides() -> void:
 		col.offset_right = -MARGIN.x if right else 0
 		col.offset_bottom = -MARGIN.y
 		col.add_theme_constant_override("separation", -6)
-		var align := HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
-		var caption := UiStyle.caption("Altın" if right else "Şarjör")
-		caption.horizontal_alignment = align
-		col.add_child(caption)
+		# No captions: the magazine and the gold are the two big numbers; under them, with an icon,
+		# the hand (bullets) and the team's vault (a crate).
 		var row := HBoxContainer.new()
 		row.alignment = BoxContainer.ALIGNMENT_END if right else BoxContainer.ALIGNMENT_BEGIN
 		row.add_theme_constant_override("separation", 6)
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		col.add_child(row)
-		var big := UiStyle.display("", BIG, UiStyle.SEMIBOLD, MONEY if right else UiStyle.WHITE)
+		var big := UiStyle.stencil("", BIG, MONEY if right else UiStyle.WHITE)
 		row.add_child(big)
-		var small := UiStyle.label("", 15, UiStyle.MEDIUM, UiStyle.DIM)
-		small.horizontal_alignment = align
-		col.add_child(small)
+		var under := HBoxContainer.new()
+		under.alignment = row.alignment
+		under.add_theme_constant_override("separation", 6)
+		under.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(under)
+		var small := UiStyle.display("", 18, UiStyle.SEMIBOLD, UiStyle.DIM)
 		if right:
+			under.add_child(UiStyle.icon("crate", 17))
+			under.add_child(small)
 			_gold = big
 			_vault = small
 		else:
-			_mag_caption = caption
+			_mag_caption = UiStyle.caption("")  # kept for the old callers, never shown
+			under.add_child(UiStyle.icon("bullets", 17))
+			under.add_child(small)
 			_mag = big
-			_mag_of = UiStyle.display("", 28, UiStyle.MEDIUM, UiStyle.DIM)
+			_mag_of = UiStyle.stencil("", 28, UiStyle.DIM)
 			_mag_of.size_flags_vertical = Control.SIZE_SHRINK_END
 			row.add_child(_mag_of)
 			_hand = small
@@ -258,7 +264,7 @@ func _build_middle() -> void:
 	_special = UiStyle.label("", 15, UiStyle.SEMIBOLD)
 	_special.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_special_row.add_child(_special)
-	_special_hint = UiStyle.hint("R", "Basılı tut")
+	_special_hint = UiStyle.hint("R", "")
 	_special_row.add_child(_special_hint)
 	_guns = HBoxContainer.new()
 	_guns.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -297,7 +303,7 @@ func _build_corner() -> void:
 	row.add_child(_can_buy)
 	_q = UiStyle.keycap("Q", 20)
 	row.add_child(_q)
-	_test = UiStyle.hint("T", "Test modu: sınırsız mermi")
+	_test = UiStyle.hint("T", "Sınırsız mermi")
 	_test.alignment = BoxContainer.ALIGNMENT_END
 	(_test.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.ACCENT)
 	corner.add_child(_test)
@@ -305,14 +311,20 @@ func _build_corner() -> void:
 
 func _build_quests() -> void:
 	# Under the Q, at the right edge: the left is the view's.
+	# Typed on a sheet of paper, a little askew, like the orders pinned up on the range.
 	_quests = VBoxContainer.new()
 	_quests.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_quests.size_flags_horizontal = Control.SIZE_SHRINK_END
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 8
+	gap.custom_minimum_size.y = 10
 	gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_q.get_parent().get_parent().add_child(gap)
-	_q.get_parent().get_parent().add_child(_quests)
+	_sheet = PanelContainer.new()
+	_sheet.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sheet.size_flags_horizontal = Control.SIZE_SHRINK_END
+	_sheet.add_theme_stylebox_override("panel", UiStyle.paper_box(14))
+	_sheet.rotation = deg_to_rad(-0.8)
+	_sheet.add_child(_quests)
+	_q.get_parent().get_parent().add_child(_sheet)
 	_quests.add_theme_constant_override("separation", 9)
 	for i in GameState.QUEST_SLOTS.size():
 		var main := i == 0
@@ -326,13 +338,14 @@ func _build_quests() -> void:
 		card.add_child(top)
 		var tick := _tick()
 		top.add_child(tick)
-		var name_ := UiStyle.display("", 18 if main else 15, UiStyle.SEMIBOLD, UiStyle.WHITE if main else UiStyle.DIM)
+		var name_ := UiStyle.typed("", 17 if main else 14, UiStyle.PAPER_INK if main else UiStyle.PAPER_FADED)
 		name_.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		top.add_child(name_)
-		var share := UiStyle.label("", 14 if main else 13, UiStyle.SEMIBOLD, UiStyle.DIM)
+		var share := UiStyle.typed("", 14 if main else 13, UiStyle.PAPER_FADED)
 		share.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		top.add_child(share)
-		var bar := UiStyle.meter(QUEST_W, UiStyle.WHITE, 3.0 if main else 2.0)
+		var bar := UiStyle.meter(QUEST_W, UiStyle.PAPER_INK, 3.0 if main else 2.0)
+		bar.color = Color(0, 0, 0, 0.1)  # the track, pencilled on the paper
 		card.add_child(bar)
 		_quests.add_child(card)
 		if main:
@@ -340,24 +353,19 @@ func _build_quests() -> void:
 			_hint.alignment = BoxContainer.ALIGNMENT_END
 			_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_quests.add_child(_hint)
-			_quests.add_child(UiStyle.line(QUEST_W * 0.4))  # the main quest over the rest
+			_quests.add_child(UiStyle.line(QUEST_W * 0.4, Color(0, 0, 0, 0.25)))  # the main quest over the rest
 		_cards.append({"card": card, "tick": tick, "name": name_, "share": share, "bar": bar,
 			"main": main, "id": "", "pulse": null})
-	_claim = UiStyle.hint("E", "Panoda teslim et")
-	UiStyle.tint_keycap(_claim.get_child(0) as PanelContainer, UiStyle.ACCENT)
-	(_claim.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.ACCENT)
+	_claim = UiStyle.hint("E", "Pano")
+	_claim.alignment = BoxContainer.ALIGNMENT_END
+	(_claim.get_child(1) as Label).add_theme_font_override("font", UiStyle.TYPEWRITER)
+	(_claim.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.PAPER_GREEN)
+	(_claim.get_child(1) as Label).add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	_quests.add_child(_claim)
 
 
-## A check mark, drawn: Barlow has no glyph for it.
 func _tick() -> Control:
-	var t := Control.new()
-	t.custom_minimum_size = Vector2(16, 16)
-	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	t.draw.connect(func() -> void:
-		t.draw_polyline(PackedVector2Array([Vector2(2, 8.5), Vector2(6.5, 13), Vector2(14, 3.5)]), UiStyle.MONEY, 2.6, true))
-	return t
+	return UiStyle.icon("check", 16, UiStyle.PAPER_GREEN)
 
 
 ## The board as GameState has it. A slot whose quest was just claimed folds its card away first.
@@ -371,6 +379,7 @@ func _refresh_quests() -> void:
 		elif not c.has("folding"):
 			_show_quest(c, id)
 	_claim.visible = not GameState.quests_ready.is_empty()
+	_sheet.visible = GameState.quest_board.any(func(id: String) -> bool: return id != "")
 	_show_hint(GameState.quest_board[0] if not GameState.quest_board.is_empty() else "")
 
 
@@ -386,8 +395,10 @@ func _show_hint(id: String) -> void:
 	if hint.is_empty():
 		return
 	var h := UiStyle.hint(hint[0], hint[1], 15)
-	UiStyle.tint_keycap(h.get_child(0) as PanelContainer, UiStyle.ACCENT)
-	(h.get_child(1) as Label).add_theme_color_override("font_color", UiStyle.WHITE)
+	var how := h.get_child(h.get_child_count() - 1) as Label
+	how.add_theme_font_override("font", UiStyle.TYPEWRITER)
+	how.add_theme_color_override("font_color", UiStyle.PAPER_INK)
+	how.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
 	_hint.add_child(h)
 	h.modulate.a = 0.0
 	h.create_tween().tween_property(h, "modulate:a", 1.0, 0.4)
@@ -432,10 +443,10 @@ func _show_quest(c: Dictionary, id: String) -> void:
 		c.name.text = q.name  # one thing to do, said plainly; no count of 1
 	else:
 		c.name.text = "%s %s" % [what, UiStyle.dotted(target)]  # what to do beats a name nobody knows yet
-	c.name.add_theme_color_override("font_color", UiStyle.MONEY if ready else (UiStyle.WHITE if c.main else UiStyle.DIM))
+	c.name.add_theme_color_override("font_color", UiStyle.PAPER_GREEN if ready else (UiStyle.PAPER_INK if c.main else UiStyle.PAPER_FADED))
 	c.share.text = _reward_text(id) if ready else "%" + str(floori(100.0 * have / maxi(target, 1)))
-	c.share.add_theme_color_override("font_color", UiStyle.MONEY if ready else UiStyle.DIM)
-	(c.bar.get_child(0) as ColorRect).color = UiStyle.MONEY if ready else (UiStyle.ACCENT if c.main else Color(UiStyle.WHITE, 0.6))
+	c.share.add_theme_color_override("font_color", UiStyle.PAPER_GREEN if ready else UiStyle.PAPER_FADED)
+	(c.bar.get_child(0) as ColorRect).color = UiStyle.PAPER_GREEN if ready else (UiStyle.PAPER_INK if c.main else UiStyle.PAPER_FADED)
 	UiStyle.set_meter(c.bar, float(have) / maxi(target, 1))
 	c.tick.visible = ready
 	_set_pulse(c, ready)
@@ -483,27 +494,21 @@ func refresh() -> void:
 	var p := GameState.player()
 	_heap.text = UiStyle.dotted(GameState.pile)
 	UiStyle.set_meter(_heap_meter, float(GameState.pile) / GameState.PILE_START)
-	_keys.text = "Anahtar %d / %d" % [p.keys.size(), KeyCache.KEYS.size()]
-	if p.gun == 0:  # bare fists: the hand is all there is
-		_mag_caption.text = "Elde"
-		_mag.text = str(GameState.carried)
-		_mag_of.text = "/ %d" % GameState.carry_capacity
-		_hand.text = "Silah yok"
-	else:
-		_mag_caption.text = "Şarjör"
-		_mag.text = str(GameState.loaded)
-		_mag_of.text = "/ %d" % GameState.mag_capacity
-		_hand.text = "Elde %d / %d" % [GameState.carried, GameState.carry_capacity]
+	_keys.text = "%d/%d" % [p.keys.size(), KeyCache.KEYS.size()]
+	_mag.text = str(GameState.carried if p.gun == 0 else GameState.loaded)  # bare fists: the hand is all there is
+	_mag_of.text = "/%d" % (GameState.carry_capacity if p.gun == 0 else GameState.mag_capacity)
+	_hand.text = "%d/%d" % [GameState.carried, GameState.carry_capacity]
+	_hand.get_parent().visible = p.gun != 0
 	_mag.add_theme_color_override("font_color", UiStyle.WARN if p.gun != 0 and GameState.loaded == 0 else UiStyle.WHITE)
 	_gold.text = "$" + UiStyle.dotted(GameState.gold)
-	_vault.text = "Takım kasası $%s" % UiStyle.dotted(floori(GameState.vault))
+	_vault.text = "$" + UiStyle.dotted(floori(GameState.vault))
 	_special_row.visible = true
 	if p.armed != "":
-		_special.text = "%s takılı" % GameState.SPECIALS[p.armed].name
+		_special.text = GameState.SPECIALS[p.armed].name
 		_special.add_theme_color_override("font_color", UiStyle.ACCENT)
 		_special_hint.visible = false
 	elif not p.specials.is_empty():
-		_special.text = "Özel mermi ×%d" % p.specials.size()
+		_special.text = "%s ×%d" % [GameState.SPECIALS[p.specials[0]].name, p.specials.size()] if p.specials.count(p.specials[0]) == p.specials.size() else "×%d" % p.specials.size()
 		_special.add_theme_color_override("font_color", UiStyle.WHITE)
 		_special_hint.visible = true
 	else:
@@ -515,12 +520,13 @@ func refresh() -> void:
 		gun.get_child(0).get_child(1).visible = on  # the others are only their key
 		gun.modulate.a = 1.0 if on else (0.5 if GameState.gun_open(i + 1) else 0.22)
 	_guns.get_parent().visible = not p.placing  # placement keeps its keys here
-	var can := GameState.UPGRADES.keys().any(func(id: String) -> bool:
+	var can := GameState.UPGRADES.keys().any(func(id: String) -> bool:  # Q's, not the bench's
 		var costs: Array = GameState.UPGRADES[id].costs
+		if GameState.UPGRADES[id].get("bench", false):
+			return false
 		return p.levels[id] < costs.size() and GameState.gold >= costs[p.levels[id]])
-	_can_buy.text = "Geliştirme alınabilir" if can else "Geliştirmeler"
-	_can_buy.add_theme_color_override("font_color", UiStyle.ACCENT if can else UiStyle.DIM)
-	UiStyle.tint_keycap(_q, UiStyle.ACCENT if can else UiStyle.WHITE)
+	_can_buy.visible = false  # the Q turning brass says it
+	UiStyle.tint_keycap(_q, UiStyle.ACCENT if can else UiStyle.DIM)
 	_test.visible = GameState.infinite_ammo
 	# The warmup opens the screen bit by bit: the hand and guns once a bullet was taken, gold and
 	# upgrades once a hit paid (GameState QUESTS t01, t03).

@@ -119,12 +119,12 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()  # no walking, guns or the workshop behind the menu
 
 
-## Not over the workshop or the placement overview: Esc is theirs then.
+## Not over the workshop, the bench or the placement overview: Esc is theirs then.
 func _may_open() -> bool:
 	var p = GameState.player()
 	if p and p.placing:
 		return false
-	for n in get_tree().root.find_children("UpgradeMenu", "CanvasLayer", true, false):
+	for n in get_tree().root.find_children("UpgradeMenu", "CanvasLayer", true, false) 			+ get_tree().root.find_children("BenchMenu", "CanvasLayer", true, false):
 		if (n as CanvasLayer).visible:
 			return false
 	return true
@@ -287,9 +287,9 @@ func _show_page(i: int) -> void:
 		_nav[j].add_theme_color_override("font_color", BRASS if j == i else UiStyle.WHITE)
 		_bars[j].color = Color(SIGNAL, 1.0 if j == i else 0.0)
 	_title.text = PAGES[i]
-	_subtitle.text = SUBTITLES[i]
+	_subtitle.text = ""  # the title says it
 	_reset.visible = i > 0
-	_info.text = "Ayarlar hemen uygulanır ve kaydedilir." if i > 0 else "Esc ile oyuna dön."
+	_info.text = ""
 	if i == 0:
 		_update_status()
 
@@ -297,7 +297,7 @@ func _show_page(i: int) -> void:
 func _reset_page() -> void:
 	var keys: Array = _pages[page].get_meta(&"keys", [])
 	Settings.reset(keys, page == 3)
-	_info.text = "Bu sayfa varsayılana döndü."
+	_info.text = ""  # the rows moving back say it
 
 
 func _refresh_rows() -> void:
@@ -405,24 +405,24 @@ func _audio_page() -> Control:
 	var pl := _scroll_page(keys)
 	var list: VBoxContainer = pl[1]
 	list.add_child(_heading("SEVİYELER"))
-	list.add_child(_slider("master_vol", "Genel ses", 0, 100, 1, "%d%%", "Her şeyin sesi."))
-	list.add_child(_slider("weapon_vol", "Silahlar", 0, 100, 1, "%d%%", "Atış, şarjör, kovan ve boş tetik; senin ve takımın silahları."))
-	list.add_child(_slider("effect_vol", "Efektler", 0, 100, 1, "%d%%", "Hedefler, ayak sesleri, mermi yığını, anahtar ve kasa sesleri."))
-	list.add_child(_slider("ambience_vol", "Ambiyans", 0, 100, 1, "%d%%", "Holün uğultusu, dışarıdaki gece ve orman, demir gıcırtısı, lamba vızıltısı."))
+	list.add_child(_slider("master_vol", "Genel ses", 0, 100, 1, "%d%%", ""))
+	list.add_child(_slider("weapon_vol", "Silahlar", 0, 100, 1, "%d%%", ""))
+	list.add_child(_slider("effect_vol", "Efektler", 0, 100, 1, "%d%%", ""))
+	list.add_child(_slider("ambience_vol", "Ambiyans", 0, 100, 1, "%d%%", ""))
 	list.add_child(_heading("3B SES"))
 	list.add_child(_choice("output", "Çıkış türü", ["Kulaklık", "Stereo hoparlör", "Surround 5.1 / 7.1"],
-		"Kulaklık: sesler sağa sola tam ayrılır. Hoparlör: ayrım yumuşar, iki kulak iki hoparlörü de duyar. Surround: arkadaki sesleri arka hoparlörler verir; Windows'ta 5.1/7.1 açık olmalı."))
+		"Surround için Windows'ta 5.1/7.1 açık olmalı."))
 	list.add_child(_slider("rear_cue", "Arkadan gelen ses ipucu", 0, 100, 5, "%d%%",
-		"Kulaklık ve iki hoparlör önü arkadan ayıramaz. Arkanda kalan ses biraz kısılır; o yöne dönünce açılır ve önüne gelir. Surround'da kapalıdır."))
+		"Arkandaki ses biraz kısılır, o yöne dönünce açılır. Surround'da kapalı."))
 	list.add_child(_heading("KARIŞIM"))
 	list.add_child(_choice("dynamic_range", "Dinamik aralık", ["Geniş", "Orta", "Gece modu"],
-		"Geniş: atışlar tam gürlüğünde. Orta ve gece modu: yüksek sesler sıkıştırılır, kısık sesler duyulur; gece kulaklıkla ya da kısık seste oynarken."))
-	list.add_child(_toggle("mono", "Mono ses", "İki kanal tek kanala toplanır; tek kulakla ya da tek hoparlörle duyanlar için."))
-	list.add_child(_toggle("pause_muffle", "Durunca sesi boğ", "Oyun durduğunda dünya duvarın arkasından duyulur gibi olur."))
-	list.add_child(_toggle("mute_unfocused", "Arka planda sessiz", "Pencere arka plana geçince ses kesilir."))
+		"Gece modu yüksek sesleri bastırır, kısıkları açar."))
+	list.add_child(_toggle("mono", "Mono ses", ""))
+	list.add_child(_toggle("pause_muffle", "Durunca sesi boğ", ""))
+	list.add_child(_toggle("mute_unfocused", "Arka planda sessiz", ""))
 	var devices := Array(AudioServer.get_output_device_list())
 	list.add_child(_choice_values("device", "Çıkış cihazı", devices, devices.map(func(d: String) -> String: return "Sistem varsayılanı" if d == "Default" else d),
-		"Sesin çıkacağı cihaz."))
+		""))
 	return pl[0]
 
 
@@ -431,22 +431,22 @@ func _video_page() -> Control:
 	var pl := _scroll_page(keys)
 	var list: VBoxContainer = pl[1]
 	list.add_child(_heading("EKRAN"))
-	list.add_child(_choice("window_mode", "Pencere", ["Pencere", "Kenarsız tam ekran", "Tam ekran"], "Tam ekran en düşük gecikmeyi verir; kenarsız alt-tab'da hızlıdır."))
-	list.add_child(_toggle("vsync", "Dikey senkron (V-Sync)", "Görüntü yırtılmasını önler, biraz gecikme ekler."))
-	list.add_child(_choice("fps_limit", "Kare sınırı", ["30", "60", "90", "120", "144", "165", "240", "Sınırsız"], "Saniyedeki en çok kare. Dizüstünde pil ve ısı için düşük tut."))
-	list.add_child(_slider("brightness", "Parlaklık", 50, 150, 5, "%d%%", "Hol karanlık tasarlandı; ekranın çok karanlıksa biraz aç."))
+	list.add_child(_choice("window_mode", "Pencere", ["Pencere", "Kenarsız tam ekran", "Tam ekran"], ""))
+	list.add_child(_toggle("vsync", "Dikey senkron (V-Sync)", ""))
+	list.add_child(_choice("fps_limit", "Kare sınırı", ["30", "60", "90", "120", "144", "165", "240", "Sınırsız"], ""))
+	list.add_child(_slider("brightness", "Parlaklık", 50, 150, 5, "%d%%", ""))
 	list.add_child(_heading("KALİTE"))
-	list.add_child(_choice("preset", "Hazır ayar", Settings.PRESETS + ["Özel"], "Aşağıdakilerin hepsini birden ayarlar. Tek birini değiştirince Özel olur."))
-	list.add_child(_slider("render_scale", "Çözünürlük ölçeği", 50, 100, 5, "%d%%", "3B dünya bu oranda çizilip ekrana büyütülür; arayüz hep tam keskin."))
-	list.add_child(_choice("upscaler", "Büyütme", ["Doğrusal", "AMD FSR 1", "AMD FSR 2"], "Ölçek %100'ün altındayken görüntüyü büyütme yolu. FSR 2 en keskini ama en ağırı; kendi kenar yumuşatması var."))
-	list.add_child(_choice("antialias", "Kenar yumuşatma", ["Kapalı", "FXAA", "MSAA 2x", "MSAA 4x", "MSAA 4x + FXAA", "TAA"], "Tırtıklı kenarları düzeltir. MSAA keskin, TAA en pürüzsüz ama hareket ederken bulanıklaşabilir."))
-	list.add_child(_choice("shadows", "Gölgeler", ["Düşük", "Orta", "Yüksek", "Ultra"], "Düşük: yalnız ayın gölgesi. Yukarı çıktıkça lambaların gölgeleri keskinleşir ve yumuşak kenar kazanır."))
+	list.add_child(_choice("preset", "Hazır ayar", Settings.PRESETS + ["Özel"], "Tek bir ayarı değiştirince Özel olur."))
+	list.add_child(_slider("render_scale", "Çözünürlük ölçeği", 50, 100, 5, "%d%%", ""))
+	list.add_child(_choice("upscaler", "Büyütme", ["Doğrusal", "AMD FSR 1", "AMD FSR 2"], "Ölçek %100'ün altındayken. FSR 2 en keskini, en ağırı."))
+	list.add_child(_choice("antialias", "Kenar yumuşatma", ["Kapalı", "FXAA", "MSAA 2x", "MSAA 4x", "MSAA 4x + FXAA", "TAA"], ""))
+	list.add_child(_choice("shadows", "Gölgeler", ["Düşük", "Orta", "Yüksek", "Ultra"], ""))
 	list.add_child(_heading("EFEKTLER"))
-	list.add_child(_toggle("ssao", "Ortam kapatma (SSAO)", "Köşelerde ve diplerde yumuşak gölge."))
-	list.add_child(_toggle("ssil", "Dolaylı ışık (SSIL)", "Işığın yüzeylerden yakın yüzeylere sekmesi."))
-	list.add_child(_toggle("ssr", "Yansımalar (SSR)", "Su birikintilerinde lambalar ve huzmeler."))
-	list.add_child(_toggle("fog", "Hacimsel sis", "Havadaki toz; lamba konileri ve spot huzmeleri onda görünür. En ağır efekt."))
-	list.add_child(_toggle("glow", "Işık parlaması", "Parlak lambaların ve namlu alevinin etrafındaki hare."))
+	list.add_child(_toggle("ssao", "Ortam kapatma (SSAO)", ""))
+	list.add_child(_toggle("ssil", "Dolaylı ışık (SSIL)", ""))
+	list.add_child(_toggle("ssr", "Yansımalar (SSR)", ""))
+	list.add_child(_toggle("fog", "Hacimsel sis", "En ağır efekt."))
+	list.add_child(_toggle("glow", "Işık parlaması", ""))
 	return pl[0]
 
 
@@ -455,9 +455,9 @@ func _controls_page() -> Control:
 	var pl := _scroll_page(keys)
 	var list: VBoxContainer = pl[1]
 	list.add_child(_heading("FARE"))
-	list.add_child(_slider("sensitivity", "Fare hassasiyeti", 0.1, 4.0, 0.05, "%.2f×", "Bakışın fareyle ne kadar döndüğü."))
-	list.add_child(_slider("ads_sensitivity", "Nişandayken hassasiyet", 20, 150, 5, "%d%%", "Nişan alırken hassasiyetin çarpanı. Yakınlaşma zaten hesaba katılır; %100'de aynı fare hareketi ekranda aynı yolu alır."))
-	list.add_child(_toggle("invert_y", "Dikey ekseni ters çevir", "Fareyi ileri itince aşağı bakarsın."))
+	list.add_child(_slider("sensitivity", "Fare hassasiyeti", 0.1, 4.0, 0.05, "%.2f×", ""))
+	list.add_child(_slider("ads_sensitivity", "Nişandayken hassasiyet", 20, 150, 5, "%d%%", "%100'de aynı fare hareketi ekranda aynı yolu alır."))
+	list.add_child(_toggle("invert_y", "Dikey ekseni ters çevir", ""))
 	list.add_child(_heading("TUŞLAR"))
 	for a in Settings.ACTIONS:
 		list.add_child(_bind(a[0], a[1]))
@@ -469,14 +469,14 @@ func _game_page() -> Control:
 	var pl := _scroll_page(keys)
 	var list: VBoxContainer = pl[1]
 	list.add_child(_heading("KAMERA"))
-	list.add_child(_slider("fov", "Görüş açısı", 60, 110, 1, "%d°", "Dikey görüş açısı. Geniş açı daha çok görür, uzaktakileri küçültür."))
-	list.add_child(_slider("head_bob", "Kafa sallantısı", 0, 100, 5, "%d%%", "Yürürken bakışın sallanması. Midesi bulananlar kapatsın."))
+	list.add_child(_slider("fov", "Görüş açısı", 60, 110, 1, "%d°", ""))
+	list.add_child(_slider("head_bob", "Kafa sallantısı", 0, 100, 5, "%d%%", ""))
 	list.add_child(_heading("NİŞANGÂH"))
-	list.add_child(_choice("crosshair_color", "Renk", ["Beyaz", "Yeşil", "Sarı", "Camgöbeği", "Turuncu"], "Holün ışığına göre en iyi seçileni seç."))
-	list.add_child(_slider("crosshair_size", "Boyut", 50, 200, 10, "%d%%", "Halkanın büyüklüğü ve kalınlığı."))
-	list.add_child(_toggle("crosshair_dot", "Orta nokta", "Halkanın ortasına küçük bir nokta."))
+	list.add_child(_choice("crosshair_color", "Renk", ["Beyaz", "Yeşil", "Sarı", "Camgöbeği", "Turuncu"], ""))
+	list.add_child(_slider("crosshair_size", "Boyut", 50, 200, 10, "%d%%", ""))
+	list.add_child(_toggle("crosshair_dot", "Orta nokta", ""))
 	list.add_child(_heading("EKRAN BİLGİSİ"))
-	list.add_child(_toggle("show_fps", "FPS göstergesi", "Sol üst köşede saniyedeki kare sayısı."))
+	list.add_child(_toggle("show_fps", "FPS göstergesi", ""))
 	return pl[0]
 
 
@@ -636,7 +636,7 @@ func _bind(action: String, title: String) -> Control:
 		b.add_theme_color_override("font_color", UiStyle.WHITE)
 	_refresh.append(show)
 	show.call()
-	return _row(title, "Değiştirmek için tıkla. Başka bir işin tuşunu seçersen ikisi yer değiştirir.", h)
+	return _row(title, "Başka bir işin tuşunu seçersen ikisi yer değiştirir.", h)
 
 
 ## The next key or button goes to the action waiting; Esc gives up.

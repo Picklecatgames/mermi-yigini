@@ -23,7 +23,7 @@ func _initialize() -> void:
 		var heap: Control = hud._heap.get_parent()
 		var mid := (heap.position.x + heap.size.x * 0.5) * k
 		assert(absf(mid - s.x * 0.5) < 2.0, "heap is centred at %s (%.0f)" % [s, mid])
-		var quests: Control = hud._quests
+		var quests: Control = hud._sheet  # the paper the quests are typed on
 		var quests_gap: float = s.x - (quests.get_parent().position.x + quests.position.x + quests.size.x) * k
 		assert(absf(quests_gap - hud.MARGIN.x * k) < 2.0, "quests sit on the right edge at %s (gap %.0f)" % [s, quests_gap])
 		print("%s ok  scale %.2f" % [s, k])

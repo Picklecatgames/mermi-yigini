@@ -46,19 +46,12 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 16)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_picker.add_child(col)
-	col.add_child(_centred(UiStyle.display("Mermi seç", 26, UiStyle.BOLD)))
 	_row = HBoxContainer.new()
 	_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_row.add_theme_constant_override("separation", 0)
 	_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(_row)
-	var foot := HBoxContainer.new()
-	foot.alignment = BoxContainer.ALIGNMENT_CENTER
-	foot.add_theme_constant_override("separation", 22)
-	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	col.add_child(foot)
-	foot.add_child(UiStyle.label("Fareyi sağa sola kaydır", 14, UiStyle.MEDIUM, UiStyle.DIM))
-	foot.add_child(UiStyle.hint("R", "Bırak: tak"))
+	# No instructions: R held opened it, the mouse moves the mark, letting go arms the round.
 
 
 var is_open: bool:
@@ -132,7 +125,7 @@ func column(id: String, count: int) -> VBoxContainer:
 	mark.custom_minimum_size.y = 2
 	mark.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	col.add_child(mark)
-	var use := UiStyle.label("Şarjördeki sıradan mermi." if id == "" else GameState.SPECIALS[id].desc, 14, UiStyle.REGULAR, UiStyle.DIM)
+	var use := UiStyle.label("", 14, UiStyle.REGULAR, UiStyle.DIM)  # what it does was said when it was found (note)
 	use.name = "Use"
 	use.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	use.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -195,11 +188,10 @@ func note(id: String) -> void:
 	col.add_theme_constant_override("separation", 4)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	n.add_child(col)
-	col.add_child(_centred(UiStyle.label("Özel mermi buldun", 14, UiStyle.SEMIBOLD, UiStyle.ACCENT)))
 	col.add_child(round_view(id, 110))
-	col.add_child(_centred(UiStyle.display(GameState.SPECIALS[id].name, 28, UiStyle.BOLD)))
+	col.add_child(_centred(UiStyle.stencil(GameState.SPECIALS[id].name, 28, UiStyle.ACCENT)))
 	col.add_child(_centred(UiStyle.label(GameState.SPECIALS[id].desc, 14, UiStyle.REGULAR, UiStyle.DIM)))
-	var how := UiStyle.hint("R", "Basılı tut: seç")
+	var how := UiStyle.hint("R", "")
 	how.alignment = BoxContainer.ALIGNMENT_CENTER
 	col.add_child(how)
 	add_child(n)

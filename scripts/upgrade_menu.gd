@@ -29,6 +29,8 @@ const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 	"gold_dummy": [10, 4],
 	"ricochet": [9, 5],
 }
+const ICONS := {"carry": "bullets", "magazine": "magazine", "combo_cap": "combo",
+	"gold_bonus": "coins", "range_bonus": "target"}  # UiStyle.icon
 const COLUMNS := 6  # gear cards
 const CARD_W := 182.0  # px, a gear card: six fill the panel
 const MODEL_H := 74.0  # px, a gear card's turning model
@@ -131,7 +133,7 @@ class Gauge extends Control:
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
 		var box := StyleBoxFlat.new()
-		box.set_corner_radius_all(5)
+		box.set_corner_radius_all(2)
 		box.anti_aliasing = true
 		if full:  # breathes a little brighter and back
 			var a := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 3.0)
@@ -148,54 +150,11 @@ class Gauge extends Control:
 			return
 		var w := maxf(16.0, size.x * fill)
 		var lit := StyleBoxFlat.new()
-		lit.set_corner_radius_all(5)
+		lit.set_corner_radius_all(2)
 		lit.anti_aliasing = true
 		lit.bg_color = Color(BRASS, 0.35).lerp(Color.WHITE, flash * 0.6)
 		draw_style_box(lit, Rect2(Vector2.ZERO, Vector2(w, size.y)))
 		draw_rect(Rect2(w - 2.0, 4, 2, size.y - 8), Color(BRASS, 0.95))  # where the brass stops
-
-
-## The upgrade's emblem, drawn: a disc in its colour with a white symbol.
-class Icon extends Control:
-	var id := ""
-	var color := Color.WHITE
-
-	func _init(which: String, c: Color) -> void:
-		id = which
-		color = c
-		custom_minimum_size = Vector2(52, 52)
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-		size_flags_vertical = Control.SIZE_SHRINK_CENTER
-
-	func _draw() -> void:
-		var c := size / 2.0
-		draw_circle(c, 26.0, Color(color, 0.12))
-		draw_arc(c, 25.0, 0.0, TAU, 48, Color(color, 0.7), 1.5, true)
-		var w := Color(1, 1, 1, 0.95)
-		match id:
-			"carry":  # three rounds standing side by side
-				for k in 3:
-					var x := c.x - 11.0 + 11.0 * k
-					draw_rect(Rect2(x - 3.5, c.y - 4.0, 7.0, 15.0), Color(0.95, 0.75, 0.35))
-					draw_colored_polygon(PackedVector2Array([Vector2(x - 3.5, c.y - 4.0), Vector2(x + 3.5, c.y - 4.0), Vector2(x, c.y - 13.0)]), Color(0.8, 0.5, 0.3))
-			"magazine":  # a magazine with rounds peeking out the top
-				draw_rect(Rect2(c.x - 8.0, c.y - 8.0, 16.0, 22.0), w)
-				draw_rect(Rect2(c.x - 5.0, c.y - 14.0, 10.0, 6.0), Color(0.95, 0.75, 0.35))
-				for k in 3:
-					draw_rect(Rect2(c.x - 5.0, c.y - 3.0 + 5.0 * k, 10.0, 1.5), Color(color, 0.9))
-			"combo_cap":  # an x and a rising streak
-				draw_line(c + Vector2(-9, -9), c + Vector2(9, 9), w, 4.0, true)
-				draw_line(c + Vector2(9, -9), c + Vector2(-9, 9), w, 4.0, true)
-				draw_line(c + Vector2(6, -14), c + Vector2(14, -14), Color(color, 1.0), 3.0)
-				draw_line(c + Vector2(14, -14), c + Vector2(14, -6), Color(color, 1.0), 3.0)
-			"gold_bonus":  # a coin
-				draw_circle(c, 13.0, Color(1.0, 0.8, 0.25))
-				draw_arc(c, 10.0, 0.0, TAU, 32, Color(0.75, 0.5, 0.1), 2.0, true)
-				draw_string(UiStyle.face(UiStyle.BOLD, 0, true), c + Vector2(-5, 6), "$", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.55, 0.35, 0.05))
-			"range_bonus":  # a target
-				for k in 3:
-					draw_arc(c, 14.0 - 5.0 * k, 0.0, TAU, 32, w if k % 2 == 0 else Color(color, 1.0), 2.5, true)
-				draw_circle(c, 2.5, w)
 
 
 func _ready() -> void:
@@ -223,7 +182,9 @@ func _ready() -> void:
 	var stack := Control.new()
 	stack.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_frame.add_child(stack)
-	_pages.append(_page(GameState.UPGRADES.keys(), _upgrade_card, 1))
+	# The magazine and the gun's parts are bought at the bench (scripts/bench_menu.gd).
+	_pages.append(_page(GameState.UPGRADES.keys().filter(func(id: String) -> bool:
+		return not GameState.UPGRADES[id].get("bench", false)), _upgrade_card, 1))
 	_pages.append(_page(GameState.GEAR.keys(), _gear_card, COLUMNS))
 	for p in _pages:
 		stack.add_child(p)
@@ -232,7 +193,7 @@ func _ready() -> void:
 	var gap := Control.new()
 	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	foot.add_child(gap)
-	var close := UiStyle.hint("Q", "Kapat")
+	var close := UiStyle.hint("Q", "")
 	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	foot.add_child(close)
 	_frame.add_child(foot)
@@ -298,7 +259,7 @@ func _process(_delta: float) -> void:
 ## Gold | tabs over a line on what the tab is | vault.
 func _header() -> Control:
 	var row := HBoxContainer.new()
-	row.add_child(_wallet("Paran", false))
+	row.add_child(_wallet("coins", false))
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -311,24 +272,31 @@ func _header() -> Control:
 	tabs.add_child(_tab_button(0))
 	tabs.add_child(_tab_button(1))
 	_subtitle = _centred(UiStyle.label("", 14, UiStyle.REGULAR, UiStyle.DIM))
+	_subtitle.visible = false  # the tabs say it
 	mid.add_child(_subtitle)
-	row.add_child(_wallet("Takım kasası", true))
+	row.add_child(_wallet("crate", true))
 	return row
 
 
-func _wallet(caption: String, right: bool) -> VBoxContainer:
+## A wallet: its icon (coins: the player's, crate: the team's vault) by a big stencilled sum; under
+## the player's, what it earns a second.
+func _wallet(icon: String, right: bool) -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.custom_minimum_size.x = SIDE_W
 	col.add_theme_constant_override("separation", -2)
-	var align := HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
-	var c := UiStyle.caption(caption)
-	c.horizontal_alignment = align
-	col.add_child(c)
-	var big := UiStyle.display("", 46, UiStyle.BOLD, BUY)
-	big.horizontal_alignment = align
-	col.add_child(big)
-	var under := UiStyle.label("Bütün takımın", 14, UiStyle.MEDIUM, UiStyle.DIM)
-	under.horizontal_alignment = align
+	var top := HBoxContainer.new()
+	top.alignment = BoxContainer.ALIGNMENT_END if right else BoxContainer.ALIGNMENT_BEGIN
+	top.add_theme_constant_override("separation", 10)
+	col.add_child(top)
+	var big := UiStyle.stencil("", 46, BUY)
+	if right:
+		top.add_child(big)
+		top.add_child(UiStyle.icon(icon, 30, UiStyle.DIM))
+	else:
+		top.add_child(UiStyle.icon(icon, 30, UiStyle.DIM))
+		top.add_child(big)
+	var under := UiStyle.label("", 14, UiStyle.MEDIUM, Color(BUY, 0.7))
+	under.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
 	col.add_child(under)
 	if right:
 		_vault = big
@@ -377,7 +345,6 @@ func _show_tab(index: int) -> void:
 		b.add_theme_color_override("font_hover_color", UiStyle.WHITE)
 		_marks[i].color = SIGNAL if on else Color(1, 1, 1, 0.0)
 		_pages[i].visible = on
-	_subtitle.text = ["Kendi paranla alırsın, yalnız sende kalır", "Takım kasasından alınır, B ile kurulur, herkes vurur"][index]
 	if index == 1 and not _models_built:  # built on first look: twelve small worlds
 		_models_built = true
 		for id in GameState.GEAR:
@@ -463,20 +430,19 @@ func _upgrade_card(id: String) -> Control:
 	var color: Color = INFO[id][2]
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 20)
-	row.add_child(Icon.new(id, color))
+	row.add_child(UiStyle.icon(ICONS.get(id, "bullets"), 44, color))
 	var about := VBoxContainer.new()
 	about.add_theme_constant_override("separation", -2)
-	about.custom_minimum_size.x = 330
+	about.custom_minimum_size.x = 300
 	about.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	about.add_child(_stencil(INFO[id][0], 28))
-	about.add_child(UiStyle.label(INFO[id][3], 14, UiStyle.REGULAR, UiStyle.DIM))
 	row.add_child(about)
 	var steps := VBoxContainer.new()
 	steps.add_theme_constant_override("separation", 6)
 	steps.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	steps.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var level := UiStyle.label("", 13, UiStyle.MEDIUM, UiStyle.DIM)
-	steps.add_child(level)
+	level.visible = false  # the pips count it
 	var track := Track.new(GameState.UPGRADES[id].costs.size(), color)
 	steps.add_child(track)
 	row.add_child(steps)
@@ -530,9 +496,7 @@ func _gear_card(id: String) -> Control:
 	body.add_child(values)
 	var value := UiStyle.display("$%d" % GEAR_INFO[id][0], 20, UiStyle.SEMIBOLD, BUY)
 	values.add_child(value)
-	var per := UiStyle.label("isabet başı", 13, UiStyle.MEDIUM, UiStyle.DIM)
-	per.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	values.add_child(per)
+	values.add_child(UiStyle.icon("target", 16, UiStyle.DIM))  # a hit's pay
 	var card := _card(id, body, func() -> bool:
 		if not GameState.request_buy_gear(id):
 			return false
@@ -707,6 +671,8 @@ func _refresh() -> void:
 		_money.text = "$" + UiStyle.dotted(GameState.gold)
 	_vault.text = "$" + UiStyle.dotted(floori(GameState.vault))
 	for id in GameState.UPGRADES:
+		if not _cards.has(id):
+			continue  # a bench one (scripts/bench_menu.gd)
 		var c: Dictionary = _cards[id]
 		var level: int = GameState.player().levels[id]
 		var values: Array = GameState.UPGRADES[id].values
@@ -723,14 +689,14 @@ func _refresh() -> void:
 	for id in GameState.GEAR:
 		var c: Dictionary = _cards[id]
 		var n: int = GameState.gear_stock.get(id, 0)
-		(c.stock as Label).text = "Depoda %d" % n
+		(c.stock as Label).text = "×%d" % n
 		(c.stock as Label).get_parent().visible = n > 0
 		_price(c, GameState.GEAR[id].cost, floori(GameState.vault), false)
 
 
 ## The gauge, its button and the line under it. Money enough: the gauge is full and green, the
-## card's stripe goes green, "Al  $N"; short: the brass shows how far along the money is, the price
-## alone and "$N eksik" under it, the card a little dimmed. Maxed: a gold "Tamamlandı" that no
+## card's stripe goes green, "$N"; short: the brass shows how far along the money is, the price
+## alone, the card a little dimmed. Maxed: a gold "Son" that no
 ## longer clicks. A card that comes in reach while the menu is open hops.
 func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	var need: Label = c.need
@@ -743,7 +709,7 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	gauge.maxed = maxed
 	gauge.full = false
 	if maxed:
-		b.text = "Tamamlandı"
+		b.text = "Son"
 		b.disabled = true
 		_text_color(b, MAXED)
 		need.text = ""
@@ -755,10 +721,10 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	c.ready = ok
 	gauge.full = ok
 	gauge.goal = clampf(float(have) / cost, 0.0, 1.0) if cost > 0 else 1.0
-	b.text = "Al  $%d" % cost if ok else "$%d" % cost
+	b.text = "$%d" % cost
 	b.disabled = not ok
 	_text_color(b, Color(0.03, 0.09, 0.05) if ok else UiStyle.WHITE)
-	need.text = "" if ok else "$%d eksik" % (cost - have)
+	need.text = ""  # the brass in the gauge shows how far
 	need.add_theme_color_override("font_color", BUY if ok else UiStyle.DIM)
 	style.border_color = BUY if ok else Color(c.color, 0.5)
 	card.modulate.a = 1.0 if ok else WAITING
@@ -814,7 +780,7 @@ func _celebrate(id: String) -> void:
 	var v := value.create_tween().set_parallel()
 	v.tween_property(value, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	v.tween_property(value, "modulate", Color.WHITE, 0.6)
-	var up := _stencil("+1 seviye" if _tab == 0 else "+1 depoda", 26, BUY)
+	var up := _stencil("+1", 26, BUY)
 	up.top_level = true  # floats free of the card's container layout
 	card.add_child(up)
 	up.global_position = gauge.global_position + Vector2(gauge.size.x / 2.0 - 52, -30)
@@ -837,7 +803,7 @@ static func _box(fill: Color, edge: Color, radius: int, pad: int) -> StyleBoxFla
 	s.bg_color = fill
 	s.border_color = edge
 	s.set_border_width_all(1 if edge.a > 0.0 else 0)
-	s.set_corner_radius_all(radius)
+	s.set_corner_radius_all(mini(radius, 2))  # square-cut plate
 	s.set_content_margin_all(pad)
 	s.anti_aliasing = true
 	return s
