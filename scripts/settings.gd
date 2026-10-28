@@ -17,7 +17,7 @@ const ACTIONS := [
 	["move_forward", "İleri"], ["move_back", "Geri"], ["move_left", "Sola"], ["move_right", "Sağa"],
 	["jump", "Zıpla"], ["sprint", "Koş"], ["fire", "Ateş et"], ["aim", "Nişan al"],
 	["reload", "Şarjör / mermi çarkı"], ["pick_up", "Yığından mermi al"], ["throw", "Mermi fırlat"],
-	["upgrades", "Atölye"], ["placement_mode", "Yerleştirme modu"],
+	["placement_mode", "Yerleştirme modu"],
 ]
 const PRESETS := ["Düşük", "Orta", "Yüksek", "Ultra"]
 const PRESET_VALUES := [  # what each preset sets; anything else changed by hand makes it "Özel"

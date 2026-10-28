@@ -27,18 +27,20 @@ func _initialize() -> void:
 	if not _ok(gs.player().levels["carry"] == 1 and gs.gold == 4, "one level bought, $6 paid"): return
 	if not _ok(menu._cards["carry"].button.text == "$15" and menu._cards["carry"].button.disabled, "the next level's price, out of reach (%s)" % menu._cards["carry"].button.text): return
 
-	# Gear, from the shared vault.
+	# Gear: alone there is no team vault, it comes out of the player's own gold.
 	menu._show_tab(1)
 	if not _ok(menu._pages[1].visible and not menu._pages[0].visible, "the gear tab shows"): return
 	var dummy: Button = menu._cards["dummy"].button
 	var star: Button = menu._cards["texas_star"].button
-	if not _ok(dummy.disabled, "no gear with an empty vault"): return
-	gs.vault = 50.0
-	gs.vault_changed.emit(50.0)
+	gs.player().gold = 0
+	gs.gold_changed.emit(0)
+	if not _ok(dummy.disabled, "no gear with no gold"): return
+	gs.player().gold = 50
+	gs.gold_changed.emit(50)
 	if not _ok(not dummy.disabled and star.disabled, "$50 buys a dummy, not a Texas Star"): return
 	dummy.pressed.emit()
 	dummy.pressed.emit()
-	if not _ok(gs.gear_stock.get("dummy") == 2 and is_equal_approx(gs.vault, 10.0), "two dummies in stock, $40 out of the vault"): return
+	if not _ok(gs.gear_stock.get("dummy") == 2 and gs.player().gold == 10, "two dummies in stock, $40 out of the player's gold"): return
 	if not _ok(dummy.disabled and menu._cards["dummy"].stock.text == "×2", "button shuts, the card says 2 in stock"): return
 	if not _ok(not gs.request_buy_gear("texas_star") and not gs.request_buy_gear("nonsense"), "no buying past the vault or off the list"): return
 	# Put one up, take it down: it goes back to the stock, and its number is not reused.

@@ -576,12 +576,11 @@ func _build_hud() -> void:
 	stack.add_theme_constant_override("separation", 8)
 	stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(stack)
-	stack.add_child(UiStyle.display("Takım deposu", 22, UiStyle.BOLD))
+	stack.add_child(UiStyle.display("Depo", 22, UiStyle.BOLD))  # bought at the bench
 	_cards = VBoxContainer.new()
 	_cards.add_theme_constant_override("separation", 0)
 	_cards.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(_cards)
-	stack.add_child(UiStyle.hint("Q", "Teçhizat al"))
 	# Outside the mode: a quiet reminder that something waits in the stock, over the guns.
 	_nudge = UiStyle.hint("B", "")
 	var nudge_text := UiStyle.label("", 14, UiStyle.SEMIBOLD, UiStyle.ACCENT)

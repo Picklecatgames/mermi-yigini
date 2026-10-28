@@ -119,14 +119,15 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()  # no walking, guns or the workshop behind the menu
 
 
-## Not over the workshop, the bench or the placement overview: Esc is theirs then.
+## Not over the workshop, the bench, the quest board or the placement overview: Esc is theirs then.
 func _may_open() -> bool:
 	var p = GameState.player()
 	if p and p.placing:
 		return false
-	for n in get_tree().root.find_children("UpgradeMenu", "CanvasLayer", true, false) 			+ get_tree().root.find_children("BenchMenu", "CanvasLayer", true, false):
-		if (n as CanvasLayer).visible:
-			return false
+	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu"]:
+		for n in get_tree().root.find_children(menu, "CanvasLayer", true, false):
+			if (n as CanvasLayer).visible:
+				return false
 	return true
 
 

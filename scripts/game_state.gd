@@ -492,18 +492,31 @@ func request_buy_upgrade(id: String, peer := 0) -> bool:
 	return true
 
 
-## Anyone buys a piece of gear for the team, from the shared vault. No guess on a client: the
-## vault is the host's, and two players may spend the same money; gear_changed says what came of it.
+## The team's shared vault is a co-op thing: alone, all the money is the player's.
+func team_vault() -> bool:
+	return Net.online
+
+
+## Anyone buys a piece of gear for the team, from the shared vault; alone there is no vault and the
+## player pays from their own gold (2026-10-28, the user's call). No guess on a client: the vault is
+## the host's, and two players may spend the same money; gear_changed says what came of it.
 func request_buy_gear(id: String, peer := 0) -> bool:
 	if not GEAR.has(id):
 		return false
 	if _send(&"request_buy_gear", [id], peer):
 		return vault >= GEAR[id].cost
-	if vault < GEAR[id].cost:
+	if not team_vault():
+		var p := player(peer)
+		if p.gold < GEAR[id].cost:
+			return false
+		p.gold -= GEAR[id].cost
+		gold_changed.emit(p.gold)
+	elif vault < GEAR[id].cost:
 		return false
-	vault -= GEAR[id].cost
+	else:
+		vault -= GEAR[id].cost
+		_world(&"vault_changed", [vault])
 	gear_stock[id] = gear_stock.get(id, 0) + 1
-	_world(&"vault_changed", [vault])
 	_world(&"gear_changed", [gear_stock])
 	return true
 
@@ -865,7 +878,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 		p.gold += gold
 		if _is_local(peer):
 			gold_changed.emit(p.gold)
-		if not Net.is_client:  # a client's prediction leaves the shared vault to the host
+		if not Net.is_client and team_vault():  # a client's prediction leaves the shared vault to the host
 			vault += gold * VAULT_SHARE
 			_world(&"vault_changed", [vault])
 	else:
@@ -1075,8 +1088,9 @@ func pay_bonus(peer: int, target: Node, gold: int) -> void:
 	p.gold += gold
 	if _is_local(peer):
 		gold_changed.emit(p.gold)
-	vault += gold * VAULT_SHARE
-	_world(&"vault_changed", [vault])
+	if team_vault():
+		vault += gold * VAULT_SHARE
+		_world(&"vault_changed", [vault])
 	_world(&"bonus_paid", [peer, target, gold])
 	quest_add("gold_earned", gold)
 

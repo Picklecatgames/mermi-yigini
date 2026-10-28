@@ -35,6 +35,7 @@ const NAMES := {"clone": "Klon", "obur": "Obur", "sekme": "Sekme", "yanki": "Yan
 	"yanki_more": "Fazla yankı", "board": "Yan görevler"}
 const CLOSE_TIME := 0.45  # s, a claimed card folding away
 const BANNER_TIME := 3.5  # s a "… açıldı" line stays
+const FLOAT_TIME := 1.8  # s a claimed "+$N" takes to rise and fade
 const POINT_EDGE := 70.0  # px from the screen's edge, the arrow to something off screen
 
 var _heap: Label
@@ -62,6 +63,7 @@ var _hint: Control  # under the main quest during the warmup: its key and what t
 var _left: Control  # the magazine's column
 var _right: Control  # gold's column
 var _banner: Label  # "Tezgâh açıldı", under the heap for a while
+var _floats: CanvasLayer  # claimed money rising off the gold (_float_money)
 var _pointer: Control  # arrows to what was just opened and to the board while something waits there
 
 
@@ -88,12 +90,32 @@ func _ready() -> void:
 	_refresh_quests()
 
 
-func _on_quest_done(id: String, _gold: int) -> void:
+func _on_quest_done(id: String, gold: int) -> void:
 	_claimed[id] = true
+	if gold > 0:  # 0 when a joiner hears of quests done before it came
+		_float_money(gold)
 	var what: String = GameState.QUESTS[id].get("unlock", "")
 	if what != "" and not what.begins_with("hud_"):
 		_announce("%s açıldı" % NAMES.get(what, what))
 	refresh()
+
+
+## A claimed reward: "+$N" over the gold, rising and fading out. On a layer of its own, over the
+## quest board's screen too.
+func _float_money(gold: int) -> void:
+	if _floats == null:
+		_floats = CanvasLayer.new()
+		_floats.layer = 7
+		add_child(_floats)
+	var l := UiStyle.stencil("+$" + UiStyle.dotted(gold), 46, UiStyle.MONEY)
+	_floats.add_child(l)
+	var at := _gold.get_global_rect() if _right.visible else Rect2(get_viewport_rect().size * Vector2(0.5, 0.62), Vector2.ZERO)
+	l.reset_size()
+	l.position = Vector2(at.end.x - l.size.x, at.position.y - l.size.y - 6)
+	var tw := l.create_tween().set_parallel()
+	tw.tween_property(l, "position:y", l.position.y - 90, FLOAT_TIME).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "modulate:a", 0.0, FLOAT_TIME * 0.6).set_delay(FLOAT_TIME * 0.4)
+	tw.chain().tween_callback(l.queue_free)
 
 
 ## One line under the heap for a few seconds: what just opened.
@@ -237,8 +259,7 @@ func _build_sides() -> void:
 		col.add_child(under)
 		var small := UiStyle.display("", 18, UiStyle.SEMIBOLD, UiStyle.DIM)
 		if right:
-			under.add_child(UiStyle.icon("crate", 17))
-			under.add_child(small)
+			under.add_child(small)  # the team's vault, co-op only: "Takım $N"
 			_gold = big
 			_vault = small
 		else:
@@ -444,7 +465,7 @@ func _show_quest(c: Dictionary, id: String) -> void:
 	else:
 		c.name.text = "%s %s" % [what, UiStyle.dotted(target)]  # what to do beats a name nobody knows yet
 	c.name.add_theme_color_override("font_color", UiStyle.PAPER_GREEN if ready else (UiStyle.PAPER_INK if c.main else UiStyle.PAPER_FADED))
-	c.share.text = _reward_text(id) if ready else "%" + str(floori(100.0 * have / maxi(target, 1)))
+	c.share.text = _reward_text(id)  # what it pays, from the start; the bar shows how far
 	c.share.add_theme_color_override("font_color", UiStyle.PAPER_GREEN if ready else UiStyle.PAPER_FADED)
 	(c.bar.get_child(0) as ColorRect).color = UiStyle.PAPER_GREEN if ready else (UiStyle.PAPER_INK if c.main else UiStyle.PAPER_FADED)
 	UiStyle.set_meter(c.bar, float(have) / maxi(target, 1))
@@ -457,9 +478,11 @@ func _reward_text(id: String) -> String:
 	var q: Dictionary = GameState.QUESTS[id]
 	if q.reward.has("gold"):
 		return "+$" + UiStyle.dotted(q.reward.gold)
-	if q.has("unlock"):
-		return NAMES.get(q.unlock, q.unlock)
-	return "Parça" if q.reward.has("part") else "Perk"
+	if q.reward.has("part"):
+		return "Parça"
+	if q.reward.has("perk"):
+		return NAMES.get(q.reward.perk, q.reward.perk)
+	return NAMES.get(q.unlock, q.unlock) if q.has("unlock") else ""
 
 
 ## A done card breathes until it is claimed: brighter and back, a little bigger and back.
@@ -501,7 +524,8 @@ func refresh() -> void:
 	_hand.get_parent().visible = p.gun != 0
 	_mag.add_theme_color_override("font_color", UiStyle.WARN if p.gun != 0 and GameState.loaded == 0 else UiStyle.WHITE)
 	_gold.text = "$" + UiStyle.dotted(GameState.gold)
-	_vault.text = "$" + UiStyle.dotted(floori(GameState.vault))
+	_vault.text = "Takım $" + UiStyle.dotted(floori(GameState.vault))
+	_vault.visible = GameState.team_vault()
 	_special_row.visible = true
 	if p.armed != "":
 		_special.text = GameState.SPECIALS[p.armed].name
@@ -525,15 +549,15 @@ func refresh() -> void:
 		if GameState.UPGRADES[id].get("bench", false):
 			return false
 		return p.levels[id] < costs.size() and GameState.gold >= costs[p.levels[id]])
-	_can_buy.visible = false  # the Q turning brass says it
+	_can_buy.visible = false
 	UiStyle.tint_keycap(_q, UiStyle.ACCENT if can else UiStyle.DIM)
+	_q.get_parent().visible = false  # no Q: everything is bought at the bench (2026-10-28)
 	_test.visible = GameState.infinite_ammo
 	# The warmup opens the screen bit by bit: the hand and guns once a bullet was taken, gold and
 	# upgrades once a hit paid (GameState QUESTS t01, t03).
 	_left.visible = _shown("hud_ammo")
 	_guns.visible = _shown("hud_ammo")
 	_right.visible = _shown("hud_gold")
-	_q.get_parent().visible = _shown("hud_gold")
 
 
 ## A number that went up gives a small start.

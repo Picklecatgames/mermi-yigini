@@ -1,9 +1,9 @@
 extends CanvasLayer
-## The workshop, toggled with Q (Esc also closes), in UiStyle: a dark steel panel under a brass
+## The workshop, opened over the bench (bench_menu.gd; Esc or E back to it), in UiStyle: a dark steel panel under a brass
 ## edge, names and numbers in Barlow Condensed. Top: the player's gold and what it earns a
-## second on the left, the team vault on the right, two tabs between them (the player's own
-## upgrades, GameState.UPGRADES, paid from their gold; the team's gear, GameState.GEAR, paid from
-## the vault). The upgrades are long rows, the gear a grid of cards turning their target's model.
+## second on the left, the team vault on the right (co-op only), two tabs between them (the
+## player's own upgrades, GameState.UPGRADES, paid from their gold; the team's gear, GameState.GEAR,
+## paid from the vault, alone from the player's gold). Opened over the bench (bench_menu.gd); no Q. The upgrades are long rows, the gear a grid of cards turning their target's model.
 ## Every price is a gauge that fills with brass as the money comes in; full, it turns green, breathes
 ## and buys. Buying pops the card, throws coins off the gauge, floats "+1" up and the gauge drains
 ## to what is left. The game keeps running, so the gauges keep filling while the menu is open.
@@ -30,7 +30,7 @@ const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 	"ricochet": [9, 5],
 }
 const ICONS := {"carry": "bullets", "magazine": "magazine", "combo_cap": "combo",
-	"gold_bonus": "coins", "range_bonus": "target"}  # UiStyle.icon
+	"gold_bonus": "banknote", "range_bonus": "sniper_eye"}  # UiStyle.icon
 const COLUMNS := 6  # gear cards
 const CARD_W := 182.0  # px, a gear card: six fill the panel
 const MODEL_H := 74.0  # px, a gear card's turning model
@@ -160,7 +160,7 @@ class Gauge extends Control:
 
 
 func _ready() -> void:
-	layer = 5
+	layer = 6  # over the bench it is opened from
 	_till.stream = preload("res://assets/sounds/ui/purchase.ogg")
 	_till.volume_db = BUY_DB
 	add_child(_till)
@@ -209,7 +209,7 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("upgrades") or (visible and event.is_action_pressed("ui_cancel")):
+	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pick_up")):
 		toggle()
 		get_viewport().set_input_as_handled()
 	elif visible and event is InputEventKey:
@@ -223,13 +223,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+## Opened over the bench (bench_menu.gd) on tab `index`: 0 the player's upgrades, 1 the gear.
+func open_tab(index: int) -> void:
+	_tab = index
+	if not visible:
+		toggle()
+	else:
+		_show_tab(index)
+
+
 func toggle() -> void:
 	visible = not visible
+	var bench := get_node_or_null("../BenchMenu") as CanvasLayer  # opened from it: back to it on closing
+	var at_bench := bench != null and bench.visible
 	var hud := get_node_or_null("../HUD") as CanvasLayer  # the player's: its corners would show through
-	if hud:
+	if hud and not at_bench:
 		hud.visible = not visible
-	# The placement overview keeps its cursor when the workshop closes over it.
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or GameState.player().placing else Input.MOUSE_MODE_CAPTURED
+	# The placement overview keeps its cursor when the workshop closes over it, the bench too.
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or at_bench or GameState.player().placing else Input.MOUSE_MODE_CAPTURED
 	if visible:
 		_gold_shown = GameState.gold
 		_show_tab(_tab)
@@ -261,7 +272,7 @@ func _process(_delta: float) -> void:
 ## Gold | tabs over a line on what the tab is | vault.
 func _header() -> Control:
 	var row := HBoxContainer.new()
-	row.add_child(_wallet("coins", false))
+	row.add_child(_wallet(false))
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -276,13 +287,13 @@ func _header() -> Control:
 	_subtitle = _centred(UiStyle.label("", 14, UiStyle.REGULAR, UiStyle.DIM))
 	_subtitle.visible = false  # the tabs say it
 	mid.add_child(_subtitle)
-	row.add_child(_wallet("crate", true))
+	row.add_child(_wallet(true))
 	return row
 
 
-## A wallet: its icon (coins: the player's, crate: the team's vault) by a big stencilled sum; under
-## the player's, what it earns a second.
-func _wallet(icon: String, right: bool) -> VBoxContainer:
+## A wallet, a big stencilled sum: left the player's dollars with what they earn a second under them,
+## right the team's vault ("Takım", co-op only).
+func _wallet(right: bool) -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.custom_minimum_size.x = SIDE_W
 	col.add_theme_constant_override("separation", -2)
@@ -292,11 +303,10 @@ func _wallet(icon: String, right: bool) -> VBoxContainer:
 	col.add_child(top)
 	var big := UiStyle.stencil("", 46, BUY)
 	if right:
-		top.add_child(big)
-		top.add_child(UiStyle.icon(icon, 30, UiStyle.DIM))
-	else:
-		top.add_child(UiStyle.icon(icon, 30, UiStyle.DIM))
-		top.add_child(big)
+		var team := UiStyle.display("Takım", 22, UiStyle.SEMIBOLD, UiStyle.DIM)
+		team.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		top.add_child(team)
+	top.add_child(big)
 	var under := UiStyle.label("", 14, UiStyle.MEDIUM, Color(BUY, 0.7))
 	under.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT
 	col.add_child(under)
@@ -498,7 +508,7 @@ func _gear_card(id: String) -> Control:
 	body.add_child(values)
 	var value := UiStyle.display("$%d" % GEAR_INFO[id][0], 20, UiStyle.SEMIBOLD, BUY)
 	values.add_child(value)
-	values.add_child(UiStyle.icon("target", 16, UiStyle.DIM))  # a hit's pay
+	values.add_child(UiStyle.icon("crosshair", 16, UiStyle.DIM))  # a hit's pay
 	var card := _card(id, body, func() -> bool:
 		if not GameState.request_buy_gear(id):
 			return false
@@ -672,6 +682,7 @@ func _refresh() -> void:
 		_gold_shown = GameState.gold
 		_money.text = "$" + UiStyle.dotted(GameState.gold)
 	_vault.text = "$" + UiStyle.dotted(floori(GameState.vault))
+	_vault.get_parent().get_parent().visible = GameState.team_vault()  # alone, all the money is the player's
 	for id in GameState.UPGRADES:
 		if not _cards.has(id):
 			continue  # a bench one (scripts/bench_menu.gd)
@@ -693,7 +704,7 @@ func _refresh() -> void:
 		var n: int = GameState.gear_stock.get(id, 0)
 		(c.stock as Label).text = "×%d" % n
 		(c.stock as Label).get_parent().visible = n > 0
-		_price(c, GameState.GEAR[id].cost, floori(GameState.vault), false)
+		_price(c, GameState.GEAR[id].cost, floori(GameState.vault) if GameState.team_vault() else GameState.gold, false)
 
 
 ## The gauge, its button and the line under it. Money enough: the gauge is full and green, the
