@@ -1,12 +1,11 @@
 extends SceneTree
 ## Headless check of the Deagle's own sounds (scripts/viewmodel.gd SETS deagle shot/cues, _cues):
 ##   Godot.exe --headless --path . -s res://tools/deagle_sound_check.gd
-## The Deagle and the UZI shoot their own shots, the Scorpion keeps the plain one; a reload clip plays its cues as it
+## The Deagle shoots its own shot, the UZI keeps the plain one; a reload clip plays its cues as it
 ## passes them, taking turns on MagSound and SlideSound.
 
 const DEAGLE := 1
 const UZI := 2
-const SCORPION := 3
 
 
 func _initialize() -> void:
@@ -26,12 +25,9 @@ func _initialize() -> void:
 	var bus := AudioServer.get_bus_index(vm.GUN_BUS)
 	check.call((AudioServer.get_bus_effect(bus, 0) as AudioEffectPanner).pan > 0.0, "the gun bus leans right")
 	check.call(vm._dry_sound.stream.random_pitch <= vm.GUN_PITCH, "the dry click's pitch varies at most ±%.1f%%" % ((vm.GUN_PITCH - 1.0) * 100.0))
-	vm._want_gun = SCORPION
-	vm._swap()
-	check.call(shot.stream == vm.plain_shot, "Scorpion keeps the plain shot")
 	vm._want_gun = UZI
 	vm._swap()
-	check.call(shot.stream == vm.SETS.uzi.shot, "UZI shoots its own shot")
+	check.call(shot.stream == vm.plain_shot, "UZI keeps the plain shot")
 	vm._want_gun = DEAGLE
 	vm._swap()
 	check.call(shot.stream == vm.SETS.deagle.shot, "Deagle shoots its own shot")
