@@ -73,7 +73,7 @@ static func min_bullets(depth: float) -> int:
 
 func _ready() -> void:
 	_pile = get_node(pile_path)
-	_seed = layout_seed
+	_seed = layout_seed if layout_seed != 0 else GameState.key_seed  # the host's may be here already
 	while _seed == 0:
 		_seed = randi()
 	_bury()

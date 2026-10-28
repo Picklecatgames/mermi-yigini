@@ -17,12 +17,13 @@ func _initialize() -> void:
 	await _settle(40)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE  # the window is off screen: don't hold the mouse
 	await _shot("start")
-	_skip("t01")
-	await _shot("hand_shown")
-	_skip("t02")
-	_skip("t03")
+	_skip("t00")
 	await _shot("gold_shown")
+	for id in ["t01", "t02", "t03"]:
+		_skip(id)
+	await _shot("hand_shown")
 	_skip("t04")
+	_skip("t05")
 	await _shot("go_to_board")  # from the spawn: the board off to the side
 	_stand(Vector3(8.6, 0, 24.0), _gs.BOARD_POS + Vector3(0, 1.4, 0))
 	await _shot("at_board")

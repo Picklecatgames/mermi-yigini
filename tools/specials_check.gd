@@ -49,7 +49,7 @@ func _initialize() -> void:
 	# The armed round fires instead of a magazine round, even with the magazine empty.
 	var shots := []
 	gs.player_shot.connect(func(_s: int, _v: int, _a: Vector3, _d: Vector3, sp: String) -> void: shots.append(sp))
-	gs.request_select_gun(1)
+	gs.request_take_pistol()  # off the desk at the spawn: drawn at once
 	gs._set_loaded(0, 0)
 	assert(not gs.request_fire(Vector3(0, 50, 0), Vector3.UP), "empty and nothing armed: no shot")
 	gs.request_arm_special("punch")

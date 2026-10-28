@@ -3,7 +3,7 @@ extends CanvasLayer
 ## edge, names and numbers in Barlow Condensed. Top: the player's gold and what it earns a
 ## second on the left, the team vault on the right (co-op only), two tabs between them (the
 ## player's own upgrades, GameState.UPGRADES, paid from their gold; the team's gear, GameState.GEAR,
-## paid from the vault, alone from the player's gold). Opened over the bench (bench_menu.gd); no Q. The upgrades are long rows, the gear a grid of cards turning their target's model.
+## paid from the vault, alone from the player's gold). Opened over the bench (bench_menu.gd), and with Q on the gear (player.gd). The upgrades are long rows, the gear a grid of cards turning their target's model.
 ## Every price is a gauge that fills with brass as the money comes in; full, it turns green, breathes
 ## and buys. Buying pops the card, throws coins off the gauge, floats "+1" up and the gauge drains
 ## to what is left. The game keeps running, so the gauges keep filling while the menu is open.
@@ -32,7 +32,7 @@ const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
 const ICONS := {"carry": "bullets", "magazine": "magazine", "combo_cap": "combo",
 	"gold_bonus": "banknote", "range_bonus": "sniper_eye"}  # UiStyle.icon
 const COLUMNS := 6  # gear cards
-const CARD_W := 182.0  # px, a gear card: six fill the panel
+const CARD_W := 172.0  # px, a gear card: six fill the tray
 const MODEL_H := 74.0  # px, a gear card's turning model
 const GAUGE_W := 210.0  # px, an upgrade row's price gauge
 const MAX_SIZE := Vector2(1200, 720)  # px; small windows keep a margin round it
@@ -44,11 +44,15 @@ const RATE_WINDOW := 10.0  # s of income the "+$N / sn" figure averages
 const BUY := UiStyle.MONEY  # what the money reaches
 const BRASS := UiStyle.ACCENT  # a gauge filling
 const MAXED := Color(1.0, 0.78, 0.3)
-const ARMY := Color(0.25, 0.36, 0.17)  # a full gauge, ready to buy
 const SIGNAL := UiStyle.ACCENT  # the open tab
-const PANEL := Color(0.075, 0.08, 0.088, 0.97)  # dark steel
-const CARD := Color(0.115, 0.122, 0.132)
-const CARD_EDGE := Color(1, 1, 1, 0.06)
+const FX_GLOW := preload("res://assets/ui/fx/circle_05.png")  # a purchase's flash (_burst)
+const FX_RING := preload("res://assets/ui/fx/circle_02.png")
+const FX_SPARK := preload("res://assets/ui/fx/trace_06.png")
+const FX_GLINT := preload("res://assets/ui/fx/star_06.png")
+# A card's plate (UiStyle.plate) as things stand: waiting, money enough (a hint of green), maxed (warm).
+const CARD := UiStyle.PLATE_GREY
+const CARD_READY := Color(0.41, 0.45, 0.39)
+const CARD_MAXED := Color(0.52, 0.45, 0.32)
 const WAITING := 0.82  # a card the money does not reach yet
 const BUY_DB := -12.0  # the till, under the gunfire
 const BUY_PITCH := Vector2(0.9, 1.12)  # every purchase rings a little differently
@@ -70,6 +74,7 @@ var _shown_at := 0  # msec: cards that come in reach right after opening do not 
 var _models_built := false
 var _till := AudioStreamPlayer.new()
 var _cards := {}  # id -> {card, style, need, button, gauge, ready, and level/value/next/track or stock/model}
+var _recess := _round(Color(0, 0, 0, 0.32))  # a gear card's stage, sunk into its plate
 
 
 ## Pips, one per level: bought ones filled in the upgrade's colour, the next one an outline that
@@ -111,7 +116,8 @@ class Track extends Control:
 
 
 ## The price: a dark slot that fills with brass as the money nears the cost (it slides there, so a
-## buy drains it), green and breathing once full. Its button lies over it and carries the text.
+## buy drains it); once full, steel painted army green, breathing. Its button lies over
+## it and carries the text.
 class Gauge extends Control:
 	var goal := 0.0  # share of the cost in hand
 	var fill := 0.0  # what is drawn, sliding to `goal`
@@ -121,6 +127,7 @@ class Gauge extends Control:
 		set(v):
 			flash = v
 			queue_redraw()
+	var _olive := UiStyle.plate("button", randi(), UiStyle.PLATE_OLIVE, 0)
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -133,17 +140,14 @@ class Gauge extends Control:
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
-		var box := StyleBoxFlat.new()
-		box.set_corner_radius_all(2)
-		box.anti_aliasing = true
 		if full:  # breathes a little brighter and back
 			var a := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 3.0)
-			box.bg_color = ARMY.lerp(Color.WHITE, flash * 0.5 + 0.06 * a)  # army green, not a web button's mint
-			box.border_width_top = 2
-			box.border_width_bottom = 2
-			box.border_color = ARMY.lightened(0.25)
-			draw_style_box(box, r)
+			_olive.modulate_color = UiStyle.PLATE_OLIVE.lerp(Color.WHITE, flash * 0.5 + 0.08 * a)
+			draw_style_box(_olive, r)
 			return
+		var box := StyleBoxFlat.new()
+		box.set_corner_radius_all(6)
+		box.anti_aliasing = true
 		box.bg_color = Color(0, 0, 0, 0.4)
 		box.border_color = Color(MAXED, 0.6) if maxed else Color(1, 1, 1, 0.12)
 		box.set_border_width_all(1)
@@ -152,7 +156,7 @@ class Gauge extends Control:
 			return
 		var w := maxf(16.0, size.x * fill)
 		var lit := StyleBoxFlat.new()
-		lit.set_corner_radius_all(2)
+		lit.set_corner_radius_all(6)
 		lit.anti_aliasing = true
 		lit.bg_color = Color(BRASS, 0.35).lerp(Color.WHITE, flash * 0.6)
 		draw_style_box(lit, Rect2(Vector2.ZERO, Vector2(w, size.y)))
@@ -165,17 +169,14 @@ func _ready() -> void:
 	_till.volume_db = BUY_DB
 	add_child(_till)
 	visible = false
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.66)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(dim)
+	add_child(UiStyle.backdrop())  # the menu has no frame: it stands over the blurred range
 	_center = CenterContainer.new()
 	add_child(_center)
+	get_viewport().size_changed.connect(_fit)
 	var panel := PanelContainer.new()
-	var frame := _box(PANEL, BRASS, 8, PAD)
-	frame.set_border_width_all(0)
-	frame.border_width_top = 2
-	panel.add_theme_stylebox_override("panel", frame)
+	var room := StyleBoxEmpty.new()
+	room.set_content_margin_all(PAD)
+	panel.add_theme_stylebox_override("panel", room)
 	_center.add_child(panel)
 	_frame = VBoxContainer.new()
 	_frame.add_theme_constant_override("separation", 14)
@@ -190,15 +191,16 @@ func _ready() -> void:
 	_pages.append(_page(GameState.GEAR.keys(), _gear_card, COLUMNS))
 	for p in _pages:
 		stack.add_child(p)
-	var foot := HBoxContainer.new()
+	var foot := HBoxContainer.new()  # the gold Deagle's line, in the middle under the cards
+	foot.alignment = BoxContainer.ALIGNMENT_CENTER
 	foot.add_child(_wishlist_row())
-	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(gap)
-	var close := UiStyle.hint("Q", "")
-	close.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	foot.add_child(close)
 	_frame.add_child(foot)
+	var close := UiStyle.hint("Q", "")  # where the HUD's Q sits: the top right corner
+	close.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	close.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	close.offset_right = -36
+	close.offset_top = 28
+	add_child(close)
 	_last_gold = GameState.gold
 	GameState.gold_changed.connect(_count_income)
 	GameState.gold_changed.connect(_refresh.unbind(1))
@@ -209,7 +211,8 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pick_up")):
+	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pick_up") \
+			or (event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_Q)):
 		toggle()
 		get_viewport().set_input_as_handled()
 	elif visible and event is InputEventKey:
@@ -301,7 +304,7 @@ func _wallet(right: bool) -> VBoxContainer:
 	top.alignment = BoxContainer.ALIGNMENT_END if right else BoxContainer.ALIGNMENT_BEGIN
 	top.add_theme_constant_override("separation", 10)
 	col.add_child(top)
-	var big := UiStyle.stencil("", 46, BUY)
+	var big := UiStyle.display("", 46, UiStyle.BOLD, BUY)
 	if right:
 		var team := UiStyle.display("Takım", 22, UiStyle.SEMIBOLD, UiStyle.DIM)
 		team.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -337,15 +340,19 @@ func _tab_button(index: int) -> Control:
 	return col
 
 
-func _show_tab(index: int) -> void:
-	_tab = index
-	_shown_at = Time.get_ticks_msec()
+func _fit() -> void:
 	var screen := get_viewport().get_visible_rect().size
 	# The cards have fixed widths: a small window shrinks the whole menu rather than the panel.
 	var k := minf(1.0, minf(screen.x * 0.94 / MAX_SIZE.x, screen.y * 0.94 / MAX_SIZE.y))
 	_center.scale = Vector2.ONE * k
 	_center.position = Vector2.ZERO
 	_center.size = screen / k
+
+
+func _show_tab(index: int) -> void:
+	_tab = index
+	_shown_at = Time.get_ticks_msec()
+	_fit()
 	_frame.custom_minimum_size = MAX_SIZE - Vector2.ONE * PAD * 2
 	var titles := [GameState.display_name(), "Teçhizat"]
 	for i in _tabs.size():
@@ -388,11 +395,15 @@ func _page(ids: Array, make: Callable, columns: int) -> Control:
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL  # a short page sits in the middle
 	room.add_child(center)
+	var tray := PanelContainer.new()  # the cards stand in one framed steel tray
+	tray.add_theme_stylebox_override("panel", UiStyle.plate("tray", 0, Color(0.26, 0.27, 0.26), 20))
+	tray.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(tray)
 	var grid := GridContainer.new()
 	grid.columns = columns
 	grid.add_theme_constant_override("h_separation", 12)
 	grid.add_theme_constant_override("v_separation", 10)
-	center.add_child(grid)
+	tray.add_child(grid)
 	for id in ids:
 		grid.add_child(make.call(id))
 	return scroll
@@ -400,11 +411,9 @@ func _page(ids: Array, make: Callable, columns: int) -> Control:
 
 ## A card: a panel holding the caller's `box` (a row or a column) with the price gauge and its
 ## button added at the end, what is missing under the gauge. Hovered, it lifts a little.
-func _card(id: String, box: BoxContainer, buy: Callable, gauge_w: float) -> PanelContainer:
+func _card(id: String, box: BoxContainer, buy: Callable, gauge_w: float, kind: String) -> PanelContainer:
 	var card := PanelContainer.new()
-	var style := _box(CARD, CARD_EDGE, 6, 12)
-	style.set_border_width_all(0)
-	style.border_width_left = 3
+	var style := UiStyle.plate(kind, id, CARD, 16)
 	card.add_theme_stylebox_override("panel", style)
 	card.mouse_filter = Control.MOUSE_FILTER_PASS
 	card.resized.connect(func() -> void: card.pivot_offset = card.size / 2.0)
@@ -422,8 +431,8 @@ func _card(id: String, box: BoxContainer, buy: Callable, gauge_w: float) -> Pane
 	col.add_child(gauge)
 	var button := _flat_button()
 	button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	button.add_theme_font_override("font", UiStyle.STENCIL)
-	button.add_theme_font_size_override("font_size", 22)
+	button.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD, 0, true))
+	button.add_theme_font_size_override("font_size", 24)
 	button.mouse_entered.connect(func() -> void: card.mouse_entered.emit())
 	button.pressed.connect(func() -> void:
 		if buy.call():
@@ -469,8 +478,8 @@ func _upgrade_card(id: String) -> Control:
 	next.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	values.add_child(next)
 	row.add_child(values)
-	var card := _card(id, row, func() -> bool: return GameState.request_buy_upgrade(id), GAUGE_W)
-	card.custom_minimum_size.x = 1120
+	var card := _card(id, row, func() -> bool: return GameState.request_buy_upgrade(id), GAUGE_W, "row")
+	card.custom_minimum_size.x = 1080
 	_cards[id].merge({"level": level, "value": value, "next": next, "track": track, "color": color})
 	return card
 
@@ -479,7 +488,7 @@ func _gear_card(id: String) -> Control:
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 5)
 	var stage := PanelContainer.new()  # its turning model comes in on the first look (_show_tab)
-	stage.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0.28), Color(0, 0, 0, 0), 6, 0))
+	stage.add_theme_stylebox_override("panel", _recess)
 	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var model := Control.new()
 	model.custom_minimum_size = Vector2(0, MODEL_H)
@@ -502,7 +511,13 @@ func _gear_card(id: String) -> Control:
 	diff.offset_top = -9
 	diff.offset_bottom = -6
 	model.add_child(diff)
-	body.add_child(_stencil(GameState.GEAR[id].name, 22))
+	var lock := UiStyle.icon("padlock", 34, UiStyle.WHITE)  # in place of the model while it is shut, on hazard stripes
+	lock.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	lock.grow_horizontal = Control.GROW_DIRECTION_BOTH  # its size grows out from the middle, not rightwards
+	lock.grow_vertical = Control.GROW_DIRECTION_BOTH
+	model.add_child(lock)
+	var title := _stencil(GameState.GEAR[id].name, 22)
+	body.add_child(title)
 	var values := HBoxContainer.new()
 	values.add_theme_constant_override("separation", 5)
 	body.add_child(values)
@@ -513,10 +528,11 @@ func _gear_card(id: String) -> Control:
 		if not GameState.request_buy_gear(id):
 			return false
 		_to_placing.call_deferred(id)  # after the "+1" floats up: shut the workshop, go put it up
-		return true, 0.0)
+		return true, 0.0, "card")
 	card.custom_minimum_size.x = CARD_W
-	(_cards[id].style as StyleBoxFlat).set_content_margin_all(10)
-	_cards[id].merge({"stock": stock, "model": model, "value": value, "color": BRASS})
+	(_cards[id].style as StyleBox).set_content_margin_all(14)
+	_cards[id].merge({"stock": stock, "model": model, "value": value, "color": BRASS, "title": title,
+		"lock": lock, "diff": diff, "stage": stage, "shut": UiStyle.plate("hazard", id, Color(0.55, 0.55, 0.55), 0)})
 	return card
 
 
@@ -682,7 +698,8 @@ func _refresh() -> void:
 		_gold_shown = GameState.gold
 		_money.text = "$" + UiStyle.dotted(GameState.gold)
 	_vault.text = "$" + UiStyle.dotted(floori(GameState.vault))
-	_vault.get_parent().get_parent().visible = GameState.team_vault()  # alone, all the money is the player's
+	# Alone, all the money is the player's: the vault is hidden but keeps its room, the tabs centred.
+	_vault.get_parent().get_parent().modulate.a = 1.0 if GameState.team_vault() else 0.0
 	for id in GameState.UPGRADES:
 		if not _cards.has(id):
 			continue  # a bench one (scripts/bench_menu.gd)
@@ -705,6 +722,21 @@ func _refresh() -> void:
 		(c.stock as Label).text = "×%d" % n
 		(c.stock as Label).get_parent().visible = n > 0
 		_price(c, GameState.GEAR[id].cost, floori(GameState.vault) if GameState.team_vault() else GameState.gold, false)
+		# Through the warmup only the straw dummy: the rest are a padlock, not what they will be.
+		var open := GameState.gear_open(id)
+		(c.stage as Control).add_theme_stylebox_override("panel", _recess if open else c.shut)
+		(c.lock as Control).visible = not open
+		(c.diff as Control).visible = open
+		var view := (c.model as Control).get_child(0)
+		if view is SubViewportContainer:
+			view.visible = open
+		(c.title as Label).text = GameState.GEAR[id].name if open else "Kilitli"
+		(c.value as Control).get_parent().visible = open
+		if not open:
+			(c.button as Button).disabled = true
+			(c.button as Button).text = ""
+			c.ready = false
+			(c.card as Control).modulate.a = WAITING
 
 
 ## The gauge, its button and the line under it. Money enough: the gauge is full and green, the
@@ -715,7 +747,7 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	var need: Label = c.need
 	var b: Button = c.button
 	var gauge: Gauge = c.gauge
-	var style: StyleBoxFlat = c.style
+	var style: StyleBoxTexture = c.style
 	var card: Control = c.card
 	var was: bool = c.ready
 	c.ready = false
@@ -727,7 +759,7 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 		_text_color(b, MAXED)
 		need.text = ""
 		need.add_theme_color_override("font_color", MAXED)
-		style.border_color = MAXED
+		style.modulate_color = CARD_MAXED
 		card.modulate.a = 1.0
 		return
 	var ok := have >= cost
@@ -739,7 +771,7 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	_text_color(b, UiStyle.WHITE)
 	need.text = ""  # the brass in the gauge shows how far
 	need.add_theme_color_override("font_color", BUY if ok else UiStyle.DIM)
-	style.border_color = BUY if ok else Color(c.color, 0.5)
+	style.modulate_color = CARD_READY if ok else CARD
 	card.modulate.a = 1.0 if ok else WAITING
 	if ok and not was and Time.get_ticks_msec() - _shown_at > 300:
 		card.create_tween().tween_property(card, "scale", Vector2.ONE, 0.3).from(Vector2.ONE * 1.05).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -760,29 +792,12 @@ func _celebrate(id: String) -> void:
 	var card: Control = c.card
 	card.scale = Vector2.ONE * 1.08
 	card.create_tween().tween_property(card, "scale", Vector2.ONE * 1.02, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	var style: StyleBoxFlat = c.style  # the card itself flashes and fades back
-	card.create_tween().tween_property(style, "bg_color", CARD, 0.4).from(CARD.lerp(Color.WHITE, 0.3))
+	var style: StyleBoxTexture = c.style  # the plate itself flashes and fades back
+	card.create_tween().tween_property(style, "modulate_color", style.modulate_color, 0.4).from(style.modulate_color.lerp(Color.WHITE, 0.45))
 	var gauge: Gauge = c.gauge
 	gauge.fill = 1.0  # and slides down to what is left
 	gauge.create_tween().tween_property(gauge, "flash", 0.0, 0.5).from(1.0)
-	var coins := CPUParticles2D.new()
-	coins.top_level = true
-	coins.position = gauge.global_position + gauge.size / 2.0
-	coins.one_shot = true
-	coins.explosiveness = 1.0
-	coins.amount = 32
-	coins.lifetime = 0.8
-	coins.direction = Vector2.UP
-	coins.spread = 75.0
-	coins.initial_velocity_min = 200.0
-	coins.initial_velocity_max = 400.0
-	coins.gravity = Vector2(0, 800)
-	coins.scale_amount_min = 3.0
-	coins.scale_amount_max = 7.0
-	coins.color = MAXED
-	card.add_child(coins)
-	coins.emitting = true
-	coins.finished.connect(coins.queue_free)
+	_burst(card, gauge.global_position + gauge.size / 2.0)
 	if c.has("track"):
 		var track: Track = c.track
 		track.create_tween().tween_property(track, "flash", 0.0, 0.6).from(1.0).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -803,6 +818,61 @@ func _celebrate(id: String) -> void:
 	f.chain().tween_callback(up.queue_free)
 
 
+## The flash off a purchase, in brass, from Kenney's Particle Pack (assets/ui/fx, CC0), added
+## light: a soft glow and a ring going out, sparks streaking off and slowing, a few glints that
+## twinkle and fade.
+func _burst(on: Control, at: Vector2) -> void:
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	for f: Array in [[FX_GLOW, 0.05, 0.5, 0.35], [FX_RING, 0.03, 0.42, 0.45]]:  # texture, scale from, to, s
+		var s := Sprite2D.new()
+		s.texture = f[0]
+		s.material = add
+		s.top_level = true
+		s.modulate = MAXED
+		on.add_child(s)
+		s.global_position = at
+		var t := s.create_tween().set_parallel().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		t.tween_property(s, "scale", Vector2.ONE * f[2], f[3]).from(Vector2.ONE * f[1])
+		t.tween_property(s, "modulate:a", 0.0, f[3]).from(0.9)
+		t.chain().tween_callback(s.queue_free)
+	var fade := Gradient.new()
+	fade.set_color(0, Color(1.0, 0.92, 0.7))
+	fade.set_color(1, Color(MAXED, 0.0))
+	var swell := Curve.new()  # a glint opens, then shrinks away
+	swell.add_point(Vector2(0.0, 0.0))
+	swell.add_point(Vector2(0.2, 1.0))
+	swell.add_point(Vector2(1.0, 0.0))
+	for p: Array in [[FX_SPARK, 22, 0.45, 260.0, 520.0, 0.07, 0.12, true, null],
+			[FX_GLINT, 9, 0.75, 40.0, 150.0, 0.06, 0.12, false, swell]]:
+		var e := CPUParticles2D.new()
+		e.emitting = false  # it would start at the screen's corner the moment it is added
+		e.local_coords = true  # born where it stands, not where its transform was a frame ago
+		e.texture = p[0]
+		e.material = add
+		e.top_level = true
+		e.one_shot = true
+		e.explosiveness = 0.95
+		e.amount = p[1]
+		e.lifetime = p[2]
+		e.spread = 180.0
+		e.gravity = Vector2.ZERO
+		e.initial_velocity_min = p[3]
+		e.initial_velocity_max = p[4]
+		e.damping_min = p[4] * 1.2  # they slow as they go
+		e.damping_max = p[4] * 1.6
+		e.scale_amount_min = p[5]
+		e.scale_amount_max = p[6]
+		e.particle_flag_align_y = p[7]  # the sparks point the way they fly
+		if p[8]:
+			e.scale_amount_curve = p[8]
+		e.color_ramp = fade
+		on.add_child(e)
+		e.global_position = at
+		e.emitting = true
+		e.finished.connect(e.queue_free)
+
+
 # --- helpers ----------------------------------------------------------------------------------
 
 ## A name or headline: Barlow Condensed, bold.
@@ -818,6 +888,15 @@ static func _box(fill: Color, edge: Color, radius: int, pad: int) -> StyleBoxFla
 	s.set_border_width_all(1 if edge.a > 0.0 else 0)
 	s.set_corner_radius_all(mini(radius, 2))  # square-cut plate
 	s.set_content_margin_all(pad)
+	s.anti_aliasing = true
+	return s
+
+
+## A soft-cornered slot in `fill`, to sit inside a plate's rounded corners.
+static func _round(fill: Color, radius := 6) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = fill
+	s.set_corner_radius_all(radius)
 	s.anti_aliasing = true
 	return s
 

@@ -5,7 +5,11 @@ extends SceneTree
 
 func _initialize() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
-	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets; the game starts with one dummy
+	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets
+	var first: Node3D = load("res://scenes/dummy.tscn").instantiate()  # where the game's first dummy used to stand; now the player places it
+	first.name = "Dummy"
+	first.transform = str_to_var("Transform3D(-3.6199901e-06, 0, -1, 0, 1, 0, 1, 0, -3.6199901e-06, 23, 0, 0)")
+	main.add_child(first)
 	root.add_child(main)
 	var gs: Node = root.get_node("GameState")
 	var dummy: Node3D = main.get_node("Dummy")
@@ -13,7 +17,7 @@ func _initialize() -> void:
 		await physics_frame
 	gs.quest_board.fill("")  # no quests: a finished one's gold reward would land in the totals
 	assert(not gs.request_fire(Vector3.ZERO, Vector3.FORWARD), "bare fists fire nothing")
-	gs.request_select_gun(1)
+	gs.request_take_pistol()  # off the desk at the spawn: drawn at once
 	assert(gs.player().gun == 1, "number key 1 draws the first gun")
 	gs.infinite_ammo = true
 	gs.player().loaded = 1

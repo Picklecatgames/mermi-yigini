@@ -139,37 +139,47 @@ static func _styled(text: String, size: int, font: Font, color: Color) -> Label:
 	return l
 
 
-## A key on the keyboard: its letter in a small rounded cap. `key_color` tints the cap's edge and
-## letter (the Q turns brass when something can be bought).
+## Words the game writes for a key -> its picture in assets/ui/keys (Kenney Input Prompts, CC0).
+## Any other key is keyboard_<key>.
+const KEY_ART := {"esc": "keyboard_escape", "sol tık": "mouse_left", "sol tik": "mouse_left",
+	"sağ tık": "mouse_right", "sağ tik": "mouse_right", "tekerlek": "mouse_scroll"}
+
+
+## A key on the keyboard or the mouse, Kenney's picture of it, about twice `size` px tall; a range
+## ("1-9") is its two ends. `key_color` tints it (the Q turns brass when something can be bought).
 static func keycap(key: String, size := 14, key_color := WHITE) -> PanelContainer:
 	var cap := PanelContainer.new()
 	cap.name = "Keycap"
 	cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cap.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.08, 0.085, 0.08, 0.88)
-	box.set_border_width_all(1)
-	box.border_width_bottom = 2  # a key's lip
-	box.set_corner_radius_all(2)
-	box.content_margin_left = roundi(size * 0.45)
-	box.content_margin_right = roundi(size * 0.45)
-	box.content_margin_top = 1
-	box.content_margin_bottom = 1
-	box.anti_aliasing = true
-	cap.add_theme_stylebox_override("panel", box)
-	var l := label(key, size, SEMIBOLD)  # normal width: a condensed Q reads as 0
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.custom_minimum_size.x = size * 0.7
-	l.remove_theme_constant_override("shadow_outline_size")
-	cap.add_child(l)
+	cap.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 0)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cap.add_child(row)
+	var ends := key.replace(" ", "").split("-") if key.length() > 1 and key.contains("-") else PackedStringArray([key])
+	for i in ends.size():
+		if i > 0:
+			row.add_child(label("–", size, SEMIBOLD))
+		var name_: String = KEY_ART.get(ends[i].to_lower(), "keyboard_" + ends[i].to_lower())
+		var path := "res://assets/ui/keys/%s.png" % name_
+		if not ResourceLoader.exists(path):
+			push_warning("no key art for '%s'" % key)
+			row.add_child(label(ends[i], size, SEMIBOLD))
+			continue
+		var t := TextureRect.new()
+		t.texture = load(path)
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		t.custom_minimum_size = Vector2.ONE * roundf(size * 2.0)
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(t)
 	tint_keycap(cap, key_color)
 	return cap
 
 
 static func tint_keycap(cap: PanelContainer, c: Color) -> void:
-	(cap.get_theme_stylebox("panel") as StyleBoxFlat).border_color = Color(c, 0.55)
-	(cap.get_child(0) as Label).add_theme_color_override("font_color", c)
+	cap.modulate = c
 
 
 ## A key cap and what it does: "[R] Basılı tut". Several keys share one action: ["W", "A", "S", "D"].
@@ -199,6 +209,48 @@ static func panel_box(radius := 6, pad := 14, fill := INK) -> StyleBoxFlat:
 	s.set_content_margin_all(pad)
 	s.anti_aliasing = true
 	return s
+
+
+## The menus' steel (assets/ui/plates, tools/build_ui_plates.py: ambientCG scans cut to the shape of
+## Kenney UI Pack depth buttons, CC0): kind -> [how many variants, their 9-slice corner in px].
+const PLATES := {"card": [8, 28], "row": [4, 28], "button": [6, 16], "tray": [1, 28], "chain": [1, 28],
+	"cork": [1, 28], "hazard": [8, 16]}
+const BACKDROP := preload("res://materials/ui_backdrop.gdshader")
+const PLATE_GREY := Color(0.4, 0.41, 0.4)  # a sheet of steel as a card
+const PLATE_OLIVE := Color(0.5, 0.68, 0.32)  # painted army green: ready to buy, to claim
+
+
+## Behind a menu, over the whole screen: the game blurred and darkened, darkest at the edges. The
+## menu has no frame of its own.
+static func backdrop() -> ColorRect:
+	var r := ColorRect.new()
+	r.material = ShaderMaterial.new()
+	(r.material as ShaderMaterial).shader = BACKDROP
+	r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	return r
+
+
+## A shaped steel plate of `kind` (rounded corners, a rim, an inset line, a lip at the foot), 9-sliced
+## to any size; `key` picks one of its variants, so cards side by side are different steel. `tint`
+## over it, `pad` px inside. card: a gear card, row: an upgrade, button: a price in reach, tray: what
+## the cards stand in, chain/cork: the quest board's halves, hazard: a shut piece's stage.
+static func plate(kind: String, key: Variant = 0, tint := PLATE_GREY, pad := 12) -> StyleBoxTexture:
+	var spec: Array = PLATES[kind]
+	var s := StyleBoxTexture.new()
+	s.texture = load("res://assets/ui/plates/%s_%d.png" % [kind, absi(hash(key)) % spec[0]])
+	s.set_texture_margin_all(spec[1])
+	s.modulate_color = tint
+	s.set_content_margin_all(pad)
+	return s
+
+
+## A plate button: painted army green, a little brighter hovered, pressed darker; shut, dark steel.
+static func plate_button(b: Button, key: Variant = 0, tint := PLATE_OLIVE) -> void:
+	b.add_theme_stylebox_override("normal", plate("button", key, tint, 8))
+	b.add_theme_stylebox_override("hover", plate("button", key, tint.lightened(0.15), 8))
+	b.add_theme_stylebox_override("pressed", plate("button", key, tint.darkened(0.2), 8))
+	b.add_theme_stylebox_override("disabled", plate("button", key, Color(0.3, 0.31, 0.3), 8))
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
 static func panel(pad := 14, radius := 6) -> PanelContainer:

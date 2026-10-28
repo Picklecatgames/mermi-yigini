@@ -747,20 +747,14 @@ func _overhead() -> void:
 	b.overhead(over)
 
 
-## The crew's string lights: bare warm bulbs on cables slung truss to truss over their corners
-## (the workshop, the desk, the camp), never under the glass. A dim light every few bulbs.
+## The crew's string lights: bare filament bulbs (range_dressing lit_bulb(), the workshop wall's)
+## hanging screw up on cables slung truss to truss over their corners (the workshop, the desk, the
+## camp), never under the glass. A dim light every few bulbs.
 func _festoons(parent: Node3D) -> void:
 	var y: float = b.BOTTOM - 0.12
-	var bulb := SphereMesh.new()
-	bulb.radius = 0.055
-	bulb.height = 0.11
-	bulb.radial_segments = 8
-	bulb.rings = 4
-	var glow := StandardMaterial3D.new()
-	glow.albedo_color = Color(1.0, 0.8, 0.5)
-	glow.emission_enabled = true
-	glow.emission = Color(1.0, 0.7, 0.38)
-	glow.emission_energy_multiplier = 16.0  # over the glow threshold: each bulb blooms a little
+	var lit: Array = preload("res://tools/range_dressing.gd").lit_bulb()
+	const SIZE := 1.6  # seen from the floor, 7 m down
+	var hang := Basis(Vector3.RIGHT, PI).scaled(Vector3.ONE * SIZE)
 	# z0, z1, x; the workshop pair straddles the bench's middle (x 12.2, range_dressing _workshop).
 	for run in [[14.0, 27.5, 11.0], [14.0, 27.5, 13.4], [-27.5, -14.0, -20.0], [-27.5, -14.0, -13.0]]:
 		var path := PackedVector3Array()
@@ -775,23 +769,21 @@ func _festoons(parent: Node3D) -> void:
 				var p := Vector3(x, y - 0.9 * sin(t * PI) * (z_next - z) / 7.0, lerpf(z, z_next, t))
 				path.append(p)
 				if k > 0:
-					spots.append(p + Vector3(0, -0.07, 0))
+					spots.append(p)
 			z = z_next
 		path.append(Vector3(x, y, run[1]))
 		b.add(_mesh(_tube(path, 0.008), cord, Transform3D()), parent)
-		# One merged mesh, not a MultiMesh: a headless build saves MultiMeshes without their transforms.
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		for at in spots:
-			st.append_from(bulb, 0, Transform3D(Basis(), at))
-		var bulbs := _mesh(st.commit(), glow, Transform3D())
-		bulbs.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		b.add(bulbs, parent)
+		for at in spots:  # the screw's top (model y -0.017) on the cable
+			var mi := _mesh(lit[0], null, Transform3D(hang, at + Vector3(0, -0.017 * SIZE, 0)))
+			for i in lit[1].size():
+				mi.set_surface_override_material(i, lit[1][i])
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			b.add(mi, parent)
 		for i in range(1, spots.size(), 4):
 			var light := OmniLight3D.new()
-			light.position = spots[i]
+			light.position = spots[i] + Vector3(0, -0.07 * SIZE, 0)  # the glass's middle
 			light.light_color = Color(1.0, 0.72, 0.42)
-			light.light_energy = 0.7
+			light.light_energy = 0.4  # 2026-10-26, the user: "daha loş" (was 0.7)
 			light.omni_range = 4.5
 			light.omni_attenuation = 1.4
 			light.light_volumetric_fog_energy = 0.3  # a soft halo in the haze round each

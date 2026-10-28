@@ -156,7 +156,7 @@ func _check_settings(main: Node) -> void:
 	assert(AudioServer.get_bus_send(AudioServer.get_bus_index("Dunya")) == &"Efekt", "the hall's sounds under Efekt")
 	assert(AudioServer.get_bus_send(AudioServer.get_bus_index("AmbiyansYanki")) == &"Ambiyans", "the lamp hum under Ambiyans")
 	var amb: Node = main.get_node("Ambience")
-	assert(amb.beds[0].players[0].bus == &"Ambiyans" and amb._hum.players[0].bus == &"AmbiyansYanki", "ambience on its buses")
+	assert(amb._outside[0].bus == &"Ambiyans" and amb.events[0].player.bus == &"Ambiyans" and amb._hum.bus == &"AmbiyansYanki", "ambience on its buses")
 	var on_master := root.find_children("*", "AudioStreamPlayer3D", true, false).filter(func(p: AudioStreamPlayer3D) -> bool: return p.bus == &"Master")
 	assert(on_master.is_empty(), "no 3D sound left on Master: %s" % [on_master.map(func(p: Node) -> String: return str(p.get_path()))])
 	var mono: int = settings._master_effect("AudioEffectStereoEnhance")
@@ -165,7 +165,7 @@ func _check_settings(main: Node) -> void:
 	settings.set_value("dynamic_range", 2)
 	assert(AudioServer.is_bus_effect_enabled(0, settings._master_effect("AudioEffectCompressor")), "night mode squeezes")
 	settings.set_value("output", 1)
-	assert(near.call(amb.beds[0].players[0].panning_strength, settings.SPEAKER_PAN), "speakers: softer panning")
+	assert(near.call(amb._outside[0].panning_strength, settings.SPEAKER_PAN), "speakers: softer panning")
 	settings.set_value("output", 2)
 	assert(settings.rear_cue() == 0.0, "surround: no rear cue, the rear speakers say it")
 	print("audio ok")
@@ -207,6 +207,14 @@ func _check_settings(main: Node) -> void:
 	settings.reset(settings.DEFAULTS.keys(), true)
 	assert(settings.bind_text("jump") == jump_key and settings.value("fov") == 75, "reset: defaults and the keys back")
 	print("file and reset ok")
+	var bad := ConfigFile.new()  # an old or hand-edited file: out of every list and range
+	bad.set_value("settings", "shadows", 9)
+	bad.set_value("settings", "master_vol", 100000)
+	bad.set_value("settings", "sensitivity", -1.0)
+	bad.save(settings.save_path)
+	settings.load_file()
+	assert(settings.value("shadows") == 3 and settings.value("master_vol") == 100 and is_equal_approx(settings.value("sensitivity"), 0.1), "a bad file is clamped")
+	settings.reset(settings.DEFAULTS.keys(), true)
 
 
 func _frames(n: int) -> void:

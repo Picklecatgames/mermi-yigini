@@ -27,7 +27,7 @@ func _initialize() -> void:
 	var bank: Node3D = put.call("res://scenes/ricochet_plate.tscn", -22.0)
 	for i in 3:
 		await physics_frame
-	gs.request_select_gun(1)
+	gs.request_take_pistol()  # off the desk at the spawn: drawn at once
 	gs.infinite_ammo = true
 	gs.player().loaded = 1
 	gs.player().levels["combo_cap"] = 4  # x20

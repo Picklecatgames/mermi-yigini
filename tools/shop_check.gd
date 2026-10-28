@@ -11,6 +11,8 @@ func _initialize() -> void:
 	var gs: Node = root.get_node("GameState")
 	for i in 3:
 		await physics_frame
+	gs.player().gold = 0  # it starts with a dummy's price
+	gs.quest_board.fill("")  # past the warmup: all the gear open
 	var menu: Node = main.find_child("UpgradeMenu", true, false)
 	menu.toggle()
 	if not _ok(menu.visible and menu._tab == 0, "Q opens on the player's own tab"): return

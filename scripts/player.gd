@@ -18,6 +18,9 @@ const SPECIAL_IN_HAND := 1.15  # a special round in hand, this many times a plai
 const SPECIAL_ROOM := 1.6  # its share of the row (plain round 1.1): tips are at most 1.25 across (tools/build_tips.py)
 const AMMO_WHEEL := preload("res://scripts/ammo_wheel.gd")
 const HUD := preload("res://scripts/hud.gd")
+const BENCH_MENU := preload("res://scripts/bench_menu.gd")
+const BOARD_MENU := preload("res://scripts/quest_board.gd")
+const LASER_DOT := Vector2(0.02, 0.01)  # m across the dot: at least, and per metre away (stays visible far off)
 const WHEEL_HOLD := 0.22  # s R is held before the ammo wheel opens; a shorter press reloads
 ## Special rounds that hit us (GameState.SPECIALS). Punch: thrown off somewhere near the shot's
 ## way, tumbling, bounced once on landing, then dizzy for a while: the view sways, the aim drifts,
@@ -62,6 +65,7 @@ const FLY_POOL := 16       # bullets in flight at most: GRAB_TIME / GRAB_REPEAT 
 const KICK_OMEGA := 28.0     # rad/s; peak at 1 / KICK_OMEGA ≈ 36 ms
 const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
+const HOLO_ZOOM := 1.35  # the same through the holo sight (viewmodel.gd holo_on)
 const ADS_WALK := 0.6  # share of walking speed left aimed: aiming while moving is allowed, slowly
 const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
 const AIR_SHOWN := 0.1  # s off the ground before others see a jump (not every bump and step)
@@ -109,6 +113,9 @@ var _special_sound: AudioStreamPlayer
 
 @onready var _head: Node3D = $Head
 @onready var _shop: CanvasLayer = $UpgradeMenu
+var _bench: CanvasLayer = BENCH_MENU.new()  # the workshop bench's view (E in front of it)
+var _board_menu: CanvasLayer = BOARD_MENU.new()  # the quest board's screen (E in front of it)
+var _laser_dot := MeshInstance3D.new()  # where the bought laser says the shot will land
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _reach: RayCast3D = $Head/Camera3D/Reach
@@ -117,7 +124,15 @@ var _special_sound: AudioStreamPlayer
 var _grab_hint: Control  # under the crosshair while looking at the heap
 var _full_hint: Control
 var _board_hint: Control  # at the quest board while something waits there (E claims)
+var _bench_hint: Control  # at the open bench (E sits down at it)
 var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
+var _table_hint: Control  # looking at the desk at the spawn with the pistol on it (E takes it)
+var _hud: Control
+## The pistol taken in the warmup, the view turns to the heap while the line about it is said.
+const HEAP_LINE := "Bu mermilerin altına 100 milyon dolarlık bir çek bıraktım. Almak istiyorsan mermilerden kurtul."
+const HEAP_LINE_TIME := 5.0  # s
+const HEAP_TURN := 1.2  # s
+var _steered := false  # the view is being turned for us: the mouse waits
 @onready var _crosshair: Control = $HUD/Crosshair
 @onready var _hit_marker: Control = $HUD/HitMarker
 @onready var _vm_camera: Camera3D = $ViewmodelView/SubViewport/Camera
@@ -127,6 +142,9 @@ var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	add_to_group("walker")  # kicks loose bullets around (Pile)
+	# The heap stands at 45° and its height field's diagonals reach ~55°: at the default 45° those
+	# faces were walls and we snagged on its sides.
+	floor_max_angle = deg_to_rad(60.0)
 	_go_to_spawn(GameState.spawn_index)
 	GameState.spawn_assigned.connect(_go_to_spawn)
 	_hip_fov = _camera.fov
@@ -139,12 +157,18 @@ func _ready() -> void:
 	# labels stay hidden until the scene's owner takes them out.
 	for old: Control in [$HUD/Counter, $HUD/Money, $HUD/Vault]:
 		old.visible = false
-	$HUD.add_child(HUD.new())
+	_hud = HUD.new()
+	$HUD.add_child(_hud)
 	_prompt.queue_free()
 	_grab_hint = _crosshair_hint(UiStyle.hint("E", "Basılı tut: mermi al"))
 	_full_hint = _crosshair_hint(UiStyle.hint("G", "Elin dolu: fırlat"))
-	_board_hint = _crosshair_hint(UiStyle.hint("E", "Görev panosu: ödülleri al"))
+	_board_hint = _crosshair_hint(UiStyle.hint("E", "Görev panosu"))
+	_bench_hint = _crosshair_hint(UiStyle.hint("E", "Tezgâh: silahını geliştir"))
+	add_child(_bench)
+	add_child(_board_menu)
+	_make_laser_dot()
 	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
+	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
@@ -282,18 +306,25 @@ func _act() -> int:
 
 
 ## The gun shares the hall's world, drawn by its own camera (its layer only, at its own fov) over
-## the player's view: the hall's lamps, the heap's spots and the reflection probe light it, so
-## steel glints under a lamp and goes dark away from them. Its viewport draws no shadows
+## the player's view: the hall's lamps and the heap's spots light it, so steel glints under a lamp.
+## Its viewport draws no shadows
 ## (player.tscn) and its camera's environment leaves out what would cost a second time or haze
 ## it: SDFGI, fog, SSAO, and glow, which halos the gun over the clear background.
 func _setup_viewmodel_world() -> void:
 	_vm_env = get_world_3d().environment.duplicate()
+	# The copy carries the hall's effects as Settings remembered them, and Settings switched SSR,
+	# SSAO, fog and glow back on over the gun: SSR (which a transparent viewport drops) took the
+	# place of its reflections and the steel and the gold skin drew black. It remembers ours.
+	_vm_env.remove_meta(&"built")
 	_vm_env.background_mode = Environment.BG_CLEAR_COLOR
 	_vm_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	_vm_env.ambient_light_color = Color(0.55, 0.53, 0.5)
 	_vm_env.ambient_light_energy = 0.55  # roughly what the lamps bounce onto it
-	# Outside the probe's box the steel reflects this instead (materials/viewmodel_sky.gdshader:
-	# LED battens on a dark roof, lit concrete); never drawn, the background stays clear.
+	# The steel reflects this (materials/viewmodel_sky.gdshader: LED battens on a dark roof, lit
+	# concrete); never drawn, the background stays clear. Not the hall's probes: they hold the night
+	# under the glass roof, and in them the gun mirrored black.
+	for probe: ReflectionProbe in get_parent().find_children("*", "ReflectionProbe", true, false):
+		probe.reflection_mask &= ~(1 << (_viewmodel.LAYER - 1))
 	var sky := ShaderMaterial.new()
 	sky.shader = preload("res://materials/viewmodel_sky.gdshader")
 	_vm_env.sky = Sky.new()
@@ -322,9 +353,58 @@ func _setup_viewmodel_world() -> void:
 		_vm_camera.add_child(l)
 
 
+## The laser bought at the bench (GameState UPGRADES) on the Deagle in hand: a red dot where the
+## shot would land now, along the same line viewmodel.gd fires down (sway, no spread).
+func _aim_laser(off: Vector2) -> void:
+	var p := GameState.player()
+	var on: bool = GameState.upgrade_value("laser") > 0 and GameState.GUNS[p.gun].id == "deagle" 		and _viewmodel.gun == p.gun and not _hands_busy()
+	_laser_dot.visible = false
+	if not on:
+		return
+	var from := _camera.global_position
+	var dir := _camera.global_basis * Basis.from_euler(Vector3(off.y, off.x, 0.0)) * Vector3.FORWARD
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * GameState.SHOT_RANGE, GameState.SHOT_MASK)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return
+	var at: Vector3 = hit.position
+	var far := from.distance_to(at)
+	_laser_dot.global_position = at - dir * 0.02
+	_laser_dot.scale = Vector3.ONE * maxf(LASER_DOT.x, far * LASER_DOT.y)
+	_laser_dot.visible = true
+
+
+func _make_laser_dot() -> void:
+	var soft := GradientTexture2D.new()
+	soft.fill = GradientTexture2D.FILL_RADIAL
+	soft.fill_from = Vector2(0.5, 0.5)
+	soft.fill_to = Vector2(1.0, 0.5)
+	soft.gradient = Gradient.new()
+	soft.gradient.set_color(0, Color.WHITE)
+	soft.gradient.set_color(1, Color(1, 1, 1, 0))
+	soft.gradient.add_point(0.25, Color(1, 1, 1, 0.9))
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.billboard_keep_scale = true  # else the quad stays 1 m across whatever LASER_DOT says
+	mat.no_depth_test = true  # it sits on what the ray hit: the floor cut it in half
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.albedo_texture = soft
+	mat.albedo_color = Color(1.0, 0.12, 0.08) * 2.0
+	var quad := QuadMesh.new()
+	quad.material = mat
+	_laser_dot.mesh = quad
+	_laser_dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_laser_dot.top_level = true
+	_laser_dot.visible = false
+	add_child(_laser_dot)
+
+
 ## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
 func _hands_busy() -> bool:
-	return GameState.player().placing or _shop.visible
+	return GameState.player().placing or _shop.visible or _bench.visible or _board_menu.visible
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -332,7 +412,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return  # the overview has the mouse and keys (scripts/placement.gd)
 	if event is InputEventMouseMotion and _wheel.is_open:
 		_wheel.steer(event.relative.x)  # the view holds still while picking
-	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not _steered:
 		var sens := MOUSE_SENSITIVITY / _zoom  # the same mouse travel moves the same share of the screen
 		sens *= Settings.value("sensitivity") * lerpf(1.0, Settings.value("ads_sensitivity") / 100.0, _viewmodel.aim)
 		_yaw -= event.relative.x * sens
@@ -343,8 +423,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_toggle_infinite_ammo()
 	elif event.is_action_pressed("placement_mode"):
 		GameState.request_toggle_placing()
-	elif event.is_action_pressed("pick_up") and _board_has_something():
-		GameState.request_claim_quests()
+	elif event.is_action_pressed("pick_up") and _looking_at_table():
+		var warm := GameState.warming() and not GameState.player().has_pistol  # a 2nd E before the table fades
+		GameState.request_take_pistol()
+		if warm:
+			_show_heap()
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_Q \
+			and not _hands_busy() and (not GameState.warming() or GameState.unlocked("hud_gold")):
+		_shop.open_tab(1)  # the gear; the HUD shows the Q once it is ours
+	elif event.is_action_pressed("pick_up") and not _hands_busy() and _board_menu.can_open():
+		_board_menu.open()
+	elif event.is_action_pressed("pick_up") and not _hands_busy() and _bench.can_open():
+		_bench.open()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:
@@ -352,6 +442,24 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
 		# 1 draws the first gun; the key of the one in hand puts it away (bare fists).
 		GameState.request_select_gun(event.physical_keycode - KEY_1 + 1)
+
+
+## The warmup's pistol is ours: the view turns to the heap and the bottom of the screen says
+## what it is for. Then the Q comes in (hud.gd).
+func _show_heap() -> void:
+	var heap := _pile() as Node3D
+	if heap == null:
+		return
+	var to := heap.global_position + Vector3.UP * 3.0 - (global_position + Vector3.UP * EYE)
+	var yaw := atan2(-to.x, -to.z)
+	yaw = _yaw + wrapf(yaw - _yaw, -PI, PI)  # the short way round
+	var pitch := atan2(to.y, Vector2(to.x, to.z).length())
+	_steered = true
+	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "_yaw", yaw, HEAP_TURN)
+	tw.tween_property(self, "_pitch", pitch, HEAP_TURN)
+	tw.chain().tween_callback(func() -> void: _steered = false)
+	_hud.say(HEAP_LINE, HEAP_LINE_TIME)
 
 
 ## N: the special rounds test (scripts/special_demo.gd) opens, or tops the pocket up again;
@@ -396,7 +504,7 @@ func _process(delta: float) -> void:
 	else:
 		_reload_held = 0.0
 		_wheel.close()
-	_zoom = lerpf(1.0, ADS_ZOOM, _viewmodel.aim)
+	_zoom = lerpf(1.0, HOLO_ZOOM if _viewmodel.holo_on else ADS_ZOOM, _viewmodel.aim)
 	_hip_fov = Settings.value("fov")
 	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom))
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
@@ -408,6 +516,7 @@ func _process(delta: float) -> void:
 	_crosshair.gap = tan(_viewmodel.spread) * focal
 	_crosshair.queue_redraw()
 	_hit_marker.center = _crosshair.offset
+	_aim_laser(off)
 	_vm_camera.global_transform = _camera.global_transform
 	var vm_fov: float = _viewmodel.view_fov
 	_vm_camera.fov = _camera.fov if vm_fov == 0.0 else rad_to_deg(2.0 * atan(tan(deg_to_rad(vm_fov) * 0.5) / _zoom))
@@ -504,19 +613,16 @@ func _physics_process(delta: float) -> void:
 	var room := GameState.carried < GameState.carry_capacity
 	_grab_hint.visible = looking and room
 	_full_hint.visible = looking and not room
-	_board_hint.visible = not looking and _board_has_something()
+	_board_hint.visible = not looking and not _hands_busy() and _board_menu.can_open()
+	_bench_hint.visible = not looking and not _board_hint.visible and not _hands_busy() and _bench.can_open()
 	var p := GameState.player()
 	_reload_hint.visible = not looking and not _board_hint.visible and p.gun != 0 and GameState.loaded == 0 \
 		and GameState.carried > 0 and not p.placing
+	_table_hint.visible = _looking_at_table()
+	if p.has_pistol:  # taken here, or on record from before a rejoin
+		get_tree().call_group("gun_table", "fade")
 
 
-## Standing at the quest board with a reward waiting there (or the warmup's trip to it): E claims.
-func _board_has_something() -> bool:
-	var at := Vector2(global_position.x - GameState.BOARD_POS.x, global_position.z - GameState.BOARD_POS.z)
-	if at.length() > GameState.BOARD_REACH or _hands_busy():
-		return false
-	return not GameState.quests_ready.is_empty() or GameState.quest_board.any(func(id: String) -> bool:
-		return id != "" and GameState.QUESTS[id].kind == "board_claim")
 
 
 ## Bumped into another player's body: shove them along with how fast we walked into them.
@@ -551,6 +657,10 @@ func _head_bob(delta: float) -> void:
 			_step_sound.play()
 	_bob_amount = move_toward(_bob_amount, 1.0 if moving else 0.0, delta * 5.0)
 	_bob_offset = Vector3(cos(_bob) * BOB_AMP, sin(_bob * 2.0) * BOB_AMP, 0.0) * _bob_amount * Settings.value("head_bob") / 100.0
+
+
+func _looking_at_table() -> bool:
+	return _reach.is_colliding() and not _hands_busy() and (_reach.get_collider() as Node).is_in_group("gun_table")
 
 
 func _looking_at_pile() -> bool:

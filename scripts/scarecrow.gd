@@ -33,6 +33,7 @@ func _ready() -> void:
 	_crackle.unit_size = 4.0
 	add_child(_crackle)
 	GameState.bonus_paid.connect(_on_bonus)
+	GameState.target_cue.connect(_on_cue)
 
 
 func is_burning() -> bool:
@@ -43,12 +44,35 @@ func _on_shot_landed(peer: int, at: Vector3, normal: Vector3, dir: Vector3, targ
 	super(peer, at, normal, dir, target, gold, weak, combo)
 	if target != self or gold == 0 or _burn_left > 0.0 or _cool_left > 0.0:
 		return
-	_burn_left = BURN
+	_light(peer, BURN)
+
+
+func _light(peer: int, secs: float) -> void:
+	_burn_left = secs
 	_tick = 1.0
 	_lighter = peer
 	FX.burn(_fire, true)
 	if _crackle.stream:
 		_crackle.play()
+
+
+## A joiner sees it burning (or smouldering) as the host does.
+func join_cues() -> Array:
+	if _burn_left > 0.0:
+		return [[&"burn", _lighter, _burn_left]]
+	if _cool_left > 0.0:
+		return [[&"cool", _cool_left]]
+	return []
+
+
+func _on_cue(target: Node, cue: Array) -> void:
+	if target != self or not Net.is_client:
+		return
+	if cue[0] == &"burn":
+		_light(cue[1], cue[2])
+	elif cue[0] == &"cool":
+		_cool_left = cue[1]
+		(_fire.get_meta("smoke") as GPUParticles3D).emitting = true
 
 
 func _on_bonus(peer: int, target: Node, gold: int) -> void:

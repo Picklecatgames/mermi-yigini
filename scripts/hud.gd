@@ -9,15 +9,17 @@ extends Control
 ## them the quest board (GameState QUESTS), a line and a thin bar a slot, the main quest on top saying
 ## what to do; a done one turns green with its tick and reward and waits to be claimed at the board
 ## (E there), then folds away and the next one comes in. Kept short: the screen is for the heap.
-## During the warmup the main quest has its key under it and the rest of the screen comes in as it
-## is learnt. Something just opened gets a line under the heap and, like the board while a reward
-## waits there, an arrow pointing the way (Reveal).
+## During the warmup the quest list stays away: what to do now is one key and a few words at the
+## bottom, over the guns, and the rest of the screen comes in as it is learnt (Q blinks while the
+## dummy waits to be bought); arrows point at the pistol and the heap while they are the next thing.
+## Something just opened gets a line under the heap and, like the board while a reward waits
+## there, an arrow pointing the way (Reveal). say() puts a line of story at the bottom for a while.
 ## Listens to GameState itself.
 
 const KeyCache := preload("res://scripts/key_cache.gd")
 const MARGIN := Vector2(36, 28)  # px from the screen's edges
 const BIG := 60  # px, the two big numbers
-const HEAP_W := 340.0  # px, the heap's bar
+const HEAP_W := 200.0  # px, the heap's bar
 const MONEY := UiStyle.MONEY  # kept for older callers
 const QUEST_W := 230.0  # px, a quest's bar
 const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Yığından mermi taşı",
@@ -59,7 +61,9 @@ var _sheet: PanelContainer  # the paper the quests are typed on
 var _cards: Array[Dictionary] = []  # per QUEST_SLOTS slot: its nodes and the quest it shows
 var _claim: Control  # "[E] Panoda teslim et", while something is done
 var _claimed := {}  # quest ids just claimed: their card folds away before the next comes in
-var _hint: Control  # under the main quest during the warmup: its key and what to do
+var _hint: Control  # bottom centre during the warmup: the quest's key and what to do
+var _subtitle: Label  # bottom centre, a line of story for a while (say)
+var _q_blink: Tween
 var _left: Control  # the magazine's column
 var _right: Control  # gold's column
 var _banner: Label  # "Tezgâh açıldı", under the heap for a while
@@ -131,14 +135,37 @@ func _announce(text: String) -> void:
 	tw.tween_property(_banner, "modulate:a", 0.0, 0.6)
 
 
-## Still in the warmup: parts of the screen wait for what they show to be learnt.
-func _warming() -> bool:
-	var main: String = GameState.quest_board[0] if not GameState.quest_board.is_empty() else ""
-	return main != "" and GameState.QUESTS[main].get("warmup", false)
-
-
+## Parts of the screen wait for what they show to be learnt.
 func _shown(what: String) -> bool:
-	return not _warming() or GameState.unlocked(what)
+	return not GameState.warming() or GameState.unlocked(what)
+
+
+func _main_kind() -> String:
+	var main: String = GameState.quest_board[0] if not GameState.quest_board.is_empty() else ""
+	return GameState.QUESTS[main].kind if main != "" else ""
+
+
+## A line at the bottom for `secs`, over the warmup's hint and the Q, which come back after it.
+var _say_tween: Tween
+
+
+func say(text: String, secs: float) -> void:
+	_subtitle.text = text
+	_subtitle.visible = true
+	_hint.visible = false
+	refresh()
+	if _say_tween:
+		_say_tween.kill()  # an older line's fade would hide this one early
+	var tw := _subtitle.create_tween()
+	_say_tween = tw
+	tw.tween_property(_subtitle, "modulate:a", 1.0, 0.5).from(0.0)
+	tw.tween_interval(secs)
+	tw.tween_property(_subtitle, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(func() -> void:
+		_subtitle.visible = false
+		_hint.set_meta("for", "")  # comes back in, faded in
+		_refresh_quests()
+		refresh())
 
 
 func _build_pointer() -> void:
@@ -162,6 +189,14 @@ func _point_targets() -> Array:
 		return id != "" and GameState.QUESTS[id].kind == "board_claim")
 	if waits:
 		out.append([GameState.BOARD_POS + Vector3.UP * 2.3, "Pano"])
+	# The warmup's next thing, even right in front of us: the pistol on its desk, then the heap.
+	var kind := _main_kind() if GameState.warming() and not _subtitle.visible else ""
+	var table := get_tree().get_first_node_in_group("gun_table") as Node3D
+	if kind == "gun_taken" and table and not GameState.player().has_pistol:
+		out.append([table.global_position + Vector3.UP * 1.3, "Tabanca", true])
+	var heap := get_tree().get_first_node_in_group("bullet_pile") as Node3D
+	if kind == "bullets_carried" and heap:
+		out.append([heap.global_position + Vector3.UP * 3.0, "Mermi", true])
 	return out
 
 
@@ -183,7 +218,7 @@ func _draw_pointer() -> void:
 		var dist := cam.global_position.distance_to(at)
 		var label := "%s  %dm" % [name_, roundi(dist)]
 		if not behind and inner.has_point(s):
-			if dist < 4.5:
+			if dist < 4.5 and t.size() < 3:
 				continue  # right there: the crosshair's own hint says it
 			var tip := s + Vector2(0, 8)
 			_pointer.draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-9, -12), tip + Vector2(9, -12)]), UiStyle.ACCENT)
@@ -207,18 +242,18 @@ func _draw_pointer() -> void:
 
 
 func _build_heap() -> void:
-	var col := _column(Control.PRESET_CENTER_TOP)
-	col.offset_top = MARGIN.y - 8
-	col.add_theme_constant_override("separation", 6)
-	_heap = UiStyle.stencil("", 44)
-	_heap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var col := _column(Control.PRESET_TOP_LEFT)
+	col.offset_left = MARGIN.x
+	col.offset_top = MARGIN.y
+	col.add_theme_constant_override("separation", 4)
+	_heap = UiStyle.display("", 30, UiStyle.BOLD)
 	col.add_child(_heap)
 	_heap_meter = UiStyle.meter(HEAP_W, UiStyle.ACCENT, 3.0)
-	_heap_meter.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_heap_meter.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	col.add_child(_heap_meter)
 	var under := HBoxContainer.new()  # the keys found, at the bar's right end
 	under.custom_minimum_size.x = HEAP_W
-	under.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	under.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	under.alignment = BoxContainer.ALIGNMENT_END
 	under.add_theme_constant_override("separation", 5)
 	under.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -226,8 +261,7 @@ func _build_heap() -> void:
 	under.add_child(UiStyle.icon("key", 15))
 	_keys = UiStyle.caption("")
 	under.add_child(_keys)
-	_banner = UiStyle.stencil("", 30, UiStyle.ACCENT)
-	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner = UiStyle.display("", 24, UiStyle.BOLD, UiStyle.ACCENT)
 	_banner.modulate.a = 0.0
 	col.add_child(_banner)
 
@@ -277,6 +311,16 @@ func _build_middle() -> void:
 	var col := _column(Control.PRESET_CENTER_BOTTOM)
 	col.offset_bottom = -MARGIN.y
 	col.add_theme_constant_override("separation", 14)
+	_subtitle = UiStyle.label("", 24, UiStyle.SEMIBOLD)
+	_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_subtitle.custom_minimum_size.x = 760
+	_subtitle.visible = false
+	col.add_child(_subtitle)
+	_hint = HBoxContainer.new()  # filled per warmup quest (_show_hint)
+	_hint.alignment = BoxContainer.ALIGNMENT_CENTER
+	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(_hint)
 	_special_row = HBoxContainer.new()
 	_special_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_special_row.add_theme_constant_override("separation", 12)
@@ -370,10 +414,6 @@ func _build_quests() -> void:
 		card.add_child(bar)
 		_quests.add_child(card)
 		if main:
-			_hint = HBoxContainer.new()  # filled per warmup quest (_show_hint)
-			_hint.alignment = BoxContainer.ALIGNMENT_END
-			_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			_quests.add_child(_hint)
 			_quests.add_child(UiStyle.line(QUEST_W * 0.4, Color(0, 0, 0, 0.25)))  # the main quest over the rest
 		_cards.append({"card": card, "tick": tick, "name": name_, "share": share, "bar": bar,
 			"main": main, "id": "", "pulse": null})
@@ -400,11 +440,11 @@ func _refresh_quests() -> void:
 		elif not c.has("folding"):
 			_show_quest(c, id)
 	_claim.visible = not GameState.quests_ready.is_empty()
-	_sheet.visible = GameState.quest_board.any(func(id: String) -> bool: return id != "")
+	_sheet.visible = not GameState.warming() and GameState.quest_board.any(func(id: String) -> bool: return id != "")
 	_show_hint(GameState.quest_board[0] if not GameState.quest_board.is_empty() else "")
 
 
-## The warmup quest's key and what to do, under it; none past the warmup.
+## The warmup quest's key and what to do, at the bottom; none past the warmup.
 func _show_hint(id: String) -> void:
 	var hint: Array = GameState.QUESTS[id].get("hint", []) if id != "" else []
 	if _hint.get_meta("for", "") == id:
@@ -412,14 +452,10 @@ func _show_hint(id: String) -> void:
 	_hint.set_meta("for", id)
 	for n in _hint.get_children():
 		n.queue_free()
-	_hint.visible = not hint.is_empty()
+	_hint.visible = not hint.is_empty() and not _subtitle.visible
 	if hint.is_empty():
 		return
-	var h := UiStyle.hint(hint[0], hint[1], 15)
-	var how := h.get_child(h.get_child_count() - 1) as Label
-	how.add_theme_font_override("font", UiStyle.TYPEWRITER)
-	how.add_theme_color_override("font_color", UiStyle.PAPER_INK)
-	how.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0))
+	var h := UiStyle.hint(hint[0], hint[1], 20)
 	_hint.add_child(h)
 	h.modulate.a = 0.0
 	h.create_tween().tween_property(h, "modulate:a", 1.0, 0.4)
@@ -550,14 +586,30 @@ func refresh() -> void:
 			return false
 		return p.levels[id] < costs.size() and GameState.gold >= costs[p.levels[id]])
 	_can_buy.visible = false
-	UiStyle.tint_keycap(_q, UiStyle.ACCENT if can else UiStyle.DIM)
-	_q.get_parent().visible = false  # no Q: everything is bought at the bench (2026-10-28)
+	UiStyle.tint_keycap(_q, UiStyle.ACCENT if can or _main_kind() == "gear_bought" else UiStyle.DIM)
+	# Q opens the gear (2026-10-28, the user's call): it comes in once the pistol is taken and the
+	# heap's line is said, blinking while the warmup waits for the dummy to be bought.
+	_q.get_parent().visible = _shown("hud_gold") and not _subtitle.visible
+	_set_q_blink(_q.get_parent().visible and _main_kind() == "gear_bought")
 	_test.visible = GameState.infinite_ammo
-	# The warmup opens the screen bit by bit: the hand and guns once a bullet was taken, gold and
-	# upgrades once a hit paid (GameState QUESTS t01, t03).
+	# The warmup opens the screen bit by bit: gold with the Q once the pistol is taken, the hand and
+	# guns once a bullet was (GameState QUESTS t00, t03).
 	_left.visible = _shown("hud_ammo")
 	_guns.visible = _shown("hud_ammo")
 	_right.visible = _shown("hud_gold")
+
+
+func _set_q_blink(on: bool) -> void:
+	if on == (_q_blink != null):
+		return
+	if _q_blink:
+		_q_blink.kill()
+		_q_blink = null
+		_q.modulate = Color.WHITE
+		return
+	_q_blink = _q.create_tween().set_loops().set_trans(Tween.TRANS_SINE)
+	_q_blink.tween_property(_q, "modulate", Color(1.6, 1.4, 0.9), 0.4)
+	_q_blink.tween_property(_q, "modulate", Color(1, 1, 1, 0.35), 0.4)
 
 
 ## A number that went up gives a small start.

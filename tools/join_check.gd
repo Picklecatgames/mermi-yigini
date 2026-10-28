@@ -50,6 +50,7 @@ func _host() -> void:
 	popper._on_cue(popper, [&"down"])
 	# Gear (yol haritası 10): buy a dummy and a popper, put the dummy up; the joiner places the popper.
 	gs.vault = 200.0
+	gs.quest_board.fill("")  # past the warmup: all the gear open
 	if not _ok(gs.request_buy_gear("dummy") and gs.request_buy_gear("popper"), "host buys a dummy and a popper"): return
 	if not _ok(not gs.request_place_gear("dummy", Vector3(10, 0, 15), -PI / 2), "no gear on the shooters' side"): return
 	if not _ok(gs.request_place_gear("dummy", DUMMY_AT, -PI / 2), "host puts the dummy up"): return

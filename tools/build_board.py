@@ -2,11 +2,11 @@
 # asetler"), made free-standing: the Sketchfab model hangs on a wall, so two rusty steel L feet are
 # added, one at each side: a post up the board's edge and a foot running back along the floor.
 # The board faces glTF +X, centred on the origin across its width, the feet's soles on the floor.
-# Run: blender -b --factory-startup -P tools/build_board.py -- <Board.fbx> <textures dir> <out.glb>
-import bpy, os, sys
+# Run: blender -b --factory-startup -P tools/build_board.py -- <Board.fbx> <textures dir> <out.glb> <Applique.fbx>
+import bpy, math, os, sys
 from mathutils import Matrix, Vector
 
-SRC, TEXDIR, OUT = sys.argv[sys.argv.index("--") + 1:][:3]
+SRC, TEXDIR, OUT, LIGHT = sys.argv[sys.argv.index("--") + 1:][:4]
 RUST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "props", "workbench", "hopper_rusty_metal_02_")
 POST = 0.045  # steel square tube, m
 FOOT = 0.6    # how far the foot runs back behind the board
@@ -120,6 +120,52 @@ for s in (-1, 1):
     y0, y1 = sorted((s * half, s * (half + POST)))
     bar("Post", Vector((front - POST, y0, 0)), Vector((front, y1, top + 0.04)))
     bar("Foot", Vector((front - FOOT, y0, 0)), Vector((front - POST, y1, POST)))
+
+# A picture light over the top edge (the user's "Wall Lamp", Applique.fbx, docs/ayrintilar.md
+# "Kullanılan asetler"): its wall plate on the frame, the bar out over the board on its two arms,
+# the strip under the bar glowing FLUO, the colour range_dressing.gd _workshop gives the board's spots.
+FLUO = (0.82, 0.93, 1.0)
+SPAN = 0.4125  # half the bar: the size the fitting before it was given (the user's call)
+def flat(name, colour, metal, rough, glow=0.0):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Base Color"].default_value = colour + (1,)
+    bsdf.inputs["Metallic"].default_value = metal
+    bsdf.inputs["Roughness"].default_value = rough
+    if glow:
+        bsdf.inputs["Emission Color"].default_value = FLUO + (1,)
+        bsdf.inputs["Emission Strength"].default_value = glow
+    return m
+LAMP_MATS = {"Metal": flat("LampBrass", (0.16, 0.12, 0.07), 0.85, 0.45),  # old darkened brass
+             "Plastic": flat("LampSwitch", (0.02, 0.02, 0.02), 0.0, 0.6),
+             "Emissive": flat("LampStrip", FLUO, 0.0, 0.5, 5.0)}
+bpy.ops.object.select_all(action="DESELECT")
+bpy.ops.import_scene.fbx(filepath=LIGHT)
+kept = [o for o in bpy.context.selected_objects if o.type == "MESH"]
+for o in kept:
+    for i, m in enumerate(o.data.materials):
+        o.data.materials[i] = LAMP_MATS[m.name.split(".")[0]]
+bpy.ops.object.select_all(action="DESELECT")
+for o in kept:
+    o.select_set(True)
+bpy.context.view_layer.objects.active = kept[0]
+bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
+bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+bar = next(o for o in kept if o.name.startswith("BigPart"))
+reach = max((bar.matrix_world @ Vector(c)).x for c in bar.bound_box)  # half the bar
+plate = next(o for o in kept if o.name.startswith("Support"))
+pb = [plate.matrix_world @ Vector(c) for c in plate.bound_box]
+wall = Vector((0, max(v.y for v in pb), (min(v.z for v in pb) + max(v.z for v in pb)) / 2))  # the plate's wall side
+bpy.ops.object.join()
+lamp = bpy.context.view_layer.objects.active
+lamp.name = "Lamp"
+# The model's wall is +Y, its bar along X, the strip facing -Z: turned so the wall is the board's
+# front, the bar along its width, the plate's middle 4 cm under the board's top edge.
+k = SPAN / reach
+lamp.data.transform(Matrix.Translation(Vector((front, 0, top - 0.04))) @ Matrix.Rotation(math.radians(90), 4, "Z")
+                    @ Matrix.Scale(k, 4) @ Matrix.Translation(-wall))
+print("picture light: bar %.3f out, %.3f high" % (wall.y * k, top - 0.04 - wall.z * k))
 
 bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB")
 print("board %s: %.2f m wide, %.3f thick, %.2f to %.2f m high" % (back.name, 2 * half, thick, blo.z, top))

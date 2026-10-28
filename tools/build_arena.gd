@@ -35,8 +35,10 @@ const SUN_DIR := Vector3(-0.42, -1.0, 0.22)  # the night light's travel through 
 ## ring (10.6 m) ends at x 1.6, leaving a 12.4 m band to the railing for belts and turrets
 ## (docs/taret_bant_kilavuzu.md, "Yerleşim").
 const HEAP := Vector3(-9.0, 0, 0)
-## Co-op spawns along the south wall, everyone facing the heap.
-const SPAWNS: Array[Vector3] = [HEAP + Vector3(-4.5, 0, 23.5), HEAP + Vector3(-1.5, 0, 23.5), HEAP + Vector3(1.5, 0, 23.5), HEAP + Vector3(4.5, 0, 23.5)]
+## Co-op spawns between the heap and the railing (2026-10-28, the user), everyone facing the heap
+## over the desk with the pistol (GUN_TABLE); the first two right behind it.
+const SPAWNS: Array[Vector3] = [Vector3(8.7, 0, -0.8), Vector3(8.7, 0, 0.8), Vector3(8.7, 0, -2.4), Vector3(8.7, 0, 2.4)]
+const GUN_TABLE := Vector3(7.3, 0, 0)  # metal_office_desk, 2 m along z, its drawer side to the spawns
 ## Crate stands west of the heap, a row running north and centred on the hall: levels 1-11 on
 ## stands STAND_GAP apart (1, the worst crate, on bare floor), then a gap and level 12, the final
 ## crate, on the floor in a big square under two crossing stage spots. Stand tiers follow the
@@ -2158,6 +2160,10 @@ func _spawns() -> void:
 	for i in SPAWNS.size():
 		var m := Marker3D.new()
 		m.name = "Spawn%d" % (i + 1)
-		m.position = SPAWNS[i]  # identity basis looks down -z, at the heap
+		m.position = SPAWNS[i]
+		m.basis = Basis.looking_at(Vector3(HEAP.x, 0, HEAP.z) - SPAWNS[i])
 		add(m, spawns)
 		m.add_to_group("spawn", true)
+	var table := _prop(spawns, MODELS + "metal_office_desk/metal_office_desk_1k.gltf", GUN_TABLE, PI / 2.0)
+	table.name = "GunTable"
+	table.set_script(preload("res://scripts/gun_table.gd"))

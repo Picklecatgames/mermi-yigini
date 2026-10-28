@@ -48,6 +48,8 @@ const SHOTS := {
 	"cash": [Vector3(5.4, 1.45, 24.1), Vector3(5.12, 0.95, 25.45)],
 	"bulb": [Vector3(1.3, 6.2, 15.3), Vector3(0.0, 6.85, 14.0)],
 	"workshop": [Vector3(10.0, 1.7, 21.5), Vector3(10.8, 1.6, 27.9)],
+	"festoon": [Vector3(11.8, 1.9, 25.2), Vector3(10.6, 2.9, 27.9)],
+	"festoon_up": [Vector3(9.0, 1.7, 17.0), Vector3(12.0, 6.5, 22.0)],
 	"lamps": [Vector3(2.0, 1.7, 16.0), Vector3(-2.0, 6.5, 2.0)],
 	"tripod": [Vector3(-12.5, 1.7, -14.5), Vector3(-16.4, 1.9, -9.6)],
 	"graf_w": [Vector3(-21.5, 1.7, 13.0), Vector3(-28.0, 1.5, 17.0)],

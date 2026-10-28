@@ -7,7 +7,7 @@ extends SceneTree
 ##   ... -s res://tools/perf_probe.gd -- off=ssr,ssil,ssao,fog,glow,shadows,decals
 
 const VIEWS := {
-	"spawn": [Vector3(-9.0, 1.7, 23.5), Vector3(-9.0, 2.5, 0.0)],
+	"spawn": [Vector3(8.7, 1.7, 0.0), Vector3(-9.0, 2.5, 0.0)],
 	"heap": [Vector3(4.0, 1.7, 12.0), Vector3(-9.0, 3.5, 0.0)],
 	"range": [Vector3(9.0, 1.6, 7.0), Vector3(26.0, 1.2, -1.0)],
 	"camp": [Vector3(-14.0, 1.7, -16.0), Vector3(-22.0, 1.0, -25.0)],

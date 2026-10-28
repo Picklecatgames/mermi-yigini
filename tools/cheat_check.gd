@@ -21,6 +21,7 @@ func _initialize() -> void:
 	if not _ok(panel.visible, "F9 opens it"): return
 
 	var gold: int = gs.gold
+	gs.vault = 0.0  # it starts with a dummy's price
 	panel.add_gold(1_000)
 	panel.add_vault(100_000)
 	if not _ok(gs.gold == gold + 1_000 and is_equal_approx(gs.vault, 100_000.0), "money goes to the player and the vault"): return

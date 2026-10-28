@@ -25,6 +25,7 @@ var steel: Material
 var wood: Material
 var paint := {}  # colour name -> worn paint material
 var _bags: Array[ArrayMesh] = []
+var _tapes: Array[Material] = []
 
 
 func _init(builder) -> void:
@@ -420,20 +421,48 @@ func _posters() -> void:
 ## workbench (assembled in Blender, docs/ayrintilar.md "Mermi tezgâhı") a size up and pushed into the
 ## corner, the melting hopper on its right, both on a worn carpet. Round it the crew's corner: old
 ## ammunition posters taped up (Commons, public domain), a rifle and a pistol hung on the wall, a
-## fire going in a barrel stove, crates and sandbags by the railing. Lit like a camp: one failing
-## pendant, the barrel's fire and the crucible's glow.
+## fire going in a barrel stove, crates and sandbags by the railing, blankets on a crate by the bench and a
+## string of bulbs between the columns. A refuge in the dark hall, lit like a camp: the wall lamp's
+## dim amber, the barrel's fire, the crucible's glow, a warm bounce between them.
 func _workshop() -> void:
 	const BENCH := 1.2  # the Blender bench, scaled up to stand out
 	var at := Vector3(12.3, 0, 27.4)  # its east end against the column at x 14, its back on the wall
 	var bench: StaticBody3D = b._prop(root, "res://assets/props/workbench/workbench.glb", at, PI, BENCH)
 	bench.set_script(preload("res://scripts/bench_top.gd"))  # clears the top
 	var x := at.x - 0.09 * BENCH  # the bench's middle
-	var hopper := Vector3(at.x - 1.22 * BENCH - 1.0, 0, 27.15)  # on its right (looking at it), the bucket on the bench side
+	var hopper := Vector3(at.x - 1.22 * BENCH - 0.6, 0, 27.15)  # on its right (looking at it), the bucket on the bench side
 	b._prop(root, "res://assets/props/workbench/hopper.glb", hopper, PI)
-	# Past the hopper the investigation board (tools/build_board.py) stands on its own feet, turned
-	# 45° so it faces the bench's front and the hall at once; its feet run back toward the barrel.
-	b._prop(root, "res://assets/props/investigation_board/board.glb", Vector3(8.9, 0, 25.4), PI / 4)
+	# Past the hopper the investigation board (tools/build_board.py) stands on its own feet, turned 40°
+	# off the wall towards the bench, its west end clear of the walkway line (z 25.9), the barrel stove
+	# in front of that end. Its picture light throws two spots of its own cold light down over it.
+	var board: StaticBody3D = b._prop(root, "res://assets/props/investigation_board/board.glb", Vector3(8.85, 0, 26.72), deg_to_rad(50.0))
+	for side: float in [-1.0, 1.0]:
+		var lamp := SpotLight3D.new()
+		lamp.position = Vector3(0.28, 1.91, side * 0.25)  # under the picture light's bar (board space: front +x, width along z)
+		lamp.basis = Basis.looking_at(Vector3(0.0, 1.3, side * 0.55) - lamp.position, Vector3.UP)
+		lamp.light_color = Color(0.82, 0.93, 1.0)  # the tube's glow (build_board.py FLUO)
+		lamp.light_energy = 1.2  # a glow along the top edge: from 15 cm they'd burn the photos white
+		lamp.spot_range = 1.6
+		lamp.spot_angle = 70.0
+		lamp.spot_angle_attenuation = 1.2
+		lamp.light_volumetric_fog_energy = 0.0
+		lamp.shadow_enabled = false
+		b.add(lamp, board)
+	# The board's real light: the same cold wash from out in front and above, wide and soft, so
+	# all of it reads evenly and the barrel's fire behind can't take half of it.
+	var wash_board := SpotLight3D.new()
+	wash_board.position = Vector3(1.5, 2.75, 0.0)
+	wash_board.basis = Basis.looking_at(Vector3(0.0, 1.45, 0.0) - wash_board.position, Vector3.UP)
+	wash_board.light_color = Color(0.82, 0.93, 1.0)
+	wash_board.light_energy = 3.2
+	wash_board.spot_range = 4.0
+	wash_board.spot_angle = 48.0
+	wash_board.spot_angle_attenuation = 0.5
+	wash_board.light_volumetric_fog_energy = 0.0
+	wash_board.shadow_enabled = true  # the pins and photos lift off the cork
+	b.add(wash_board, board)
 	_radio(at, BENCH)
+	_wall_lamp(Vector3(x, 2.8, 27.955))
 	var rug := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(4.6, 2.6)
@@ -444,15 +473,25 @@ func _workshop() -> void:
 	b.add(rug, root)
 	# The wall behind: posters over the bench's shelf and round the hopper, guns on nails.
 	var face := _wall(-1.0)
-	for pz in [["fifty_cal", Vector3(x, 2.85, 27.96), 0.66, 0.0], ["both_barrels", Vector3(11.0, 2.7, 27.955), 0.6, 0.0],
-			["bonds_bullets", Vector3(13.5, 2.75, 27.955), 0.7, 0.0], ["pass_ammo", Vector3(9.85, 2.0, 27.96), 0.85, 0.0],
-			["keep_shooting", Vector3(9.1, 2.15, 27.955), 0.9, 0.0], ["keep_firing", Vector3(8.2, 1.65, 27.96), 0.75, 0.0]]:  # all square on the wall
+	for pz in [["fifty_cal", Vector3(x, 3.42, 27.96), 0.66, 0.0], ["one_race", Vector3(11.0, 2.7, 27.955), 0.62, 0.0],
+			["bonds_bullets", Vector3(13.5, 2.75, 27.955), 0.7, 0.0], ["join_the_army", Vector3(9.85, 2.0, 27.96), 0.85, 0.0],
+			["students", Vector3(9.1, 2.15, 27.955), 0.85, 0.0], ["keep_firing", Vector3(8.2, 1.65, 27.96), 0.75, 0.0]]:  # all square on the wall
 		_poster(pz[0], pz[1], face, pz[2], pz[3])
 	b._prop(root, MODELS + "bolt_action_rifle_7_62/bolt_action_rifle_7_62_1k.gltf", Vector3(10.25, 1.3, 27.9), 0.04)
 	b._prop(root, MODELS + "service_pistol/service_pistol_1k.gltf", Vector3(10.55, 1.75, 27.94), -0.3)
-	# A fire in a barrel west of the hopper, a jerrycan and a tyre by it.
-	var barrel := Vector3(8.7, 0, 27.0)
-	b._prop(root, MODELS + "barrel_stove/barrel_stove_1k.gltf", barrel, 0.4)
+	# A fire in a rusty burn barrel out in front of the board's west foot, where it's seen from the hall
+	# (2026-10-26, the user picked the spot; it hid behind the board): logs, embers, flames, sparks,
+	# its light and crackle are scripts/barrel_fire.gd. A jerrycan and a tyre by the wall.
+	var barrel := Vector3(7.75, 0, 25.55)
+	var stove: StaticBody3D = b._prop(root, "res://assets/props/burn_barrel/burn_barrel.glb", barrel, 0.4)  # tools/build_burn_barrel.py
+	var burning := Node3D.new()
+	burning.name = "BarrelFire"
+	burning.set_script(preload("res://scripts/barrel_fire.gd"))
+	burning.set("rim", 0.914)  # the burn barrel's top
+	burning.set("inner", 0.29)
+	burning.set("bed", 0.545)  # just over its grate, under its own firewood
+	burning.set("logs", false)
+	b.add(burning, stove)
 	b._prop(root, MODELS + "metal_jerrycan/metal_jerrycan_1k.gltf", Vector3(8.0, 0, 27.65), 0.2)
 	b._prop(root, MODELS + "old_tyre/old_tyre_1k.gltf", Vector3(7.75, 0.3, 27.82), 0.0, 1.0, Basis(Vector3.RIGHT, -0.15))
 	# Stock along the railing: an army crate, a crate of rounds on it, ammo boxes, sandbags.
@@ -463,12 +502,10 @@ func _workshop() -> void:
 	_sandbags(Vector3(13.45, 0, 24.1), 2, 2, PI / 2)
 	_sticker("ghs_explos", Vector3(13.1, 0.25, 25.4), Vector3(-1, 0, 0), 0.18)
 	_sticker("ghs_flamme", Vector3(hopper.x, 0.72, 26.78), Vector3(0, 0, -1), 0.14)
-	# Light: a steady pendant over the corner's middle, the barrel's fire, the crucible's glow, a dim
-	# wash. The hall lamps round it are dead (build_arena _lamps): a warm island in the dark.
-	var mid: float = b.WORKSHOP.x
-	b.strut(mid, 21.0, 27.85)
-	b.pendant(Vector3(mid, 5.0, 26.9), b.BOTTOM - b.CHORD / 2.0 - 0.065, Color(1.0, 0.68, 0.38), 5.0, 62.0, 0.05, true)
-	for f in [[barrel + Vector3(0, 1.0, 0), Color(1.0, 0.45, 0.15), 2.2, 4.5, true], [hopper + Vector3(0, 0.3, 0), Color(1.0, 0.5, 0.2), 0.8, 1.8, false]]:
+	# Light: the wall lamp over the bench (_wall_lamp), the barrel's fire, the crucible's glow, a dim
+	# wash. No pendant over the corner (the user took it down, 2026-10-26), and the hall lamps round
+	# it are dead (build_arena _lamps): low warm pools in the dark, the board's cold light set against them.
+	for f in [[hopper + Vector3(0, 0.3, 0), Color(1.0, 0.5, 0.2), 0.8, 1.8, false]]:  # the barrel's own light flickers in barrel_fire.gd
 		var fire := OmniLight3D.new()
 		fire.position = f[0]
 		fire.light_color = f[1]
@@ -480,14 +517,145 @@ func _workshop() -> void:
 	var wash := SpotLight3D.new()
 	wash.position = Vector3(8.6, 4.6, 23.6)
 	wash.basis = Basis.looking_at(Vector3(x - 0.8, 1.6, 27.9) - wash.position, Vector3.UP)
-	wash.light_color = Color(1.0, 0.72, 0.42)
-	wash.light_energy = 2.2
+	wash.light_color = Color(1.0, 0.58, 0.28)
+	wash.light_energy = 0.7
 	wash.spot_range = 10.0
 	wash.spot_angle = 30.0
 	wash.spot_angle_attenuation = 1.8
 	wash.light_volumetric_fog_energy = 0.0
 	wash.shadow_enabled = true
 	b.add(wash, root)
+	# The fire's and lamp's light off the rug and the wooden bench, low and wide: the gaps between
+	# the pools stay a warm dusk, not black. No shadow, no fog: it reads as bounce, not a lamp.
+	var bounce := OmniLight3D.new()
+	bounce.position = Vector3(10.9, 0.7, 26.6)
+	bounce.light_color = Color(1.0, 0.6, 0.32)
+	bounce.light_energy = 0.35
+	bounce.omni_range = 4.6
+	bounce.omni_attenuation = 1.6
+	bounce.light_volumetric_fog_energy = 0.0
+	bounce.shadow_enabled = false
+	b.add(bounce, root)
+	_festoon(Vector3(13.85, 3.35, 27.6), Vector3(7.15, 3.35, 27.6), 0.4, 12)
+	_camp()
+
+
+## A string of clear filament bulbs (Poly Haven lightbulb_01) between the corner's two columns,
+## sagging across the wall over the posters: the crew's own lights, the corner's "we live here".
+## Each hangs glass down from a black rubber socket and throws its own small pool on the wall
+## behind; a few wider, dimmer lights give the warm dusk round the string (2026-10-26, the user:
+## "ışıklı bir top gibi duruyor, duvara ışık yansıtmıyor").
+func _festoon(from: Vector3, to: Vector3, sag: float, bulbs: int) -> void:
+	var wire := _flat(Color(0.05, 0.05, 0.05), 0.6)
+	var on := func(t: float) -> Vector3: return from.lerp(to, t) + Vector3(0, -4.0 * sag * t * (1.0 - t), 0)
+	const SEGS := 24
+	for k in SEGS:
+		var p: Vector3 = on.call(float(k) / SEGS)
+		var q: Vector3 = on.call(float(k + 1) / SEGS)
+		b.block(Vector3(0.006, 0.006, p.distance_to(q)), (p + q) / 2.0, wire, root, Basis.looking_at(q - p, Vector3.UP))
+	var lit := lit_bulb()
+	var bulb: Mesh = lit[0]
+	var mats: Array = lit[1]
+	var socket := CylinderMesh.new()
+	socket.top_radius = 0.012
+	socket.bottom_radius = 0.016
+	socket.height = 0.04
+	var rubber := _flat(Color(0.03, 0.03, 0.03), 0.7)
+	const SIZE := 1.3  # a festoon globe, a touch bigger than the model's 6 cm house bulb
+	var flip := Basis(Vector3.RIGHT, PI).scaled(Vector3.ONE * SIZE)  # the model stands screw down: hang it screw up
+	for k in bulbs:
+		var p: Vector3 = on.call((k + 0.5) / bulbs)
+		b.add(_mesh(socket, rubber, Transform3D(Basis(), p + Vector3(0, -0.02, 0))), root)
+		var mi := _mesh(bulb, null, Transform3D(flip, p + Vector3(0, -0.04 - 0.017 * SIZE, 0)))  # the screw's top (model y -0.017) in the socket
+		for i in mats.size():
+			mi.set_surface_override_material(i, mats[i])
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		b.add(mi, root)
+		var l := OmniLight3D.new()  # its own pool on the wall 35 cm behind, scalloped with its neighbours'
+		l.position = p + Vector3(0, -0.04 - 0.06 * SIZE, 0)  # the glass's middle
+		l.light_color = Color(1.0, 0.6, 0.28)
+		l.light_energy = 0.2
+		l.omni_range = 1.0
+		l.omni_attenuation = 2.0  # bright close to the bulb, gone by a metre: a pool on the wall each, not a wash
+		l.light_volumetric_fog_energy = 0.3  # a small halo in the dust round each
+		l.shadow_enabled = false
+		b.add(l, root)
+	for t in [0.25, 0.75]:  # the string's dim warmth out over the corner
+		var l := OmniLight3D.new()
+		l.position = on.call(t) + Vector3(0, -0.3, -0.4)
+		l.light_color = Color(1.0, 0.6, 0.28)
+		l.light_energy = 0.12
+		l.omni_range = 3.5
+		l.light_volumetric_fog_energy = 0.0
+		l.shadow_enabled = false
+		b.add(l, root)
+
+
+## The festoons' bulb (Poly Haven lightbulb_01, standing screw down) and its lit materials, one per
+## surface, for set_surface_override_material: [mesh, materials]. hall_dressing's strings use it too.
+static func lit_bulb() -> Array:
+	var model: Node = (load(MODELS + "lightbulb_01/lightbulb_01_1k.gltf") as PackedScene).instantiate()
+	var bulb: Mesh = (model.find_children("*", "MeshInstance3D")[0] as MeshInstance3D).mesh
+	model.free()
+	var mats: Array[Material] = []
+	for i in bulb.get_surface_count():
+		var m := bulb.surface_get_material(i).duplicate() as StandardMaterial3D
+		m.emission_enabled = true
+		if m.resource_name.ends_with("glass"):  # clear glass catching the filament's warmth, faintly
+			m.emission = Color(1.0, 0.62, 0.3)
+			m.emission_energy_multiplier = 0.35
+		else:  # the filament (the emissive map) just over the glow threshold: a small bloom, no blowout
+			m.emission = Color(1.0, 0.58, 0.26)
+			m.emission_energy_multiplier = 18.0  # 2026-10-26, the user: "çok patlamış, daha loş" (was 80)
+		mats.append(m)
+	return [bulb, mats]
+
+
+## A crate by the bench with folded army blankets, an enamel mug and a thermos on them. Clear of the walkway (z 25.9).
+func _camp() -> void:
+	var crate := Vector3(13.4, 0, 26.45)
+	b._prop(root, MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf", crate, 0.1)
+	var top := 0.35  # wooden_crate_01's lid (an ammo box stands on one at +0.35)
+	for k in 2:
+		b.block(Vector3(0.42, 0.05, 0.3), crate + Vector3(0.0, top + 0.025 + k * 0.05, 0.0), cloth, root, Basis(Vector3.UP, 0.1 + k * 0.22))
+	var mug := CylinderMesh.new()
+	mug.top_radius = 0.042
+	mug.bottom_radius = 0.04
+	mug.height = 0.09
+	b.add(_mesh(mug, _flat(Color(0.86, 0.84, 0.77), 0.25), Transform3D(Basis(), crate + Vector3(-0.08, top + 0.1 + 0.045, -0.04))), root)
+	var flask := CylinderMesh.new()
+	flask.top_radius = 0.038
+	flask.bottom_radius = 0.042
+	flask.height = 0.28
+	b.add(_mesh(flask, paint["olive"], Transform3D(Basis(), crate + Vector3(0.11, top + 0.1 + 0.14, 0.06))), root)
+
+
+## The old scissor-arm U-boat lamp (tools/build_wall_lamp.py) on the wall over the bench's middle,
+## its plate over the bench's shelves, its arm drawn out so the shade hangs over the middle of the
+## top: a dim amber glow on the bench, its edge fading out over the floor, a faint cone in the dust
+## (2026-10-26, the user: "daha loş bir ışın"; it was a floodlight at 8).
+func _wall_lamp(at: Vector3) -> void:
+	var lamp: StaticBody3D = b._prop(root, "res://assets/props/wall_lamp/wall_lamp.glb", at, PI)  # its arm along -z, off the south wall
+	var bulb := Vector3(0.0, -0.111, 0.752)  # build_wall_lamp.py prints this
+	var spot := SpotLight3D.new()
+	spot.position = bulb + Vector3(0, -0.05, 0)  # under the shade's rim, clear of its own shadow
+	spot.basis = Basis.looking_at(Vector3(0, -1, 0.0), Vector3.FORWARD)  # straight down on the top's middle
+	spot.light_color = Color(1.0, 0.55, 0.22)  # old tungsten through a dusty shade: amber
+	spot.light_energy = 3.0
+	spot.spot_range = 3.6
+	spot.spot_attenuation = 0.8
+	spot.spot_angle = 68.0
+	spot.spot_angle_attenuation = 2.6  # bright in the middle, a long soft fall-off: no hard ring
+	spot.light_volumetric_fog_energy = 1.4
+	spot.shadow_enabled = true
+	spot.shadow_bias = 0.08
+	b.add(spot, lamp)
+	var glow := OmniLight3D.new()  # the shade's warm inside
+	glow.position = bulb
+	glow.light_color = Color(1.0, 0.58, 0.25)
+	glow.light_energy = 0.3
+	glow.omni_range = 0.7
+	b.add(glow, lamp)
 
 
 ## The crew's 1967 radio on the bench's lower shelf, its east end, turned toward the hall, playing
@@ -624,7 +792,7 @@ func _paper(lines: Array, at: Vector3, face: Basis, size: Vector2, roll: float, 
 func _poster(file: String, at: Vector3, face: Basis, height: float, roll: float) -> void:
 	var m := _aged_poster(file)
 	var tex: Texture2D = m.albedo_texture
-	_taped(m, at, face, Vector2(height * tex.get_width() / tex.get_height(), height), roll)
+	_taped(m, at, face, Vector2(height * tex.get_width() / tex.get_height(), height), roll, (file.hash() >> 3) % 4)  # its torn corner, as _aged_poster tears it
 
 
 ## A poster gone old on the wall: sun-faded toward the paper, yellowed, water stains, damp
@@ -680,14 +848,54 @@ func _aged_paper() -> StandardMaterial3D:
 	return m
 
 
-## A sheet of `m` with tape on its corners; returns its transform.
-func _taped(m: Material, at: Vector3, face: Basis, size: Vector2, roll: float) -> Transform3D:
+## A sheet of `m` held by two strips of duct tape across two corners, as in the user's reference:
+## each strip slanted across its corner, most of it on the print, its outer end on the wall, sized
+## to the sheet. `torn` is the corner the paper is torn away at (0 top left, 1 top right, 2 bottom
+## left, 3 bottom right; -1 none): tape never holds paper that isn't there, so a sheet torn at a
+## top corner is taped across the other diagonal. Returns its transform.
+func _taped(m: Material, at: Vector3, face: Basis, size: Vector2, roll: float, torn := -1) -> Transform3D:
 	var xf := Transform3D(face * Basis(Vector3.BACK, roll), at)
 	b.add(_sheet(size, m, xf), root)
-	for c in [Vector2(-1, 1), Vector2(1, 1), Vector2(-1, -1), Vector2(1, -1)]:  # tape
-		b.add(_sheet(Vector2(0.09, 0.035), _flat(Color(0.85, 0.82, 0.7, 0.85), 0.6),
-			xf * Transform3D(Basis(Vector3.BACK, c.x * c.y * 0.6), Vector3(c.x * size.x * 0.46, c.y * size.y * 0.46, 0.002))), root)
+	var r := RandomNumberGenerator.new()  # its own: the shared rng would move every prop after it
+	r.seed = hash(at)
+	var corners: Array[Vector2] = [Vector2(-1, 1), Vector2(1, 1)]  # x right, y up
+	if torn == 0:
+		corners = [Vector2(1, 1), Vector2(-1, -1)]
+	elif torn == 1:
+		corners = [Vector2(-1, 1), Vector2(1, -1)]
+	for c in corners:
+		var l := clampf(size.x * 0.3, 0.09, 0.22) * r.randf_range(0.9, 1.1)
+		b.add(_sheet(Vector2(l, l * 0.3), _tape_mat(r.randi()),
+			xf * Transform3D(Basis(Vector3.BACK, -c.x * c.y * r.randf_range(0.6, 0.85)),
+				Vector3(c.x * (size.x * 0.5 - l * 0.22), c.y * (size.y * 0.5 - l * 0.22), 0.002))), root)
 	return xf
+
+
+## Worn grey duct tape, three strips: the cloth weave showing, scuffed and dirty, the ends torn
+## off in a ragged zigzag.
+func _tape_mat(i: int) -> Material:
+	if _tapes.is_empty():
+		for k in 3:
+			var noise := FastNoiseLite.new()
+			noise.seed = 40 + k
+			noise.frequency = 0.07
+			var tex: Texture2D = b._decal_tex("duct_tape_%d" % k, 128, 40, func(img: Image) -> void:
+				for y in 40:
+					for x in 128:
+						var n := noise.get_noise_2d(x, y)
+						var zig := absf(fposmod(y * (1.3 + 0.2 * k), 6.0) - 3.0)  # the tear's teeth
+						var tear := 3.0 + zig + 3.0 * absf(noise.get_noise_2d(500.0, y * 3.0))
+						var weave := 0.06 * float((x + y) % 3 == 0) + 0.05 * float(y % 4 == 0)
+						var c := Color(0.34, 0.36, 0.4).darkened(0.05 + 0.18 * n + weave).lightened(0.12 * maxf(0.0, -n - 0.3))
+						var a := 0.0 if x < tear or x > 127.0 - tear else 0.96
+						img.set_pixel(x, y, Color(c, a)))
+			var m := StandardMaterial3D.new()
+			m.albedo_texture = tex
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.roughness = 0.8
+			m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			_tapes.append(m)
+	return _tapes[i % 3]
 
 
 ## The font size that fits `lines` of stencil inside `area` (m) at _range_label's pixel size.

@@ -37,7 +37,11 @@ var _star_t := 0.0
 
 func _initialize() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
-	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets; the game starts with one dummy
+	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets
+	var first: Node3D = load("res://scenes/dummy.tscn").instantiate()  # where the game's first dummy used to stand; now the player places it
+	first.name = "Dummy"
+	first.transform = str_to_var("Transform3D(-3.6199901e-06, 0, -1, 0, 1, 0, 1, 0, -3.6199901e-06, 23, 0, 0)")
+	main.add_child(first)
 	var crow: Node3D = load("res://scenes/scarecrow.tscn").instantiate()  # pays the client while it burns
 	crow.name = "Scarecrow"
 	crow.position = CROW_AT
@@ -168,7 +172,7 @@ func _client() -> void:
 	var me: Node3D = main.get_node("Player")
 	var spawns := root.get_tree().get_nodes_in_group("spawn")
 	if not await _until(func() -> bool: return gs.spawn_index == 1, "a spawn point from the host"): return
-	if not _ok(me.global_position.distance_to(spawns[1].global_position) < 0.5 and spawns[1].global_position.distance_to(spawns[0].global_position) > 2.0,
+	if not _ok(me.global_position.distance_to(spawns[1].global_position) < 0.5 and spawns[1].global_position.distance_to(spawns[0].global_position) > 1.2,
 			"we start on spawn 1, away from the host's"): return
 	# The host's body shows up as a character where the host stands.
 	var rp: Node = main.get_node("RemotePlayers")
@@ -178,6 +182,8 @@ func _client() -> void:
 	if not _ok(_holding(rp.character(1)) == "UZI", "the host's character holds the UZI (%s)" % _holding(rp.character(1))): return
 	if not _ok(gs.player().gun == 0 and not gs.request_fire(me.global_position, Vector3.FORWARD) and gs.request_reload() == 0, "bare fists: nothing to fire or load"): return
 	gs.request_select_gun(1)
+	if not _ok(gs.player().gun == 0, "the Deagle stays shut until it is taken off the table"): return
+	gs.request_take_pistol()  # takes it and draws it: two requests, in order
 	if not await _until(gs.synced, "answer to drawing the Deagle"): return
 	if not _ok(gs.player().gun == 1, "the host let us draw it"): return
 	# Walk up to the line to shoot from there; our pose follows us to the host.
@@ -224,8 +230,8 @@ func _client() -> void:
 	_log.append("client saw: peer %d at %v target %s gold %d combo %d" % [s[0], s[1], s[2], s[3], s[4]])
 	if not _ok(s[0] == gs.local_peer(), "the event names us as the shooter"): return
 	if not _ok(s[1].distance_to(mine.position) < 0.001 and s[2] == dummy, "host's hit = our own trace"): return
-	if not _ok(s[3] == 1 and s[4] == 1 and gs.gold == 1, "$1 paid, and it reached us"): return
-	if not _ok(is_equal_approx(gs.vault, gs.VAULT_SHARE), "the vault's share of it reached us too"): return
+	if not _ok(s[3] == 1 and s[4] == 1 and gs.gold == gs.START_GOLD + 1, "$1 paid, and it reached us"): return
+	if not _ok(is_equal_approx(gs.vault, gs.START_GOLD + gs.VAULT_SHARE), "the vault's share of it reached us too"): return
 	gs.player().cooldown = 0.0
 	if not _ok(not gs.request_fire(from, dir), "empty gun stays quiet"): return
 	# Friendly fire: up close to the host on its spawn, shoot it, then walk into it.

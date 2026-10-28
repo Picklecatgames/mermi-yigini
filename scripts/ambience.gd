@@ -57,7 +57,7 @@ func _ready() -> void:
 	# Flat, not 3D: a source right overhead swung hard left-right with every step under the lamp.
 	_hum = AudioStreamPlayer.new()
 	_hum.stream = _stream("fluorescent.ogg", true)
-	_hum.bus = &"Dunya"
+	_hum.bus = &"AmbiyansYanki"  # Dunya's reverb, under the ambience slider (settings.gd)
 	_hum.volume_linear = 0.0
 	_hum.autoplay = true
 	add_child(_hum)
@@ -155,6 +155,7 @@ func _player(file: String, db: float, looped: bool) -> AudioStreamPlayer3D:
 	if file:
 		p.stream = _stream(file, looped)
 	p.volume_db = db
+	p.bus = &"Ambiyans"  # else it lands on Efekt and the ambience slider can't reach it
 	p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED  # loudness set here, the source only gives direction
 	p.autoplay = looped
 	add_child(p)

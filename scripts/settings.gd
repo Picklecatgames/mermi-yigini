@@ -51,6 +51,17 @@ const DEFAULTS := {
 	"fov": 75, "head_bob": 100, "crosshair_color": 0, "crosshair_size": 100, "crosshair_dot": false, "show_fps": false,
 }
 
+# What a loaded number may be: the pause menu's own slider and choice ranges.
+const RANGES := {
+	"master_vol": Vector2(0, 100), "weapon_vol": Vector2(0, 100), "effect_vol": Vector2(0, 100),
+	"ambience_vol": Vector2(0, 100), "output": Vector2(0, 2), "rear_cue": Vector2(0, 100),
+	"dynamic_range": Vector2(0, 2), "preset": Vector2(0, 4), "window_mode": Vector2(0, 2),
+	"fps_limit": Vector2(0, 7), "render_scale": Vector2(50, 100), "upscaler": Vector2(0, 2),
+	"antialias": Vector2(0, 5), "shadows": Vector2(0, 3), "brightness": Vector2(50, 150),
+	"sensitivity": Vector2(0.1, 4.0), "ads_sensitivity": Vector2(20, 150), "fov": Vector2(60, 110),
+	"head_bob": Vector2(0, 100), "crosshair_color": Vector2(0, 4), "crosshair_size": Vector2(50, 200),
+}
+
 var values := {}
 var binds := {}  # action -> [kind, code]: "k" physical key, "m" mouse button; only the moved ones
 var save_path := PATH  # the checks point this elsewhere
@@ -232,6 +243,8 @@ func load_file() -> void:
 		var v: Variant = f.get_value("settings", k, values[k])
 		if typeof(v) == typeof(DEFAULTS[k]) or (DEFAULTS[k] is float and v is int):
 			values[k] = v  # a hand-edited file with a wrong type keeps the default
+			if RANGES.has(k):  # an old or edited file can't index past a list or go to +80 dB
+				values[k] = clampf(v, RANGES[k].x, RANGES[k].y) if DEFAULTS[k] is float else clampi(v, int(RANGES[k].x), int(RANGES[k].y))
 	for a in ACTIONS:
 		var p: Variant = f.get_value("binds", a[0]) if f.has_section_key("binds", a[0]) else null
 		if p is Array and p.size() == 2 and p[0] in ["k", "m"] and p[1] is int:

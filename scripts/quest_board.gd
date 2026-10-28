@@ -15,7 +15,6 @@ const SHOWN_AHEAD := 2  # main steps past the current one whose unlock is named
 const DONE_SHOWN := 6
 const TIERS := {"main": "Ana", "easy": "Kolay", "medium": "Orta", "hard": "Zor"}
 const STAMP := Color(0.62, 0.12, 0.08, 0.85)  # red rubber stamp
-const ARMY := Color(0.25, 0.36, 0.17)
 
 var _chain_count: Label
 var _chain_bar: Control
@@ -33,15 +32,19 @@ func _ready() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
 	UiStyle.fit_screen(root)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.7)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_child(dim)
+	root.add_child(UiStyle.backdrop())  # no frame: the board stands over the blurred workshop
 	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(center)
+	var fit := func() -> void:  # under 1200 px wide the whole board shrinks, as the workshop does
+		var s := root.size
+		var k := minf(1.0, minf(s.x * 0.94 / PANEL.x, s.y * 0.94 / PANEL.y))
+		center.scale = Vector2.ONE * k
+		center.position = Vector2.ZERO
+		center.size = s / k
+	get_viewport().size_changed.connect(fit)  # after fit_screen's, so root is already resized
+	fit.call()
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiStyle.panel_box(2, 24))
+	panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	panel.custom_minimum_size = PANEL
 	center.add_child(panel)
 	var row := HBoxContainer.new()
@@ -88,16 +91,20 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- layout ------------------------------------------------------------------------------------
 
+## The main chain on a sheet of steel of its own.
 func _build_chain() -> Control:
+	var plate := PanelContainer.new()
+	plate.add_theme_stylebox_override("panel", UiStyle.plate("chain", 0, Color(0.32, 0.33, 0.32), 26))
 	var col := VBoxContainer.new()
 	col.custom_minimum_size.x = CHAIN_W
 	col.add_theme_constant_override("separation", 6)
+	plate.add_child(col)
 	var head := HBoxContainer.new()
 	col.add_child(head)
-	var title := UiStyle.stencil("Ana görev", 30)
+	var title := UiStyle.display("Ana görev", 30, UiStyle.BOLD)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
-	_chain_count = UiStyle.stencil("", 30, UiStyle.ACCENT)
+	_chain_count = UiStyle.display("", 30, UiStyle.BOLD, UiStyle.ACCENT)
 	head.add_child(_chain_count)
 	_chain_bar = UiStyle.meter(CHAIN_W, UiStyle.ACCENT, 3.0)
 	col.add_child(_chain_bar)
@@ -107,19 +114,23 @@ func _build_chain() -> Control:
 	_chain = VBoxContainer.new()
 	_chain.add_theme_constant_override("separation", 3)
 	col.add_child(_chain)
-	return col
+	return plate
 
 
 func _build_board() -> Control:
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 14)
+	var cork := PanelContainer.new()  # the paper is pinned to cork
+	cork.add_theme_stylebox_override("panel", UiStyle.plate("cork", 0, Color(0.78, 0.78, 0.78), 26))
+	cork.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	col.add_child(cork)
 	_cards = GridContainer.new()
 	_cards.columns = 2
 	_cards.add_theme_constant_override("h_separation", 18)
 	_cards.add_theme_constant_override("v_separation", 16)
-	_cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	col.add_child(_cards)
+	_cards.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	cork.add_child(_cards)
 	_done = HBoxContainer.new()
 	_done.add_theme_constant_override("separation", 16)
 	col.add_child(_done)
@@ -129,24 +140,22 @@ func _build_board() -> Control:
 	_claim = Button.new()
 	_claim.focus_mode = Control.FOCUS_NONE
 	_claim.custom_minimum_size = Vector2(260, 46)
-	_claim.add_theme_font_override("font", UiStyle.STENCIL)
-	_claim.add_theme_font_size_override("font_size", 24)
-	for s in ["normal", "hover", "pressed"]:
-		var box := UiStyle.panel_box(2, 8, ARMY.lightened(0.12) if s == "hover" else ARMY)
-		box.border_color = ARMY.lightened(0.3)
-		_claim.add_theme_stylebox_override(s, box)
-	_claim.add_theme_stylebox_override("disabled", UiStyle.panel_box(2, 8, Color(0, 0, 0, 0.35)))
+	_claim.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD, 0, true))
+	_claim.add_theme_font_size_override("font_size", 26)
+	UiStyle.plate_button(_claim, "claim")
 	for s in ["font_color", "font_hover_color", "font_pressed_color"]:
 		_claim.add_theme_color_override(s, UiStyle.WHITE)
 	_claim.add_theme_color_override("font_disabled_color", Color(UiStyle.DIM, 0.5))
 	_claim.pressed.connect(func() -> void: GameState.request_claim_quests())
+	# Two equal fillers keep the claim under the cork's middle; the E closes it at the right end.
+	foot.add_child(_grow(Control.new()))
 	foot.add_child(_claim)
-	var fill := Control.new()
-	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	foot.add_child(fill)
+	var right := HBoxContainer.new()
+	right.alignment = BoxContainer.ALIGNMENT_END
+	foot.add_child(_grow(right))
 	var close_key := UiStyle.hint("E", "")
 	close_key.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	foot.add_child(close_key)
+	right.add_child(close_key)
 	return col
 
 

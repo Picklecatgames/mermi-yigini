@@ -21,9 +21,11 @@ func _initialize() -> void:
 		var right_gap := s.x - (gold.position.x + gold.size.x) * k
 		assert(absf(right_gap - hud.MARGIN.x * k) < 2.0, "gold sits on the right edge at %s (gap %.0f)" % [s, right_gap])
 		var heap: Control = hud._heap.get_parent()
-		var mid := (heap.position.x + heap.size.x * 0.5) * k
-		assert(absf(mid - s.x * 0.5) < 2.0, "heap is centred at %s (%.0f)" % [s, mid])
+		assert(absf(heap.position.x * k - hud.MARGIN.x * k) < 2.0, "heap sits on the left edge at %s (%.0f)" % [s, heap.position.x * k])
 		var quests: Control = hud._sheet  # the paper the quests are typed on
+		if not quests.visible:  # it waits for the warmup in the game; here only where it sits
+			quests.visible = true
+			await process_frame
 		var quests_gap: float = s.x - (quests.get_parent().position.x + quests.position.x + quests.size.x) * k
 		assert(absf(quests_gap - hud.MARGIN.x * k) < 2.0, "quests sit on the right edge at %s (gap %.0f)" % [s, quests_gap])
 		print("%s ok  scale %.2f" % [s, k])

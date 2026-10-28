@@ -15,7 +15,7 @@ func _initialize() -> void:
 	gs.vault = 5678.0
 	gs.gold_changed.emit(p.gold)
 	gs.vault_changed.emit(gs.vault)
-	gs.request_select_gun(1)
+	gs.request_take_pistol()  # off the desk at the spawn: drawn at once
 	var special: String = gs.SPECIALS.keys()[0]
 	p.specials.append_array([special, special])
 	gs.specials_changed.emit()  # the player's "found one" note comes up by itself
@@ -27,6 +27,10 @@ func _initialize() -> void:
 		if id != "":
 			gs.quest_add(gs.QUESTS[id].kind, gs.quest_target(id) if i == 1 else maxi(1, gs.quest_target(id) * (i + 1) / 7), [gs.QUESTS[id].get("with", "")])
 	await _shot("gorevler", 20)
+	var board: Node = main.find_child("BoardMenu", true, false)
+	board.open()
+	await _shot("pano", 10)
+	board.close()
 	Input.action_press("reload")  # held: the picker opens
 	await _shot("wheel", 60)
 	Input.action_release("reload")

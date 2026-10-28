@@ -34,8 +34,10 @@ func _input(event: InputEvent) -> void:
 
 func toggle() -> void:
 	visible = not visible
-	var upgrades := get_tree().root.find_child("UpgradeMenu", true, false)
-	var busy: bool = GameState.player().placing or (upgrades != null and upgrades.visible)
+	var busy: bool = GameState.player().placing
+	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu"]:  # as pause_menu.gd's _may_open
+		for n in get_tree().root.find_children(menu, "CanvasLayer", true, false):
+			busy = busy or (n as CanvasLayer).visible
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or busy else Input.MOUSE_MODE_CAPTURED
 
 

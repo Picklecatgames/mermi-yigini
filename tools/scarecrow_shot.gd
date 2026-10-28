@@ -30,7 +30,7 @@ func _initialize() -> void:
 	await _wait(0.3)
 	_save("side")
 	cam.look_at_from_position(mid + crow.global_basis.z * 3.2 + Vector3(0, 0.2, 0), mid)
-	gs.request_select_gun(1)
+	gs.request_take_pistol()  # off the desk at the spawn: drawn at once
 	gs.infinite_ammo = true
 	gs.player().loaded = 1
 	var from := Vector3(11, 1.6, crow.global_position.z)

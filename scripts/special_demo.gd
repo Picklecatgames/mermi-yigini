@@ -45,9 +45,9 @@ func _ready() -> void:
 	GameState.player(PEER).gun = 1
 	GameState.player_shot.connect(_on_player_shot)
 	refill()
-	# Top left, out of the HUD's symmetric middle (scripts/hud.gd).
+	# Top left, under the heap's count (scripts/hud.gd).
 	_hint = UiStyle.caption("Özel mermi denemesi\nR basılı tut: mermi seç\nSol tık: arkadaşına sık\nJ: arkadaşın sana sıksın\nN: doldur    Shift N: kapat")
-	_hint.position = Vector2(30, 24)
+	_hint.position = Vector2(36, 110)
 	me.get_node("HUD").add_child(_hint)
 
 

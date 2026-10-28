@@ -113,10 +113,11 @@ func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: 
 
 ## Host: cues that bring a player joining mid-game up to now (fallen plates drop there too).
 func join_cues() -> Array:
-	var cues := [[&"turn", _angle, _lurch]]
+	var cues := []
 	for i in PLATES:
 		if not _on[i]:
 			cues.append([&"off", i, Vector3.DOWN])
+	cues.append([&"turn", _angle, _lurch])  # last: each "off" adds a lurch, this sets the host's
 	return cues
 
 

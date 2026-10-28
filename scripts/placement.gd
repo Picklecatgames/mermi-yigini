@@ -526,7 +526,7 @@ func _build_hud() -> void:
 	var col := VBoxContainer.new()
 	col.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	col.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	col.offset_top = 112  # under the heap's line and the key count (hud.gd)
+	col.offset_top = 28  # hud.gd MARGIN; the heap's count sits in the top left now
 	col.add_theme_constant_override("separation", 2)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(col)
@@ -547,7 +547,7 @@ func _build_hud() -> void:
 	_bar.add_child(keys)
 	for k in [["place", ["Sol tık"], "Yerleştir"], ["remove", ["Sağ tık"], "Kaldır"], ["turn", ["R"], "Döndür"],
 			["pick", ["1-9"], "Seç"], ["all", ["F"], "Hepsini kur"], ["clear", ["X"], "Basılı tut: hepsini kaldır"],
-			["view", ["WASD", "Tekerlek"], "Kamera"], ["exit", ["B"], "Çık"]]:
+			["view", ["W", "A", "S", "D", "Tekerlek"], "Kamera"], ["exit", ["B"], "Çık"]]:
 		var row := UiStyle.hint(k[1], k[2])
 		keys.add_child(row)
 		_keys[k[0]] = row

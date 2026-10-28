@@ -6,6 +6,10 @@ extends SceneTree
 
 func _initialize() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
+	var first: Node3D = load("res://scenes/dummy.tscn").instantiate()  # where the game's first dummy used to stand; now the player places it
+	first.name = "Dummy"
+	first.transform = str_to_var("Transform3D(-3.6199901e-06, 0, -1, 0, 1, 0, 1, 0, -3.6199901e-06, 23, 0, 0)")
+	main.add_child(first)
 	root.add_child(main)
 	var gs: Node = root.get_node("GameState")
 	var player: CharacterBody3D = main.get_node("Player")

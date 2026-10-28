@@ -89,7 +89,12 @@ const THROWN_ID_START := 1 << 20
 const UPGRADES := {
 	"carry": {"values": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "costs": [6, 15, 30, 55, 90, 140, 210, 300, 420]},
 	# Up to the heavy pistol's 7-round magazine. First level in ~20 s of play, the last ~10 min in.
-	"magazine": {"values": [1, 2, 3, 4, 5, 6, 7], "costs": [8, 20, 45, 90, 160, 280]},
+	# bench: bought at the workshop bench (scripts/bench_menu.gd), not in the Q menu.
+	"magazine": {"values": [1, 2, 3, 4, 5, 6, 7], "costs": [8, 20, 45, 90, 160, 280], "bench": true},
+	# The Deagle's attachments, put on at the bench (2026-10-28, the user's call). The laser shows
+	# where the shot will land; the holo puts a red dot on its glass, zooms more and steadies the aim (viewmodel.gd holo_on).
+	"laser": {"values": [0, 1], "costs": [40], "bench": true},
+	"holo": {"values": [0, 1], "costs": [90], "bench": true},
 	# The highest a combo chain can reach, on every target. The last level is COMBO_MAX.
 	"combo_cap": {"values": [2, 5, 10, 15, 20], "costs": [15, 60, 180, 450]},
 	# Extra gold per hit on every target, in percent.
@@ -107,7 +112,8 @@ const UPGRADES := {
 ## How each one kicks is the first-person gun's (scripts/viewmodel.gd SETS).
 const GUNS := [
 	{"id": "fists", "name": "Yumruk", "ready": true, "interval": 0.42, "auto": false, "mag": 0},
-	{"id": "deagle", "name": "Ağır Tabanca", "ready": true, "interval": 0.42, "auto": false, "mag": 1},
+	# table: shut until the player takes it off the table at the spawn (request_take_pistol).
+	{"id": "deagle", "name": "Ağır Tabanca", "ready": true, "interval": 0.42, "auto": false, "mag": 1, "table": true},
 	{"id": "uzi", "name": "Mikro SMG", "ready": true, "interval": 0.125, "auto": true, "mag": 4},
 	{"id": "scorpion", "name": "Kompakt SMG", "ready": true, "interval": 0.1, "auto": true, "mag": 5},
 	# Final, from the 12th crate. Spins up before the first round and ramps up to this rate (the
@@ -190,25 +196,35 @@ const QUEST_SLOTS := ["main", "easy", "medium", "medium", "hard"]
 ## player), part (a blueprint piece for the team), perk (a mastery perk).
 ## Kinds: gold_earned, bullets_carried (off the heap), bullets_fired, hits, weak_hits, combo (the
 ## longest chain), crafted (bullets made into recipe rounds), bullets_melted, key_found, loaded
-## (rounds put in a magazine), board_claim (someone at the board pressed E).
+## (rounds put in a magazine), board_claim (someone at the board pressed E), gun_taken (the pistol
+## off the table at the spawn), bench_bought (an upgrade bought at the workshop bench), gear_bought,
+## gear_placed (a target bought for the team, put up).
 ## The demo's pool draft (docs/gorev_sistemi_plani.md, "Görev havuzu"); numbers from tools/quest_sim.gd.
 ## warmup: the first minutes (docs/ayrintilar.md "Pano = teslim yeri ve ısınma zinciri"), one thing
 ## each; the target doesn't grow with the team and the quest is done the moment it is reached, no
-## trip to the board, except t05, which is the trip. hint: the key and what to do, for the HUD.
+## trip to the board, except t06, which is the trip. hint: the key and what to do, for the HUD.
 ## Their unlocks open parts of the HUD; "board" also lets the four pool slots draw.
 # ponytail: crafted and bullets_melted have no hook until the bench and the melter exist (plan 6, 9).
 const QUESTS := {
-	"t01": {"tier": "main", "warmup": true, "name": "Yığından mermi al", "kind": "bullets_carried", "target": 1,
-		"unlock": "hud_ammo", "hint": ["E", "Yığına bak ve bas"], "reward": {}},  # the hand holds 1 at first
-	"t02": {"tier": "main", "warmup": true, "name": "Tabancayı doldur", "kind": "loaded", "target": 1,
-		"hint": ["1", "Tabancayı al, R ile doldur"], "reward": {}},
-	"t03": {"tier": "main", "warmup": true, "name": "Hedefi vur", "kind": "hits", "target": 1,
-		"unlock": "hud_gold", "hint": ["SOL TIK", "Korkuluğun arkasındaki hedefe ateş et"], "reward": {}},
-	"t04": {"tier": "main", "warmup": true, "name": "Kafasına vur", "kind": "weak_hits", "target": 1,
-		"hint": ["SAĞ TIK", "Nişan al: kafa iki kat öder"], "reward": {}},
-	"t05": {"tier": "main", "warmup": true, "name": "Panoda ödülünü al", "kind": "board_claim", "target": 1,
-		"unlock": "board", "hint": ["E", "Okun gösterdiği panoya git"], "reward": {"gold": 10}},
-	"m01": {"tier": "main", "name": "İlk kazanç", "kind": "gold_earned", "target": 6, "unlock": "workbench", "reward": {}},
+	"t00": {"tier": "main", "warmup": true, "name": "Tabancayı al", "kind": "gun_taken", "target": 1,
+		"unlock": "hud_gold", "hint": ["E", "Masadaki tabancayı al"], "reward": {}},
+	"t01": {"tier": "main", "warmup": true, "name": "Kukla al", "kind": "gear_bought", "target": 1,
+		"hint": ["Q", "Kukla al"], "reward": {}},  # the gold it starts with buys exactly one
+	"t02": {"tier": "main", "warmup": true, "name": "Kuklayı yerleştir", "kind": "gear_placed", "target": 1,
+		"hint": ["SOL TIK", "Kuklayı korkuluğun ötesine koy"], "reward": {}},
+	"t03": {"tier": "main", "warmup": true, "name": "Yığından mermi al", "kind": "bullets_carried", "target": 1,
+		"unlock": "hud_ammo", "hint": ["E", "Yığından bir mermi al"], "reward": {}},  # the hand holds 1 at first
+	"t04": {"tier": "main", "warmup": true, "name": "Tabancayı doldur", "kind": "loaded", "target": 1,
+		"hint": ["R", "Şarjörü doldur"], "reward": {}},
+	"t05": {"tier": "main", "warmup": true, "name": "Kuklaya sık", "kind": "hits", "target": 1,
+		"hint": ["SOL TIK", "Kuklaya ateş et"], "reward": {}},
+	"t06": {"tier": "main", "warmup": true, "name": "Görevlerine bak", "kind": "board_claim", "target": 1,
+		"unlock": "board", "hint": ["E", "Görevlerine panodan bak"], "reward": {"gold": 10}},
+	# The bench waits a couple of quests (2026-10-28, the user's call), then the first thing on it.
+	"m01": {"tier": "main", "name": "İlk kazanç", "kind": "gold_earned", "target": 6, "reward": {}},
+	"m01b": {"tier": "main", "name": "İsabet serisi", "kind": "hits", "target": 12, "unlock": "workbench", "reward": {}},
+	"m01c": {"tier": "main", "name": "Silahını geliştir", "kind": "bench_bought", "target": 1,
+		"hint": ["E", "Tezgâhta silahını geliştir"], "reward": {"gold": 10}},
 	"m02": {"tier": "main", "name": "Avuç avuç", "kind": "bullets_carried", "target": 19, "unlock": "bucket", "reward": {}},
 	"m03": {"tier": "main", "name": "Kova dolusu", "kind": "bullets_fired", "target": 130, "unlock": "uzi", "reward": {}},
 	"m04": {"tier": "main", "name": "Seri atış", "kind": "bullets_fired", "with": "uzi", "target": 420, "unlock": "blueprints", "reward": {}},
@@ -254,7 +270,7 @@ const QUESTS := {
 const QUEST_PEAK_KINDS := ["combo"]
 ## Kinds that don't grow with the team: a combo chain is one player's, the keys are only so many,
 ## and the melter is one for everybody (more hands don't melt faster).
-const QUEST_FIXED_KINDS := ["combo", "key_found", "bullets_melted"]
+const QUEST_FIXED_KINDS := ["combo", "key_found", "bullets_melted", "bench_bought"]
 ## Each player past the first adds this share of a quest's target (quest_target). A var only so
 ## tools/quest_sim.gd can sweep it.
 var quest_scale := 0.5  # tools/quest_sim.gd --sweep: four mid players finish the main chain in ~36 min
@@ -275,7 +291,7 @@ const REQUESTS := {
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
 	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
 	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
-	&"request_claim_quests": 0,
+	&"request_claim_quests": 0, &"request_take_pistol": 0,
 }
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
@@ -302,7 +318,7 @@ class PlayerState:
 	var carried := 0
 	var loaded := 0  # rounds in the gun
 	var gold := 0
-	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0}
+	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0, "laser": 0, "holo": 0}
 	var gold_rest := 0.0  # the fraction of a dollar the percent bonuses left over, paid on later hits
 	var cooldown := 0.0  # s; game time, so it follows Engine.time_scale like the gun does
 	var combo := 0  # body hits in the current chain
@@ -316,12 +332,16 @@ class PlayerState:
 	var specials: Array[String] = []  # SPECIALS ids in the pocket, one per round
 	var armed := ""  # the special the next shot fires; "" for a plain round
 	var infinite_ammo := false  # test mode (T)
+	var has_pistol := false  # took it off the table at the spawn (scripts/gun_table.gd)
 	var pos := Vector3.ZERO  # feet, from the last pose
 	var has_pose := false
 
 
+## What everyone starts with: one straw dummy's price, so the warmup's first buy is that (2026-10-28,
+## the user's call). Co-op buys gear from the vault, so it starts with as much.
+const START_GOLD := 20
 var pile: int = PILE_START
-var vault := 0.0
+var vault := float(START_GOLD)
 var gear_stock := {}  # GEAR id -> bought and not placed yet, shared by the team
 var placed := []      # [GEAR id, pos, yaw] per piece put up, in order
 var _players := {}  # peer id -> PlayerState
@@ -379,6 +399,7 @@ func player(peer := 0) -> PlayerState:
 		peer = local_peer()
 	if not _players.has(peer):
 		_players[peer] = PlayerState.new()
+		_players[peer].gold = START_GOLD
 	return _players[peer]
 
 
@@ -478,6 +499,8 @@ func _process(delta: float) -> void:
 func request_buy_upgrade(id: String, peer := 0) -> bool:
 	if not UPGRADES.has(id):  # ids will come from peers in co-op
 		return false
+	if UPGRADES[id].get("bench", false) and not unlocked("workbench"):
+		return false  # the bench menu hides these; the host checks too
 	var p := player(peer)
 	var level: int = p.levels[id]
 	var costs: Array = UPGRADES[id].costs
@@ -486,6 +509,8 @@ func request_buy_upgrade(id: String, peer := 0) -> bool:
 	_send(&"request_buy_upgrade", [id], peer)
 	p.gold -= costs[level]
 	p.levels[id] = level + 1
+	if UPGRADES[id].get("bench", false):
+		quest_add("bench_bought", 1)  # the host's; a client's call is dropped there
 	if _is_local(peer):
 		upgraded.emit(id, level + 1)
 		gold_changed.emit(p.gold)
@@ -501,7 +526,7 @@ func team_vault() -> bool:
 ## player pays from their own gold (2026-10-28, the user's call). No guess on a client: the vault is
 ## the host's, and two players may spend the same money; gear_changed says what came of it.
 func request_buy_gear(id: String, peer := 0) -> bool:
-	if not GEAR.has(id):
+	if not GEAR.has(id) or not gear_open(id):
 		return false
 	if _send(&"request_buy_gear", [id], peer):
 		return vault >= GEAR[id].cost
@@ -518,7 +543,19 @@ func request_buy_gear(id: String, peer := 0) -> bool:
 		_world(&"vault_changed", [vault])
 	gear_stock[id] = gear_stock.get(id, 0) + 1
 	_world(&"gear_changed", [gear_stock])
+	quest_add("gear_bought", 1)
 	return true
+
+
+## Whether piece `id` can be bought yet: through the warmup only the straw dummy, the rest show locked.
+func gear_open(id: String) -> bool:
+	return id == "dummy" or not warming()
+
+
+## The team is still in the warmup (GameState QUESTS t00-t06): parts of the game wait for it.
+func warming() -> bool:
+	var main: String = quest_board[0] if not quest_board.is_empty() else ""
+	return main != "" and QUESTS[main].get("warmup", false)
 
 
 ## Whether piece `id` from the stock may go up at `pos` (target area, room around it).
@@ -555,8 +592,8 @@ static func in_place_zone(pos: Vector3) -> bool:
 ## Puts piece `id` from the shared stock up at `pos`, turned `yaw`. The host checks the spot; two
 ## players dropping on one spot: the first wins, the second finds it taken (or the stock empty).
 func request_place_gear(id: String, pos: Vector3, yaw: float, peer := 0) -> bool:
-	if not GEAR.has(id):
-		return false
+	if not GEAR.has(id) or not pos.is_finite() or not is_finite(yaw) or absf(pos.y) > 2.0:
+		return false  # a peer's NaN passes the zone check; the range floor is flat
 	if _send(&"request_place_gear", [id, pos, yaw], peer):
 		return can_place(id, pos)  # no guess: the piece appears when the host's gear_placed comes
 	if not can_place(id, pos):
@@ -565,6 +602,7 @@ func request_place_gear(id: String, pos: Vector3, yaw: float, peer := 0) -> bool
 	placed.append([id, pos, yaw])
 	_world(&"gear_changed", [gear_stock])
 	_world(&"gear_placed", [placed.size() - 1, id, pos, yaw])
+	quest_add("gear_placed", 1)
 	return true
 
 
@@ -707,7 +745,8 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 	_world(&"pile_changed", [pile])
 	_set_carried(peer, p.carried + 1 - _roll_specials(peer, 1))
 	_world(&"loose_taken", [id])
-	quest_add("bullets_carried", 1)
+	if id < THROWN_ID_START:  # off the heap only: throwing and re-picking a hand would farm it
+		quest_add("bullets_carried", 1)
 	return 1
 
 
@@ -758,10 +797,24 @@ func request_select_gun(gun: int, peer := 0) -> void:
 	_world(&"gun_changed", [local_peer() if peer == 0 else peer, gun])
 
 
+## The pistol off the table at the spawn (scripts/gun_table.gd): drawn at once, its magazine empty.
+## Online the draw is a request of its own, after this one: the host has the pistol on record by then.
+func request_take_pistol(peer := 0) -> void:
+	var p := player(peer)
+	if p.has_pistol:
+		return
+	_send(&"request_take_pistol", [], peer)
+	p.has_pistol = true
+	quest_add("gun_taken", 1)
+	if peer == 0 and p.gun != 1:
+		request_select_gun(1)
+
+
 ## Whether GUNS[`gun`] can be drawn. A crate gun stays shut until its crate opens; crates are not
 ## in yet (yol haritası 13), so for now only test mode (T, debug builds) opens them.
 func gun_open(gun: int, peer := 0) -> bool:
-	return GUNS[gun].ready and (not GUNS[gun].has("crate") or player(peer).infinite_ammo)
+	var p := player(peer)
+	return GUNS[gun].ready and (not GUNS[gun].has("crate") or p.infinite_ammo) and (not GUNS[gun].has("table") or p.has_pistol or p.infinite_ammo)
 
 
 ## Test mode (T): the gun never runs dry, for trying the feel and effects. Per player.
@@ -1005,6 +1058,7 @@ func quest_add(kind: String, amount: int, tags: Array = []) -> void:
 				warm.append(id)
 			else:
 				quests_ready.append(id)
+				moved = true  # already at a target a smaller team lowered: the board must hear it
 	for id: String in warm:  # after the loop: the next one comes in fresh, not counting this
 		_finish_quest(id)
 	if moved:
@@ -1221,12 +1275,12 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	callv(method, args + [peer])
 	var p := player(peer)
-	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed)
+	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol)
 
 
 ## Client: the host's word on our own state, after request `seq`.
 @rpc("authority", "call_remote", "reliable")
-func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int, specials: Array, armed: String) -> void:
+func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int, specials: Array, armed: String, pistol: bool) -> void:
 	_acked_seq = seq
 	if seq != _sent_seq:
 		return  # newer requests are still on their way; their answer will have it all
@@ -1234,6 +1288,7 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 	var p := player()
 	p.keys.assign(keys)
 	p.infinite_ammo = infinite
+	p.has_pistol = pistol
 	if p.specials != specials or p.armed != armed:
 		p.specials.assign(specials)  # the host rolls them: a client only learns of them here
 		p.armed = armed

@@ -22,6 +22,7 @@ func _initialize() -> void:
 	vm.fire()
 	await _wait(0.25)
 	await _save("fists_punch")
+	gs.player().has_pistol = true  # as if taken off the desk at the spawn
 	for g in range(1, gs.GUNS.size()):
 		if not gs.GUNS[g].ready:
 			continue

@@ -56,5 +56,24 @@ func _initialize() -> void:
 		vm._kick = 0.0
 		vm._kick_vel = 0.0
 		ok = ok and good
+	# With the holo on the Deagle the glass's centre sits on the view axis instead, as far from the
+	# eye as the irons put the gun, and its reticle is on.
+	var deagle: Dictionary = vm.SETS.deagle
+	gs.player().levels.holo = 1
+	vm._want_gun = 1
+	vm._swap()
+	vm.transform = Transform3D(Basis(vm._ads_rot), vm._ads_pos)
+	var sk2: Skeleton3D = vm._skel
+	var bone2 := sk2.find_bone(deagle.bone)
+	var w: Vector3 = vm.Attachments.HOLO_WINDOW
+	var glass := cam.to_local(sk2.global_transform * sk2.get_bone_global_pose(bone2) * w)
+	var reticle: Node3D = vm._attach.get_node_or_null("holo/reticle")
+	var eye: float = float(deagle.ads_eye) + w.z - deagle.rear.z
+	print("holo: glass %s (eye %.3f), reticle %s" % [glass, eye, reticle != null and reticle.is_visible_in_tree()])
+	var holo_good: bool = vm.holo_on and absf(glass.x) < 1e-4 and absf(glass.y) < 1e-4 and absf(glass.z + eye) < 1e-4 		and reticle != null and reticle.is_visible_in_tree()
+	gs.player().levels.holo = 0
+	vm._fit_attachments()
+	holo_good = holo_good and not vm.holo_on and vm._ads_pos == vm._iron_sights[0]
+	ok = ok and holo_good
 	print("ADS_OK" if ok else "ADS_FAIL")
 	quit(0 if ok else 1)

@@ -2,7 +2,7 @@ extends StaticBody3D
 ## The workshop bench (range_dressing.gd _workshop) with its top cleared: upgrades are shown
 ## happening there (2026-10-24, the user's call). Left on it: the blueprints and the Tesla coil in
 ## the back right corner. Done at load because parts freed inside the glb instance at build time
-## aren't saved in arena.tscn. Shelves and the low-deck drill press stay.
+## aren't saved in arena.tscn. The shelves stay; the drill press goes (it glitched, 2026-10-25).
 
 ## The wooden vise on the top, part of the desk's own mesh (glb space): its triangles are dropped.
 const VISE := AABB(Vector3(-0.37, 0.985, -0.16), Vector3(0.74, 0.3, 0.73))
@@ -23,7 +23,8 @@ const BELONGS := ["radio", "wall_lamp"]  # the bench's own, wherever they stand 
 
 
 func _ready() -> void:
-	# The first main quest opens the bench (GameState QUESTS m01), the corner coming on with it; the
+	add_to_group("workbench")  # scripts/bench_menu.gd finds it
+	# A main quest opens the bench (GameState QUESTS m01b), the corner coming on with it; the
 	# hopper waits for the melter.
 	var corner := []
 	var hopper := []
@@ -48,7 +49,7 @@ func _ready() -> void:
 			_drop_vise(n)
 		elif n.name == "P_tesla_coil":
 			n.position = Vector3(0.33, 0.98, -0.25)  # back right seen from the hall, inside the shelf post
-		elif n.name.begins_with("Wire") or (not n.name.begins_with("Paper_blue")
+		elif n.name == "P_drill_press_01" or n.name.begins_with("Wire") or (not n.name.begins_with("Paper_blue")
 				and n.position.y > 0.9 and n.position.y < 1.1):  # the top is at 0.98 in the glb
 			n.queue_free()
 

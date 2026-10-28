@@ -13,6 +13,7 @@ const MAG_OUT := preload("res://assets/weapons/sounds/mag_out.wav")
 const MAG_IN := preload("res://assets/weapons/sounds/mag_enter.wav")
 const MAG_SEAT := preload("res://assets/weapons/sounds/mag_seat.wav")
 const SLIDE := preload("res://assets/weapons/sounds/slide_release.wav")
+const SAFETY := preload("res://assets/weapons/sounds/safety.wav")
 ## Our own gun is heard in our head, not placed in the hall: a 3D source this close to the ear
 ## flipped left and right with every sway and lagged behind a turn of the head. Its sounds play
 ## flat on this bus, panned to the right where the gun is held, with a touch of room that varies
@@ -49,7 +50,7 @@ const SETS := {
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
 		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0,
 		"shot": preload("res://assets/weapons/sounds/deagle_shot.tres"),
-		"cues": {"reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
+		"cues": {"draw": [[0.85, SAFETY]], "reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
 			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
 	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
 		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 1.6,
@@ -72,6 +73,7 @@ const SETS := {
 		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
+const Attachments := preload("res://scripts/gun_attachments.gd")
 ## A spinning gun is one sound, not one per round: barrels coming up, a firing loop while rounds
 ## leave, the run-down when they stop (all cut from one recording).
 const SPIN_START := preload("res://assets/weapons/sounds/minigun_start.wav")
@@ -133,12 +135,14 @@ const SPREAD_MOVE := 0.026    # rad cone half-angle at walking speed (5 m/s), hi
 const SPREAD_AIR := 0.05      # rad in the air
 const STEADY_TIME := 0.2      # s for the hands to settle once the feet stop
 const UNSTEADY_TIME := 0.05   # s for moving to throw the aim off
+const LASER_HIP := 0.6        # share of the hip spread left with the laser on: it is for shooting from the hip
 const MOVE_ADS := 0.4         # share of the movement spread left when aimed
 const SPREAD_RECOVER := 0.015 # rad/s
 const SPREAD_ADS := 0.15      # share left when aimed
 const BREATH := Vector2(0.0008, 0.0012)  # m; the model's own idle clip bobs too fast
 const ADS_TIME := 0.18     # s to bring the sights up (and to drop them)
 const ADS_STEADY := 0.2    # share of sway, bob and breath left when aimed
+const HOLO_STEADY := 0.1   # the same through the holo sight: the ring holds steadier than a front post
 const ADS_RECOIL := 0.8    # share of the gun's kick when aimed (braced with both hands)
 const ADS_CLIPS := ["", "fire"]  # rest pose only: reloads and the draw drop the sights
 ## Placing gear the gun goes away: it dips around the wrist and sinks out of view, then hides;
@@ -187,6 +191,10 @@ var aim := 0.0  # 0 hip, 1 sights on the screen centre (eased); the player zooms
 var _aim_lin := 0.0
 var _ads_pos: Vector3  # where the gun sits, and how it is turned, with the sights on the view axis
 var _ads_rot: Quaternion
+var laser_on := false  # the laser rides the gun in hand: tighter from the hip
+var holo_on := false  # the holo sight rides the gun in hand: aimed through its glass (player.gd zooms more)
+var _iron_sights := [Vector3.ZERO, Quaternion.IDENTITY]  # _ads_pos and _ads_rot over the iron sights
+var _holo_sights := [Vector3.ZERO, Quaternion.IDENTITY]  # the same through the holo's glass
 var _base: Vector3  # sway + bob + breath, smoothed, before the recoil layer
 var _push := 0.0  # where the hand is shoved to; springs back to rest
 var _push_vel := 0.0
@@ -292,6 +300,9 @@ func _ready() -> void:
 	_skel.add_child(_attach)
 	_attach.add_child(_muzzle)
 	_attach.add_child(_port)
+	GameState.upgraded.connect(func(id: String, _level: int) -> void:
+		if id in ["laser", "holo"]:
+			_fit_attachments())
 	_wisp.reparent.call_deferred(get_parent(), false)  # the camera; still setting up its children
 	load_clips(_anim, _skel)
 	for g: Dictionary in GameState.GUNS:
@@ -418,7 +429,28 @@ func _swap() -> void:
 	_anim.seek(0.0, true)
 	_anim.advance(0.0)  # seek alone does not pose the rig before the first frame
 	_measure_sights()
+	_fit_attachments()
 	_play("draw")
+
+
+## The laser and the holo sight bought at the bench (GameState UPGRADES) ride the Deagle; made the
+## first time they are needed. The laser's beam is drawn here, its dot in the world (player.gd).
+func _fit_attachments() -> void:
+	for id: String in ["laser", "holo"]:
+		var on: bool = gun >= 0 and GameState.GUNS[gun].id == "deagle" and GameState.upgrade_value(id) > 0
+		var part := _attach.get_node_or_null(id) as Node3D
+		if on and part == null:
+			part = Attachments.make(id)
+			part.add_child(Attachments.beam() if id == "laser" else Attachments.reticle())
+			_attach.add_child(part)
+			for v: VisualInstance3D in part.find_children("*", "VisualInstance3D", true, false):
+				v.layers = 1 << (LAYER - 1)
+				(v as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if part:
+			part.visible = on
+	laser_on = gun >= 0 and GameState.GUNS[gun].id == "deagle" and GameState.upgrade_value("laser") > 0
+	holo_on = gun >= 0 and GameState.GUNS[gun].id == "deagle" and GameState.upgrade_value("holo") > 0
+	_use_sights()
 
 
 ## Where `at` (in the gun bone's space) is now, in our own space.
@@ -430,19 +462,36 @@ func _on_gun(at: Vector3) -> Vector3:
 ## Aiming moves and turns the whole rig so the line from the rear sight over the front one runs down
 ## the view axis, level: the front sight then sits exactly on the screen centre, where shots land.
 ## Sets with their own aim clips (aim_clips) and the fists leave the rig where it is.
+## Both lines are measured here, at Idle: the holo's runs through its glass at the irons' slope,
+## the eye as far from the gun as over the irons (the rig only drops by the glass's height).
 func _measure_sights() -> void:
 	_pivot = _on_gun(Vector3.ZERO)
-	_ads_pos = Vector3.ZERO
-	_ads_rot = Quaternion.IDENTITY
-	if not _kit.has("rear"):
-		return
-	var rear := _on_gun(_kit.rear)
-	var front := _on_gun(_kit.front)
-	var up := _on_gun(_kit.rear + Vector3.UP) - rear
+	_iron_sights = [Vector3.ZERO, Quaternion.IDENTITY]
+	_holo_sights = _iron_sights
+	if _kit.has("rear"):
+		var eye := float(_kit.ads_eye)
+		_iron_sights = _sight_line(_kit.rear, _kit.front, eye)
+		var w := Attachments.HOLO_WINDOW
+		_holo_sights = _sight_line(w, w + _kit.front - _kit.rear, eye + w.z - _kit.rear.z)
+	_use_sights()
+
+
+## [_ads_pos, _ads_rot] that put the line from `rear_at` over `front_at` (gun space) down the view
+## axis, `eye` m behind `rear_at`.
+func _sight_line(rear_at: Vector3, front_at: Vector3, eye: float) -> Array:
+	var rear := _on_gun(rear_at)
+	var front := _on_gun(front_at)
+	var up := _on_gun(rear_at + Vector3.UP) - rear
 	var z := (rear - front).normalized()  # the gun's own back
 	var x := up.cross(z).normalized()
-	_ads_rot = Basis(x, z.cross(x), z).get_rotation_quaternion().inverse()
-	_ads_pos = Vector3(0.0, 0.0, -float(_kit.ads_eye)) - _ads_rot * rear
+	var rot := Basis(x, z.cross(x), z).get_rotation_quaternion().inverse()
+	return [Vector3(0.0, 0.0, -eye) - rot * rear, rot]
+
+
+func _use_sights() -> void:
+	var s := _holo_sights if holo_on else _iron_sights
+	_ads_pos = s[0]
+	_ads_rot = s[1]
 
 
 ## Called by the player once it is ready: shells and smoke live in its level, on layer 1.
@@ -530,7 +579,8 @@ func _process(delta: float) -> void:
 			_want_fire = FIRE_BUFFER
 		# With special rounds in the pocket R is a tap or a hold: the tap reloads when let go, the
 		# hold opens the ammo wheel (player.gd, ammo_wheel.gd) and loads what it picks instead.
-		elif GameState.player().specials.is_empty() and Input.is_action_just_pressed("reload"):
+		# Its own `if`: an auto gun held on fire used to swallow R.
+		if GameState.player().specials.is_empty() and Input.is_action_just_pressed("reload"):
 			_want_reload = RELOAD_BUFFER
 		elif Input.is_action_just_released("reload"):
 			if not wheel_used and not GameState.player().specials.is_empty():
@@ -862,7 +912,8 @@ func _sway_and_bob(delta: float) -> void:
 			_bob += delta * speed * 1.4
 			bob = Vector3(sin(_bob) * BOB_AMP.x, -absf(cos(_bob)) * BOB_AMP.y, 0.0) * minf(speed / 5.0, 1.6)
 			rot_target.z += sin(_bob) * BOB_ROLL * minf(speed / 5.0, 1.6)
-	_base = _base.lerp((_sway + bob + breath) * lerpf(1.0, ADS_STEADY, aim), 1.0 - exp(-delta * 10.0))
+	var ads_steady := HOLO_STEADY if holo_on else ADS_STEADY
+	_base = _base.lerp((_sway + bob + breath) * lerpf(1.0, ads_steady, aim), 1.0 - exp(-delta * 10.0))
 	var w := _kick_omega()
 	var dt := minf(delta, 0.1)  # a long hitch must not fling the gun
 	var steps := maxi(4, ceili(dt * RECOIL_SNAP / 0.25))  # explicit steps stay stable while h * w is small
@@ -876,7 +927,7 @@ func _sway_and_bob(delta: float) -> void:
 		_jelly_rot += _jelly_rot_vel * h
 		_jelly_pos_vel += (-JELLY_OMEGA * JELLY_OMEGA * (_jelly_pos - pos_target) - 2.0 * JELLY_DAMPING * JELLY_OMEGA * _jelly_pos_vel) * h
 		_jelly_pos += _jelly_pos_vel * h
-	var steady := lerpf(1.0, ADS_STEADY, aim)
+	var steady := lerpf(1.0, ads_steady, aim)
 	# Aimed, the shot goes where the sights point; from the hip only a share of the sway.
 	aim_offset = Vector2(_jelly_rot.y, _jelly_rot.x) * steady * lerpf(AIM_FOLLOW, 1.0, aim)
 	_bloom = maxf(_bloom - SPREAD_RECOVER * dt, 0.0)
@@ -885,6 +936,8 @@ func _sway_and_bob(delta: float) -> void:
 		move = SPREAD_AIR if not body.is_on_floor() else SPREAD_MOVE * minf(Vector2(body.velocity.x, body.velocity.z).length() / 5.0, 1.6)
 	_unsteady = lerpf(_unsteady, move, 1.0 - exp(-dt / (UNSTEADY_TIME if move > _unsteady else STEADY_TIME / 3.0)))
 	spread = _unsteady * float(_kit.get("move", 1.0)) * lerpf(1.0, MOVE_ADS, aim) + _bloom * lerpf(1.0, SPREAD_ADS, aim)
+	if laser_on:
+		spread *= lerpf(LASER_HIP, 1.0, aim)
 	var jb := Basis.from_euler(_jelly_rot * steady)
 	var jelly := Transform3D(jb, _pivot - jb * _pivot + _jelly_pos * steady)
 	var kick := _kick * lerpf(1.0, ADS_RECOIL, aim)

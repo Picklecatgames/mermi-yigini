@@ -49,6 +49,7 @@ const TARGETS := [["popper", 3], ["steel_rack", 4], ["plate_rack", 7], ["gold_du
 const KEY_AT := [400, 1200, 2500, 5000, 8000, 60000, 150000]
 const DUMB_ORDER := ["gold_bonus", "range_bonus", "combo_cap", "magazine", "carry"]
 const BEHIND := 1.0  # m behind the railing they stand
+const PLACE_TIME := 12.0  # s: the heap's line, Q, buying the dummy and walking it into place
 ## Targets: main chain done in these minutes for one mid player, and at least this for four;
 ## no wait between two unlocks longer than this.
 const SOLO := Vector2(55, 65)
@@ -228,6 +229,13 @@ func _run(n: int, skill: String, rng_seed: int) -> Dictionary:
 ## What bot `b` does next, at game time `t`; returns how long it takes (s).
 func _act(b: Bot, t: float, base: int, stats: Dictionary, melt: Callable) -> float:
 	var p: Object = gs.player(b.peer)
+	if not p.has_pistol:  # off the desk at the spawn first
+		gs.request_take_pistol(b.peer)
+		return RELOAD
+	if gs.quest_board[0] != "" and gs.QUESTS[gs.quest_board[0]].kind == "gear_bought":  # the warmup's dummy: Q, buy, put up
+		gs.request_buy_gear("dummy", b.peer)
+		gs.quest_add("gear_placed", 1)
+		return PLACE_TIME
 	var guns: Array = GUN_STEPS.filter(func(g: Array) -> bool: return g[1] == "" or gs.unlocked(g[1]))
 	var gun: Array = guns[-1]
 	for g: Array in guns:  # a pinned quest asks for this gun: take it, as a player would
@@ -245,10 +253,10 @@ func _act(b: Bot, t: float, base: int, stats: Dictionary, melt: Callable) -> flo
 		if p.loaded < r.cost:  # the last few: as plain rounds
 			r = RECIPES[0]
 		return _shoot(b, p, r, gun, t, base, stats)
-	# Empty: off to the heap, by the bench (upgrades) and, once it's open, the melter.
+	# Empty: off to the heap, buying upgrades on the way (Q's any time, the bench's once it's open)
+	# and, once it's open, by the melter.
 	var took := float(b.skill.trip)
-	if gs.unlocked("workbench"):
-		_buy(b)
+	_buy(b)
 	var cap: int = gs.carry_capacity_of(b.peer)
 	for tool: Array in TOOLS:
 		if gs.unlocked(tool[0]):
@@ -339,7 +347,12 @@ func _buy(b: Bot) -> void:
 		var p: Object = gs.player(b.peer)
 		var pick := ""
 		var price := 1 << 30
-		for id: String in (gs.UPGRADES.keys() if b.skill.smart else DUMB_ORDER):
+		var order: Array = gs.UPGRADES.keys() if b.skill.smart else DUMB_ORDER
+		if gs.quest_board.any(func(id: String) -> bool: return id != "" and gs.QUESTS[id].kind == "bench_bought"):
+			order = ["magazine"] + order  # the quest's hint sends even a careless player to the bench
+		for id: String in order:
+			if gs.UPGRADES[id].get("bench", false) and not gs.unlocked("workbench"):
+				continue
 			var lv: int = p.levels[id]
 			var costs: Array = gs.UPGRADES[id].costs
 			if lv < costs.size() and costs[lv] < price:

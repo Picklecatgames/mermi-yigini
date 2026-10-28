@@ -60,8 +60,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.keycode == KEY_F7 and not online:
 		host()
-	elif event.keycode == KEY_F8 and not online:
-		join()
+	elif event.keycode == KEY_F8 and not online and not multiplayer.multiplayer_peer is ENetMultiplayerPeer:
+		join()  # not again while still connecting: the first peer would be left half open
 
 
 ## Seconds a message from the host takes to get here (half the round trip); 0 when not a client.
