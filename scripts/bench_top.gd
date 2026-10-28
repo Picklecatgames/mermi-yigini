@@ -19,6 +19,7 @@ const CORNER_X := Vector2(9.2, 14.0)
 const WALL_Z := 27.9
 const FLOOR_Z := 26.2
 const HOPPER_REACH := 0.8  # m round the hopper: its glow and sticker go with it
+const BELONGS := ["radio", "wall_lamp"]  # the bench's own, wherever they stand (their glb's root)
 
 
 func _ready() -> void:
@@ -52,7 +53,9 @@ func _ready() -> void:
 			n.queue_free()
 
 
-func _in_corner(_n: Node3D, at: Vector3) -> bool:
+func _in_corner(n: Node3D, at: Vector3) -> bool:
+	if n.get_child_count() > 0 and String(n.get_child(0).name) in BELONGS:
+		return true  # by name: the arena build may move them
 	if at.x < CORNER_X.x or at.x > CORNER_X.y:
 		return false
 	return at.z >= WALL_Z or (at.z >= FLOOR_Z and at.y < 1.0)
