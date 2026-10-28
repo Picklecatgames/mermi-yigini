@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Balance panel (yol haritası 11), debug builds only: F9 or P opens it. Game speed, money for yourself
-## or the vault, the heap set to a milestone, the Deagle's laser and holo on or off, and what the last game minute earned, so a stage
+## or the vault, the heap set to a milestone, the Deagle's laser on or off, and what the last game minute earned, so a stage
 ## of the hour can be timed in a few real minutes. Net.gd adds it.
 ##
 ## Co-op: only the host (or a solo player) may use it; speed only solo, since a client's clock
@@ -125,10 +125,9 @@ func _build() -> void:
 	row = _row(box, "Yığın")
 	for n: int in PILES:
 		_host_only.append(_button(row, _short(n), set_pile.bind(n)))
-	row = _row(box, "Deagle")  # attachments on and off for free, to try them without the bench
+	row = _row(box, "Deagle")  # the laser on and off for free, to try them without the bench
 	_button(row, "Tabanca", GameState.request_take_pistol)
-	for id in ["laser", "holo"]:
-		_button(row, "Lazer" if id == "laser" else "Holo", GameState.request_debug_level_up.bind(id))
+	_button(row, "Lazer", GameState.request_debug_level_up.bind("laser"))
 	row = _row(box, "Saat")
 	_button(row, "Sıfırla", reset_clock)
 

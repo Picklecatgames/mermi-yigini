@@ -91,10 +91,9 @@ const UPGRADES := {
 	# Up to the heavy pistol's 7-round magazine. First level in ~20 s of play, the last ~10 min in.
 	# bench: bought at the workshop bench (scripts/bench_menu.gd), not in the Q menu.
 	"magazine": {"values": [1, 2, 3, 4, 5, 6, 7], "costs": [8, 20, 45, 90, 160, 280], "bench": true},
-	# The Deagle's attachments, put on at the bench (2026-10-28, the user's call). The laser shows
-	# where the shot will land; the holo puts a red dot on its glass, zooms more and steadies the aim (viewmodel.gd holo_on).
+	# The Deagle's attachment, put on at the bench (2026-10-28, the user's call): the laser shows
+	# where the shot will land and weak spots pay LASER_WEAK_MULT on it.
 	"laser": {"values": [0, 1], "costs": [40], "bench": true},
-	"holo": {"values": [0, 1], "costs": [90], "bench": true},
 	# The highest a combo chain can reach, on every target. The last level is COMBO_MAX.
 	"combo_cap": {"values": [2, 5, 10, 15, 20], "costs": [15, 60, 180, 450]},
 	# Extra gold per hit on every target, in percent.
@@ -124,6 +123,7 @@ const GUNS := [
 ## A weak spot pays this many times over: a collision shape in group "weak_spot" (the dummy's
 ## head), or where the target's `is_weak(at)` says so (a popper's round head).
 const WEAK_MULT := 2
+const LASER_WEAK_MULT := 3  # the same with the laser on the Deagle in hand: it puts the dot on the head
 ## Combo: each paying hit within this long of the last one adds 1 to the chain, and the chain is
 ## the multiplier (x3 pays 3 times over), up to the player's "combo_cap" upgrade. Weak spot hits and body hits keep
 ## separate chains, so a chain built on easy body shots never pays out on a head. A gap this long
@@ -318,7 +318,7 @@ class PlayerState:
 	var carried := 0
 	var loaded := 0  # rounds in the gun
 	var gold := 0
-	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0, "laser": 0, "holo": 0}
+	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0, "laser": 0}
 	var gold_rest := 0.0  # the fraction of a dollar the percent bonuses left over, paid on later hits
 	var cooldown := 0.0  # s; game time, so it follows Engine.time_scale like the gun does
 	var combo := 0  # body hits in the current chain
@@ -942,13 +942,14 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	return true
 
 
-## What a paying hit gives `peer`: the target's `base`, twice on a weak spot, times the chain, with
+## What a paying hit gives `peer`: the target's `base`, twice on a weak spot (three times with the laser), times the chain, with
 ## the percent upgrades for standing `behind` m back of the railing. The cents left over wait for
 ## the next hit. tools/quest_sim.gd pays its bots with it too.
 func hit_pay(peer: int, base: int, weak: bool, chain: int, behind: float) -> int:
 	var p := player(peer)
 	var bonus := upgrade_value("gold_bonus", peer) + roundi(upgrade_value("range_bonus", peer) * clampf(behind, 0.0, RANGE_BONUS_MAX))
-	var raw := float(base * (WEAK_MULT if weak else 1) * chain) * (100 + bonus) / 100.0 + p.gold_rest
+	var head := LASER_WEAK_MULT if upgrade_value("laser", peer) > 0 and GUNS[p.gun].id == "deagle" else WEAK_MULT
+	var raw := float(base * (head if weak else 1) * chain) * (100 + bonus) / 100.0 + p.gold_rest
 	var gold := floori(raw)
 	p.gold_rest = raw - gold
 	return gold

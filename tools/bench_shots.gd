@@ -1,7 +1,7 @@
 extends SceneTree
 ## The workshop bench (scripts/bench_menu.gd) and the parts in hand, as PNGs to look at without
-## playing: the quests up to the bench, sitting down, the Deagle sliding in, the laser and the holo
-## going on (mid-flight and home), then the gun in hand with both and the laser's dot.
+## playing: the quests up to the bench, sitting down, the Deagle sliding in, the laser
+## going on (mid-flight and home), then the gun in hand with it and the laser's dot.
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/bench_shots.gd
 ## Shots land in user:// as bench_<n>_<name>.png.
 
@@ -48,11 +48,6 @@ func _initialize() -> void:
 	await _shot("laser_coming", 0)
 	await _wait(1.6)
 	await _shot("laser_on")
-	_bench._buy("holo")
-	await _wait(0.35)
-	await _shot("holo_coming", 0)
-	await _wait(1.6)
-	await _shot("holo_on")
 	_bench._buy("magazine")
 	await _wait(0.62)
 	await _shot("magazine_out", 0)

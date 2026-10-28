@@ -4,8 +4,8 @@ extends CanvasLayer
 ## left the guns, on the right what the bench sells for the one picked (GameState UPGRADES marked
 ## bench, paid from the player's gold). Picking a gun slides it in from the left to the middle of
 ## the bench, where it hovers. Buying puts the part on with a small show (2026-10-28, the user's
-## call): the laser rises from under the barrel and clamps on, the holo sight comes down onto the
-## slide; each lands with a knock, a click, sparks and a warm flash. A magazine level swaps the
+## call): the laser rises from under the barrel and clamps on, landing with a knock, a click,
+## sparks and a warm flash. A magazine level swaps the
 ## magazine. Only the Deagle has parts so far. Local: each player's bench shows their own gun.
 ## Sounds are the guns' own recordings (assets/weapons/sounds).
 
@@ -27,7 +27,6 @@ const BOB := 0.003  # m the hovering gun rises and falls
 ## Gun space (gun_attachments.gd): from where a part sets off, and the gap it hangs at before the
 ## last snap home.
 const LASER_START := Vector3(0, -0.13, 0.04)  # down by the bench top
-const HOLO_START := Vector3(0, 0.24, -0.02)
 const HANG := 0.012
 ## The Deagle's own magazine bones (the rig's reload clip moves them): the one in the grip, and the
 ## fresh one the clip brings in, parked out of sight at rest. Out of the grip it slides this far along
@@ -39,8 +38,7 @@ const MAG_AWAY := Vector3(-0.12, -0.26, 0.02)  # then off the bottom of the view
 const GUNS := [["deagle", "Desert Eagle"], ["uzi", "UZI"], ["scorpion", "Scorpion"], ["minigun", "Minigun"]]
 const PARTS := {  # bench upgrade -> name, what it does
 	"magazine": ["Şarjör", "Şarjöre giren mermi"],
-	"laser": ["Lazer nişangâh", "Kırmızı nokta; kalçadan atış daha isabetli"],
-	"holo": ["Holo nişangâh", "Kırmızı nokta; nişanda daha yakın, daha sakin"],
+	"laser": ["Lazer nişangâh", "Kafa vuruşu ×3"],
 }
 const KEY_LIGHT := Color(1.0, 0.88, 0.74)
 const FLASH := Color(1.0, 0.62, 0.3)
@@ -250,9 +248,8 @@ func _make_gun() -> void:
 	_gun.transform = bone.affine_inverse()
 	# Gun space to bench space: the barrel to the right, its port side (-x) toward the hall.
 	_shake.transform = Transform3D(Basis(Vector3(0, 0, -1), Vector3.UP, Vector3.RIGHT), Vector3.ZERO)
-	for id: String in ["laser", "holo"]:
-		if GameState.upgrade_value(id) > 0:
-			_shake.add_child(Attachments.make(id))
+	if GameState.upgrade_value("laser") > 0:
+		_shake.add_child(Attachments.make("laser"))
 
 
 func _pick(id: String) -> void:
@@ -288,32 +285,30 @@ func _buy(id: String) -> void:
 	_refresh()
 
 
-## The part flies in from below (laser) or above (holo), turning to face the gun, hangs a moment a
-## finger's width off, then snaps home.
+## The laser flies in from below, turning to face the gun, hangs a moment a finger's width off,
+## then snaps home.
 func _fit(id: String) -> void:
 	var part := Attachments.make(id)
 	_shake.add_child(part)
 	var home := part.transform
-	var laser := id == "laser"
 	var start := home
-	start.origin += LASER_START if laser else HOLO_START
-	start.basis = Basis(Vector3.FORWARD, 0.9 if laser else 0.0).rotated(Vector3.UP, 0.0 if laser else PI * 0.75) * home.basis
+	start.origin += LASER_START
+	start.basis = Basis(Vector3.FORWARD, 0.9) * home.basis
 	var hang := home
-	hang.origin += Vector3(0, -HANG if laser else HANG, 0)
+	hang.origin += Vector3(0, -HANG, 0)
 	part.transform = start
-	_play(SLIDE_BACK, -14.0, 1.4 if laser else 1.25)
+	_play(SLIDE_BACK, -14.0, 1.4)
 	var t := create_tween()
 	t.tween_property(part, "transform", hang, 0.55).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	t.tween_interval(0.18)
 	t.tween_property(part, "transform", home, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	await t.finished
-	_knock(Vector3.UP if laser else Vector3.DOWN, home.origin)
-	_play(MAG_SEAT, -2.0, 1.15 if laser else 0.95)
+	_knock(Vector3.UP, home.origin)
+	_play(MAG_SEAT, -2.0, 1.15)
 	await get_tree().create_timer(0.16).timeout
 	_play(MAG_IN, -6.0, 1.3)
-	if laser:  # its lens lights up: on
-		await get_tree().create_timer(0.25).timeout
-		_play(SLIDE_HOME, -14.0, 1.8)
+	await get_tree().create_timer(0.25).timeout  # its lens lights up: on
+	_play(SLIDE_HOME, -14.0, 1.8)
 	_banner(PARTS[id][0] + " takıldı")
 
 

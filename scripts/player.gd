@@ -20,7 +20,8 @@ const AMMO_WHEEL := preload("res://scripts/ammo_wheel.gd")
 const HUD := preload("res://scripts/hud.gd")
 const BENCH_MENU := preload("res://scripts/bench_menu.gd")
 const BOARD_MENU := preload("res://scripts/quest_board.gd")
-const LASER_DOT := Vector2(0.02, 0.01)  # m across the dot: at least, and per metre away (stays visible far off)
+const LASER_DOT := Vector2(0.03, 0.012)  # m across the dot: at least, and per metre away (stays visible far off)
+const LASER_BEAM := Vector2(0.0006, 0.0005)  # m beam radius at the lens, and per metre on: about a pixel all the way
 const WHEEL_HOLD := 0.22  # s R is held before the ammo wheel opens; a shorter press reloads
 ## Special rounds that hit us (GameState.SPECIALS). Punch: thrown off somewhere near the shot's
 ## way, tumbling, bounced once on landing, then dizzy for a while: the view sways, the aim drifts,
@@ -65,7 +66,6 @@ const FLY_POOL := 16       # bullets in flight at most: GRAB_TIME / GRAB_REPEAT 
 const KICK_OMEGA := 28.0     # rad/s; peak at 1 / KICK_OMEGA ≈ 36 ms
 const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
-const HOLO_ZOOM := 1.35  # the same through the holo sight (viewmodel.gd holo_on)
 const ADS_WALK := 0.6  # share of walking speed left aimed: aiming while moving is allowed, slowly
 const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
 const AIR_SHOWN := 0.1  # s off the ground before others see a jump (not every bump and step)
@@ -116,6 +116,7 @@ var _special_sound: AudioStreamPlayer
 var _bench: CanvasLayer = BENCH_MENU.new()  # the workshop bench's view (E in front of it)
 var _board_menu: CanvasLayer = BOARD_MENU.new()  # the quest board's screen (E in front of it)
 var _laser_dot := MeshInstance3D.new()  # where the bought laser says the shot will land
+var _laser_beam := MeshInstance3D.new()  # from the laser's lens to the dot, through the air
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _reach: RayCast3D = $Head/Camera3D/Reach
@@ -354,11 +355,13 @@ func _setup_viewmodel_world() -> void:
 
 
 ## The laser bought at the bench (GameState UPGRADES) on the Deagle in hand: a red dot where the
-## shot would land now, along the same line viewmodel.gd fires down (sway, no spread).
+## shot would land now, along the same line viewmodel.gd fires down (sway, no spread), and a thin
+## beam to it from its lens. The dot stands in for the crosshair, which would sit right on it.
 func _aim_laser(off: Vector2) -> void:
 	var p := GameState.player()
 	var on: bool = GameState.upgrade_value("laser") > 0 and GameState.GUNS[p.gun].id == "deagle" 		and _viewmodel.gun == p.gun and not _hands_busy()
 	_laser_dot.visible = false
+	_laser_beam.visible = false
 	if not on:
 		return
 	var from := _camera.global_position
@@ -373,6 +376,17 @@ func _aim_laser(off: Vector2) -> void:
 	_laser_dot.global_position = at - dir * 0.02
 	_laser_dot.scale = Vector3.ONE * maxf(LASER_DOT.x, far * LASER_DOT.y)
 	_laser_dot.visible = true
+	var lens: Vector3 = _viewmodel.laser_position()
+	var length := lens.distance_to(at)
+	if length > 0.05:
+		var beam := _laser_beam.mesh as CylinderMesh
+		beam.height = length
+		beam.bottom_radius = LASER_BEAM.x
+		beam.top_radius = LASER_BEAM.x + length * LASER_BEAM.y
+		var along := (at - lens) / length  # the cylinder stands along y, its top toward the dot
+		var side := along.cross(Vector3.UP if absf(along.y) < 0.99 else Vector3.RIGHT).normalized()
+		_laser_beam.global_transform = Transform3D(Basis(side, along, side.cross(along)), (lens + at) * 0.5)
+		_laser_beam.visible = true
 
 
 func _make_laser_dot() -> void:
@@ -400,6 +414,26 @@ func _make_laser_dot() -> void:
 	_laser_dot.top_level = true
 	_laser_dot.visible = false
 	add_child(_laser_dot)
+	var beam := CylinderMesh.new()
+	beam.radial_segments = 6
+	beam.rings = 1
+	beam.cap_top = false
+	beam.cap_bottom = false
+	var glow := ShaderMaterial.new()
+	glow.shader = Shader.new()
+	glow.shader.code = """shader_type spatial;
+render_mode unshaded, blend_add, cull_disabled, shadows_disabled, depth_draw_never;
+void fragment() {
+	float edge = abs(dot(NORMAL, VIEW));  // brightest down the middle of the line
+	ALBEDO = vec3(1.0, 0.08, 0.05) * 1.8;
+	ALPHA = 0.25 + 0.45 * edge;
+}"""
+	beam.material = glow
+	_laser_beam.mesh = beam
+	_laser_beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_laser_beam.top_level = true
+	_laser_beam.visible = false
+	add_child(_laser_beam)
 
 
 ## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
@@ -504,7 +538,7 @@ func _process(delta: float) -> void:
 	else:
 		_reload_held = 0.0
 		_wheel.close()
-	_zoom = lerpf(1.0, HOLO_ZOOM if _viewmodel.holo_on else ADS_ZOOM, _viewmodel.aim)
+	_zoom = lerpf(1.0, ADS_ZOOM, _viewmodel.aim)
 	_hip_fov = Settings.value("fov")
 	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom))
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
@@ -517,6 +551,8 @@ func _process(delta: float) -> void:
 	_crosshair.queue_redraw()
 	_hit_marker.center = _crosshair.offset
 	_aim_laser(off)
+	if _laser_dot.visible:
+		_crosshair.visible = false
 	_vm_camera.global_transform = _camera.global_transform
 	var vm_fov: float = _viewmodel.view_fov
 	_vm_camera.fov = _camera.fov if vm_fov == 0.0 else rad_to_deg(2.0 * atan(tan(deg_to_rad(vm_fov) * 0.5) / _zoom))
