@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Balance panel (yol haritası 11), debug builds only: F9 opens it. Game speed, money for yourself
+## Balance panel (yol haritası 11), debug builds only: F9 or P opens it. Game speed, money for yourself
 ## or the vault, the heap set to a milestone, the Deagle's laser and holo on or off, and what the last game minute earned, so a stage
 ## of the hour can be timed in a few real minutes. Net.gd adds it.
 ##
@@ -27,7 +27,7 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F9:
+	if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_F9 or event.physical_keycode == KEY_P):  # P: keyboards without F keys
 		toggle()
 		get_viewport().set_input_as_handled()
 
@@ -108,7 +108,7 @@ func _build() -> void:
 	_panel.add_child(box)
 	add_child(_panel)
 	var title := Label.new()
-	title.text = "DENGE PANELİ (F9)"
+	title.text = "DENGE PANELİ (F9 / P)"
 	box.add_child(title)
 
 	var row := _row(box, "Hız")
