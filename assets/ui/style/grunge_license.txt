@@ -1,0 +1,3 @@
+stroke_*.png, splat_*.png, drops_*.png: "100 grunge brushstrokes and splatters set", Dino0040,
+CC0 1.0, https://opengameart.org/content/100-grunge-brushstrokes-and-splatters-set
+(increased_opacity: brush039, brush041, splat_0-5 = brush048/051/057/065/066/050, drops_0-1 = brush086/091)
