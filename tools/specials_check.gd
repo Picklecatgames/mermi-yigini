@@ -85,7 +85,9 @@ func _initialize() -> void:
 		for i in 12:
 			await physics_frame
 			var at: Vector3 = me.global_position
-			assert(absf(at.x) <= me.HALL_IN + 0.01 and absf(at.z) <= me.HALL_IN + 0.01 and at.y <= me.ROOF_IN + 0.01 and at.x <= gs.FIRING_LINE_X, "stays in the hall: %s" % at)
+			var lantern: bool = absf(at.x) < me.LANTERN_IN.x and absf(at.z) < me.LANTERN_IN.y  # the glass roof is higher
+			var roof: float = me.LANTERN_ROOF_IN if lantern else me.ROOF_IN
+			assert(absf(at.x) <= me.HALL_IN + 0.01 and absf(at.z) <= me.HALL_IN + 0.01 and at.y <= roof + 0.01 and at.x <= gs.FIRING_LINE_X, "stays in the hall: %s" % at)
 	for i in 600:  # down, and dizzy no more
 		await physics_frame
 		if me.is_on_floor() and me._dizzy == 0.0:
