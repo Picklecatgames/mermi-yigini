@@ -475,14 +475,14 @@ static func _clips(lib: AnimationLibrary, prefix: String) -> Array:
 	return _by_prefix[key]
 
 
-static var _rng := RandomNumberGenerator.new()
+static var _roll_rng := RandomNumberGenerator.new()
 
 
 ## The string hash alone leaves gaps modulo some sizes (with 11 models four were never picked), so
 ## it seeds a PCG draw instead. Same on every peer.
 func _roll(salt: String) -> int:
-	_rng.seed = hash("%d:%s" % [_seed, salt])
-	return _rng.randi() & 0x7fffffff
+	_roll_rng.seed = hash("%d:%s" % [_seed, salt])
+	return _roll_rng.randi() & 0x7fffffff
 
 
 static var _libs := {}
