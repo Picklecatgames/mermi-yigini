@@ -115,7 +115,7 @@ func _host() -> void:
 		for id: int in s:
 			tag_ok[0] = tag_ok[0] or (id != gs.local_peer() and gs.color_of(id) == gs.PLAYER_COLORS[1]))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
-	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--log-file", "C:/Users/vedat/AppData/Local/Temp/claude/C--Users-vedat-projeler-mermi-yigini--claude-worktrees-relaxed-yonath-97ec0a/96cc8db2-34c6-47ae-9b08-d41448e9d67f/scratchpad/client.log", "--path",
+	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
 		ProjectSettings.globalize_path("res://"), "-s", "res://tools/net_check.gd", "--", "--client"])
 	var t0 := Time.get_ticks_msec()
 	var popper: Node3D = main.get_node("LockedTargets/PopperNorth")
