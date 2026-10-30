@@ -23,6 +23,7 @@ const BODIES := {
 	"worker": preload("res://assets/characters/players/worker/worker.scn"),
 	"brute": preload("res://assets/characters/players/brute/brute.scn"),
 	"chupacabra": preload("res://assets/characters/players/chupacabra/chupacabra.scn"),
+	"vegas": preload("res://assets/characters/players/vegas/vegas.scn"),
 }
 const ANIMS := preload("res://assets/characters/players/player_anims.res")
 const ARMS := preload("res://assets/weapons/arms/arms.gltf")
@@ -334,9 +335,19 @@ class Character extends Node3D:
 		_hand_scale = on_gun["R_wrist"].distance_to(on_gun["R_middle1"]) / (rest["R_wrist"] as Vector3).distance_to(rest["R_middle1"])
 		# Aimed straight ahead (the model's +Z), the right wrist where the first-person one is.
 		_gun_in_hand = _hand_hold.affine_inverse() * Transform3D(Basis(), _hand_hold.origin - on_gun["R_wrist"])
-		# Back toward the body only as far as the left hand needs to reach its place (m).
+		# Back toward the body only as far as the left hand needs to reach its place (m), and no
+		# further than it brings the place nearer: Big Vegas's short arms never get there, and the
+		# gun went on into his face.
 		_pull = 0.0
-		while _pull < 0.4 and _left_shoulder.distance_to(_hand_hold * _gun_in_hand * Transform3D(Basis(), Vector3(0.0, 0.0, -_pull)) * _left_wrist_on_gun) > _left_reach * 0.97:
+		var far := INF
+		while _pull < 0.4:
+			var d := _left_shoulder.distance_to(_hand_hold * _gun_in_hand * Transform3D(Basis(), Vector3(0.0, 0.0, -_pull)) * _left_wrist_on_gun)
+			if d <= _left_reach * 0.97:
+				break
+			if d >= far:
+				_pull -= 0.005
+				break
+			far = d
 			_pull += 0.005
 
 	## The body standing in the stance's first frame, measured: where the right wrist holds the gun,

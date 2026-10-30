@@ -1,14 +1,14 @@
 extends CanvasLayer
 ## Who to play as (GameState.CHARACTERS, 2026-10-30, the user's call): open whenever the local
-## player has none, so at the start and on joining someone's session (a new id there). Five steel
+## player has none, so at the start and on joining someone's session (a new id there). Six steel
 ## cards, each with the body itself standing in its own little lit world, its name stencilled under
 ## it; the one under the mouse raises its gun. One each: a card someone else has is dark and carries
-## their tag in their colour. A click or 1-5 asks the host (request_pick_character); it closes when
+## their tag in their colour. A click or 1-6 asks the host (request_pick_character); it closes when
 ## the answer comes back. Drawn on a 1280x720 canvas scaled to the screen, as the pause menu.
 
 const DESIGN := Vector2(1280, 720)
 const REMOTE := preload("res://scripts/remote_players.gd")  # BODIES, ANIMS
-const CARD := Vector2(224, 470)
+const CARD := Vector2(196, 470)  # six side by side on the canvas
 const GAP := 14.0
 const TOP := 150.0  # px from the top to the cards
 const VIEW := Vector2i(400, 720)  # px each body is rendered at

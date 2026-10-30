@@ -55,6 +55,20 @@
 		],
 		"hand_skin": true
 	},
+	"vegas": {
+		"forearm": [
+			0.706,
+			0.702,
+			0.702
+		],
+		"forearm_skin": false,
+		"hand": [
+			0.847,
+			0.678,
+			0.447
+		],
+		"hand_skin": true
+	},
 	"worker": {
 		"forearm": [
 			0.875,

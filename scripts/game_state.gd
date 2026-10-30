@@ -126,7 +126,7 @@ const UPGRADES := {
 ## Who a player can be, picked on joining (2026-10-30, the user's call; one each, nobody twice).
 ## id -> the name on the pick screen. Bodies: assets/characters/players/<id>, built by
 ## tools/build_zombies.gd players.
-const CHARACTERS := {"boss": "Patron", "masked": "Maskeli", "worker": "İşçi", "brute": "Brute", "chupacabra": "Chupacabra"}
+const CHARACTERS := {"boss": "Patron", "masked": "Maskeli", "worker": "İşçi", "brute": "Brute", "chupacabra": "Chupacabra", "vegas": "Vegas"}
 const GUNS := [
 	{"id": "fists", "name": "Yumruk", "ready": true, "interval": 0.42, "auto": false, "mag": 0},
 	# table: shut until the player takes it off the table at the spawn (request_take_pistol).

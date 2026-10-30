@@ -8,7 +8,7 @@ extends SceneTree
 
 const DIR := "res://assets/characters/players/"
 const OUT := DIR + "arms.json"
-const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra"]
+const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra", "vegas"]
 ## What each part is made of, by the bone names its vertices hang on (Mixamo, both sides).
 const PARTS := {"hand": ["LeftHand", "RightHand"], "forearm": ["LeftForeArm", "RightForeArm"]}
 const HOLD := 0.6  # a vertex counts for a bone only when that bone carries this much of it

@@ -27,8 +27,8 @@ const NORMAL_SIZE := 1024
 const MODELS := ["prisoner", "copzombie", "parasite", "warzombie", "zombiegirl", "yaku", "romero",
 		"skeletonzombie", "whiteclown", "warrok", "maw", "demon", "fleshzombie"]
 ## Player characters (players/raw/chars/<file>.fbx): The Boss, Ch16 (masked), Ch32 (worker), Brute,
-## Ch43 (chupacabra).
-const PLAYER_MODELS := ["boss", "masked", "worker", "brute", "chupacabra"]
+## Ch43 (chupacabra), Big Vegas (vegas).
+const PLAYER_MODELS := ["boss", "masked", "worker", "brute", "chupacabra", "vegas"]
 ## Meshes left out of the built scene (what a character carries: the Brute's axe).
 const DROP := ["BattleAxe_GEO"]
 ## Raw clip -> library name. What a clip is comes from the first word of its name that is a KIND;
