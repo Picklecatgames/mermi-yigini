@@ -1,11 +1,13 @@
-extends Node
+extends SceneTree
 ## Headless check for how often shell drops clink (scripts/viewmodel.gd `_shell_audible`):
 ## a lone shot always does, inside a burst one in every 10-15 does.
-##   Godot.exe --headless --path . res://tools/shell_tink_check.tscn
+##   Godot.exe --headless --path . -s res://tools/shell_tink_check.gd
 
-func _ready() -> void:
+func _initialize() -> void:
 	var vm: Node = load("res://scripts/viewmodel.gd").new()
-	assert(vm._shell_audible(), "a lone shot clinks")
+	var bad: Array[String] = []
+	if not vm._shell_audible():
+		bad.append("a lone shot clinks")
 	var gaps: Array[int] = []
 	var since := 0
 	for i in 300:  # one long burst, no pause between shells
@@ -13,11 +15,17 @@ func _ready() -> void:
 		if vm._shell_audible():
 			gaps.append(since)
 			since = 0
-	assert(gaps.size() >= 300 / 15 and gaps.size() <= 300 / 10, "clinks in a burst: %d" % gaps.size())
+	if gaps.size() < 300 / 15 or gaps.size() > 300 / 10:
+		bad.append("clinks in a burst: %d" % gaps.size())
 	for g in gaps:
-		assert(g >= 10 and g <= 15, "gap %d" % g)
+		if g < 10 or g > 15:
+			bad.append("gap %d" % g)
 	vm._last_eject_ms -= 2000  # a pause longer than TINK_GAP
-	assert(vm._shell_audible(), "the first shot after a pause clinks")
-	print("shell_tink_check OK: %d clinks in 300 burst shells" % gaps.size())
+	if not vm._shell_audible():
+		bad.append("the first shot after a pause clinks")
 	vm.free()
-	get_tree().quit()
+	if bad.is_empty():
+		print("shell_tink_check OK: %d clinks in 300 burst shells" % gaps.size())
+	else:
+		print("shell_tink_check FAILED: ", ", ".join(bad))
+	quit(0 if bad.is_empty() else 1)
