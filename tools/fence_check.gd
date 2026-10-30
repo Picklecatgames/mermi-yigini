@@ -30,10 +30,11 @@ func _initialize() -> void:
 	gs = root.get_node("GameState")
 	net = root.get_node("Net")
 	waves = main.get_node("Waves")
-	fence = waves._fence
-	hud = main.get_node("Player")._hud
 	for i in 3:
 		await physics_frame
+	fence = waves._fence
+	hud = main.get_node("Player")._hud
+	gs.request_pick_character("worker" if "--client" in OS.get_cmdline_user_args() else "boss")  # the picker holds the hands
 	if "--client" in OS.get_cmdline_user_args():
 		await _client()
 	else:
@@ -84,6 +85,7 @@ func _host() -> void:
 		await physics_frame
 	gs.player().gold = 1000
 	var price: int = gs.fence_repair_price()
+	if not await _until(func() -> bool: return me._repair_hint.visible, "the repair hint (the draw first)", 5.0): return
 	await process_frame
 	if not _ok(me._repair_hint.visible and not me._table_hint.visible and (me._repair_hint.get_child(1) as Label).text.ends_with("$%d" % price),
 			"looking at the desk: \"%s\"" % (me._repair_hint.get_child(1) as Label).text): return
@@ -106,7 +108,7 @@ func _host() -> void:
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FAILED, "the railing to fall", 120.0): return
 	if not _ok(gs.fence == 0 and waves._status.text == "ÇİT YIKILDI" and hud._lost.visible, "it fell: the sign and the screen say so"): return
 	await create_timer(0.3).timeout
-	var back := waves._zombies.values().filter(func(z: Dictionary) -> bool: return not z.dead and not z.path.is_empty() and z.path[-1] == z.mouth)
+	var back: Array = waves._zombies.values().filter(func(z: Dictionary) -> bool: return not z.dead and not z.path.is_empty() and z.path[-1] == z.mouth)
 	if not _ok(back.size() > 0, "the dead turn back for the pens (%d)" % back.size()): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the lost wave to wait again"): return
 	await process_frame
@@ -162,7 +164,8 @@ func _online() -> void:
 		return _fail("client side failed")
 	var seen = JSON.parse_string(FileAccess.get_file_as_string(SEEN))
 	if not _ok(seen is Dictionary and absf(seen.failed_at - failed_at[0]) < 0.5, "the client lost it at the same moment (%.2f s apart)" % absf(seen.get("failed_at", 0.0) - failed_at[0])): return
-	if not _ok(seen.wear == gs.fence_wear and int(seen.fence) == gs.fence, "the same railing on both machines (%s)" % [seen.wear]): return
+	var theirs: Array = (seen.wear as Array).map(func(w: float) -> int: return int(w))  # JSON reads numbers as floats
+	if not _ok(theirs == Array(gs.fence_wear) and int(seen.fence) == gs.fence, "the same railing on both machines (%s)" % [seen.wear]): return
 	print("fence_check OK")
 	quit()
 

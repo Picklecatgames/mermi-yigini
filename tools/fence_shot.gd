@@ -13,6 +13,7 @@ func _initialize() -> void:
 	var me: CharacterBody3D = main.get_node("Player")
 	await process_frame
 	gs.start_quests()
+	gs.request_pick_character("boss")
 	gs.request_take_pistol()
 	for q in 40:  # past the warmup: the whole HUD
 		if not gs.warming():
