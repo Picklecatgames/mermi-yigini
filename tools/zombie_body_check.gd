@@ -139,7 +139,8 @@ func _run() -> void:
 			ap.advance(swing + 0.1)
 			_expect(ap.current_animation.contains(BODY.KINDS[kind].move), "%s back to %s after attacking" % [kind, ap.current_animation])
 			a.hit()
-			_expect(ap.current_animation.contains(BODY.KINDS[kind].move if low else "hit"), "%s flinches with %s" % [kind, ap.current_animation])
+			# On its belly or running the clip would stop it where it slides on: the spring alone jerks it.
+			_expect(ap.current_animation.contains(BODY.KINDS[kind].move if low or a.quick() else "hit"), "%s flinches with %s" % [kind, ap.current_animation])
 			var fall: float = a.die()
 			_expect(fall > 0.5 and ap.current_animation.contains("death"), "%s dies with %s" % [kind, ap.current_animation])
 			a.move(1.0)
@@ -165,7 +166,9 @@ func _limbs() -> void:
 	a.setup(&"walker", 3)
 	a.model = &"prisoner"
 	parent.add_child(a)
-	a.move(0.9)
+	# The pose these rounds were aimed at: the walk this seed played before move() picked clips by
+	# speed, stretched as far as it goes.
+	a._play_loop("walk_a", 1.8)
 	var sk: Skeleton3D = a.find_children("*", "Skeleton3D", true, false)[0]
 	var ap: AnimationPlayer = a.find_children("*", "AnimationPlayer", true, false)[0]
 	ap.advance(0.5)
