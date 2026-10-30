@@ -24,8 +24,9 @@ const FPS := 30.0
 const ALBEDO_SIZE := 2048
 const NORMAL_SIZE := 1024
 ## Mixamo character (raw/chars/<file>.fbx) -> artist, for the credits in docs/ayrintilar.md.
+## hazmat is a Sketchfab model on a Mixamo rig, raw/chars/hazmat.glb from tools/sketchfab_zombies.py.
 const MODELS := ["prisoner", "copzombie", "parasite", "warzombie", "zombiegirl", "yaku", "romero",
-		"skeletonzombie", "whiteclown", "warrok", "maw", "demon", "fleshzombie"]
+		"skeletonzombie", "whiteclown", "warrok", "maw", "demon", "fleshzombie", "hazmat"]
 ## Player characters (players/raw/chars/<file>.fbx): The Boss, Ch16 (masked), Ch32 (worker), Brute,
 ## Ch43 (chupacabra).
 const PLAYER_MODELS := ["boss", "masked", "worker", "brute", "chupacabra"]
@@ -162,9 +163,15 @@ func _process(_d: float) -> bool:
 	return true
 
 
+## A character's raw file: the Mixamo FBX, or the glb a Sketchfab model was turned into.
+func _char(model: String) -> String:
+	var glb := RAW + "chars/%s.glb" % model
+	return glb if FileAccess.file_exists(glb) else RAW + "chars/%s.fbx" % model
+
+
 func _load(path: String) -> Node3D:
-	var doc := FBXDocument.new()
-	var st := FBXState.new()
+	var doc: GLTFDocument = GLTFDocument.new() if path.ends_with(".glb") else FBXDocument.new()
+	var st: GLTFState = GLTFState.new() if path.ends_with(".glb") else FBXState.new()
 	if doc.append_from_file(ProjectSettings.globalize_path(path), st) != OK:
 		push_error("cannot read " + path)
 		return null
@@ -174,7 +181,7 @@ func _load(path: String) -> Node3D:
 
 ## Albedo and normal map of every material, as <model>_<k>_albedo.png / _normal.png.
 func _textures(model: String) -> void:
-	var scene := _load(RAW + "chars/%s.fbx" % model)
+	var scene := _load(_char(model))
 	var dir := OUT + model
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
 	var seen := {}
@@ -210,11 +217,16 @@ func _materials(scene: Node3D) -> Array[StandardMaterial3D]:
 
 
 func _model(model: String) -> bool:
-	var scene := _load(RAW + "chars/%s.fbx" % model)
+	var scene := _load(_char(model))
 	var sk: Skeleton3D = scene.find_children("*", "Skeleton3D", true, false)[0]
 	for ap in scene.find_children("*", "AnimationPlayer", true, false):
 		ap.free()
 	scene.name = model
+	if sk.get_parent() != scene:  # a glb keeps Blender's Armature node over it
+		var holder := sk.get_parent()
+		holder.remove_child(sk)
+		scene.add_child(sk)
+		holder.free()
 	sk.name = "Skeleton3D"
 	for mi in sk.find_children("*", "MeshInstance3D", true, false):
 		if mi.name in DROP:

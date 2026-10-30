@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless check for scripts/zombie_body.gd and the Mixamo zombies: every model plays every clip of
 ## the shared library standing on the floor, in place where it should be, and the same seed dresses
-## a zombie the same way.
+## a zombie the same way. Creatures (the blob) go through their own clips the same way.
 ##   Godot.exe --headless --path . -s res://tools/zombie_body_check.gd --quit-after 600
 
 const BODY := preload("res://scripts/zombie_body.gd")
@@ -67,6 +67,38 @@ func _run() -> void:
 		print("%-11s %d clips ok" % [name, lib.get_animation_list().size()])
 		body.free()
 
+	# Creatures through their own clips: every bone above the floor, the loops on the spot, flat
+	# once dead.
+	for name in BODY.CREATURES:
+		var body: Node3D = BODY.new()
+		body.kind = name
+		body.model = name
+		body.size = 1.0
+		root.add_child(body)
+		var ap: AnimationPlayer = body.find_children("*", "AnimationPlayer", true, false)[0]
+		var sk: Skeleton3D = body.find_children("*", "Skeleton3D", true, false)[0]
+		var lib := ap.get_animation_library("")
+		_expect(body.height > 0.5, "%s only %.2f m tall" % [name, body.height])
+		for clip in lib.get_animation_list():
+			var anim := lib.get_animation(clip)
+			ap.play(clip)
+			var low := INF
+			var drift := 0.0
+			for k in 9:
+				ap.seek(anim.length * k / 8.0, true)
+				for b in sk.get_bone_count():
+					low = minf(low, sk.to_global(sk.get_bone_global_pose(b).origin).y - body.global_position.y)
+				var mid := sk.to_global(sk.get_bone_global_pose(0).origin) - body.global_position
+				drift = maxf(drift, Vector2(mid.x, mid.z).length())
+			var head := sk.to_global(sk.get_bone_global_pose(sk.find_bone(BODY.CREATURES[name].bones.Head)).origin).y - body.global_position.y
+			_expect(low > -0.1, "%s %s: sinks %.2f m into the floor" % [name, clip, low])
+			if anim.loop_mode != Animation.LOOP_NONE:
+				_expect(drift < 0.2, "%s %s: wanders %.2f m off the spot" % [name, clip, drift])
+			if clip.begins_with("death"):
+				_expect(head < 0.3 * body.height, "%s %s: still %.2f m up after dying" % [name, clip, head])
+		print("%-11s %d clips ok" % [name, lib.get_animation_list().size()])
+		body.free()
+
 	# Kinds, seeds, actions.
 	var seen := {}
 	for kind in BODY.KINDS:
@@ -96,7 +128,7 @@ func _run() -> void:
 			_expect(ap.current_animation.contains("death"), "%s got up after dying" % kind)
 			_expect(a.attach("Head").get_parent() is Skeleton3D, "%s head attachment" % kind)
 			a.free()
-	_expect(seen.size() == BODY.MODELS.size(), "only %s ever picked" % [seen.keys()])
+	_expect(seen.size() == BODY.MODELS.size() + BODY.CREATURES.size(), "only %s ever picked" % [seen.keys()])
 
 	print("zombie_body_check ", "ok" if _fails == 0 else "FAILED (%d)" % _fails)
 	quit(1 if _fails else 0)
