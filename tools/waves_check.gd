@@ -197,6 +197,7 @@ func _new_kinds() -> bool:
 		elif cue[0] == &"die" and spawned.has(cue[1]):
 			gibs[spawned[cue[1]]] = gibs.get(spawned[cue[1]], []) + [cue[7]]
 	gs.wave_cue.connect(cue_seen)
+	gs.mend_fence(gs.FENCE_MAX)  # the railing doesn't heal between waves; this part is about the new kinds
 	gs.request_pull_lever()
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "wave %d's fight" % waves.BLOB_FROM): return false
 	if not await _until(func() -> bool: return spawned.values().has(&"dog") and spawned.values().has(&"blob"), "a dog and a blob out of the pens"): return false
@@ -311,7 +312,7 @@ func _until(cond: Callable, what: String, secs := 60.0) -> bool:
 	var t0 := Time.get_ticks_msec()
 	while not cond.call():
 		if Time.get_ticks_msec() - t0 > secs * 1000.0:
-			_fail("waited for " + what)
+			_fail("waited for %s (phase %d, fence %d, %d alive)" % [what, waves.phase, gs.fence, waves._alive()])
 			return false
 		await process_frame
 	return true

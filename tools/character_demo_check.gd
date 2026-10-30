@@ -14,6 +14,8 @@ func _initialize() -> void:
 	var others: Node = get_first_node_in_group("remote_players")
 	gs.request_pick_character("boss")
 	gs.request_take_pistol()
+	for desk: CollisionObject3D in get_nodes_in_group("gun_table"):  # it stays for the railing now; we walk through it below
+		desk.collision_layer = 0
 	me._toggle_mirror(true)
 	for i in 10:
 		await physics_frame
