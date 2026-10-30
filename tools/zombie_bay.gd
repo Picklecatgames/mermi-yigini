@@ -16,6 +16,11 @@ extends RefCounted
 ## Light3D children and set each such mesh's material_override to that meta; a beacon's "Spin"
 ## child turns about its local Y. Wave code does all of that (game side), nothing here moves.
 ##
+## The wave lever (group "wave_lever") hangs on the hall's north wall by the railing, the players'
+## side, at GameState.LEVER_POS: "Old lever" on a steel plate, the mechanical sign over it with
+## its "Number" (the wave, on flip plates) and "Status" labels. scripts/waves.gd pulls it, plays its
+## AnimationPlayer's one clip (up -> down) and writes the sign.
+##
 ## Calm light: a few dirty sodium floods on the bridge and dying green tubes in the bay
 ## (build_arena), burning tyre stacks with their firelight, haze lying in the bay. The gore: blood
 ## pools, drag trails into the gates, spatter and claw marks on the gates and walls, scattered bones
@@ -73,6 +78,7 @@ func build(parent: Node) -> void:
 	_pens()
 	_spawns()
 	_alarms()
+	_lever()
 	_fires()
 	_haze()
 	_gore()
@@ -516,6 +522,90 @@ func _alarm_glass(m: MeshInstance3D, glass: Array[Material]) -> void:
 	m.material_override = glass[0]
 	m.set_meta("lit_material", glass[1])
 	m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+# --- the wave lever -------------------------------------------------------------------------------
+
+const LEVER := "res://assets/props/lever/"
+const LEVER_SCALE := 1.8  # the model is a real 41 cm panel: too small to spot across the hall
+const WALL_Z := -28.0  # the north wall's inner face (build_arena _walls)
+
+
+## "Old lever" (Gunnar Correa, CC-BY 4.0) on a steel backing plate, a conduit up to the sign: a
+## riveted box with DALGA stencilled on it, the number on two dark flip plates and a status strip;
+## a small cold lamp over it so it reads from the railing.
+func _lever() -> void:
+	var at: Vector3 = b.GS.LEVER_POS
+	var holder := StaticBody3D.new()  # rounds spark off it, nothing more
+	holder.name = "WaveLever"
+	holder.position = Vector3(at.x, 0.0, WALL_Z)  # local +z: out of the wall into the hall
+	b.add(holder, root)
+	holder.add_to_group("wave_lever", true)
+	holder.add_to_group("steel", true)
+	b.block(Vector3(0.72, 1.05, 0.03), Vector3(0, 1.25, 0.015), dark, holder)
+	for x in [-0.32, 0.32]:
+		for y in [0.78, 1.72]:
+			b.block(Vector3(0.03, 0.03, 0.012), Vector3(x, y, 0.035), frame_static, holder)  # bolt heads
+	# Copied out of the FBX rather than instanced: a packed instance drops the materials set on its parts.
+	var src: Node3D = (load(LEVER + "lever.fbx") as PackedScene).instantiate()
+	var model := Node3D.new()
+	model.name = "Lever"
+	# The panel sits 10 cm right of and 2.7 cm over the model's origin, its back 5.4 cm behind it.
+	model.transform = Transform3D(Basis().scaled(Vector3.ONE * LEVER_SCALE),
+			Vector3(-0.1 * LEVER_SCALE, 1.25 - 0.027 * LEVER_SCALE, 0.03 + 0.054 * LEVER_SCALE))
+	b.add(model, holder)
+	for part in ["Panel", "Lever"]:
+		var mi := src.get_node(part).duplicate() as MeshInstance3D
+		mi.material_override = _lever_mat(part)
+		b.add(mi, model)
+	b.add(src.get_node("AnimationPlayer").duplicate(), model)  # its one clip swings the "Lever" part
+	src.free()
+	b.block(Vector3(0.05, 0.62, 0.05), Vector3(0.24, 1.98, 0.04), dark, holder)  # conduit
+	# The sign.
+	const SIGN_Y := 2.55
+	b.block(Vector3(1.24, 0.78, 0.06), Vector3(0, SIGN_Y, 0.03), frame_static, holder)
+	b.block(Vector3(1.16, 0.7, 0.01), Vector3(0, SIGN_Y, 0.065), dark, holder)
+	var title: Label3D = b._range_label("DALGA", 30, Color(0.85, 0.8, 0.68, 0.9), b.STENCIL)
+	title.position = Vector3(0, SIGN_Y + 0.25, 0.072)
+	b.add(title, holder)
+	for x in [-0.1, 0.1]:  # the flip plates, a hinge line across each
+		b.block(Vector3(0.18, 0.3, 0.02), Vector3(x, SIGN_Y + 0.02, 0.08), _rubber(), holder)
+		b.block(Vector3(0.18, 0.006, 0.004), Vector3(x, SIGN_Y + 0.02, 0.092), dark, holder)
+	var number: Label3D = b._range_label("01", 84, Color(0.92, 0.88, 0.78), b.STENCIL)
+	number.name = "Number"
+	number.position = Vector3(0, SIGN_Y + 0.02, 0.095)
+	b.add(number, holder)
+	b.block(Vector3(1.04, 0.13, 0.012), Vector3(0, SIGN_Y - 0.25, 0.075), _rubber(), holder)
+	var status: Label3D = b._range_label("HAZIR", 24, Color(1.0, 0.36, 0.22), b.STENCIL)
+	status.name = "Status"
+	status.position = Vector3(0, SIGN_Y - 0.25, 0.085)
+	status.shaded = false  # a lit strip: readable whatever the hall's light does
+	b.add(status, holder)
+	b.collide(Vector3(0.72, 1.05, 0.1), Vector3(0, 1.25, 0.05), holder)
+	b.collide(Vector3(1.24, 0.78, 0.1), Vector3(0, SIGN_Y, 0.05), holder)
+	var lamp := SpotLight3D.new()
+	lamp.position = Vector3(0, SIGN_Y + 0.75, 0.45)
+	lamp.basis = Basis.looking_at(Vector3(0, 1.6, 0.0) - lamp.position, Vector3.UP)
+	lamp.light_color = Color(0.85, 0.93, 1.0)
+	lamp.light_energy = 2.0
+	lamp.spot_range = 3.5
+	lamp.spot_angle = 40.0
+	lamp.light_volumetric_fog_energy = 0.0
+	b.add(lamp, holder)
+	b.block(Vector3(0.16, 0.05, 0.4), Vector3(0, SIGN_Y + 0.8, 0.22), dark, holder)  # its arm and shade
+
+
+func _lever_mat(part: String) -> StandardMaterial3D:
+	var path := GORE + "lever_%s.tres" % part.to_lower()
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load(LEVER + part + "_Base_Color.png")
+	m.metallic = 1.0
+	m.metallic_texture = load(LEVER + part + "_Metallic.png")
+	m.roughness_texture = load(LEVER + part + "_Roughness.png")
+	m.normal_enabled = true
+	m.normal_texture = load(LEVER + part + "_Normal_OpenGL.png")
+	ResourceSaver.save(m, path)
+	return load(path)
 
 
 # --- fire and haze --------------------------------------------------------------------------------

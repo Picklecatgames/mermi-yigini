@@ -20,6 +20,8 @@ const SHOTS := {
 	"north": [Vector3(17.0, 1.7, -18.0), Vector3(22.0, 1.2, -27.9)],
 	"crew": [Vector3(6.0, 1.7, 20.0), Vector3(11.0, 1.4, 27.9)],
 	"gear": [Vector3(7.0, 1.7, -20.0), Vector3(11.0, 1.5, -27.9)],
+	"lever": [Vector3(8.2, 1.7, -24.5), Vector3(8.2, 1.6, -27.9)],  # the wave lever and its sign (GameState.LEVER_POS)
+	"lever_far": [Vector3(2.0, 1.7, -16.0), Vector3(9.0, 1.4, -27.9)],
 	"mouth": [Vector3(13.0, 2.2, 0.0), Vector3(28.0, 3.6, 0.0)],
 	"site_n": [Vector3(-3.0, 1.6, -7.0), Vector3(-12.0, 0.4, -14.0)],
 	"site_s": [Vector3(-3.0, 1.6, 7.0), Vector3(-12.0, 0.4, 14.0)],

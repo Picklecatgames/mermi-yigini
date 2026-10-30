@@ -136,6 +136,7 @@ var _bench_hint: Control  # at the open bench (E sits down at it)
 var _melt_hint: Control  # at the hopper with rounds in the hand (E pours them in)
 var _hopper_hint: Control  # at the hopper, the hand empty (E shows how it melts)
 var _press_hint: Control  # at the press (E makes rounds)
+var _lever_hint: Control  # at the wave lever with a wave waiting (E pulls it, scripts/waves.gd)
 var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
 var _table_hint: Control  # looking at the desk at the spawn with the pistol on it (E takes it)
 var _hud: Control
@@ -178,6 +179,7 @@ func _ready() -> void:
 	_melt_hint = _crosshair_hint(UiStyle.hint("E", "Kurşunları erit"))
 	_hopper_hint = _crosshair_hint(UiStyle.hint("E", "Eritme hunisi"))
 	_press_hint = _crosshair_hint(UiStyle.hint("E", "Mermi üret"))
+	_lever_hint = _crosshair_hint(UiStyle.hint("E", "Dalgayı başlat"))
 	add_child(_bench)
 	add_child(_board_menu)
 	add_child(_melter)
@@ -472,6 +474,9 @@ func _station() -> String:
 		spots["melter"] = GameState.MELTER_POS
 	if _press.can_open():
 		spots["press"] = GameState.PRESS_POS
+	var waves := get_tree().get_first_node_in_group("waves")
+	if waves and waves.can_pull(global_position):
+		spots["lever"] = GameState.LEVER_POS
 	var look := -_camera.global_basis.z
 	var ahead := Vector2(look.x, look.z).normalized()
 	var best := ""
@@ -517,6 +522,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_melter.open()
 			"press":
 				_press.open()
+			"lever":
+				GameState.request_pull_lever()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:
@@ -723,6 +730,7 @@ func _physics_process(delta: float) -> void:
 		(_melt_hint.get_child(1) as Label).text = "%d kurşunu erit" % GameState.carried
 	_hopper_hint.visible = station == "melter" and GameState.carried == 0
 	_press_hint.visible = station == "press"
+	_lever_hint.visible = station == "lever"
 	var p := GameState.player()
 	_reload_hint.visible = not looking and station == "" and p.gun != 0 and GameState.loaded == 0 \
 		and GameState.carried > 0 and not p.placing

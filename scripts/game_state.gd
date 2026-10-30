@@ -85,6 +85,10 @@ signal rounds_changed  # local player: the rounds made at the press (PlayerState
 signal quests_changed(board: Array, progress: Dictionary, ready: Array)
 ## Quest `id`'s reward was claimed; its unlock and part are the team's now, every player got `gold`.
 signal quest_done(id: String, gold: int)
+## Zombie waves (scripts/waves.gd): its host-side decisions, sent to everyone (see waves.gd's header).
+signal wave_cue(cue: Array)
+## Host only: someone pulled the wave lever (scripts/waves.gd decides whether a wave starts).
+signal lever_pulled(peer: int)
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -307,6 +311,7 @@ const BOARD_REACH := 3.0  # m
 ## the vault in co-op, alone from one's own gold. Numbers are placeholders.
 const MELTER_POS := Vector3(10.24, 0.0, 27.15)  # tools/range_dressing.gd _workshop
 const PRESS_POS := Vector3(11.34, 0.0, 27.53)  # on the bench's low stand
+const LEVER_POS := Vector3(8.2, 0.0, -27.6)  # the wave lever on the north wall (tools/zombie_bay.gd _lever)
 const STATION_REACH := 2.0  # m from its middle, feet
 const MELT_RATES := [2.0, 4.0, 8.0, 16.0, 32.0, 64.0]  # rounds a second, per level
 const MELT_COSTS := [120, 500, 2000, 8000, 30000]  # to the next level
@@ -332,6 +337,7 @@ const REQUESTS := {
 	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
+	&"request_pull_lever": 0,
 }
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
@@ -349,7 +355,7 @@ const TOKEN_FILE := "user://player_token.txt"
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed",
-	&"bonus_paid", &"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed"]
+	&"bonus_paid", &"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0, &"bonus_paid": 1}
 
@@ -499,6 +505,9 @@ func _ready() -> void:
 					_event.rpc_id(id, &"pistol_grip", [peer, _players[peer].levels.grip])
 				if _players[peer].character != "" and peer != id:
 					_event.rpc_id(id, &"character_changed", [peer, _players[peer].character])
+			for w: Node in get_tree().get_nodes_in_group("waves"):  # before the targets: zombies are some
+				for cue: Array in w.join_cues():
+					_event.rpc_id(id, &"wave_cue", [cue])
 			for t: Node in get_tree().get_nodes_in_group("target"):
 				if t.has_method("join_cues"):
 					for cue: Array in t.join_cues():
@@ -1319,6 +1328,19 @@ func set_key_seed(seed: int) -> void:
 func cue_target(target: Node, cue: Array) -> void:
 	if not Net.is_client:
 		_world(&"target_cue", [target, cue])
+
+
+## Host (or solo): a wave's decision, told to everyone (scripts/waves.gd). A client's own calls are dropped.
+func cue_wave(cue: Array) -> void:
+	if not Net.is_client:
+		_world(&"wave_cue", [cue])
+
+
+## Pulls the wave lever, if within reach of it. The host's Waves node decides what that does.
+func request_pull_lever(peer := 0) -> void:
+	if not near_station(LEVER_POS, peer) or _send(&"request_pull_lever", [], peer):
+		return
+	lever_pulled.emit(local_peer() if peer == 0 else peer)
 
 
 ## Host (or solo): `target` pays `peer` on its own, outside a shot (bonus_paid). Flat: no combo,
