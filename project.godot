@@ -32,7 +32,7 @@ enabled=PackedStringArray("res://addons/beckett/plugin.cfg")
 
 [gui]
 
-theme/custom_font="res://assets/fonts/Barlow-Medium.ttf"
+theme/custom_font="res://assets/fonts/IBMPlexSansCondensed-Medium.ttf"
 
 [input]
 

@@ -1,0 +1,15 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/rust_coarse_01/rust_coarse_01_diff_2k.jpg" id="1_xkmwi"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/rust_coarse_01/rust_coarse_01_nor_gl_2k.jpg" id="2_lwbgu"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/rust_coarse_01/rust_coarse_01_arm_2k.jpg" id="3_ts0ym"]
+
+[resource]
+albedo_color = Color(0.7, 0.64, 0.58, 1)
+albedo_texture = ExtResource("1_xkmwi")
+orm_texture = ExtResource("3_ts0ym")
+normal_enabled = true
+normal_texture = ExtResource("2_lwbgu")
+uv1_scale = Vector3(0.8333333, 0.8333333, 0.8333333)
+uv1_triplanar = true
+texture_filter = 5

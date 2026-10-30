@@ -1,18 +1,18 @@
 extends Control
-## The heads-up display (UiStyle): symmetric about the middle of the screen, no boxes.
-## Top centre, the one big thing: what is left of the heap, the game's goal, over a brass progress
-## bar, "Yığında kalan" and the keys found under its two ends.
-## Bottom left: the magazine big, the hand under it. Bottom right, its mirror: gold big in green,
-## the team vault under it. Bottom centre: the guns as key caps with names, the one in hand bright
+## The heads-up display (UiStyle): symmetric about the middle of the screen, no boxes. Top centre,
+## the one big thing: what is left of the heap, the game's goal, over a brass progress bar, "Yığında
+## kalan" and the keys found under its two ends. Bottom left: the magazine big, the hand under it.
+## Bottom right, its mirror: gold big in green, the team vault under it and, once the hopper is
+## open, the team's brass. Bottom centre: the guns as key caps with names, the one in hand bright
 ## and underlined in brass, and above them a special round's state. Top right: the Q key cap and
 ## "Geliştirmeler", brass when the gold reaches an upgrade, and test mode's hint under it; under
-## them the quest board (GameState QUESTS), a line and a thin bar a slot, the main quest on top saying
-## what to do; a done one turns green with its tick and reward and waits to be claimed at the board
-## (E there), then folds away and the next one comes in. Kept short: the screen is for the heap.
-## During the warmup the quest list stays away: what to do now is one key and a few words at the
-## bottom, over the guns, and the rest of the screen comes in as it is learnt (Q blinks while the
-## dummy waits to be bought); arrows point at the pistol and the heap while they are the next thing.
-## Something just opened gets a line under the heap and, like the board while a reward waits
+## them the quest board (GameState QUESTS), a line and a thin bar a slot, the main quest on top
+## saying what to do; a done one turns green with its tick and reward and waits to be claimed at the
+## board (E there), then folds away and the next one comes in. Kept short: the screen is for the
+## heap. During the warmup the quest list stays away: what to do now is one key and a few words at
+## the bottom, over the guns, and the rest of the screen comes in as it is learnt (Q blinks while
+## the dummy waits to be bought); arrows point at the pistol and the heap while they are the next
+## thing. Something just opened gets a line under the heap and, like the board while a reward waits
 ## there, an arrow pointing the way (Reveal). say() puts a line of story at the bottom for a while.
 ## Listens to GameState itself.
 
@@ -24,11 +24,12 @@ const MONEY := UiStyle.MONEY  # kept for older callers
 const QUEST_W := 230.0  # px, a quest's bar
 const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Yığından mermi taşı",
 	"bullets_fired": "Mermi ateşle", "hits": "Hedefe isabet", "weak_hits": "Kafa isabeti",
-	"combo": "Kombo zinciri", "crafted": "Tarife mermi işle", "bullets_melted": "Mermi erit",
-	"key_found": "Anahtar bul", "loaded": "Şarjöre mermi koy", "board_claim": "Panoya git", "bench_bought": "Tezgâhta geliştirme al"}
+	"combo": "Kombo zinciri", "crafted": "Preste pirinç işle", "bullets_melted": "Mermi erit",
+	"key_found": "Anahtar bul", "loaded": "Şarjöre mermi koy", "board_claim": "Panoya git", "bench_bought": "Tezgâhta geliştirme al",
+	"gear_bought": "Teçhizat al", "gear_placed": "Teçhizat yerleştir", "gun_taken": "Tabancayı al"}
 ## What a quest's `with`, `unlock`, part and perk are called on screen; guns use their GUNS name.
 const NAMES := {"clone": "Klon", "obur": "Obur", "sekme": "Sekme", "yanki": "Yankı",
-	"workbench": "Tezgâh", "bucket": "Kova", "blueprints": "Tarif panosu", "hand_press": "El presi",
+	"workbench": "Tezgâh", "bucket": "Kova", "blueprints": "Tarif panosu", "hand_press": "Pres",
 	"shovel": "Kürek", "melter": "Eritme hunisi", "slot_machine": "Slot makinesi",
 	"electric_press": "Elektrikli pres", "wheelbarrow": "El arabası", "melter_speed": "Hızlı huni",
 	"melter_yield": "Verimli huni", "sweeper": "Süpürge robotu", "drone_teaser": "Dron planı",
@@ -49,6 +50,7 @@ var _mag_of: Label
 var _hand: Label
 var _gold: Label
 var _vault: Label
+var _brass: Label  # the team's brass from the hopper (GameState.brass), once it is open
 var _special_row: HBoxContainer
 var _special: Label
 var _special_hint: Control
@@ -63,7 +65,6 @@ var _claim: Control  # "[E] Panoda teslim et", while something is done
 var _claimed := {}  # quest ids just claimed: their card folds away before the next comes in
 var _hint: Control  # bottom centre during the warmup: the quest's key and what to do
 var _subtitle: Label  # bottom centre, a line of story for a while (say)
-var _q_blink: Tween
 var _left: Control  # the magazine's column
 var _right: Control  # gold's column
 var _banner: Label  # "Tezgâh açıldı", under the heap for a while
@@ -85,6 +86,7 @@ func _ready() -> void:
 	GameState.gun_changed.connect(refresh.unbind(2))
 	GameState.key_taken.connect(refresh.unbind(2))
 	GameState.gold_changed.connect(func(_g: int) -> void: _pop(_gold))
+	GameState.melter_changed.connect(func(_b: int, _r: int, _m: int, _p: int) -> void: _show_brass())
 	GameState.quest_done.connect(_on_quest_done)
 	GameState.quests_changed.connect(func(_b: Array, _p: Dictionary, _r: Array) -> void:
 		_refresh_quests()
@@ -296,9 +298,17 @@ func _build_sides() -> void:
 			under.add_child(small)  # the team's vault, co-op only: "Takım $N"
 			_gold = big
 			_vault = small
+			var brass := HBoxContainer.new()  # under it, once the hopper is open: its brass
+			brass.alignment = BoxContainer.ALIGNMENT_END
+			brass.add_theme_constant_override("separation", 6)
+			brass.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			col.add_child(brass)
+			brass.add_child(UiStyle.item("ingot", 24))
+			_brass = UiStyle.display("", 18, UiStyle.SEMIBOLD, UiStyle.ACCENT)
+			brass.add_child(_brass)
 		else:
 			_mag_caption = UiStyle.caption("")  # kept for the old callers, never shown
-			under.add_child(UiStyle.icon("bullets", 17))
+			under.add_child(UiStyle.item("round", 22))
 			under.add_child(small)
 			_mag = big
 			_mag_of = UiStyle.stencil("", 28, UiStyle.DIM)
@@ -366,7 +376,8 @@ func _build_corner() -> void:
 	_can_buy = UiStyle.label("", 16, UiStyle.SEMIBOLD)
 	_can_buy.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_child(_can_buy)
-	_q = UiStyle.keycap("Q", 20)
+	_q = UiStyle.keycap("Q", 20)  # no Q menu any more (everything at the bench): kept hidden, it holds the corner's place
+	_q.visible = false
 	row.add_child(_q)
 	_test = UiStyle.hint("T", "Sınırsız mermi")
 	_test.alignment = BoxContainer.ALIGNMENT_END
@@ -562,6 +573,7 @@ func refresh() -> void:
 	_gold.text = "$" + UiStyle.dotted(GameState.gold)
 	_vault.text = "Takım $" + UiStyle.dotted(floori(GameState.vault))
 	_vault.visible = GameState.team_vault()
+	_show_brass()
 	_special_row.visible = true
 	if p.armed != "":
 		_special.text = GameState.SPECIALS[p.armed].name
@@ -586,30 +598,18 @@ func refresh() -> void:
 			return false
 		return p.levels[id] < costs.size() and GameState.gold >= costs[p.levels[id]])
 	_can_buy.visible = false
-	UiStyle.tint_keycap(_q, UiStyle.ACCENT if can or _main_kind() == "gear_bought" else UiStyle.DIM)
-	# Q opens the gear (2026-10-28, the user's call): it comes in once the pistol is taken and the
-	# heap's line is said, blinking while the warmup waits for the dummy to be bought.
-	_q.get_parent().visible = _shown("hud_gold") and not _subtitle.visible
-	_set_q_blink(_q.get_parent().visible and _main_kind() == "gear_bought")
 	_test.visible = GameState.infinite_ammo
-	# The warmup opens the screen bit by bit: gold with the Q once the pistol is taken, the hand and
-	# guns once a bullet was (GameState QUESTS t00, t03).
+	# The warmup opens the screen bit by bit: gold with the bench once the pistol is taken, the hand
+	# and guns once a bullet was (GameState QUESTS t00, t03).
 	_left.visible = _shown("hud_ammo")
 	_guns.visible = _shown("hud_ammo")
-	_right.visible = _shown("hud_gold")
+	_right.visible = _shown("workbench")
 
 
-func _set_q_blink(on: bool) -> void:
-	if on == (_q_blink != null):
-		return
-	if _q_blink:
-		_q_blink.kill()
-		_q_blink = null
-		_q.modulate = Color.WHITE
-		return
-	_q_blink = _q.create_tween().set_loops().set_trans(Tween.TRANS_SINE)
-	_q_blink.tween_property(_q, "modulate", Color(1.6, 1.4, 0.9), 0.4)
-	_q_blink.tween_property(_q, "modulate", Color(1, 1, 1, 0.35), 0.4)
+## The brass line: as often as the hopper melts, so only it.
+func _show_brass() -> void:
+	_brass.text = UiStyle.dotted(GameState.brass)
+	_brass.get_parent().visible = GameState.unlocked("melter")
 
 
 ## A number that went up gives a small start.

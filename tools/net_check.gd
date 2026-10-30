@@ -12,9 +12,11 @@ extends SceneTree
 ## Between players: the client shoots the host (no harm, no pay, the host's aim jumps), then
 ## walks into it: it can't pass through, and the host gets shoved. Name tags take slot colours.
 ## Guns: the host draws the UZI before the client joins and the client, bare-handed at first, the
-## Deagle; each sees the other's character holding the right one. Quests: the host finishes the
+## starting pistol, then gives it its wooden grips; each sees the other's character holding the
+## right one, the host the client's with the wooden grips. Quests: the host finishes the
 ## main one as the client joins, the client claims its reward (C) through the host, the client's
-## grabs and shots count on the host, and both end up with the same board.
+## grabs and shots count on the host, and both end up with the same board. Workshop: the hopper the
+## host fills melts on the host and the client sees its brass; the client presses clones from it.
 
 const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the way
 const LOG := "user://net_check_client.log"
@@ -64,14 +66,19 @@ func _host() -> void:
 	# Taken before anyone joins: the client will reach for the same bullet and must lose it.
 	if gs.request_pick_up_loose(0) != 1:
 		return _fail("host takes loose bullet 0")
-	gs.request_select_gun(2)  # the UZI, before anyone is there to see it
+	gs.request_select_gun(3)  # the UZI, before anyone is there to see it
 	while gs.QUESTS[gs.quest_board[0]].get("warmup", false):  # past the warmup, to a quest that waits for its claim
 		gs._finish_quest(gs.quest_board[0])
+	for id: String in gs.QUESTS:  # the hopper and the press open: the joiner hears of it
+		if gs.QUESTS[id].get("unlock") in ["melter", "hand_press"]:
+			gs.quests_done.append(id)
 	var client_id := [0]
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void:
 		client_id[0] = id
 		for d in DIGS:  # after GameState has told the newcomer the count and the key seed
 			gs.request_take_bullets(d[1], d[0])
+		gs.melt_bin = 6  # in the hopper: the host melts it, the client presses it
+		gs._melter_now(true)
 		var main_quest: Dictionary = gs.QUESTS[gs.quest_board[0]]  # finished while the client is in
 		gs.quest_add(main_quest.kind, 1 << 20, [main_quest.get("with", "")]))
 	process_frame.connect(_sample)
@@ -94,7 +101,7 @@ func _host() -> void:
 		var sound: Node3D = main.get_node("Impacts")._shot_sounds.get(peer)
 		shots.append([peer, t, gold, labels.any(func(l: Label3D) -> bool: return l.visible),
 			who.muzzle_position() if who else Vector3.INF, sound.global_position if sound else Vector3.INF,
-			gs.player(peer).pos, _holding(who)]))
+			gs.player(peer).pos, _holding(who), _wooden(who)]))
 	var ff := []
 	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3, _special: String) -> void:
 		ff.append([shooter, victim]))
@@ -141,7 +148,8 @@ func _host() -> void:
 			"the client's character stood where it fired from"): return
 	if not _ok(shots[0][5].distance_to(muzzle) < 0.001, "the shot rang out at that character's muzzle"): return
 	if not _ok(shots[0][6].distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
-	if not _ok(shots[0][7] == "Deagle", "the client's character fired holding the Deagle (%s)" % shots[0][7]): return
+	if not _ok(shots[0][7] == "ServicePistol", "the client's character fired holding the starting pistol (%s)" % shots[0][7]): return
+	if not _ok(shots[0][8], "with the wooden grips it gave it"): return
 	if not _ok(tag_ok[0], "the client's tag takes slot 1's colour"): return
 	print("friendly fire: %s, our aim now pitch %.3f; pushed %.2f m" % [ff, me._pitch, me.global_position.distance_to(home)])
 	if not _ok(ff.size() == 1 and ff[0] == [cid, gs.local_peer()], "the client's round hit us"): return
@@ -151,6 +159,7 @@ func _host() -> void:
 	var p = gs._saved.values()[0] if gs._saved.size() == 1 else null  # under the client's token
 	if not _ok(p != null and p.gold == gs.TEST_MONEY + 6 and p.loaded == 0 and p.carried == 0, "host keeps the client's state (its scarecrow $6 too)"): return
 	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return
+	if not _ok(p.rounds.get("clone", 0) == 3 and gs.brass == 0 and gs.melt_bin == 0, "the client pressed three clones from the team's brass"): return
 	if not _ok(paid[0] >= 1 and topped[0] > 0.0 and is_equal_approx(gs.vault, topped[0] + paid[0] * gs.VAULT_SHARE), "every paid $ put its share in the vault (%.2f of $%.0f)" % [gs.vault, paid[0]]): return
 	print("net_check OK")
 	quit()
@@ -182,10 +191,11 @@ func _client() -> void:
 	if not _ok(_holding(rp.character(1)) == "UZI", "the host's character holds the UZI (%s)" % _holding(rp.character(1))): return
 	if not _ok(gs.player().gun == 0 and not gs.request_fire(me.global_position, Vector3.FORWARD) and gs.request_reload() == 0, "bare fists: nothing to fire or load"): return
 	gs.request_select_gun(1)
-	if not _ok(gs.player().gun == 0, "the Deagle stays shut until it is taken off the table"): return
+	if not _ok(gs.player().gun == 0, "the pistol stays shut until it is taken off the table"): return
 	gs.request_take_pistol()  # takes it and draws it: two requests, in order
-	if not await _until(gs.synced, "answer to drawing the Deagle"): return
+	if not await _until(gs.synced, "answer to drawing the pistol"): return
 	if not _ok(gs.player().gun == 1, "the host let us draw it"): return
+	gs.request_debug_level_up("grip")  # the wooden grips: the host shows them on our character
 	# Walk up to the line to shoot from there; our pose follows us to the host.
 	me.global_position = Vector3(12, 0, 0)
 	me.reset_physics_interpolation()
@@ -275,6 +285,15 @@ func _client() -> void:
 	if not _ok(gs.gold - gold_before == 6, "scarecrow: $1 for the hit, $5 while it burnt"): return
 	gs.request_toggle_infinite_ammo()  # back to the empty gun the host checks for
 	if not await _until(gs.synced, "test mode off"): return
+	# The workshop: the host's hopper melts and we see the brass; we press it at the press.
+	if not await _until(func() -> bool: return gs.brass == 6 and gs.melt_bin == 0, "the host's hopper to melt (%d, %d)" % [gs.melt_bin, gs.brass], 10.0): return
+	me.global_position = gs.PRESS_POS + Vector3(0, 0, -1.2)
+	me.reset_physics_interpolation()
+	await create_timer(0.3).timeout  # our pose reaches the host
+	if not _ok(gs.request_press("clone", 9) == 3, "the press makes what the brass allows"): return
+	if not await _until(gs.synced, "the press"): return
+	if not _ok(gs.player().rounds.get("clone", 0) == 3, "three clones are ours"): return
+	if not await _until(func() -> bool: return gs.brass == 0, "the brass spent on the host"): return
 	# Keep watching until the host's popper has gone down and up again and the rack has cycled.
 	if not await _until(func() -> bool: return Time.get_ticks_msec() - watch_from > 5000 \
 			and seen.popper.size() >= 3, "the popper to go down and stand up"): return
@@ -300,10 +319,16 @@ func _client() -> void:
 func _holding(who: Node) -> String:
 	if who == null or not who._gun.visible:
 		return ""
-	for m: Node3D in who._fp_skel.get_children():
-		if m is MeshInstance3D and m.visible and m.name != "Mesh":
+	for m: Node in who._fp_skel.get_children():
+		if (m is MeshInstance3D or m.name == "ServicePistol") and m.visible and m.name != "Mesh":
 			return m.name
 	return "?"
+
+
+## `who`'s starting pistol has its wooden grips on, not the tape.
+func _wooden(who: Node) -> bool:
+	var gun: Node = who._fp_skel.get_node_or_null("ServicePistol") if who else null
+	return gun != null and gun.get_node("frame_wood").visible and not gun.get_node("frame_tape").visible
 
 
 func _sample() -> void:

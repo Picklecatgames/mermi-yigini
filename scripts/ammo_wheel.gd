@@ -5,7 +5,7 @@ extends Control
 ## turning 3D model with name and count; the picked one is bright with a short accent rule and what
 ## it does, the rest faded. Moving the mouse sideways picks; letting R go loads it: a special becomes
 ## the next shot (request_arm_special), the plain round takes it back out.
-## The picker stands on a dark steel panel, its keys as key caps (UiStyle.hint).
+## The picker stands on a sheet of scanned steel (UiStyle.steel_panel), its keys as key caps (UiStyle.hint).
 ## Note: picking up a special brings its model, name and use up top for a few seconds.
 
 signal picked(id: String)  # "" for the plain round
@@ -36,7 +36,7 @@ func _ready() -> void:
 	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dim.visible = false
 	add_child(_dim)
-	_picker = UiStyle.panel(22, 8)
+	_picker = UiStyle.steel_panel("wheel", 28)
 	_picker.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_picker.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_picker.grow_vertical = Control.GROW_DIRECTION_BOTH
@@ -183,7 +183,7 @@ func round_view(id: String, px := MODEL_PX) -> SubViewportContainer:
 func note(id: String) -> void:
 	if is_instance_valid(_note):
 		_note.queue_free()
-	var n := UiStyle.panel(16, 8)
+	var n := UiStyle.steel_panel(id, 22)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 4)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE

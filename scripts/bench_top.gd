@@ -7,6 +7,9 @@ extends StaticBody3D
 ## The wooden vise on the top, part of the desk's own mesh (glb space): its triangles are dropped.
 const VISE := AABB(Vector3(-0.37, 0.985, -0.16), Vector3(0.74, 0.3, 0.73))
 const HOOK := AABB(Vector3(-0.37, 0.5, 0.375), Vector3(0.74, 0.7, 0.5))  # its handle, hung over the front edge (z 0.366)
+## The battery box on the low stand at the hopper end (top 0.779): the press stands there instead
+## (range_dressing.gd _workshop, 2026-10-28, the user's call).
+const BATTERY := AABB(Vector3(0.66, 0.782, -0.34), Vector3(0.28, 0.25, 0.41))
 
 
 const Reveal := preload("res://scripts/reveal.gd")
@@ -70,7 +73,7 @@ func _drop_vise(desk: MeshInstance3D) -> void:
 	var kept := PackedInt32Array()
 	for t in range(0, idx.size(), 3):
 		var mid := desk.transform * ((verts[idx[t]] + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0)
-		if not VISE.has_point(mid) and not HOOK.has_point(mid):
+		if not VISE.has_point(mid) and not HOOK.has_point(mid) and not BATTERY.has_point(mid):
 			kept.append_array([idx[t], idx[t + 1], idx[t + 2]])
 	arrays[Mesh.ARRAY_INDEX] = kept
 	var mesh := ArrayMesh.new()

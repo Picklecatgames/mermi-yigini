@@ -6,7 +6,9 @@ extends CanvasLayer
 ## the bench, where it hovers. Buying puts the part on with a small show (2026-10-28, the user's
 ## call): the laser rises from under the barrel and clamps on, landing with a knock, a click,
 ## sparks and a warm flash. A magazine level swaps the
-## magazine. Only the Deagle has parts so far. Local: each player's bench shows their own gun.
+## magazine. The starting pistol's tape comes off for wooden grips: the gun spins once and comes round
+## with them. The Deagle is bought here first. Only these two have parts so far. Local: each player's
+## bench shows their own gun.
 ## Sounds are the guns' own recordings (assets/weapons/sounds).
 
 const Attachments := preload("res://scripts/gun_attachments.gd")
@@ -15,8 +17,8 @@ const TOP := 0.98  # the bench top in the glb's space (bench_top.gd)
 const REACH := 1.9  # m from the bench's front edge that E opens it
 ## Bench space, metres off the middle of its top: x to the right as seen from the hall, y up, z out
 ## toward the hall. The gun hovers left of the middle, the cards cover the right of the screen.
-const GUN_AT := Vector3(-0.12, 0.17, 0.06)
-const GUN_FROM := Vector3(-1.1, 0.17, 0.06)  # off the left of the view
+const GUN_AT := Vector3(-0.12, 0.2, 0.06)  # the grip's foot clear of the papers on the top
+const GUN_FROM := Vector3(-1.1, 0.2, 0.06)  # off the left of the view
 const GUN_YAW := -0.25  # rad, the muzzle turned a little toward us
 const EYE := Vector3(-0.094, 0.3, 0.6)
 const LOOK := Vector3(-0.094, 0.15, 0.06)
@@ -33,16 +35,24 @@ const HANG := 0.012
 ## the grip, in gun space (read off Deagle_Reload, 1.05-1.15 s).
 const MAGS := ["Magazine", "Magazine_2"]
 const MAG_OUT_ALONG := Vector3(0.001, -0.108, -0.017)
-const MAG_AWAY := Vector3(-0.12, -0.26, 0.02)  # then off the bottom of the view, toward us
-## GameState GUNS id and name; only the first has parts yet.
-const GUNS := [["deagle", "Desert Eagle"], ["uzi", "UZI"], ["scorpion", "Scorpion"], ["minigun", "Minigun"]]
+const MAG_AWAY := Vector3(-0.32, -0.02, 0.02)  # then toward us (gun -x), level, off the bottom of the view
+const MAG_LIFT := 0.06  # m the gun rises for the swap: the magazine's way out stays over the top, the gun in view
+## GameState GUNS id and name; only those in GUN_PARTS have parts yet.
+const GUNS := [["pistol", "Tabanca"], ["deagle", "Desert Eagle"], ["uzi", "UZI"], ["scorpion", "Scorpion"], ["minigun", "Minigun"]]
 const PARTS := {  # bench upgrade -> name, what it does
-	"magazine": ["Şarjör", "Şarjöre giren mermi"],
+	"deagle": ["Desert Eagle", ""],  # the gun itself
+	"magazine": ["Şarjör", ""],  # "2 → 3 mermi" under it says it
+	"grip": ["Ahşap kabza", "Daha az tepme"],
 	"laser": ["Lazer nişangâh", "Kafa vuruşu ×3"],
 }
+## Per gun, its cards; a gun bought here (GameState GUNS "bought") shows only that card until it is.
+const GUN_PARTS := {"pistol": ["magazine", "grip"], "deagle": ["deagle", "magazine", "laser"]}
+const VIEWMODEL := preload("res://scripts/viewmodel.gd")
 const KEY_LIGHT := Color(1.0, 0.88, 0.74)
 const FLASH := Color(1.0, 0.62, 0.3)
-const CARD := Color(0.115, 0.122, 0.132, 0.96)
+const CARD_DONE := Color(0.66, 0.6, 0.42)  # a part on for good: the card warms toward brass
+const ROW_ON := Color(0.62, 0.58, 0.46)  # the gun on the bench, its row warmer
+const ROW_SHUT := Color(0.26, 0.27, 0.26)
 const MAG_OUT := preload("res://assets/weapons/sounds/mag_out.wav")
 const MAG_IN := preload("res://assets/weapons/sounds/mag_enter.wav")
 const MAG_SEAT := preload("res://assets/weapons/sounds/mag_seat.wav")
@@ -58,7 +68,7 @@ var _bob := Node3D.new()  # hovers
 var _shake := Node3D.new()  # knocked by a part landing; the gun bone's space
 var _key := OmniLight3D.new()  # our own light on the gun while the bench is open
 var _flash := OmniLight3D.new()
-var _gun: Node3D  # the arms rig standing as the Deagle alone, made the first time
+var _gun: Node3D  # the arms rig standing as the gun on the bench alone, made when it is picked
 var _skel: Skeleton3D
 var _gun_bone := Transform3D()  # the gun bone in the skeleton's space, at rest
 var _mag_rest := {}  # MAGS bone -> its rest pose in gun space
@@ -137,6 +147,8 @@ func open() -> void:
 	_fade.tween_property(_ui, "modulate:a", 1.0, 0.35).set_delay(FLY_TIME * 0.5)
 	_show_parts(false)
 	_refresh()
+	if GameState.warming() and GameState.QUESTS[GameState.quest_board[0]].kind == "gear_bought":
+		get_parent().get_node("UpgradeMenu").open_tab.call_deferred(1)  # the warmup's dummy: straight to the gear
 
 
 func close() -> void:
@@ -225,20 +237,25 @@ func _hide_player(hide: bool) -> void:
 			n.visible = not hide
 
 
-## The arms rig in its Deagle Idle pose with only the gun shown, moved so the gun bone sits at
+## The arms rig in the gun's Idle pose with only the gun shown, moved so the gun bone sits at
 ## _shake's origin (as upgrade_menu.gd's gold Deagle). Parts already bought go on with it.
-func _make_gun() -> void:
-	var kit: Dictionary = preload("res://scripts/viewmodel.gd").SETS.deagle
+func _make_gun(id: String) -> void:
+	for n: Node in _shake.get_children():
+		n.queue_free()
+	var kit: Dictionary = VIEWMODEL.SETS[id]
 	_gun = ARMS.instantiate()
 	_shake.add_child(_gun)
+	var skel: Skeleton3D = _gun.find_child("Skeleton3D", true, false)
+	var pistol := VIEWMODEL.add_pistol(skel)
+	VIEWMODEL.pistol_grip(skel, GameState.upgrade_value("grip") > 0)
+	pistol.visible = kit.mesh == pistol.name
 	var anim: AnimationPlayer = _gun.find_child("AnimationPlayer", true, false)
 	anim.play(kit.clips + "Idle")
 	anim.seek(0.0, true)
 	anim.advance(0.0)
 	anim.pause()
 	for m: MeshInstance3D in _gun.find_children("*", "MeshInstance3D", true, false):
-		m.visible = m.name == kit.mesh
-	var skel: Skeleton3D = _gun.find_child("Skeleton3D", true, false)
+		m.visible = m.name == kit.mesh or pistol.is_ancestor_of(m)
 	_skel = skel
 	_gun_bone = skel.get_bone_global_pose(skel.find_bone(kit.bone))
 	for m: String in MAGS:
@@ -248,16 +265,15 @@ func _make_gun() -> void:
 	_gun.transform = bone.affine_inverse()
 	# Gun space to bench space: the barrel to the right, its port side (-x) toward the hall.
 	_shake.transform = Transform3D(Basis(Vector3(0, 0, -1), Vector3.UP, Vector3.RIGHT), Vector3.ZERO)
-	if GameState.upgrade_value("laser") > 0:
+	if id == "deagle" and GameState.upgrade_value("laser") > 0:
 		_shake.add_child(Attachments.make("laser"))
 
 
 func _pick(id: String) -> void:
-	if _busy or _on_bench == id or id != "deagle":
+	if _busy or _on_bench == id or not GUN_PARTS.has(id):
 		return
 	_on_bench = id
-	if _gun == null:
-		_make_gun()
+	_make_gun(id)
 	_holder.visible = true
 	_holder.position = GUN_FROM
 	_holder.rotation = Vector3(0, GUN_YAW + 0.5, 0.06)
@@ -272,13 +288,19 @@ func _pick(id: String) -> void:
 
 ## The bench sells it: the part goes on, then the cards catch up.
 func _buy(id: String) -> void:
-	if _busy or _on_bench != "deagle" or not GameState.request_buy_upgrade(id):
+	if _busy or id not in _parts_of(_on_bench) or not GameState.request_buy_upgrade(id):
 		return
 	_busy = true
 	_play(TILL, -12.0, randf_range(0.95, 1.08))
 	_refresh()
 	if id == "magazine":
 		await _swap_magazine()
+	elif id == "grip":
+		await _turn_grip()
+	elif id == "deagle":
+		_play(SLIDE_HOME, -8.0, 0.9)
+		_banner("Desert Eagle alındı")
+		_show_parts(true)  # its own cards now
 	else:
 		await _fit(id)
 	_busy = false
@@ -312,13 +334,30 @@ func _fit(id: String) -> void:
 	_banner(PARTS[id][0] + " takıldı")
 
 
-## The gun tips its grip toward us, its own magazine drops out along the grip and is taken away
-## off the bottom of the view; the fresh one (the rig's second magazine) comes up from there, lines
-## up under the grip and is pushed home with a knock. Then the two swap back unseen (the same
-## model), so the gun is at rest again.
+## The tape comes off: the gun spins once about its barrel and comes round with wooden grips,
+## landing back level with a knock.
+func _turn_grip() -> void:
+	_play(SLIDE_BACK, -12.0, 1.2)
+	var t := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	t.tween_property(_holder, "rotation:x", PI, 0.35)
+	t.tween_callback(VIEWMODEL.pistol_grip.bind(_skel, true))
+	t.tween_property(_holder, "rotation:x", TAU, 0.35)
+	await t.finished
+	_holder.rotation.x = 0.0
+	_knock(Vector3.UP, Vector3(0, -0.05, -0.08))
+	_play(MAG_SEAT, -2.0, 0.9)
+	_banner(PARTS.grip[0] + " takıldı")
+
+
+## The gun rises and tips its grip toward us, its own magazine drops out along the grip and is
+## taken away toward us, off the bottom of the view and over the bench top (it went through the top
+## before, 2026-10-28); the fresh one (the rig's second magazine) comes back that way, lines up under
+## the grip and is pushed home with a knock. Then the two swap back unseen (the same model), so the
+## gun is at rest again, and it settles back down.
 func _swap_magazine() -> void:
-	var tip := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var tip := create_tween().set_parallel().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tip.tween_property(_holder, "rotation:x", -0.45, 0.3)
+	tip.tween_property(_holder, "position:y", GUN_AT.y + MAG_LIFT, 0.3)
 	await tip.finished
 	var seated: Transform3D = _mag_rest[MAGS[0]]
 	var below := seated.translated(MAG_OUT_ALONG * 1.25)
@@ -338,8 +377,9 @@ func _swap_magazine() -> void:
 	_knock(Vector3.UP, seated.origin)
 	_pose_mag(1.0, MAGS[0], seated, seated)  # the swap back: the gun at rest again
 	_pose_mag(1.0, MAGS[1], _mag_rest[MAGS[1]], _mag_rest[MAGS[1]])
-	var back := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	var back := create_tween().set_parallel().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	back.tween_property(_holder, "rotation:x", 0.0, 0.35).set_delay(0.15)
+	back.tween_property(_holder, "position:y", GUN_AT.y, 0.4).set_delay(0.15)
 	await back.finished
 	_banner("Şarjör: %d mermi" % GameState.upgrade_value("magazine"))
 
@@ -463,19 +503,16 @@ func _gun_row(id: String, title: String) -> Control:
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	b.custom_minimum_size = Vector2(300, 54)
+	b.custom_minimum_size = Vector2(300, 58)
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD, 1, true))
 	b.add_theme_font_size_override("font_size", 24)
-	var has_parts := id == "deagle"
+	var has_parts := GUN_PARTS.has(id)
 	b.text = "  " + title.to_upper() + ("" if has_parts else "      yakında")
 	b.disabled = not has_parts
-	for s: String in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var box := UiStyle.panel_box(4, 10, CARD if s != "hover" else CARD.lerp(Color.WHITE, 0.08))
-		box.set_border_width_all(0)
-		box.border_width_left = 3
-		box.border_color = UiStyle.ACCENT if s in ["hover", "pressed"] else Color(1, 1, 1, 0.1)
-		b.add_theme_stylebox_override(s, box)
+	for s: String in ["normal", "hover", "pressed", "disabled", "focus"]:  # steel rows, as the press's
+		var t := UiStyle.PLATE_GREY.lightened(0.12) if s == "hover" else (ROW_SHUT if s == "disabled" else UiStyle.PLATE_GREY)
+		b.add_theme_stylebox_override(s, UiStyle.plate("row", title, t, 10) if s != "focus" else StyleBoxEmpty.new())
 	b.add_theme_color_override("font_disabled_color", Color(UiStyle.DIM, 0.45))
 	b.pressed.connect(_pick.bind(id))
 	b.set_meta("id", id)
@@ -484,9 +521,7 @@ func _gun_row(id: String, title: String) -> Control:
 
 func _part_card(id: String) -> Control:
 	var card := PanelContainer.new()
-	var style := UiStyle.panel_box(6, 16, CARD)
-	style.set_border_width_all(0)
-	style.border_width_left = 3
+	var style := UiStyle.machine_card(id, 20)
 	card.add_theme_stylebox_override("panel", style)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
@@ -498,6 +533,7 @@ func _part_card(id: String) -> Control:
 	about.add_child(UiStyle.display(PARTS[id][0].to_upper(), 26, UiStyle.BOLD))
 	var what := UiStyle.label(PARTS[id][1], 14, UiStyle.REGULAR, UiStyle.DIM)
 	what.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	what.visible = PARTS[id][1] != ""
 	about.add_child(what)
 	var state := UiStyle.label("", 14, UiStyle.MEDIUM, UiStyle.ACCENT)
 	about.add_child(state)
@@ -508,19 +544,19 @@ func _part_card(id: String) -> Control:
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.add_theme_font_override("font", UiStyle.face(UiStyle.BOLD, 0, true))
 	b.add_theme_font_size_override("font_size", 22)
-	for s: String in ["normal", "hover", "pressed", "disabled", "focus"]:
-		var box := UiStyle.panel_box(4, 8, UiStyle.MONEY if s != "disabled" else Color(1, 1, 1, 0.06))
-		if s == "hover":
-			box.bg_color = UiStyle.MONEY.lightened(0.2)
-		box.set_border_width_all(0)
-		b.add_theme_stylebox_override(s, box)
-	b.add_theme_color_override("font_color", Color(0.03, 0.09, 0.05))
-	b.add_theme_color_override("font_hover_color", Color(0.03, 0.09, 0.05))
-	b.add_theme_color_override("font_disabled_color", UiStyle.DIM)
+	UiStyle.brass_button(b, id)
 	b.pressed.connect(_buy.bind(id))
 	row.add_child(b)
 	_cards[id] = {"card": card, "state": state, "button": b, "style": style}
 	return card
+
+
+## The cards of the gun on the bench: a gun still to buy has only its own.
+func _parts_of(gun: String) -> Array:
+	var parts: Array = GUN_PARTS.get(gun, [])
+	if gun in parts:
+		return [gun] if GameState.upgrade_value(gun) == 0 else parts.filter(func(p: String) -> bool: return p != gun)
+	return parts
 
 
 ## The cards come in from the right, one after another, once a gun is on the bench.
@@ -532,6 +568,9 @@ func _show_parts(on: bool) -> void:
 	var i := 0
 	for id: String in PARTS:
 		var card: Control = _cards[id].card
+		card.visible = id in _parts_of(_on_bench)
+		if not card.visible:
+			continue
 		card.modulate.a = 0.0
 		var t := card.create_tween().set_parallel()
 		t.tween_property(card, "modulate:a", 1.0, 0.25).set_delay(SLIDE_TIME * 0.5 + i * 0.08)
@@ -546,7 +585,7 @@ func _refresh() -> void:
 	_gold.text = "$" + UiStyle.dotted(GameState.gold)
 	for b: Button in _guns_box.get_children():
 		var on: bool = b.get_meta("id") == _on_bench
-		(b.get_theme_stylebox("normal") as StyleBoxFlat).border_color = UiStyle.ACCENT if on else Color(1, 1, 1, 0.1)
+		(b.get_theme_stylebox("normal") as StyleBoxTexture).modulate_color = ROW_ON if on else UiStyle.PLATE_GREY
 	for id: String in PARTS:
 		var c: Dictionary = _cards[id]
 		var level: int = GameState.player().levels[id]
@@ -558,12 +597,12 @@ func _refresh() -> void:
 			state.text = "%d mermi · en çok" % GameState.upgrade_value(id) if maxed \
 				else "%d → %d mermi" % [GameState.upgrade_value(id), GameState.UPGRADES[id].values[level + 1]]
 		else:
-			state.text = "Takılı" if maxed else ""
+			state.text = ""  # the button says "Takılı"
 		state.visible = state.text != ""
 		var cost: int = 0 if maxed else costs[level]
-		b.text = "Takılı" if maxed and id != "magazine" else ("Tamam" if maxed else "$%d" % cost)
+		b.text = ("Tamam" if id == "magazine" else "Takılı") if maxed else "$%d" % cost
 		b.disabled = maxed or _busy or GameState.gold < cost
-		(c.style as StyleBoxFlat).border_color = UiStyle.ACCENT if maxed else (UiStyle.MONEY if not b.disabled else Color(1, 1, 1, 0.08))
+		(c.style as StyleBoxTexture).modulate_color = CARD_DONE if maxed 			else (UiStyle.MACHINE_PAINT.lightened(0.12) if not b.disabled else UiStyle.MACHINE_PAINT.darkened(0.15))
 
 
 ## A line over the gun for a moment: what just went on.

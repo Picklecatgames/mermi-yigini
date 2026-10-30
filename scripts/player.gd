@@ -20,6 +20,8 @@ const AMMO_WHEEL := preload("res://scripts/ammo_wheel.gd")
 const HUD := preload("res://scripts/hud.gd")
 const BENCH_MENU := preload("res://scripts/bench_menu.gd")
 const BOARD_MENU := preload("res://scripts/quest_board.gd")
+const MELTER_MENU := preload("res://scripts/melter_menu.gd")
+const PRESS_MENU := preload("res://scripts/press_menu.gd")
 const LASER_DOT := Vector2(0.03, 0.012)  # m across the dot: at least, and per metre away (stays visible far off)
 const LASER_BEAM := Vector2(0.0006, 0.0005)  # m beam radius at the lens, and per metre on: about a pixel all the way
 const WHEEL_HOLD := 0.22  # s R is held before the ammo wheel opens; a shorter press reloads
@@ -115,6 +117,8 @@ var _special_sound: AudioStreamPlayer
 @onready var _shop: CanvasLayer = $UpgradeMenu
 var _bench: CanvasLayer = BENCH_MENU.new()  # the workshop bench's view (E in front of it)
 var _board_menu: CanvasLayer = BOARD_MENU.new()  # the quest board's screen (E in front of it)
+var _melter: CanvasLayer = MELTER_MENU.new()  # the hopper's screen (E beside it pours the hand in)
+var _press: CanvasLayer = PRESS_MENU.new()  # the press's screen (E in front of it)
 var _laser_dot := MeshInstance3D.new()  # where the bought laser says the shot will land
 var _laser_beam := MeshInstance3D.new()  # from the laser's lens to the dot, through the air
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
@@ -126,6 +130,9 @@ var _grab_hint: Control  # under the crosshair while looking at the heap
 var _full_hint: Control
 var _board_hint: Control  # at the quest board while something waits there (E claims)
 var _bench_hint: Control  # at the open bench (E sits down at it)
+var _melt_hint: Control  # at the hopper with rounds in the hand (E pours them in)
+var _hopper_hint: Control  # at the hopper, the hand empty (E shows how it melts)
+var _press_hint: Control  # at the press (E makes rounds)
 var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
 var _table_hint: Control  # looking at the desk at the spawn with the pistol on it (E takes it)
 var _hud: Control
@@ -165,8 +172,13 @@ func _ready() -> void:
 	_full_hint = _crosshair_hint(UiStyle.hint("G", "Elin dolu: fırlat"))
 	_board_hint = _crosshair_hint(UiStyle.hint("E", "Görev panosu"))
 	_bench_hint = _crosshair_hint(UiStyle.hint("E", "Tezgâh: silahını geliştir"))
+	_melt_hint = _crosshair_hint(UiStyle.hint("E", "Kurşunları erit"))
+	_hopper_hint = _crosshair_hint(UiStyle.hint("E", "Eritme hunisi"))
+	_press_hint = _crosshair_hint(UiStyle.hint("E", "Mermi üret"))
 	add_child(_bench)
 	add_child(_board_menu)
+	add_child(_melter)
+	add_child(_press)
 	_make_laser_dot()
 	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
@@ -438,7 +450,35 @@ void fragment() {
 
 ## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
 func _hands_busy() -> bool:
-	return GameState.player().placing or _shop.visible or _bench.visible or _board_menu.visible
+	return GameState.player().placing or _shop.visible or _bench.visible or _board_menu.visible \
+		or _melter.visible or _press.visible
+
+
+## E in the workshop: of the board, bench, hopper and press in reach, the one the view points
+## closest to (they stand side by side). "" when none is.
+func _station() -> String:
+	if _hands_busy():
+		return ""
+	var spots := {}
+	if _board_menu.can_open():
+		spots["board"] = GameState.BOARD_POS
+	if _bench.can_open():
+		spots["bench"] = (get_tree().get_first_node_in_group("workbench") as Node3D).global_position
+	if _melter.can_open():
+		spots["melter"] = GameState.MELTER_POS
+	if _press.can_open():
+		spots["press"] = GameState.PRESS_POS
+	var look := -_camera.global_basis.z
+	var ahead := Vector2(look.x, look.z).normalized()
+	var best := ""
+	var best_dot := -2.0
+	for id: String in spots:
+		var to := Vector2(spots[id].x - global_position.x, spots[id].z - global_position.z)
+		var dot := ahead.dot(to.normalized()) if to.length() > 0.05 else 1.0
+		if dot > best_dot:
+			best_dot = dot
+			best = id
+	return best
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -462,13 +502,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_take_pistol()
 		if warm:
 			_show_heap()
-	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_Q \
-			and not _hands_busy() and (not GameState.warming() or GameState.unlocked("hud_gold")):
-		_shop.open_tab(1)  # the gear; the HUD shows the Q once it is ours
-	elif event.is_action_pressed("pick_up") and not _hands_busy() and _board_menu.can_open():
-		_board_menu.open()
-	elif event.is_action_pressed("pick_up") and not _hands_busy() and _bench.can_open():
-		_bench.open()
+	elif event.is_action_pressed("pick_up") and _station() != "":
+		match _station():
+			"board":
+				_board_menu.open()
+			"bench":
+				_bench.open()
+			"melter":
+				GameState.request_melt()  # the hand goes in first; the screen shows it melt
+				_melter.open()
+			"press":
+				_press.open()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:
@@ -649,10 +693,16 @@ func _physics_process(delta: float) -> void:
 	var room := GameState.carried < GameState.carry_capacity
 	_grab_hint.visible = looking and room
 	_full_hint.visible = looking and not room
-	_board_hint.visible = not looking and not _hands_busy() and _board_menu.can_open()
-	_bench_hint.visible = not looking and not _board_hint.visible and not _hands_busy() and _bench.can_open()
+	var station := "" if looking else _station()
+	_board_hint.visible = station == "board"
+	_bench_hint.visible = station == "bench"
+	_melt_hint.visible = station == "melter" and GameState.carried > 0
+	if _melt_hint.visible:  # how many go in
+		(_melt_hint.get_child(1) as Label).text = "%d kurşunu erit" % GameState.carried
+	_hopper_hint.visible = station == "melter" and GameState.carried == 0
+	_press_hint.visible = station == "press"
 	var p := GameState.player()
-	_reload_hint.visible = not looking and not _board_hint.visible and p.gun != 0 and GameState.loaded == 0 \
+	_reload_hint.visible = not looking and station == "" and p.gun != 0 and GameState.loaded == 0 \
 		and GameState.carried > 0 and not p.placing
 	_table_hint.visible = _looking_at_table()
 	if p.has_pistol:  # taken here, or on record from before a rejoin

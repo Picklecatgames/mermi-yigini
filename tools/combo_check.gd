@@ -203,14 +203,14 @@ func _initialize() -> void:
 		assert(gs.GUNS[i].interval < gs.GUNS[i - 1].interval, "%s fires faster than %s" % [gs.GUNS[i].id, gs.GUNS[i - 1].id])
 	gs.infinite_ammo = false
 	gs.player().levels["magazine"] = 2
-	gs.request_select_gun(2)
-	assert(gs.player().gun == 2 and gs.mag_capacity == gs.upgrade_value("magazine") * gs.GUNS[2].mag, "the UZI's magazine")
+	gs.request_select_gun(3)
+	assert(gs.player().gun == 3 and gs.mag_capacity == gs.upgrade_value("magazine") * gs.GUNS[3].mag, "the UZI's magazine")
 	gs.player().carried = 10
 	gs.request_reload()
 	var in_mag: int = gs.loaded
 	gs.player().cooldown = 0.0
 	assert(gs.request_fire(close, Vector3(1, 0, 0)) and not gs.request_fire(close, Vector3(1, 0, 0)), "one round per interval")
-	gs.request_select_gun(3)
+	gs.request_select_gun(4)
 	assert(gs.loaded == 0 and gs.carried == 10 - in_mag + in_mag - 1, "the UZI's rounds went back into the hand")
 	print("combo_check OK")
 	quit()

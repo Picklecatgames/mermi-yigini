@@ -23,6 +23,16 @@ const GUN_PAN := 0.35
 const GUN_WET := Vector2(0.07, 0.11)  # reverb wet per round, picked between these
 const GUN_PITCH := 1.015  # at most this much higher or lower per round
 const SHOT_DB := 2.0  # the shot over the rest of the gun's sounds
+## The starting pistol (tools/build_service_pistol.py): parts in the Deagle's "Weapon" bone space,
+## each put on the Deagle bone whose clips move that part. The rig brings a second magazine in on
+## a reload (Magazine_2); it gets the same magazine. Two of the frame and trigger: taped and wooden.
+const PISTOL := preload("res://assets/weapons/service_pistol/service_pistol.glb")
+const PISTOL_NODE := "ServicePistol"
+const PISTOL_PARTS := {"frame_tape": "Weapon", "frame_wood": "Weapon", "trigger_tape": "Trigger",
+	"trigger_wood": "Trigger", "slide": "Charging_Handle", "hammer": "Hammer", "magazine": "Magazine",
+	"magazine_2": "Magazine_2"}
+## Every Deagle clip holds its hammer cocked back this far from rest (in the bone's space).
+const PISTOL_HAMMER := Basis(Vector3.LEFT, deg_to_rad(64.4))
 ## Per GameState.GUNS id. eye: the set's camera in our glTF space (y up, looking +Z), printed by
 ## build_arms.py; the clips were framed for it. bone: the gun's own bone; muzzle / port (ejection) and
 ## rear / front (sights, aimed by moving the whole rig) are in its space, read off the meshes at Idle.
@@ -44,18 +54,28 @@ const SHOT_DB := 2.0  # the shot over the rest of the gun's sounds
 ## shot: the gun's own shot sound in place of ShotSound's; cues: sounds at those seconds into a
 ## clip, read off where its magazine and slide move (out, into the well, seated, slide home).
 const SETS := {
-	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 50.0},
-	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
+	# The starting pistol has no set of its own: its parts ride the Deagle's bones and it plays the
+	# Deagle's clips (add_pistol). Lighter in the hand than the Deagle. grip: its recoil left with
+	# the wooden grips (GameState UPGRADES grip). The HG pack's 9 mm shots.
+	"pistol": {"mesh": PISTOL_NODE, "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 60.0,
+		"muzzle": Vector3(0.0006, 0.0073, 0.089), "port": Vector3(-0.014, 0.016, -0.04),
+		"rear": Vector3(0.0, 0.0235, -0.094), "front": Vector3(0.0, 0.0227, 0.076), "ads_eye": 0.32,
+		"clip_fire": true, "move": 0.85, "kick": 0.26, "climb": 0.024, "yaw": 0.003, "bloom": 0.0026, "jiggle": 0.75, "flash": 0.7,
+		"grip": 0.7, "shot": preload("res://assets/weapons/sounds/pistol_shot.tres"),
+		"cues": {"draw": [[0.85, SAFETY]], "reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
+			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
+	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 60.0},
+	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 60.0,
 		"muzzle": Vector3(-0.0006, 0.0099, 0.111), "port": Vector3(-0.0202, 0.0184, -0.037),
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
 		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0,
 		"shot": preload("res://assets/weapons/sounds/deagle_shot.tres"),
 		"cues": {"draw": [[0.85, SAFETY]], "reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
 			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
-	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 50.0,
+	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 60.0,
 		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 1.6,
 		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75},
-	"scorpion": {"mesh": "CZScorpion", "clips": "Scorpion_", "bone": "Scorpion Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 50.0,
+	"scorpion": {"mesh": "CZScorpion", "clips": "Scorpion_", "bone": "Scorpion Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 60.0,
 		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339), "paint": 2.0,
 		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34,
 		"clip_fire": false, "move": 0.75, "kick": 0.26, "climb": 0.0071, "yaw": 0.0089, "bloom": 0.0013, "jiggle": 0.22, "flash": 0.65},
@@ -66,7 +86,7 @@ const SETS := {
 	# over ramp s of firing. Let go and they run down in down s (Fire_Stop: 1.3 s); pressing again
 	# picks up from the speed they still have. walk: share of walking speed left while they turn
 	# (no sprint); rumble: the gun's shake at full speed. Heaviest to move with, lightest kick per round.
-	"minigun": {"mesh": "Minigun", "clips": "Minigun_", "bone": "Minigun_M-134_Body", "eye": Vector3(-0.0082, 1.4235, 0.0212), "fov": 50.0,
+	"minigun": {"mesh": "Minigun", "clips": "Minigun_", "bone": "Minigun_M-134_Body", "eye": Vector3(-0.0082, 1.4235, 0.0212), "fov": 60.0,
 		"muzzle": Vector3(0.0, 0.9167, -0.0359), "port": Vector3(0.126, 0.124, -0.025), "run": "Sprint", "no_aim": true, "paint": 1.6,
 		"spin": {"bone": "Minigun_M-134_Guns", "axis": Vector3.DOWN, "speed": 11.8, "up": 0.6, "down": 1.3,
 			"ramp": 1.5, "first": 0.16, "walk": 0.5, "rumble": 0.25},
@@ -285,6 +305,7 @@ func _ready() -> void:
 	ribbon.material = mat
 	_wisp.draw_pass_1 = ribbon
 	_wisp.layers = 1 << (LAYER - 1)
+	add_pistol(_skel)  # before the layers: its parts are drawn like the rest of the gun
 	for v in _model.find_children("*", "VisualInstance3D", true, false) + _flash.find_children("*", "VisualInstance3D", true, false):
 		v.layers = 1 << (LAYER - 1)
 		if v is GeometryInstance3D:  # else a gun shadow floats in front of the player
@@ -297,22 +318,25 @@ func _ready() -> void:
 	_skel.add_child(_attach)
 	_attach.add_child(_muzzle)
 	_attach.add_child(_port)
-	GameState.upgraded.connect(func(id: String, _level: int) -> void:
+	GameState.upgraded.connect(func(id: String, level: int) -> void:
 		if id == "laser":
-			_fit_attachments())
+			_fit_attachments()
+		if id == "grip":
+			pistol_grip(_skel, level > 0))
 	_wisp.reparent.call_deferred(get_parent(), false)  # the camera; still setting up its children
 	load_clips(_anim, _skel)
 	for g: Dictionary in GameState.GUNS:
 		assert(not g.ready or SETS.has(g.id), "GameState.GUNS %s is ready but has no SETS entry" % g.id)
 	for each: Dictionary in SETS.values():
 		if each.mesh != "":
-			var mi: MeshInstance3D = _skel.get_node(NodePath(each.mesh))
-			for i in mi.mesh.get_surface_count():
-				var steel := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
-				steel.roughness *= GUN_ROUGHNESS
-				var k: float = each.get("paint", 1.0)
-				steel.albedo_color = Color(k, k, k)
-				mi.set_surface_override_material(i, steel)
+			var node := _skel.get_node(NodePath(each.mesh))
+			for mi: MeshInstance3D in ([node] if node is MeshInstance3D else node.find_children("*", "MeshInstance3D", true, false)):
+				for i in mi.mesh.get_surface_count():
+					var steel := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
+					steel.roughness *= GUN_ROUGHNESS
+					var k: float = each.get("paint", 1.0)
+					steel.albedo_color = Color(k, k, k)
+					mi.set_surface_override_material(i, steel)
 	if Wishlist.golden():
 		gild()
 
@@ -352,6 +376,49 @@ static func gun_bus() -> StringName:
 ## The wishlist reward (scripts/wishlist.gd): the Deagle in gold. Also called on the claim.
 func gild() -> void:
 	Wishlist.gild(_skel.get_node(NodePath(SETS.deagle.mesh)))
+
+
+## The starting pistol's parts on `skel`'s Deagle bones (PISTOL_PARTS), under one node named
+## PISTOL_NODE that shows and hides it like a set's mesh; taped until pistol_grip says otherwise.
+## Each part keeps where it sits against the "Weapon" bone at rest. Shared with the third-person
+## rig (remote_players.gd) and the bench (bench_menu.gd).
+static func add_pistol(skel: Skeleton3D) -> Node3D:
+	var gun := Node3D.new()
+	gun.name = PISTOL_NODE
+	skel.add_child(gun)
+	var parts: Node = PISTOL.instantiate()
+	var weapon := skel.get_bone_global_rest(skel.find_bone("Weapon"))
+	var mag := skel.get_bone_global_rest(skel.find_bone("Magazine"))
+	for part: String in PISTOL_PARTS:
+		var bone: String = PISTOL_PARTS[part]
+		var at := BoneAttachment3D.new()
+		at.name = part
+		gun.add_child(at)
+		at.use_external_skeleton = true  # one node down from the skeleton, so it shows and hides as one
+		at.external_skeleton = NodePath("../..")
+		at.bone_name = bone
+		var mi := MeshInstance3D.new()
+		mi.name = part
+		mi.mesh = (parts.find_child(part.trim_suffix("_2")) as MeshInstance3D).mesh
+		# The second magazine sits on its bone as the first one does on its own.
+		var rest := mag if bone == "Magazine_2" else skel.get_bone_global_rest(skel.find_bone(bone))
+		mi.transform = rest.affine_inverse() * weapon
+		if bone == "Hammer":  # modelled cocked; the clips cock the Deagle's down one
+			mi.transform = Transform3D(PISTOL_HAMMER.inverse()) * mi.transform
+		at.add_child(mi)
+	parts.free()
+	pistol_grip(skel, false)
+	return gun
+
+
+## The pistol on `skel` (add_pistol) with wooden grips, or taped.
+static func pistol_grip(skel: Skeleton3D, wood: bool) -> void:
+	var gun := skel.get_node_or_null(PISTOL_NODE)
+	if gun == null:
+		return
+	for part: String in ["frame", "trigger"]:
+		(gun.get_node(part + "_wood") as Node3D).visible = wood
+		(gun.get_node(part + "_tape") as Node3D).visible = not wood
 
 
 ## The sets' clips only key the bones they move; a bone left out would keep the last clip's pose
@@ -425,6 +492,7 @@ func _swap() -> void:
 	_anim.play(_kit.clips + "Idle")
 	_anim.seek(0.0, true)
 	_anim.advance(0.0)  # seek alone does not pose the rig before the first frame
+	pistol_grip(_skel, GameState.upgrade_value("grip") > 0)
 	_measure_sights()
 	_fit_attachments()
 	_play("draw")
@@ -685,18 +753,24 @@ func fire() -> void:
 		return
 	# A burst: rounds within two intervals of each other; the Scorpion wanders more the longer it runs.
 	_burst = _burst + 1 if _since_fire < _interval() * 2.0 else 0
-	_bloom += float(_kit.bloom)
+	var held := _held()
+	_bloom += float(_kit.bloom) * held
 	_kick_yaw = randf_range(-1.0, 1.0)
 	_kick_roll = randf_range(-1.0, 1.0)
 	_since_fire = 0.0
-	_add_kick(float(_kit.kick) * (ADS_RECOIL if aim > 0.5 else 1.0))
+	_add_kick(float(_kit.kick) * held * (ADS_RECOIL if aim > 0.5 else 1.0))
 	_jelly_rot_vel += Vector3(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * FIRE_JIGGLE * float(_kit.jiggle)
 	# Aimed through an aim clip, the gun stays on the sights: the Fire clip is hip-fired and would drop them.
 	if _kit.clip_fire and not _aim_pose:
 		_play("fire")
 	_effects()
 	var wander := 1.0 + minf(_burst, 20) * 0.08
-	kicked.emit(float(_kit.climb) * randf_range(0.8, 1.2), float(_kit.yaw) * randf_range(-1.0, 1.0) * wander)
+	kicked.emit(float(_kit.climb) * held * randf_range(0.8, 1.2), float(_kit.yaw) * randf_range(-1.0, 1.0) * wander)
+
+
+## The share of the gun's recoil left: less with the pistol's wooden grips (SETS grip).
+func _held() -> float:
+	return float(_kit.grip) if _kit.has("grip") and GameState.upgrade_value("grip") > 0 else 1.0
 
 
 func _can_reload() -> bool:

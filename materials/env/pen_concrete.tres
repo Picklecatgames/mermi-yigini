@@ -1,0 +1,16 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_concrete/dirty_concrete_diff_2k.jpg" id="1_717ca"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_concrete/dirty_concrete_nor_gl_2k.jpg" id="2_0hb6v"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_concrete/dirty_concrete_arm_2k.jpg" id="3_xk8d2"]
+
+[resource]
+albedo_color = Color(0.55, 0.53, 0.5, 1)
+albedo_texture = ExtResource("1_717ca")
+orm_texture = ExtResource("3_xk8d2")
+normal_enabled = true
+normal_texture = ExtResource("2_0hb6v")
+uv1_scale = Vector3(0.4, 0.4, 0.4)
+uv1_triplanar = true
+uv1_world_triplanar = true
+texture_filter = 5

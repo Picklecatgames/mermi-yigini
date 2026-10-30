@@ -5,7 +5,7 @@ extends SceneTree
 ## way to the run-down; a plain gun after it plays its own shot again.
 
 const DT := 1.0 / 120.0
-const MINIGUN := 4
+const MINIGUN := 5
 const PEER := 2  # not us (1)
 
 

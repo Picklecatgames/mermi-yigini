@@ -185,6 +185,7 @@ class Character extends Node3D:
 		_fp_anim = rig.find_child("AnimationPlayer", true, false)
 		(_fp_skel.get_node("Mesh") as Node3D).visible = false
 		VIEWMODEL.load_clips(_fp_anim, _fp_skel)
+		VIEWMODEL.add_pistol(_fp_skel)
 		_muzzle = Node3D.new()
 		_gun.add_child(_muzzle)
 		# Off the floor paint's layer: its decals (cull_mask 1) were printing onto boots and legs.
@@ -203,6 +204,9 @@ class Character extends Node3D:
 		GameState.gun_changed.connect(func(who: int, g: int) -> void:
 			if who == peer:
 				_show_gun(g))
+		GameState.pistol_grip.connect(func(who: int, level: int) -> void:
+			if who == peer:
+				VIEWMODEL.pistol_grip(_fp_skel, level > 0))
 		_fx = MUZZLE_FX.instantiate()
 		_fx.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		add_child(_fx)
@@ -233,6 +237,7 @@ class Character extends Node3D:
 		for each: Dictionary in VIEWMODEL.SETS.values():
 			if each.mesh != "":
 				(_fp_skel.get_node(NodePath(each.mesh)) as Node3D).visible = each == set
+		VIEWMODEL.pistol_grip(_fp_skel, GameState.player(peer).levels.grip > 0)
 		_fp_anim.play(set.clips + "Idle")
 		_fp_anim.seek(0.0, true)
 		_fp_anim.advance(0.0)

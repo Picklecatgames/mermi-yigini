@@ -107,7 +107,7 @@ func _client() -> void:
 	if not _ok(int(host.surface_gone) == pile._surface_removed.size(), "the same surface bullets picked off (%d, host %d)" % [pile._surface_removed.size(), host.surface_gone]): return
 
 	# Leave with a bullet in hand and the gun (the Scorpion) loaded, come back, have all three again.
-	gs.request_select_gun(3)
+	gs.request_select_gun(4)
 	var top: Vector3 = pile.global_position + Vector3(-1.0, 0, -0.5)
 	top.y = pile.surface_y(top)
 	gs.request_pick_up(top, 1)
@@ -119,7 +119,7 @@ func _client() -> void:
 	if not await _until(func() -> bool: return not net.online, "leave"): return
 	await create_timer(0.5).timeout
 	net.join("127.0.0.1", PORT)
-	if not await _until(func() -> bool: return net.is_client and gs.synced() and gs.carried == 1 and gs.loaded == 1 and gs.player().gun == 3, "the same hand and gun back after rejoining"): return
+	if not await _until(func() -> bool: return net.is_client and gs.synced() and gs.carried == 1 and gs.loaded == 1 and gs.player().gun == 4, "the same hand and gun back after rejoining"): return
 	_log.append("client OK: rejoined with %d in hand, %d loaded, gun %d" % [gs.carried, gs.loaded, gs.player().gun])
 	_write_log()
 	quit()

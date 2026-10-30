@@ -1,11 +1,12 @@
 extends SceneTree
 ## Headless check of the Deagle's own sounds (scripts/viewmodel.gd SETS deagle shot/cues, _cues):
 ##   Godot.exe --headless --path . -s res://tools/deagle_sound_check.gd
-## The Deagle shoots its own shot, the UZI keeps the plain one; a reload clip plays its cues as it
+## The Deagle shoots its own shot, the starting pistol its own (the HG pack), the UZI keeps the plain one; a reload clip plays its cues as it
 ## passes them, taking turns on MagSound and SlideSound.
 
-const DEAGLE := 1
-const UZI := 2
+const PISTOL := 1
+const DEAGLE := 2
+const UZI := 3
 
 
 func _initialize() -> void:
@@ -31,6 +32,11 @@ func _initialize() -> void:
 	vm._want_gun = DEAGLE
 	vm._swap()
 	check.call(shot.stream == vm.SETS.deagle.shot, "Deagle shoots its own shot")
+	vm._want_gun = PISTOL
+	vm._swap()
+	check.call(shot.stream == vm.SETS.pistol.shot and shot.stream != vm.SETS.deagle.shot, "the pistol shoots its own shot")
+	vm._want_gun = DEAGLE
+	vm._swap()
 
 	var anim: AnimationPlayer = vm.get_node("Model/AnimationPlayer")
 	var players := [vm._mag_sound, vm._slide_sound]

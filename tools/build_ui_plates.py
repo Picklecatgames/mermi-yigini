@@ -93,4 +93,20 @@ bake(steel, "chain", (430, 660), "button_square_depth_line", 1)  # the quest boa
 bake(lit("Cork002", 0.7), "cork", (720, 560), "button_square_depth_border", 1, 0.7)  # pinned paper
 stripes = np.asarray(Image.fromarray((lit("PaintedMetal016") * 255).clip(0, 255).astype(np.uint8)).resize((360, 360), Image.LANCZOS), np.float32) / 255.0
 bake(stripes, "hazard", (164, 74), "button_square_flat", 8, corner=16)  # a locked piece's stage, stripes shrunk to read
+# The workshop machines' screens (scripts/station_view.gd): their cards are the machines' own
+# chipped green paint, their price and make buttons stamped brass.
+def shrunk(sheet, px):
+    """A scan cut down to `px`, so its chips and scratches come out small on a card."""
+    im = Image.fromarray((sheet * 255).clip(0, 255).astype(np.uint8)).resize((px, px), Image.LANCZOS)
+    return np.asarray(im, np.float32) / 255.0
+
+
+bake(shrunk(lit("PaintedMetal006"), 300), "machine", (440, 210), "button_square_depth_line", 4)
+bake(shrunk(lit("Metal007", 1.4), 360), "brass", (220, 52), "button_square_depth_flat", 4, 1.3, corner=16)
+# Gauges and level boxes (UiStyle.bar, upgrade_menu.gd Gauge and Track): a slot pressed into the
+# steel (the shape's shading turned over, so its rim reads as sunk), a brass bar filling it, small
+# steel studs for levels, tinted in Godot.
+bake(steel, "slot", (260, 42), "button_square_depth_border", 3, -0.9, corner=12)
+bake(shrunk(lit("Metal007", 1.4), 360), "fill", (260, 42), "button_square_flat", 3, 1.0, corner=12)
+bake(steel, "pip", (36, 36), "button_square_depth_flat", 4, 1.2, corner=10)
 print("ok", OUT)

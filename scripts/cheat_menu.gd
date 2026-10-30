@@ -1,7 +1,9 @@
 extends CanvasLayer
 ## Balance panel (yol haritası 11), debug builds only: F9 or P opens it. Game speed, money for yourself
-## or the vault, the heap set to a milestone, the Deagle's laser on or off, and what the last game minute earned, so a stage
-## of the hour can be timed in a few real minutes. Net.gd adds it.
+## or the vault, the heap set to a milestone, the Deagle's laser on or off, every quest's unlock at
+## once (to try the workshop without playing up to it; "Her açılışta" does it at every start on
+## this machine, kept in OPEN_FILE), and what the last game minute earned, so a
+## stage of the hour can be timed in a few real minutes. Net.gd adds it.
 ##
 ## Co-op: only the host (or a solo player) may use it; speed only solo, since a client's clock
 ## would run at 1x beside a 10x host. Check: tools/cheat_check.gd.
@@ -10,6 +12,7 @@ const SPEEDS := [1.0, 2.0, 5.0, 10.0]
 const MONEY := [1_000, 100_000]
 const PILES := [99_000_000, 90_000_000, 50_000_000, 10_000_000, 1_000_000, 100]
 const WINDOW := 60  # game seconds the rates look back over
+const OPEN_FILE := "user://cheats.cfg"  # this machine's own: [quests] open_all
 
 var game_time := 0.0  # game seconds since the panel's clock was last reset
 var _samples: Array[Vector3] = []  # once a game second: gold, vault, pile
@@ -24,6 +27,28 @@ func _ready() -> void:
 	layer = 90
 	visible = false
 	_build()
+	if _open_at_start():
+		_open_when_in.call_deferred()
+
+
+func _open_at_start() -> bool:
+	var cfg := ConfigFile.new()
+	return cfg.load(OPEN_FILE) == OK and cfg.get_value("quests", "open_all", false)
+
+
+func _set_open_at_start(on: bool) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(OPEN_FILE)
+	cfg.set_value("quests", "open_all", on)
+	cfg.save(OPEN_FILE)
+
+
+## At start: once the game scene is up and GameState has its board, everything opens.
+func _open_when_in() -> void:
+	while get_tree().current_scene == null or GameState.quest_board.is_empty():
+		await get_tree().process_frame
+	await get_tree().process_frame
+	open_all()
 
 
 func _input(event: InputEvent) -> void:
@@ -35,7 +60,7 @@ func _input(event: InputEvent) -> void:
 func toggle() -> void:
 	visible = not visible
 	var busy: bool = GameState.player().placing
-	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu"]:  # as pause_menu.gd's _may_open
+	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu", "MelterMenu", "PressMenu"]:  # as pause_menu.gd's _may_open
 		for n in get_tree().root.find_children(menu, "CanvasLayer", true, false):
 			busy = busy or (n as CanvasLayer).visible
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or busy else Input.MOUSE_MODE_CAPTURED
@@ -94,6 +119,17 @@ func add_vault(n: int) -> void:
 	GameState._world(&"vault_changed", [GameState.vault])
 
 
+## The whole main chain done at once, rewards and all: everything it opens drops in (the bench, the
+## hopper, the press...). The side slots then draw from every pool.
+func open_all() -> void:
+	if Net.is_client:
+		return
+	GameState.request_take_pistol()
+	while not GameState.quest_board.is_empty() and GameState.quest_board[0] != "":
+		GameState._finish_quest(GameState.quest_board[0])
+	GameState._world(&"quests_changed", [GameState.quest_board, GameState.quest_progress, GameState.quests_ready])
+
+
 ## Only the count: the heap's shape stays as dug. Enough for milestones and the money curve.
 func set_pile(n: int) -> void:
 	if Net.is_client:
@@ -125,9 +161,19 @@ func _build() -> void:
 	row = _row(box, "Yığın")
 	for n: int in PILES:
 		_host_only.append(_button(row, _short(n), set_pile.bind(n)))
-	row = _row(box, "Deagle")  # the laser on and off for free, to try them without the bench
+	row = _row(box, "Silah")  # the bench's parts on and off for free, to try them without the bench
 	_button(row, "Tabanca", GameState.request_take_pistol)
+	_button(row, "Kabza", GameState.request_debug_level_up.bind("grip"))
+	_button(row, "Deagle", GameState.request_debug_level_up.bind("deagle"))
 	_button(row, "Lazer", GameState.request_debug_level_up.bind("laser"))
+	row = _row(box, "Görev")
+	_host_only.append(_button(row, "Hepsini aç", open_all))
+	var always := CheckBox.new()
+	always.text = "Her açılışta"
+	always.focus_mode = Control.FOCUS_NONE
+	always.button_pressed = _open_at_start()
+	always.toggled.connect(_set_open_at_start)
+	row.add_child(always)
 	row = _row(box, "Saat")
 	_button(row, "Sıfırla", reset_clock)
 

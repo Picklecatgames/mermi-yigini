@@ -45,24 +45,22 @@ const GUN_TABLE := Vector3(7.3, 0, 0)  # metal_office_desk, 2 m along z, its dra
 ## keys: 4 common, 5 rare, 2 legendary + the final. Tops climb on an ease-in curve to STAND_TOP,
 ## well under the 1.6 m eye so the crate on top still shows.
 const GS := preload("res://scripts/game_state.gd")
-## The range past the firing line: black rubber floor from the railing on, plywood lining on the
-## walls, a light bridge over the line throwing cool floods on the targets, and a covered bay out
-## through the east wall with a low ceiling, steel baffles and a sand backstop. GS.PLACE_ZONES
-## follows these numbers.
+## Past the firing line (2026-10-29, zombie waves: no range any more, the yard where the dead come
+## in and are cut down): filthy concrete floor, the bare walls, a light bridge over the line, and a
+## covered bay out through the east wall with a low ceiling. The dead come in through the bay:
+## three gates (the big sliding one in the back wall, a lifting one in each side wall) open onto
+## holding pens; tools/zombie_bay.gd builds the gates, pens, spawns, alarms and the gore.
 const BAY_END := 44.3     # inner face of the bay's back wall (30 m from the railing)
 const BAY_HALF := 12.0    # the east wall is open over |z| < BAY_HALF
 const BAY_H := 4.0        # the bay's ceiling, level with the hall's concrete
-const BERM_TOE := 40.3    # the sand backstop starts here and climbs to the back wall
-const BERM_TOP := 2.9
-## Baffles: uneven spacing (tight at the mouth, wider toward the berm), each its own depth, tilt,
-## width and side shift, so from the railing they don't stack into one striped block.
-const BAFFLES: Array[float] = [30.0, 32.7, 36.3, 40.5]
-const BAFFLE_DEPTH: Array[float] = [0.55, 0.64, 0.72, 0.6]
-const BAFFLE_TILT: Array[float] = [22.0, 27.0, 30.0, 24.0]
-const BAFFLE_WIDTH: Array[float] = [0.94, 1.0, 0.96, 0.9]
-const BAFFLE_SHIFT: Array[float] = [0.15, -0.1, 0.0, 0.2]
+## The gates' openings in the bay walls (tools/zombie_bay.gd hangs the leaves in them): the back
+## wall is open over |z| < MAIN_GATE_HALF, each side wall over x SIDE_GATE_X +- SIDE_GATE_HALF.
+const MAIN_GATE_HALF := 4.0
+const SIDE_GATE_X := 38.3
+const SIDE_GATE_HALF := 2.0
 const BRIDGE_Y := 5.0     # the light bridge over the firing line
-const RANGE_LIGHT := Color(0.88, 0.94, 1.0)  # cool daylight, against the hall's warm 4000 K
+const RANGE_LIGHT := Color(0.74, 0.88, 0.78)  # old fluorescent gone green, against the hall's warm 4000 K
+const SODIUM := Color(1.0, 0.66, 0.32)  # the light bridge's work lights: dirty sodium
 const STENCIL := preload("res://assets/fonts/SairaStencilOne-Regular.ttf")  # signs (OFL)
 const FLICKER := preload("res://scripts/flicker_lamp.gd")
 const WORKSHOP := Vector3(10.5, 0, 26.0)  # the crew's corner (range_dressing _workshop), between the columns at x 7 and 14
@@ -123,7 +121,7 @@ func _initialize() -> void:
 	_spawns()
 	preload("res://tools/hall_dressing.gd").new(self).build()
 	_lighten(arena, Transform3D())
-	for path in ["Roof", "Lamps", "UpperWalls", "Range/LightBridge", "Range/Baffles", "Range/BayCeiling"]:
+	for path in ["Roof", "Lamps", "UpperWalls", "Range/LightBridge", "Range/BayCeiling"]:
 		overhead(arena.get_node(path))
 	var scene := PackedScene.new()
 	print("pack: ", scene.pack(arena), " save: ", ResourceSaver.save(scene, "res://scenes/arena.tscn"))
@@ -269,14 +267,14 @@ func _floor() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Floor"
 	add(body)
-	# Concrete up to the firing line; past it the range's black rubber tiles (Poly Haven
-	# "Rubber Tiles", 2 m a tile set), on into the bay. Both world-mapped, so the pieces meet clean.
+	# Concrete up to the firing line; past it (2026-10-29, the user: not a range any more, the yard
+	# where the dead come in and die) filthy cracked slabs (Poly Haven "Dirty Concrete"), 3 m pours
+	# each its own tone, grime gone brown-red with years of blood, the scuffed band behind the
+	# railing where the shooting is. World-mapped like the hall's, so the two meet clean.
 	var fl: float = GS.FIRING_LINE_X
-	# Rubber: 1 m mats each with its own tone, some replaced; grime, and a scuffed band of
-	# brass and soot just past the railing. Warmed: the cool range light turned it pool blue.
-	var rubber := worn("rubber_tiles", "rubber_floor", {"tint": Color(1.2, 1.1, 1.0), "tex_size": 2.0,
-		"cell_size": 1.0, "cell_tone": 0.22, "odd_cells": 0.22, "antitile": 0.45, "grime": 0.95,
-		"grime_scale": 0.15, "wear_x": fl + 2.2, "wear_width": 2.6})
+	var rubber := worn("dirty_concrete", "kill_floor", {"tint": Color(0.72, 0.68, 0.64), "tex_size": 3.0,
+		"cell_size": 3.0, "cell_tone": 0.14, "odd_cells": 0.12, "antitile": 0.5, "grime": 1.0,
+		"grime_scale": 0.11, "grime_color": Color(0.11, 0.045, 0.035), "wear_x": fl + 2.2, "wear_width": 2.6})
 	for part in [[Rect2(-28.0, -28.0, fl + 28.0, 56.0), load("res://materials/concrete.tres")],
 			[Rect2(fl, -28.0, 28.15 - fl, 56.0), rubber],
 			[Rect2(28.15, -BAY_HALF - 0.3, BAY_END - 28.15, 2.0 * BAY_HALF + 0.6), rubber]]:
@@ -540,8 +538,8 @@ func _lamps() -> void:
 			var wear := absi(hash(Vector2i(roundi(x * 3.0), roundi(z * 7.0)))) % 10
 			if Vector2(x - HEAP.x, z - HEAP.z).length() < 17.0 or (x > -3.0 and x < GS.FIRING_LINE_X):
 				wear = 9 if wear < 8 else wear  # where players dig and build, the crew keeps the tubes working
-			if downrange:  # its own circuit, kept up better: one in six dead or failing
-				wear = 9 if wear < 4 else (wear if wear in [4, 5] else 9)
+			if downrange:  # past the railing (2026-10-29, the dead's side): half dead, one in ten failing
+				wear = 0 if wear < 5 else (5 if wear == 5 else 9)
 			if Vector2(x - WORKSHOP.x, z - WORKSHOP.z).length() < WORKSHOP_DARK:
 				wear = 0  # dark round the crew's corner
 			if x < CHEST_X + 4.5:
@@ -566,7 +564,7 @@ func _lamps() -> void:
 				spot.position.y = BULB_Y  # from the bulb itself, the shade's rim cuts the cone
 				spot.rotation.x = -PI / 2
 				spot.light_color = RANGE_LIGHT if downrange else Color(1.0, 0.9, 0.78)  # old tungsten-warm 3500 K: only the daylight is cold
-				spot.light_energy = LAMP_ENERGY * (1.6 if downrange else 1.0)
+				spot.light_energy = LAMP_ENERGY * (0.9 if downrange else 1.0)
 				spot.spot_range = 14.0
 				spot.spot_attenuation = 0.6
 				spot.spot_angle = 58.0  # the shade's rim seen from the bulb
@@ -978,10 +976,8 @@ func _firing_line() -> void:
 	cs.shape = wall
 	cs.position = Vector3(x, 1.5, 0)
 	add(cs, body)
-	var paint := StandardMaterial3D.new()
-	paint.albedo_color = Color(0.86, 0.62, 0.08)
-	paint.roughness = 0.55
-	paint.metallic = 0.25
+	# Rusted bare steel (2026-10-29): the range's safety yellow went with the range.
+	var paint := pbr_box("rust_coarse_01", 1.0, Color(0.62, 0.56, 0.52), true, "railing_rust")
 	var steel := pbr("metal_plate_02", Color(0.45, 0.46, 0.48))
 	var box := func(size: Vector3, at: Vector3, mat: Material) -> void:
 		var m := MeshInstance3D.new()
@@ -1036,90 +1032,29 @@ func _range() -> void:
 	var range_node := Node3D.new()
 	range_node.name = "Range"
 	add(range_node)
-	# Four sheets' worth so neighbours differ: years of damp and dust took the fresh orange out of
-	# them (2026-10-24, the user: weather it like the rest), greyed, darkened, blotched with grime.
-	var ply: Array[Material] = []
+	# Weathered plywood, four sheets' worth (2026-10-24, the user: weather it like the rest); no
+	# lining any more, but range_dressing and zombie_bay take boards from these.
 	for k in 4:
-		ply.append(worn("plywood", "plywood_%d" % k, {"tint": [Color(0.6, 0.57, 0.53), Color(0.52, 0.5, 0.48),
+		worn("plywood", "plywood_%d" % k, {"tint": [Color(0.6, 0.57, 0.53), Color(0.52, 0.5, 0.48),
 			Color(0.66, 0.62, 0.57), Color(0.5, 0.49, 0.48)][k], "tex_size": 1.1, "cell_size": 100.0, "cell_tone": 0.0,
-			"odd_cells": 0.0, "antitile": 0.3, "grime": 0.6, "grime_scale": 0.12, "grime_color": Color(0.12, 0.11, 0.1)}))
+			"odd_cells": 0.0, "antitile": 0.3, "grime": 0.6, "grime_scale": 0.12, "grime_color": Color(0.12, 0.11, 0.1)})
 	var steel := pbr_box("metal_plate_02", 1.0, Color(0.3, 0.31, 0.33), true, "range_steel")
 	var dark := pbr_box("metal_plate_02", 1.0, Color(0.1, 0.1, 0.11), true, "range_steel_dark")
 
-	# Plywood lining, the range's walls: hall north and south past the railing, the hall's east wall
-	# either side of the bay, the bay's own sides. Cut round the H columns.
-	for s in [-1.0, 1.0]:
-		_lining(range_node, true, s * 28.0, -s, fl + 0.25, 27.65, [21.0], ply, steel)
-		_lining(range_node, false, 28.0, -1.0, s * BAY_HALF, s * 27.65, [s * 14.0, s * 21.0], ply, steel)
-		_lining(range_node, true, s * BAY_HALF, -s, 28.3, BAY_END, [], ply, steel)
-
-	_bay(range_node, ply, steel, dark)
+	# 2026-10-29 (the user: "talim alanı olmayacak, zombilerin gelip öldüğü kıyım yeri"): the range's
+	# plywood lining, distance lines and boards, shooting counter and baffles are gone; the bare
+	# concrete walls of the hall and the bay show, zombie_bay dresses the rest.
+	_bay(range_node, steel, dark)
 	_light_bridge(range_node, dark)
-	_range_marks(range_node)
 	preload("res://tools/range_dressing.gd").new(self).build(range_node)
-
-	# The shooting counter: plywood shelves on the railing, between its posts, shooters' side.
-	const RUN := 55.4
-	const POSTS := 21
-	var step := (RUN - 0.4) / (POSTS - 1)
-	for i in POSTS - 1:
-		var z := -RUN / 2.0 + 0.2 + (i + 0.5) * step
-		block(Vector3(0.34, 0.025, step - 0.14), Vector3(fl - 0.16, 1.1 + 0.0125, z), ply[i % 4], range_node)
-		for sz in [-1.0, 1.0]:  # a bracket under each end
-			block(Vector3(0.3, 0.04, 0.03), Vector3(fl - 0.15, 1.08, z + sz * (step / 2.0 - 0.2)), steel, range_node)
-	# Steel threshold where the concrete meets the rubber.
-	block(Vector3(0.12, 0.01, RUN), Vector3(fl, 0.005, 0), steel, range_node)
+	preload("res://tools/zombie_bay.gd").new(self).build(range_node)
+	# Steel threshold under the railing, where the hall's floor meets the yard's.
+	block(Vector3(0.12, 0.01, 55.4), Vector3(fl, 0.005, 0), steel, range_node)
 
 
-## Plywood sheets (1.22 x 2.44 m, a centimetre apart) on a wall face at `face` (z when `along_x`,
-## else x), from `from` to `to` along it, standing out toward `inward`; skips a hand's width round
-## each of `posts` and caps every run with a steel angle.
-func _lining(parent: Node, along_x: bool, face: float, inward: float, from: float, to: float, posts: Array, ply: Array[Material], cap: Material) -> void:
-	const W := 1.22
-	const H := 2.44
-	const T := 0.03
-	var lo := minf(from, to)
-	var hi := maxf(from, to)
-	var stops: Array[float] = [lo]
-	var sorted := posts.duplicate()
-	sorted.sort()
-	for p: float in sorted:
-		if p > lo and p < hi:
-			stops.append_array([p - 0.19, p + 0.19])
-	stops.append(hi)
-	var depth := face + inward * T / 2.0
-	for k in range(0, stops.size(), 2):
-		var s := stops[k]
-		var e := stops[k + 1]
-		var t := s
-		while e - t > 0.05:
-			var w := minf(W, e - t)
-			var c := t + w / 2.0  # sheets overlap 2 cm at the joints: no light gap to the wall behind
-			var at := Vector3(c, H / 2.0, depth) if along_x else Vector3(depth, H / 2.0, c)
-			var size := Vector3(w + 0.02, H, T) if along_x else Vector3(T, H, w + 0.02)
-			var fate := randf()
-			if fate < 0.07:  # long gone: the concrete shows, with the screw holes
-				t += w
-				continue
-			var basis := Basis()
-			if fate < 0.13:  # screws rusted out below: it hangs off one top corner
-				var ang := randf_range(0.06, 0.16) * (1.0 if randf() < 0.5 else -1.0)
-				var plane := Vector3(signf(ang) * w / 2.0, H / 2.0, 0)  # the corner still holding, in sheet terms
-				var axis := Vector3.BACK if along_x else Vector3.RIGHT
-				var corner := at + (plane if along_x else Vector3(0, plane.y, plane.x))
-				basis = Basis(axis, ang)
-				at = corner + basis * (at - corner) + (Vector3(0, 0, inward * 0.04) if along_x else Vector3(inward * 0.04, 0, 0))
-			block(size, at, ply[randi() % ply.size()], parent, basis)
-			t += w
-		var mid := (s + e) / 2.0
-		var lip := face + inward * 0.04
-		block(Vector3(e - s, 0.05, 0.08) if along_x else Vector3(0.08, 0.05, e - s),
-			Vector3(mid, H + 0.025, lip) if along_x else Vector3(lip, H + 0.025, mid), cap, parent)
-
-
-## The covered bay out through the east wall: concrete sides and back like the hall, a low dark
-## ceiling, steel baffles across it, a sand backstop, its own cool tube lights and a probe.
-func _bay(parent: Node, ply: Array[Material], steel: Material, dark: Material) -> void:
+## The covered bay out through the east wall: concrete sides and back like the hall with the gates'
+## openings left in them, a low dark ceiling, its tube lights (most dead) and a probe. No backstop any more: the floor runs flat to the back gate for the dead to walk.
+func _bay(parent: Node, steel: Material, dark: Material) -> void:
 	var concrete: Material = load("res://materials/env/concrete_slab_wall.tres")
 	var body := StaticBody3D.new()
 	body.name = "Bay"
@@ -1130,14 +1065,20 @@ func _bay(parent: Node, ply: Array[Material], steel: Material, dark: Material) -
 		side.transform = Transform3D(Basis(Vector3.UP, 0.0 if s < 0 else PI), Vector3(cx, 0, s * (BAY_HALF + 0.15)))
 		add(side, body)
 		for i in 4:
-			mesh_at("wall_panel", Transform3D(Basis(), Vector3(-6.0 + 4.0 * i, 0, 0)), concrete, side)
-		collide(Vector3(BAY_END - 28.0, 4.0, 0.3), Vector3(cx, 2.0, s * (BAY_HALF + 0.15)), body)
+			if absf(cx - 6.0 + 4.0 * i - SIDE_GATE_X) > 0.1:  # the side gate's panel is left out
+				mesh_at("wall_panel", Transform3D(Basis(), Vector3(-6.0 + 4.0 * i, 0, 0)), concrete, side)
+		for run in [[28.0, SIDE_GATE_X - SIDE_GATE_HALF], [SIDE_GATE_X + SIDE_GATE_HALF, BAY_END]]:
+			collide(Vector3(run[1] - run[0], 4.0, 0.3), Vector3((run[0] + run[1]) / 2.0, 2.0, s * (BAY_HALF + 0.15)), body)
 	var back := Node3D.new()
 	back.transform = Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(BAY_END + 0.15, 0, 0))
 	add(back, body)
 	for i in 6:
-		mesh_at("wall_panel", Transform3D(Basis(), Vector3(-10.0 + 4.0 * i, 0, 0)), concrete, back)
-	collide(Vector3(0.3, 4.0, 2.0 * BAY_HALF + 0.6), Vector3(BAY_END + 0.15, 2.0, 0), body)
+		var along := -10.0 + 4.0 * i
+		if absf(along) > MAIN_GATE_HALF:
+			mesh_at("wall_panel", Transform3D(Basis(), Vector3(along, 0, 0)), concrete, back)
+	for s in [-1.0, 1.0]:
+		var w := BAY_HALF + 0.3 - MAIN_GATE_HALF
+		collide(Vector3(0.3, 4.0, w), Vector3(BAY_END + 0.15, 2.0, s * (MAIN_GATE_HALF + w / 2.0)), body)
 	# Ceiling: flat, painted near black, so the lit lane below is all there is to look at.
 	var lid := Vector3(BAY_END + 0.3 - 28.0, 0.12, 2.0 * BAY_HALF + 0.6)
 	var lid_at := Vector3((28.0 + BAY_END + 0.3) / 2.0, BAY_H + 0.06, 0)
@@ -1157,68 +1098,65 @@ func _bay(parent: Node, ply: Array[Material], steel: Material, dark: Material) -
 	var girder: Material = load("res://materials/env/metal_plate_02.tres")
 	block(Vector3(0.3, 0.7, 28.0), Vector3(27.85, BOTTOM - CHORD - 0.35, 0), girder, ceiling)
 
-	# Baffles: steel plates with a plywood face to the shooters, hung across the bay and tipped so
-	# the face looks down the lane; a round that climbs hits them, not the ceiling.
-	var baffles := StaticBody3D.new()
-	baffles.name = "Baffles"
-	baffles.add_to_group("steel", true)  # sparks and lead splash, like the steel targets
-	baffles.add_to_group("overhead", true)
-	add(baffles, parent)
-	# Scarred, near-black steel that sinks into the dark ceiling (lit wooden faces read as a stack
-	# of shelves), with a worn yellow-black edge along the bottom so each one still reads.
-	var scarred := worn("metal_plate_02", "baffle_steel", {"tint": Color(0.16, 0.16, 0.17), "tex_size": 1.0,
-		"cell_size": 1.5, "cell_tone": 0.2, "grime": 0.5, "rust": 0.45})
-	var edge: Texture2D = load("res://materials/env/decals/hazard.res")
-	var stripe := StandardMaterial3D.new()
-	stripe.albedo_texture = edge
-	stripe.uv1_scale = Vector3(1.0, 6.0, 1.0)
-	stripe.roughness = 0.7
-	for i in BAFFLES.size():
-		var tip := Basis(Vector3.BACK, deg_to_rad(BAFFLE_TILT[i]))  # bottom edge downrange
-		var depth := BAFFLE_DEPTH[i]
-		var width := (2.0 * BAY_HALF - 0.1) * BAFFLE_WIDTH[i]
-		var at := Vector3(BAFFLES[i], BAY_H - 0.1 - depth / 2.0, BAFFLE_SHIFT[i])
-		block(Vector3(0.012, depth, width), at, scarred, baffles, tip)
-		var lip := block(Vector3(0.014, 0.07, width), at + tip * Vector3(0, -depth / 2.0 + 0.035, 0), stripe, baffles, tip)
-		lip.material_override = stripe
-		collide(Vector3(0.04, depth, width), at, baffles, tip)
-		block(Vector3(0.1, 0.12, width), Vector3(BAFFLES[i] - 0.1, BAY_H - 0.06, BAFFLE_SHIFT[i]), dark, baffles)  # the hanger channel
-		for side in [-1.0, 1.0]:  # its number, stencilled near both ends
-			var mark := _range_label("B%d" % (i + 1), 90, Color(0.92, 0.9, 0.85, 0.85), STENCIL)
-			mark.transform = Transform3D(tip * Basis(Vector3.UP, -PI / 2), at + tip * Vector3(-0.01, 0.05, side * width * 0.38))
-			add(mark, baffles)
-
-	_berm(parent)
-
 	# Tube lights flush on the ceiling between the baffles (Poly Haven "Mounted Fluorescent
-	# Lights"), two tubes end to end per strip, one soft downlight per strip.
+	# Lights"), two tubes end to end per strip. Nobody has kept them up: most strips are dead and
+	# dark, a few still give a weak green downlight, two of those failing (FLICKER blinks the strip's
+	# `Diffuser` glass with its light). Strips by the gates are dead: the dead come out of darkness.
 	var tube := _tube_mesh()
-	var edges: Array[float] = [28.3]
-	edges.append_array(BAFFLES)
-	edges.append(BAY_END)
+	var dead_tube := tube.duplicate() as Mesh
+	for si in dead_tube.get_surface_count():
+		var gm := dead_tube.surface_get_material(si) as BaseMaterial3D
+		if gm and gm.emission_enabled:
+			gm = gm.duplicate()
+			gm.emission_enabled = false
+			gm.albedo_color = gm.albedo_color.darkened(0.6)
+			dead_tube.surface_set_material(si, gm)
+	var edges: Array[float] = [28.3, 31.6, 34.9, 38.2, 41.5, BAY_END]
+	const LIT := {"0,-3": 1.0, "0,9": 1.0, "1,3": 2.0, "2,-9": 1.0, "2,3": 1.0, "3,-3": 2.0}  # strip -> 1 lit, 2 failing
 	for r in edges.size() - 1:
 		var x := (edges[r] + edges[r + 1]) / 2.0
-		for z in [-9.0, -3.0, 3.0, 9.0]:
+		for z: float in [-9.0, -3.0, 3.0, 9.0]:
+			var fate: float = LIT.get("%d,%d" % [r, int(z)], 0.0)
+			var strip := Node3D.new()
+			strip.position = Vector3(x, BAY_H, z)
+			add(strip, ceiling)
 			for dz in [-0.46, 0.46]:
 				var m := MeshInstance3D.new()
-				m.mesh = tube
-				m.transform = Transform3D(Basis(Vector3.UP, PI / 2), Vector3(x, BAY_H, z + dz))
+				m.mesh = tube if fate > 0.0 else dead_tube
+				m.transform = Transform3D(Basis(Vector3.UP, PI / 2), Vector3(0, 0, dz))
 				m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				add(m, ceiling)
+				add(m, strip)
+			if fate == 0.0:
+				continue
 			var light := SpotLight3D.new()
-			light.position = Vector3(x, BAY_H - 0.08, z)
+			light.position = Vector3(0, -0.08, 0)
 			light.rotation.x = -PI / 2
 			light.light_color = RANGE_LIGHT
-			light.light_energy = 1.4
+			light.light_energy = 1.1
 			light.spot_range = 7.0
 			light.spot_attenuation = 0.7
 			light.spot_angle = 70.0
 			light.spot_angle_attenuation = 0.9
 			light.light_volumetric_fog_energy = 0.0
-			add(light, parent)
-	# Floods just inside the mouth, on the far targets' faces.
-	for z in [-8.0, -2.7, 2.7, 8.0]:
-		_flood(parent, Vector3(28.7, BAY_H - 0.25, z), Vector3(37.5, 0.9, z), dark, 5.5, absf(z) < 3.0)
+			if fate == 2.0:  # failing: a glass bar of its own for FLICKER to dim
+				var glass := MeshInstance3D.new()
+				glass.name = "Diffuser"
+				var bar := BoxMesh.new()
+				bar.size = Vector3(1.6, 0.02, 0.05)
+				glass.mesh = bar
+				var glow := StandardMaterial3D.new()
+				glow.albedo_color = Color(0.85, 0.95, 0.88)
+				glow.emission_enabled = true
+				glow.emission = RANGE_LIGHT
+				glow.emission_energy_multiplier = 4.0
+				glass.material_override = glow
+				glass.position = Vector3(0, -0.035, 0)
+				glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				add(glass, strip)
+				light.set_script(FLICKER)
+			add(light, strip)
+	# One flood just inside the mouth, the lane's only shadowed light, aimed on the back gate.
+	_flood(parent, Vector3(28.7, BAY_H - 0.25, -2.0), Vector3(43.5, 1.2, 0.0), dark, 4.5, true)
 
 	var probe := ReflectionProbe.new()
 	probe.name = "BayReflections"
@@ -1228,68 +1166,6 @@ func _bay(parent: Node, ply: Array[Material], steel: Material, dark: Material) -
 	probe.update_mode = ReflectionProbe.UPDATE_ONCE
 	probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
 	add(probe, parent)
-
-
-## The backstop: sand heaped against the bay's back wall, a lumpy slope from BERM_TOE up to
-## BERM_TOP, its toe wandering a little; a convex wedge for the rounds to land in.
-func _berm(parent: Node) -> void:
-	const NX := 56
-	const NZ := 144
-	var noise := FastNoiseLite.new()
-	noise.seed = 3
-	noise.frequency = 0.35
-	noise.fractal_octaves = 4
-	var crest := BAY_END - 0.7
-	# Years of rounds: craters packed where the targets stood (mid face, centre), rain gullies down
-	# the face, and sand slumped out over the toe.
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 404
-	var craters: Array[Vector4] = []  # x, z, radius, depth
-	for i in 70:
-		craters.append(Vector4(rng.randf_range(BERM_TOE + 1.2, crest - 0.3), rng.randfn(0.0, 4.0), rng.randf_range(0.12, 0.4), rng.randf_range(0.05, 0.14)))
-	var height := func(x: float, z: float) -> float:
-		var toe := BERM_TOE - 0.35 + noise.get_noise_1d(z * 0.6 + 50.0) * 0.9
-		var t := clampf((x - toe) / (crest - toe), 0.0, 1.0)
-		var h := BERM_TOP * t * t * (3.0 - 2.0 * t)  # soft toe, steep face, rounded shoulder
-		h += noise.get_noise_2d(x * 1.0, z * 1.0) * 0.12 * minf(h * 2.0, 1.0) - 0.03
-		h -= maxf(noise.get_noise_1d(z * 2.6 + 9.0), 0.0) * 0.35 * t * (1.0 - t) * 4.0 * 0.5  # gullies
-		for c: Vector4 in craters:
-			var d2 := (Vector2(x, z) - Vector2(c.x, c.y)).length_squared() / (c.z * c.z)
-			h += c.w * (0.45 * exp(-(d2 - 1.6) * (d2 - 1.6) * 2.0) - exp(-d2 * 1.4)) * minf(h * 3.0, 1.0)
-		return h
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var x0 := BERM_TOE - 0.8
-	var at := func(i: int, k: int) -> Vector3:
-		var x := lerpf(x0, BAY_END, float(i) / NX)
-		var z := lerpf(-BAY_HALF, BAY_HALF, float(k) / NZ)
-		return Vector3(x, height.call(x, z), z)
-	for i in NX:
-		for k in NZ:
-			var a: Vector3 = at.call(i, k)
-			var b: Vector3 = at.call(i + 1, k)
-			var c: Vector3 = at.call(i, k + 1)
-			var d: Vector3 = at.call(i + 1, k + 1)
-			for v in [a, d, c, a, b, d]:  # z x x is up: these face the sky (see _stone_block)
-				st.add_vertex(v)
-	st.index()
-	st.generate_normals()
-	var mi := MeshInstance3D.new()
-	mi.name = "Berm"
-	mi.mesh = st.commit()
-	mi.material_override = pbr_box("sand_01", 1.5, Color(0.92, 0.86, 0.78))
-	var body := StaticBody3D.new()
-	body.name = "Berm"
-	add(body, parent)
-	add(mi, body)
-	var wedge := ConvexPolygonShape3D.new()
-	var pts := PackedVector3Array()
-	for z in [-BAY_HALF, BAY_HALF]:
-		pts.append_array([Vector3(BERM_TOE, 0, z), Vector3(crest, BERM_TOP, z), Vector3(BAY_END, BERM_TOP, z), Vector3(BAY_END, 0, z)])
-	wedge.points = pts
-	var cs := CollisionShape3D.new()
-	cs.shape = wedge
-	add(cs, body)
 
 
 ## One tube of Poly Haven's "Mounted Fluorescent Lights" (the set is seven in a row), saved on its
@@ -1313,15 +1189,16 @@ func _tube_mesh() -> Mesh:
 
 
 ## A slim floodlight at `at` turned on `aim`: housing, cooling fins, glowing lens, a bracket up,
-## and a cool spot (shadowed when `shadow`).
-func _flood(parent: Node, at: Vector3, aim: Vector3, paint: Material, energy: float, shadow: bool, round := false) -> void:
+## and a spot of `colour` (shadowed when `shadow`).
+func _flood(parent: Node, at: Vector3, aim: Vector3, paint: Material, energy: float, shadow: bool, round := false, colour := RANGE_LIGHT) -> void:
 	var lens := StandardMaterial3D.new()
 	lens.albedo_color = Color.WHITE
 	lens.emission_enabled = true
-	lens.emission = RANGE_LIGHT
+	lens.emission = colour
 	lens.emission_energy_multiplier = 2.2
-	ResourceSaver.save(lens, "res://materials/env/flood_lens.tres")
-	lens = load("res://materials/env/flood_lens.tres")
+	var lens_path := "res://materials/env/flood_lens%s.tres" % ("" if colour == RANGE_LIGHT else "_" + colour.to_html(false))
+	ResourceSaver.save(lens, lens_path)
+	lens = load(lens_path)
 	var rig := Node3D.new()
 	rig.position = at
 	add(rig, parent)
@@ -1349,7 +1226,7 @@ func _flood(parent: Node, at: Vector3, aim: Vector3, paint: Material, energy: fl
 		glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var spot := SpotLight3D.new()
 	spot.position = Vector3(0, 0, -0.17 if round else -0.08)
-	spot.light_color = RANGE_LIGHT
+	spot.light_color = colour
 	spot.light_energy = energy
 	spot.spot_range = 24.0
 	spot.spot_attenuation = 0.5
@@ -1360,8 +1237,10 @@ func _flood(parent: Node, at: Vector3, aim: Vector3, paint: Material, energy: fl
 	add(spot, head)
 
 
-## The light bridge: a steel beam hung from the trusses over the railing, floods along it aimed at
-## the target faces, a red "range hot" lamp at each end.
+## The light bridge: a steel beam hung from the trusses over the railing. Of the old rig's floods
+## five still work, dirty sodium, aimed at odd spots down the range: pools of light with dark
+## between, where the dead show up as they walk through. Two keep shadows. The red wave lamps
+## on it are tools/zombie_bay.gd's.
 func _light_bridge(parent: Node, dark: Material) -> void:
 	var bx: float = GS.FIRING_LINE_X + 0.8
 	var bridge := Node3D.new()
@@ -1371,77 +1250,23 @@ func _light_bridge(parent: Node, dark: Material) -> void:
 	var drop := BOTTOM - CHORD - BRIDGE_Y - 0.1
 	for z in BAYS.slice(1, BAYS.size() - 1):
 		block(Vector3(0.03, drop, 0.03), Vector3(bx, BRIDGE_Y + 0.1 + drop / 2.0, z), dark, bridge)
-	# Irregular pairs, a box flood and a round can mixed, aims a little off one another: a rig
-	# that grew over years, not a row of copies.
-	var zs: Array[float] = [-25.2, -21.9, -16.0, -12.1, -6.6, -2.5, 2.9, 7.0, 11.6, 16.2, 21.0, 25.1]
-	for k in zs.size():
-		var z := zs[k]
-		var aim := Vector3(20.5 + 3.0 * fposmod(k * 0.37, 1.0), 0.9, z * 0.85 + (0.8 if k % 2 else -0.8))
-		_flood(bridge, Vector3(bx, BRIDGE_Y - 0.22, z), aim, dark, 4.0, false, k % 4 == 1 or k % 4 == 2)  # the bay floods keep the shadows
-	var red := StandardMaterial3D.new()
-	red.albedo_color = Color(0.6, 0.05, 0.03)
-	red.emission_enabled = true
-	red.emission = Color(1.0, 0.12, 0.06)
-	red.emission_energy_multiplier = 4.0
-	for s in [-1.0, 1.0]:
-		var lamp := MeshInstance3D.new()
-		var dome := SphereMesh.new()
-		dome.radius = 0.08
-		dome.height = 0.12
-		lamp.mesh = dome
-		lamp.material_override = red
-		lamp.position = Vector3(bx, BRIDGE_Y - 0.17, s * 27.2)
-		lamp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add(lamp, bridge)
-		block(Vector3(0.12, 0.05, 0.12), lamp.position + Vector3(0, 0.08, 0), dark, bridge)
-		var glow := OmniLight3D.new()
-		glow.position = lamp.position + Vector3(0, -0.15, 0)
-		glow.light_color = Color(1.0, 0.15, 0.08)
-		glow.light_energy = 0.8
-		glow.omni_range = 3.5
-		glow.light_volumetric_fog_energy = 0.0
-		add(glow, bridge)
-
-
-## Range paint: yellow and black hazard stripes on the shooters' side of the railing, white
-## distance lines every 5 m past it with the number on the floor, and yellow plaques on the walls.
-func _range_marks(parent: Node) -> void:
-	var fl: float = GS.FIRING_LINE_X
-	var wear := FastNoiseLite.new()
-	wear.seed = 17
-	wear.frequency = 0.03
-	wear.fractal_octaves = 4
-	var hazard := _decal_tex("hazard", 64, 640, func(img: Image) -> void:
-		for y in 640:
-			for x in 64:
-				var band := fposmod((x + y) / 48.0, 1.0) < 0.5
-				var c := Color(0.86, 0.66, 0.08) if band else Color(0.04, 0.04, 0.04)
-				img.set_pixel(x, y, Color(c, 0.92 * smoothstep(-0.45, 0.1, wear.get_noise_2d(x * 2.0, y * 2.0)))))
-	for k in 14:  # 4 m tiles, 0.4 m wide
-		_decal(parent, hazard, Vector3(fl - 0.32, 0, -26.0 + k * 4.0), 0.0, Vector3(0.4, 1.0, 4.0))
-	var white := _decal_tex("line_white", 16, 2048, func(img: Image) -> void:
-		for y in 2048:
-			for x in 16:
-				img.set_pixel(x, y, Color(0.92, 0.92, 0.88, 0.9 * smoothstep(-0.75, -0.2, wear.get_noise_2d(x * 0.5, y * 1.5 + 300.0)))))
-	var yellow := StandardMaterial3D.new()
-	yellow.albedo_color = Color(0.86, 0.66, 0.08)
-	yellow.roughness = 0.6
-	for d in [5, 10, 15, 20, 25]:
-		var x: float = fl + d
-		var half := 27.6 if x < 28.0 else BAY_HALF - 0.05
-		_decal(parent, white, Vector3(x, 0, 0), 0.0, Vector3(0.1, 1.0, 2.0 * half))
-		for s in [-1.0, 1.0]:  # the number on the floor, read from the railing
-			var floor_label := _range_label("%d m" % d, 120, Color(0.92, 0.92, 0.88, 0.85))
-			floor_label.transform = Transform3D(Basis(Vector3.UP, -PI / 2) * Basis(Vector3.RIGHT, -PI / 2), Vector3(x + 0.45, 0.008, s * (half - 1.6)))
-			add(floor_label, parent)
-			# A plaque on the wall at eye height: yellow board, black number.
-			var wall_z: float = s * (27.95 if x < 28.0 else BAY_HALF - 0.035)
-			var turn := Basis(Vector3.UP, PI if s > 0 else 0.0)  # the board's front looks into the room
-			block(Vector3(1.0, 0.5, 0.02), Vector3(x, 1.75, wall_z - s * 0.01), yellow, parent, turn)
-			var plaque := _range_label("%d m" % d, 100, Color(0.05, 0.05, 0.05, 0.82))
-			plaque.transform = Transform3D(turn, Vector3(x, 1.75, wall_z - s * 0.022))
-			add(plaque, parent)
-			sign_grime(parent, Vector3(x, 1.75, wall_z - s * 0.02), Vector3(0, 0, -s), Vector2(1.0, 0.5))
+	# [z, aim, round can, shadow, energy]; the dead ones keep their housings, lens dark.
+	var rig := [[-21.9, Vector3(22.0, 0.3, -19.0), false, false, 3.2], [-12.1, null, true, false, 0.0],
+		[-6.6, Vector3(25.5, 0.5, -3.5), false, true, 3.6], [-2.5, null, false, false, 0.0],
+		[2.9, Vector3(34.0, 0.8, 4.0), true, true, 4.2], [11.6, Vector3(21.5, 0.3, 10.5), false, false, 3.0],
+		[16.2, null, true, false, 0.0], [25.1, Vector3(24.0, 0.3, 22.0), false, false, 2.6]]
+	for r in rig:
+		var z: float = r[0]
+		var at := Vector3(bx, BRIDGE_Y - 0.22, z)
+		if r[1] == null:  # dead: the housing, its lens dark, hanging off true
+			var hang := Node3D.new()
+			hang.position = at
+			hang.rotation = Vector3(0.5, 0.3 * signf(z), 0.15)
+			add(hang, bridge)
+			block(Vector3(0.36, 0.24, 0.12), Vector3.ZERO, dark, hang)
+			block(Vector3(0.32, 0.2, 0.01), Vector3(0, 0, -0.062), dark, hang)
+			continue
+		_flood(bridge, at, r[1], dark, r[4], r[3], r[2], SODIUM)
 
 
 func _range_label(text: String, size: int, colour: Color, font: Font = null) -> Label3D:

@@ -47,14 +47,13 @@ func _initialize() -> void:
 	_ok(me._viewmodel.clip == "draw", "drawn with its animation (%s)" % me._viewmodel.clip)
 	_ok("t00" in gs.quests_done and gs.quest_board[0] == "t01", "the warmup moves on to buying a dummy")
 	_ok(me._hud._subtitle.visible, "the heap's line is said at the bottom")
-	_ok(not me._hud._q.get_parent().visible, "no Q while it is said")
 	await create_timer(2.5).timeout
 	_ok(not is_instance_valid(table), "the desk faded out and is gone")
 	_ok((-me._camera.global_basis.z).dot((HEAP - me._camera.global_position).normalized()) > 0.9, "the view turned to the heap")
 	await create_timer(4.0).timeout
-	_ok(me._hud._q.get_parent().visible and me._hud._q_blink != null, "then the Q comes in, blinking")
+	_ok(gs.unlocked("workbench") and not me._hud._q.visible, "the bench is open (no Q: everything is bought there)")
 	_ok(not me._hud._sheet.visible, "the quest list waits for the board")
-	# Q: the gear, only the straw dummy open; the gold buys exactly it, then it goes up.
+	# The gear at the bench, only the straw dummy open; the gold buys exactly it, then it goes up.
 	_ok(gs.gold == gs.GEAR.dummy.cost, "we start with a dummy's price ($%d)" % gs.gold)
 	_ok(not gs.request_buy_gear("popper"), "the rest of the gear is locked")
 	_ok(gs.request_buy_gear("dummy") and gs.gold == 0 and gs.quest_board[0] == "t02", "the dummy is bought, on to placing it")

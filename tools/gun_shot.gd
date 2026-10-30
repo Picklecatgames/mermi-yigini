@@ -23,6 +23,7 @@ func _initialize() -> void:
 	await _wait(0.25)
 	await _save("fists_punch")
 	gs.player().has_pistol = true  # as if taken off the desk at the spawn
+	gs.player().levels.deagle = 1  # and the Deagle bought at the bench
 	for g in range(1, gs.GUNS.size()):
 		if not gs.GUNS[g].ready:
 			continue
@@ -69,8 +70,8 @@ func _initialize() -> void:
 	player._yaw = -PI / 2.0
 	player._pitch = 0.0
 	player.reset_physics_interpolation()
-	gs.request_select_gun(2)
-	while vm.gun != 2 or vm.clip != "":
+	gs.request_select_gun(3)
+	while vm.gun != 3 or vm.clip != "":
 		await process_frame
 	gs.player().loaded = 28
 	Input.action_press("move_right")

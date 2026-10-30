@@ -8,7 +8,7 @@ extends SceneTree
 ## player down, and running plays the set's looping Sprint clip.
 
 const DT := 1.0 / 120.0
-const MINIGUN := 4
+const MINIGUN := 5
 
 
 func _initialize() -> void:

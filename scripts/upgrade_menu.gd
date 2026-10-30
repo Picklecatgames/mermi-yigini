@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## The workshop, opened over the bench (bench_menu.gd; Esc or E back to it), in UiStyle: a dark steel panel under a brass
-## edge, names and numbers in Barlow Condensed. Top: the player's gold and what it earns a
+## edge, names and numbers in Oswald. Top: the player's gold and what it earns a
 ## second on the left, the team vault on the right (co-op only), two tabs between them (the
 ## player's own upgrades, GameState.UPGRADES, paid from their gold; the team's gear, GameState.GEAR,
 ## paid from the vault, alone from the player's gold). Opened over the bench (bench_menu.gd), and with Q on the gear (player.gd). The upgrades are long rows, the gear a grid of cards turning their target's model.
@@ -99,7 +99,7 @@ class Track extends Control:
 		if armed and is_visible_in_tree():
 			queue_redraw()  # the next pip beats
 
-	func _draw() -> void:
+	func _draw() -> void:  # steel studs (plate "pip"), painted the upgrade's colour once bought
 		var gap := 4.0
 		var w := (size.x - gap * (levels - 1)) / levels
 		var beat := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 6.0)
@@ -107,17 +107,18 @@ class Track extends Control:
 			var r := Rect2(i * (w + gap), 0, w, size.y)
 			if i < level:
 				var grow := 3.0 * flash if i == level - 1 else 0.0
-				draw_rect(r.grow(grow), color.lerp(Color.WHITE, flash if i == level - 1 else 0.0))
+				draw_style_box(UiStyle.small_plate("pip", i, color.lerp(Color.WHITE, flash if i == level - 1 else 0.0), size.y), r.grow(grow))
 			elif i == level:
-				draw_rect(r, Color(1, 1, 1, 0.1))
-				draw_rect(r, Color(BUY, 0.5 + 0.5 * beat) if armed else Color(1, 1, 1, 0.3), false, 1.5)
+				draw_style_box(UiStyle.small_plate("pip", i, Color(0.46, 0.47, 0.46), size.y), r)
+				if armed:
+					draw_rect(r.grow(1.0), Color(BUY, 0.5 + 0.5 * beat), false, 1.5)
 			else:
-				draw_rect(r, Color(1, 1, 1, 0.07))
+				draw_style_box(UiStyle.small_plate("pip", i, Color(0.26, 0.27, 0.26), size.y), r)
 
 
-## The price: a dark slot that fills with brass as the money nears the cost (it slides there, so a
-## buy drains it); once full, steel painted army green, breathing. Its button lies over
-## it and carries the text.
+## The price: a slot sunk in the steel (plate "slot") that fills with a brass bar (plate "fill") as
+## the money nears the cost (it slides there, so a buy drains it); once full, steel painted army
+## green, breathing. Its button lies over it and carries the text.
 class Gauge extends Control:
 	var goal := 0.0  # share of the cost in hand
 	var fill := 0.0  # what is drawn, sliding to `goal`
@@ -128,6 +129,8 @@ class Gauge extends Control:
 			flash = v
 			queue_redraw()
 	var _olive := UiStyle.plate("button", randi(), UiStyle.PLATE_OLIVE, 0)
+	var _slot := UiStyle.plate("slot", randi(), UiStyle.SLOT_TINT, 0)
+	var _brass := UiStyle.plate("fill", randi(), Color(UiStyle.BRASS, 0.8), 0)
 
 	func _init() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -145,22 +148,12 @@ class Gauge extends Control:
 			_olive.modulate_color = UiStyle.PLATE_OLIVE.lerp(Color.WHITE, flash * 0.5 + 0.08 * a)
 			draw_style_box(_olive, r)
 			return
-		var box := StyleBoxFlat.new()
-		box.set_corner_radius_all(6)
-		box.anti_aliasing = true
-		box.bg_color = Color(0, 0, 0, 0.4)
-		box.border_color = Color(MAXED, 0.6) if maxed else Color(1, 1, 1, 0.12)
-		box.set_border_width_all(1)
-		draw_style_box(box, r)
+		_slot.modulate_color = UiStyle.SLOT_TINT.lerp(MAXED, 0.35) if maxed else UiStyle.SLOT_TINT
+		draw_style_box(_slot, r)
 		if maxed or fill < 0.005:
 			return
-		var w := maxf(16.0, size.x * fill)
-		var lit := StyleBoxFlat.new()
-		lit.set_corner_radius_all(6)
-		lit.anti_aliasing = true
-		lit.bg_color = Color(BRASS, 0.35).lerp(Color.WHITE, flash * 0.6)
-		draw_style_box(lit, Rect2(Vector2.ZERO, Vector2(w, size.y)))
-		draw_rect(Rect2(w - 2.0, 4, 2, size.y - 8), Color(BRASS, 0.95))  # where the brass stops
+		_brass.modulate_color = Color(UiStyle.BRASS, 0.8).lerp(Color.WHITE, flash * 0.6)
+		UiStyle.draw_fill(self, _brass, r, fill)  # inside the slot's rim, as long as the money is
 
 
 func _ready() -> void:
@@ -195,7 +188,7 @@ func _ready() -> void:
 	foot.alignment = BoxContainer.ALIGNMENT_CENTER
 	foot.add_child(_wishlist_row())
 	_frame.add_child(foot)
-	var close := UiStyle.hint("Q", "")  # where the HUD's Q sits: the top right corner
+	var close := UiStyle.hint("ESC", "")  # back to the bench it was opened from
 	close.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	close.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	close.offset_right = -36
@@ -211,8 +204,7 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pick_up") \
-			or (event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_Q)):
+	if visible and (event.is_action_pressed("ui_cancel") or event.is_action_pressed("pick_up")):
 		toggle()
 		get_viewport().set_input_as_handled()
 	elif visible and event is InputEventKey:
@@ -677,6 +669,9 @@ func _to_placing(id: String) -> void:
 	await get_tree().create_timer(0.35).timeout
 	if visible:
 		toggle()
+	var bench := get_node_or_null("../BenchMenu")  # bought at the bench: off it first, then the overview
+	if bench and bench.visible:
+		await bench.close()
 	if not GameState.player().placing:
 		GameState.request_toggle_placing()
 	var placement := get_tree().get_first_node_in_group("placement")
@@ -875,7 +870,7 @@ func _burst(on: Control, at: Vector2) -> void:
 
 # --- helpers ----------------------------------------------------------------------------------
 
-## A name or headline: Barlow Condensed, bold.
+## A name or headline: Oswald, bold.
 func _stencil(text: String, size: int, color := UiStyle.WHITE) -> Label:
 	return UiStyle.display(text, size, UiStyle.BOLD, color)
 

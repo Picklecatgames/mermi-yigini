@@ -682,8 +682,7 @@ func _beacons() -> void:
 	# Only where the army needed one: the range's mouth, the loading door, the stores wall.
 	var red := Color(1.0, 0.1, 0.05)
 	_lamp(Vector3(-27.98, 4.6, -0.6), Vector3(1, 0, 0), red, 2.0)   # behind the crate stands
-	_lamp(Vector3(27.8, 4.4, -13.4), Vector3(-1, 0, 0), red, 2.0)   # the range bay's mouth
-	_lamp(Vector3(27.8, 4.4, 13.4), Vector3(-1, 0, 0), red, 2.0)
+	# The two at the range bay's mouth went 2026-10-29: red there is the wave alarm's (tools/zombie_bay.gd), dark till a wave.
 
 
 ## Poly Haven's caged wall lamp on a wall facing `out`, its glass glowing `colour`, a soft light
@@ -839,8 +838,7 @@ func _glow(colour: Color, energy: float) -> StandardMaterial3D:
 
 # --- the range ----------------------------------------------------------------------------------
 
-## The range's own years: water swollen up the foot of the plywood with a tide line, sand slumped
-## out of the backstop over the rubber, and dusty boot prints worn from the railing to where the
+## The range's own years: water swollen up the foot of the plywood with a tide line and dusty boot prints worn from the railing to where the
 ## targets stood and back.
 func _range_wear() -> void:
 	var fl: float = b.GS.FIRING_LINE_X
@@ -862,11 +860,6 @@ func _range_wear() -> void:
 			var d := _on_face(tide, at, f[4], Vector2(w, h))
 			d.modulate = Color(1, 1, 1, rng.randf_range(0.55, 0.95))
 			t += w + rng.randf_range(-0.3, 0.8)
-	# Sand slumped out over the rubber at the backstop's toe.
-	var spill := _sand_tex()
-	for z in [-8.0, -2.5, 3.0, 8.5]:
-		var d: Decal = b._decal(root, spill, Vector3(b.BERM_TOE - 0.6, 0, z + rng.randf_range(-1.0, 1.0)), PI / 2 + rng.randf_range(-0.15, 0.15), Vector3(6.5, 0.6, 2.6))
-		d.modulate = Color(1, 1, 1, rng.randf_range(0.7, 1.0))
 	# Boot prints out to the target lines and back.
 	var prints := _prints_tex()
 	for path in [[Vector2(fl + 0.5, -19.0), Vector2(22.5, -17.5)], [Vector2(fl + 0.5, -9.0), Vector2(24.0, -7.0)],
@@ -892,7 +885,7 @@ func _range_wear() -> void:
 
 ## The range, as far gone as the hall (2026-10-24, the user): the plywood lining shot through
 ## where rounds went wide, black mould up the sheets' feet, rain run down from the cap, a few tags;
-## on the rubber, mats pulled up to the screed, spent cases kicked about past the railing, puddles.
+## spent cases kicked about past the railing, puddles.
 func _range_decay() -> void:
 	var fl: float = b.GS.FIRING_LINE_X
 	var holes: Array[Texture2D] = []
@@ -953,17 +946,6 @@ func _range_decay() -> void:
 				d = _on_face(_spray_tex("scribble_%d" % (rng.randi() % 6)), at_face.call(t, rng.randf_range(0.4, 1.0)), f[4], Vector2(s, s))
 			d.modulate = Color(1, 1, 1, rng.randf_range(0.6, 0.9))
 			t += rng.randf_range(4.0, 9.0)
-	# Mats pulled up to the bare screed, on the 1 m grid, clear of the distance lines.
-	var gaps: Array[Texture2D] = [_spray_tex("tile_gap_0"), _spray_tex("tile_gap_1")]
-	var placed := 0
-	while placed < 16:
-		var bay := rng.randf() < 0.3
-		var cell := Vector2(floorf(rng.randf_range(fl + 1.0, 43.0 if bay else 27.5)), floorf(rng.randf_range(-11.0, 11.0) if bay else rng.randf_range(-27.5, 27.5)))
-		var line := fposmod(cell.x + 0.5 - fl, 5.0)
-		if line < 0.7 or line > 4.3 or (cell.x > 27.0 and absf(cell.y + 0.5) > b.BAY_HALF - 1.0) or cell.x > b.BERM_TOE - 1.5:
-			continue
-		b._decal(root, gaps[rng.randi() % 2], Vector3(cell.x + 0.5, 0, cell.y + 0.5), (rng.randi() % 4) * PI / 2.0, Vector3(1.0, 0.4, 1.0))
-		placed += 1
 	# Spent cases kicked about where the shooters stood, thinning out downrange.
 	var cases: Array[Texture2D] = [_spray_tex("brass_0"), _spray_tex("brass_1"), _spray_tex("brass_2")]
 	var z := -27.0
@@ -1003,21 +985,6 @@ func _tide_tex() -> Texture2D:
 					a = maxf(a, 0.8 * (1.0 - rim / 3.0))
 					c = Color(0.12, 0.07, 0.03)
 				img.set_pixel(x, y, Color(c, clampf(a, 0.0, 1.0) * ends)))
-
-
-func _sand_tex() -> Texture2D:
-	var noise := FastNoiseLite.new()
-	noise.seed = 88
-	noise.frequency = 0.025
-	noise.fractal_octaves = 5
-	return b._decal_tex("sand_spill", 512, 256, func(img: Image) -> void:
-		for y in 256:
-			for x in 512:
-				var thick := pow(y / 255.0, 0.8)  # row 255 at the backstop
-				var ends := smoothstep(0.0, 120.0, minf(x, 511 - x))
-				var n := noise.get_noise_2d(x, y)
-				var a := clampf(thick * 1.3 + n * 0.8 - 0.25, 0.0, 1.0) * ends
-				img.set_pixel(x, y, Color(Color(0.62, 0.55, 0.42).lerp(Color(0.5, 0.44, 0.33), n + 0.5), a)))
 
 
 func _prints_tex() -> Texture2D:

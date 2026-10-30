@@ -24,10 +24,14 @@ static func hold(prop: Node3D, what: String, label: String, extras: Array = []) 
 
 static func _set_there(n: Node3D, on: bool) -> void:
 	n.visible = on
-	if n is CollisionObject3D:
-		if not on:
-			n.set_meta("reveal_layer", n.collision_layer)
-		n.collision_layer = n.get_meta("reveal_layer", n.collision_layer) if on else 0
+	# Its own body and any under it (the press is a body of its own on the bench). One still held
+	# back by its own reveal stays out when its parent comes; its layer is only noted the first time.
+	for c: Node in [n] + n.find_children("*", "CollisionObject3D", true, false):
+		if not c is CollisionObject3D or (on and c != n and not c.visible):
+			continue
+		if not on and not c.has_meta("reveal_layer"):
+			c.set_meta("reveal_layer", c.collision_layer)
+		c.collision_layer = c.get_meta("reveal_layer", c.collision_layer) if on else 0
 	# A hidden node still sounds: its players stop and start with it.
 	for s: Node in n.find_children("*", "AudioStreamPlayer3D", true, false):
 		if not on:

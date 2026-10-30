@@ -15,3 +15,7 @@
 # Blender noise cache and throwaway perf tests
 waveletNoiseTile.bin
 .perf_tmp/
+
+# Mixamo ham indirmeleri: projede kalmaz, dağıtılamaz (tools/build_zombies.gd okur)
+assets/characters/zombies/raw/
+assets/characters/players/raw/

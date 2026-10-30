@@ -1,8 +1,8 @@
 extends SceneTree
 ## Headless check for the balance panel (scripts/cheat_menu.gd):
 ##   Godot.exe --headless --path . -s res://tools/cheat_check.gd
-## Solo: F9 opens it, the buttons add money, set the heap and the game speed, the rates read
-## per game minute.
+## Solo: F9 opens it, the buttons add money, set the heap and the game speed, open every quest's
+## unlock, the rates read per game minute.
 
 
 func _initialize() -> void:
@@ -30,6 +30,8 @@ func _initialize() -> void:
 	panel.set_speed(10.0)
 	if not _ok(Engine.time_scale == 10.0, "x10 speed"): return
 	panel.set_speed(1.0)
+	panel.open_all()
+	if not _ok(gs.player().has_pistol and gs.unlocked("workbench") and gs.unlocked("melter") and gs.unlocked("hand_press") 			and gs.quest_board[0] == "", "every main quest done, all it opens open"): return
 
 	# Two game seconds: +$20, +$2 vault, 300 rounds gone -> per minute x30.
 	panel.reset_clock()

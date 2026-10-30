@@ -151,6 +151,8 @@ func _on_shot_landed(peer: int, at: Vector3, normal: Vector3, dir: Vector3, targ
 			_bounced[peer] = true
 	if target == null:
 		return  # into the sky
+	if target.is_in_group("flesh"):
+		return  # bleeds by itself (zombie_body.gd wound)
 	# Armour (group "steel") on a cloth dummy sparks like steel.
 	var soft := target.has_method("cloth_hit") and not target.is_in_group("steel")
 	var steel := target.is_in_group("steel")

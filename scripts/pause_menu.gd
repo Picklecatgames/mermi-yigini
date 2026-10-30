@@ -7,7 +7,7 @@ extends CanvasLayer
 ## Settings live in the `Settings` autoload; this is only the page that changes them.
 
 const DESIGN := Vector2(1280, 720)
-const STENCIL := preload("res://assets/fonts/SairaStencilOne-Regular.ttf")
+const STENCIL := UiStyle.STENCIL
 const HUD := preload("res://scripts/hud.gd")  # its money green and dotted numbers
 const BRASS := Color(0.85, 0.64, 0.26)
 const SIGNAL := UiStyle.ACCENT
@@ -124,7 +124,7 @@ func _may_open() -> bool:
 	var p = GameState.player()
 	if p and p.placing:
 		return false
-	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu"]:
+	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu", "MelterMenu", "PressMenu"]:
 		for n in get_tree().root.find_children(menu, "CanvasLayer", true, false):
 			if (n as CanvasLayer).visible:
 				return false

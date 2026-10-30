@@ -4,24 +4,32 @@ extends StaticBody3D
 ## empty magazine. Its job done, the desk fades away; on this machine only, everyone takes their own.
 ## No GameState in here: the builder runs without autoloads and wouldn't attach this script.
 
-const ARMS := preload("res://assets/weapons/arms/arms.gltf")  # the first-person Deagle's own mesh
+## The starting pistol, taped (scripts/viewmodel.gd PISTOL): its parts, all in one space.
+const PISTOL := preload("res://assets/weapons/service_pistol/service_pistol.glb")
+const PARTS := ["frame_tape", "trigger_tape", "slide", "hammer", "magazine"]
 const FADE := 1.5  # s
 const FADE_DELAY := 0.6  # s: the draw starts first
 const GLOW := Color(0.55, 0.4, 0.15)
 
-var _gun := MeshInstance3D.new()
+var _gun := Node3D.new()
 var _fading := false
 
 
 func _ready() -> void:
 	add_to_group("gun_table")
-	var arms := ARMS.instantiate()
-	_gun.mesh = (arms.find_child("Deagle") as MeshInstance3D).mesh  # skinned: drawn in its bind pose
-	arms.free()
-	# Lying on its side across the top: the mesh stands upright with its barrel along z.
+	var parts := PISTOL.instantiate()
+	var b := AABB()
+	var meshes: Array[MeshInstance3D] = []
+	for part: String in PARTS:
+		var mi := MeshInstance3D.new()
+		mi.mesh = (parts.find_child(part) as MeshInstance3D).mesh
+		_gun.add_child(mi)
+		meshes.append(mi)
+		b = mi.mesh.get_aabb() if meshes.size() == 1 else b.merge(mi.mesh.get_aabb())
+	parts.free()
+	# Lying on its side across the top: the parts stand upright with the barrel along z.
 	var box := find_children("*", "CollisionShape3D", false)[0] as CollisionShape3D  # the builder's box round the desk
 	var top := box.position.y + (box.shape as BoxShape3D).size.y * 0.5
-	var b := _gun.mesh.get_aabb()
 	var lay := Basis(Vector3.UP, 0.5) * Basis(Vector3.BACK, PI / 2.0)
 	_gun.transform = Transform3D(lay, Vector3(0.0, top + b.size.x * 0.5, 0.0) - lay * b.get_center())
 	add_child(_gun)
@@ -30,7 +38,8 @@ func _ready() -> void:
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	glow.albedo_color = Color.BLACK
-	_gun.material_overlay = glow
+	for mi in meshes:
+		mi.material_overlay = glow
 	var tw := create_tween().set_loops().set_trans(Tween.TRANS_SINE)
 	tw.tween_property(glow, "albedo_color", GLOW, 0.7)
 	tw.tween_property(glow, "albedo_color", Color.BLACK, 0.7)

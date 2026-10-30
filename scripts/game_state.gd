@@ -71,7 +71,15 @@ signal player_slots(slots: Dictionary)
 signal pushed(vel: Vector3)
 ## What `peer` holds now: an index into GUNS (0 is bare fists).
 signal gun_changed(peer: int, gun: int)
+## `peer`'s starting pistol has wooden grips (level 1) or its tape (0): everyone's third-person view.
+signal pistol_grip(peer: int, level: int)
+## `peer` plays as CHARACTERS `id` now ("" before picking): their body for everyone, their arms in first person.
+signal character_changed(peer: int, id: String)
 signal specials_changed  # local player: the special rounds pocket, or which one is armed
+## The hopper and the press, the team's: rounds waiting in the hopper's bin, the brass melted from
+## them, each one's level. On a client it follows the host's, a few times a second.
+signal melter_changed(bin: int, brass: int, melt_level: int, press_level: int)
+signal rounds_changed  # local player: the rounds made at the press (PlayerState.rounds)
 ## The quest board moved: what is pinned (one id per QUEST_SLOTS slot, "" when that pool is dry),
 ## how far along each pinned quest is (id -> count) and which are done, their reward waiting.
 signal quests_changed(board: Array, progress: Dictionary, ready: Array)
@@ -94,6 +102,12 @@ const UPGRADES := {
 	# The Deagle's attachment, put on at the bench (2026-10-28, the user's call): the laser shows
 	# where the shot will land and weak spots pay LASER_WEAK_MULT on it.
 	"laser": {"values": [0, 1], "costs": [40], "bench": true},
+	# The starting pistol's wooden grips in place of the tape (2026-10-30, the user's call: the table
+	# gives the taped one, the bench makes it the wooden one): it kicks less (viewmodel.gd SETS grip).
+	# Others see it (pistol_grip).
+	"grip": {"values": [0, 1], "costs": [30], "bench": true},
+	# The heavy pistol, bought at the bench once the starting pistol is in hand (GUNS "bought").
+	"deagle": {"values": [0, 1], "costs": [120], "bench": true},
 	# The highest a combo chain can reach, on every target. The last level is COMBO_MAX.
 	"combo_cap": {"values": [2, 5, 10, 15, 20], "costs": [15, 60, 180, 450]},
 	# Extra gold per hit on every target, in percent.
@@ -109,10 +123,17 @@ const UPGRADES := {
 ## ~600 rounds/min, the Scorpion EVO 3 ~1150; here 480 and 600 (2026-10-22: both cut back, a
 ## Scorpion at 800 emptied the heap too easily).
 ## How each one kicks is the first-person gun's (scripts/viewmodel.gd SETS).
+## Who a player can be, picked on joining (2026-10-30, the user's call; one each, nobody twice).
+## id -> the name on the pick screen. Bodies: assets/characters/players/<id>, built by
+## tools/build_zombies.gd players.
+const CHARACTERS := {"boss": "Patron", "masked": "Maskeli", "worker": "İşçi", "brute": "Brute", "chupacabra": "Chupacabra"}
 const GUNS := [
 	{"id": "fists", "name": "Yumruk", "ready": true, "interval": 0.42, "auto": false, "mag": 0},
 	# table: shut until the player takes it off the table at the spawn (request_take_pistol).
-	{"id": "deagle", "name": "Ağır Tabanca", "ready": true, "interval": 0.42, "auto": false, "mag": 1, "table": true},
+	# A 9 mm service pistol, its grip taped up; the bench gives it wooden grips (UPGRADES grip).
+	{"id": "pistol", "name": "Tabanca", "ready": true, "interval": 0.5, "auto": false, "mag": 1, "table": true},
+	# bought: shut until that UPGRADES level is bought at the bench.
+	{"id": "deagle", "name": "Ağır Tabanca", "ready": true, "interval": 0.42, "auto": false, "mag": 1, "bought": "deagle"},
 	{"id": "uzi", "name": "Mikro SMG", "ready": true, "interval": 0.125, "auto": true, "mag": 4},
 	{"id": "scorpion", "name": "Kompakt SMG", "ready": true, "interval": 0.1, "auto": true, "mag": 5},
 	# Final, from the 12th crate. Spins up before the first round and ramps up to this rate (the
@@ -207,9 +228,10 @@ const QUEST_SLOTS := ["main", "easy", "medium", "medium", "hard"]
 # ponytail: crafted and bullets_melted have no hook until the bench and the melter exist (plan 6, 9).
 const QUESTS := {
 	"t00": {"tier": "main", "warmup": true, "name": "Tabancayı al", "kind": "gun_taken", "target": 1,
-		"unlock": "hud_gold", "hint": ["E", "Masadaki tabancayı al"], "reward": {}},
+		"unlock": "workbench", "hint": ["E", "Masadaki tabancayı al"], "reward": {}},  # the bench drops in, gold shows
+	# Everything is bought at the bench (2026-10-28, the user's call: no Q menu of its own).
 	"t01": {"tier": "main", "warmup": true, "name": "Kukla al", "kind": "gear_bought", "target": 1,
-		"hint": ["Q", "Kukla al"], "reward": {}},  # the gold it starts with buys exactly one
+		"hint": ["E", "Tezgâhtan kukla al"], "reward": {}},  # the gold it starts with buys exactly one
 	"t02": {"tier": "main", "warmup": true, "name": "Kuklayı yerleştir", "kind": "gear_placed", "target": 1,
 		"hint": ["SOL TIK", "Kuklayı korkuluğun ötesine koy"], "reward": {}},
 	"t03": {"tier": "main", "warmup": true, "name": "Yığından mermi al", "kind": "bullets_carried", "target": 1,
@@ -220,9 +242,9 @@ const QUESTS := {
 		"hint": ["SOL TIK", "Kuklaya ateş et"], "reward": {}},
 	"t06": {"tier": "main", "warmup": true, "name": "Görevlerine bak", "kind": "board_claim", "target": 1,
 		"unlock": "board", "hint": ["E", "Görevlerine panodan bak"], "reward": {"gold": 10}},
-	# The bench waits a couple of quests (2026-10-28, the user's call), then the first thing on it.
+	# The bench is open from the pistol on (t00); a couple of quests, then the first thing on it.
 	"m01": {"tier": "main", "name": "İlk kazanç", "kind": "gold_earned", "target": 6, "reward": {}},
-	"m01b": {"tier": "main", "name": "İsabet serisi", "kind": "hits", "target": 12, "unlock": "workbench", "reward": {}},
+	"m01b": {"tier": "main", "name": "İsabet serisi", "kind": "hits", "target": 12, "reward": {}},
 	"m01c": {"tier": "main", "name": "Silahını geliştir", "kind": "bench_bought", "target": 1,
 		"hint": ["E", "Tezgâhta silahını geliştir"], "reward": {"gold": 10}},
 	"m02": {"tier": "main", "name": "Avuç avuç", "kind": "bullets_carried", "target": 19, "unlock": "bucket", "reward": {}},
@@ -279,6 +301,23 @@ const QUEST_DRAW := 2
 ## The quest board (investigation board, tools/range_dressing.gd), feet; rewards are claimed there.
 const BOARD_POS := Vector3(8.85, 0.0, 26.72)
 const BOARD_REACH := 3.0  # m
+## The melting hopper and the press (docs/ayrintilar.md "Pres", docs/uretim_agaci.md), one each
+## for the team. Rounds poured into the hopper melt MELT_RATES[melt_level] a second into brass, the
+## team's; the press makes rounds out of it, each player's own. Upgrades are paid like gear: from
+## the vault in co-op, alone from one's own gold. Numbers are placeholders.
+const MELTER_POS := Vector3(10.24, 0.0, 27.15)  # tools/range_dressing.gd _workshop
+const PRESS_POS := Vector3(11.34, 0.0, 27.53)  # on the bench's low stand
+const STATION_REACH := 2.0  # m from its middle, feet
+const MELT_RATES := [2.0, 4.0, 8.0, 16.0, 32.0, 64.0]  # rounds a second, per level
+const MELT_COSTS := [120, 500, 2000, 8000, 30000]  # to the next level
+const PRESS_COSTS := [1500, 9000]
+## What the press makes: brass per round, and the press level that can.
+const PRESS_ROUNDS := {
+	"clone": {"name": "Klon", "brass": 2, "level": 0, "desc": "Ateşlenince ikiye bölünür."},
+	"electric": {"name": "Elektrikli", "brass": 6, "level": 1, "desc": "İsabette yandaki hedefe sıçrar."},
+	"heavy": {"name": "Ağır", "brass": 24, "level": 2, "desc": "Hedeften seker, üçe bölünür."},
+}
+const MELTER_SEND := 0.25  # s between the host's updates of the melting to clients
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
@@ -291,7 +330,8 @@ const REQUESTS := {
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
 	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
 	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
-	&"request_claim_quests": 0, &"request_take_pistol": 0,
+	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
+	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 }
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
@@ -309,7 +349,7 @@ const TOKEN_FILE := "user://player_token.txt"
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed",
-	&"bonus_paid", &"quests_changed", &"quest_done"]
+	&"bonus_paid", &"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0, &"bonus_paid": 1}
 
@@ -318,7 +358,8 @@ class PlayerState:
 	var carried := 0
 	var loaded := 0  # rounds in the gun
 	var gold := 0
-	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0, "laser": 0}
+	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0, "laser": 0,
+		"grip": 0, "deagle": 0}
 	var gold_rest := 0.0  # the fraction of a dollar the percent bonuses left over, paid on later hits
 	var cooldown := 0.0  # s; game time, so it follows Engine.time_scale like the gun does
 	var combo := 0  # body hits in the current chain
@@ -333,8 +374,10 @@ class PlayerState:
 	var armed := ""  # the special the next shot fires; "" for a plain round
 	var infinite_ammo := false  # test mode (T)
 	var has_pistol := false  # took it off the table at the spawn (scripts/gun_table.gd)
+	var rounds := {}  # PRESS_ROUNDS id -> made at the press, not fired yet
 	var pos := Vector3.ZERO  # feet, from the last pose
 	var has_pose := false
+	var character := ""  # CHARACTERS id; "" until picked
 
 
 ## What everyone starts with: one straw dummy's price, so the warmup's first buy is that (2026-10-28,
@@ -369,6 +412,13 @@ var quest_board := []      # pinned quest per QUEST_SLOTS slot, "" when its pool
 var quest_progress := {}   # pinned quest -> how far along
 var quests_done: Array[String] = []  # claimed, in that order
 var quests_ready: Array[String] = []  # target reached, reward not claimed yet: still pinned
+var melt_bin := 0  # rounds in the hopper, waiting to melt
+var brass := 0  # melted, for the press
+var melt_level := 0
+var press_level := 0
+var _melt_part := 0.0  # host: the round melting now, how far
+var _melter_wait := 0.0  # host: s until clients hear of the melting again
+var _melter_news := false  # host: something changed since they last did
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -428,6 +478,7 @@ func _ready() -> void:
 			_event.rpc_id(id, &"key_layout", [key_seed])
 			_event.rpc_id(id, &"vault_changed", [vault])
 			_event.rpc_id(id, &"gear_changed", [gear_stock])
+			_event.rpc_id(id, &"melter_changed", [melt_bin, brass, melt_level, press_level])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
 				_event.rpc_id(id, &"quest_done", [q, 0])
 			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress, quests_ready])
@@ -444,6 +495,10 @@ func _ready() -> void:
 			for peer: int in _players:
 				if _players[peer].gun != 0 and peer != id:
 					_event.rpc_id(id, &"gun_changed", [peer, _players[peer].gun])
+				if _players[peer].levels.grip > 0 and peer != id:
+					_event.rpc_id(id, &"pistol_grip", [peer, _players[peer].levels.grip])
+				if _players[peer].character != "" and peer != id:
+					_event.rpc_id(id, &"character_changed", [peer, _players[peer].character])
 			for t: Node in get_tree().get_nodes_in_group("target"):
 				if t.has_method("join_cues"):
 					for cue: Array in t.join_cues():
@@ -493,6 +548,110 @@ func _process(delta: float) -> void:
 			p.combo = 0
 		if p.weak_left == 0.0:
 			p.weak_combo = 0
+	if Net.is_client:
+		return  # the hopper melts on the host
+	if melt_bin > 0:
+		_melt_part += MELT_RATES[melt_level] * delta
+		var n := mini(int(_melt_part), melt_bin)
+		if n > 0:
+			_melt_part -= n
+			melt_bin -= n
+			brass += n
+			if melt_bin == 0:
+				_melt_part = 0.0  # an empty hopper doesn't run ahead
+			quest_add("bullets_melted", n)
+			_melter_now()
+	_melter_wait -= delta
+	if _melter_news and _melter_wait <= 0.0:
+		_melter_now(true)
+
+
+## Host: the hopper or the press changed. Here at once; to clients now if `send`, else at most
+## every MELTER_SEND (melting goes on many times a second).
+func _melter_now(send := false) -> void:
+	var args := [melt_bin, brass, melt_level, press_level]
+	if not send:
+		melter_changed.emit(melt_bin, brass, melt_level, press_level)
+		_melter_news = true
+		return
+	_melter_news = false
+	_melter_wait = MELTER_SEND
+	_world(&"melter_changed", args)
+
+
+## Feet within reach of a station (MELTER_POS, PRESS_POS). The host allows a metre more for
+## someone else: their pose is up to 50 ms old.
+func near_station(at: Vector3, peer := 0) -> bool:
+	var p := player(peer)
+	if not p.has_pose:
+		return true  # no body yet (checks, the first frames)
+	var slack := 0.0 if _is_local(peer) else 1.0
+	return Vector2(p.pos.x - at.x, p.pos.z - at.z).length() <= STATION_REACH + slack
+
+
+## Pours everything in the hand into the hopper. Returns how many went in.
+func request_melt(peer := 0) -> int:
+	var p := player(peer)
+	var n := p.carried
+	if n <= 0 or p.placing or not unlocked("melter") or not near_station(MELTER_POS, peer):
+		return 0
+	var sent := _send(&"request_melt", [], peer)
+	_set_carried(peer, 0)
+	if sent:
+		return n  # the bin is the host's: melter_changed brings it
+	melt_bin += n
+	_melter_now(true)
+	return n
+
+
+## The next level of the hopper ("melter": melts faster) or the press ("press": new rounds).
+func request_upgrade_station(what: String, peer := 0) -> bool:
+	var costs: Array = MELT_COSTS if what == "melter" else PRESS_COSTS if what == "press" else []
+	var level := melt_level if what == "melter" else press_level
+	if costs.is_empty() or level >= costs.size() or not unlocked("melter" if what == "melter" else "hand_press"):
+		return false
+	var cost: int = costs[level]
+	if _send(&"request_upgrade_station", [what], peer):
+		return vault >= cost  # no guess: melter_changed says what came of it
+	if not team_vault():
+		var p := player(peer)
+		if p.gold < cost:
+			return false
+		p.gold -= cost
+		if _is_local(peer):
+			gold_changed.emit(p.gold)
+	elif vault < cost:
+		return false
+	else:
+		vault -= cost
+		_world(&"vault_changed", [vault])
+	if what == "melter":
+		melt_level += 1
+	else:
+		press_level += 1
+	_melter_now(true)
+	return true
+
+
+## Makes `count` rounds of `id` at the press out of the team's brass, for this player. Returns how
+## many it made (fewer if the brass runs short).
+func request_press(id: String, count: int, peer := 0) -> int:
+	if not PRESS_ROUNDS.has(id) or count <= 0 or not unlocked("hand_press") or not near_station(PRESS_POS, peer):
+		return 0
+	var r: Dictionary = PRESS_ROUNDS[id]
+	count = mini(count, brass / int(r.brass))
+	if r.level > press_level or count <= 0:
+		return 0
+	if _send(&"request_press", [id, count], peer):
+		return count  # the host's answer brings the rounds, melter_changed the brass left
+	var p := player(peer)
+	brass -= count * int(r.brass)
+	p.rounds[id] = p.rounds.get(id, 0) + count
+	quest_add("crafted", count * int(r.brass))
+	_melter_now(true)
+	if _is_local(peer):
+		rounds_changed.emit()
+	return count
 
 
 ## Buys the next level of an upgrade if there is one and gold covers it.
@@ -511,6 +670,8 @@ func request_buy_upgrade(id: String, peer := 0) -> bool:
 	p.levels[id] = level + 1
 	if UPGRADES[id].get("bench", false):
 		quest_add("bench_bought", 1)  # the host's; a client's call is dropped there
+	if id == "grip" and not Net.is_client:
+		_world(&"pistol_grip", [local_peer() if peer == 0 else peer, level + 1])
 	if _is_local(peer):
 		upgraded.emit(id, level + 1)
 		gold_changed.emit(p.gold)
@@ -659,6 +820,8 @@ func request_debug_level_up(id: String, peer := 0) -> void:
 	_send(&"request_debug_level_up", [id], peer)
 	var p := player(peer)
 	p.levels[id] = (p.levels[id] + 1) % UPGRADES[id].values.size()
+	if id == "grip" and not Net.is_client:
+		_world(&"pistol_grip", [local_peer() if peer == 0 else peer, p.levels[id]])
 	if _is_local(peer):
 		upgraded.emit(id, p.levels[id])
 
@@ -797,6 +960,28 @@ func request_select_gun(gun: int, peer := 0) -> void:
 	_world(&"gun_changed", [local_peer() if peer == 0 else peer, gun])
 
 
+## Play as CHARACTERS `id`, if nobody else has it. The host decides (two clients can ask for the
+## same one at once); everyone hears it from character_changed, the picker too.
+func request_pick_character(id: String, peer := 0) -> void:
+	if not CHARACTERS.has(id) or character_taken(id, peer):
+		return
+	if _send(&"request_pick_character", [id], peer):
+		return
+	var who := local_peer() if peer == 0 else peer
+	player(who).character = id
+	_world(&"character_changed", [who, id])
+
+
+## Whether someone other than `peer` plays as `id`.
+func character_taken(id: String, peer := 0) -> bool:
+	var me := local_peer() if peer == 0 else peer
+	for other: int in _players:
+		# Only those still here: a client keeps the record of someone who left.
+		if other != me and _players[other].character == id and (slots.is_empty() or slots.has(other)):
+			return true
+	return false
+
+
 ## The pistol off the table at the spawn (scripts/gun_table.gd): drawn at once, its magazine empty.
 ## Online the draw is a request of its own, after this one: the host has the pistol on record by then.
 func request_take_pistol(peer := 0) -> void:
@@ -811,10 +996,12 @@ func request_take_pistol(peer := 0) -> void:
 
 
 ## Whether GUNS[`gun`] can be drawn. A crate gun stays shut until its crate opens; crates are not
-## in yet (yol haritası 13), so for now only test mode (T, debug builds) opens them.
+## in yet (yol haritası 13), so for now only test mode (T, debug builds) opens them. A table gun
+## until it is taken, a bought one until it is bought at the bench.
 func gun_open(gun: int, peer := 0) -> bool:
 	var p := player(peer)
-	return GUNS[gun].ready and (not GUNS[gun].has("crate") or p.infinite_ammo) and (not GUNS[gun].has("table") or p.has_pistol or p.infinite_ammo)
+	return GUNS[gun].ready and (not GUNS[gun].has("crate") or p.infinite_ammo) and (not GUNS[gun].has("table") or p.has_pistol or p.infinite_ammo) \
+		and (not GUNS[gun].has("bought") or p.levels[GUNS[gun].bought] > 0 or p.infinite_ammo)
 
 
 ## Test mode (T): the gun never runs dry, for trying the feel and effects. Per player.
@@ -1184,6 +1371,12 @@ func request_hello(token: String, peer := 0) -> void:
 		_players[peer] = p  # the answer to this request (_state) carries it to the client
 		if p.gun != 0:
 			_world(&"gun_changed", [peer, p.gun])
+		if p.levels.grip > 0:
+			_world(&"pistol_grip", [peer, p.levels.grip])
+		if p.character != "" and character_taken(p.character, peer):
+			p.character = ""  # someone took it while they were away: they pick again
+		if p.character != "":
+			_world(&"character_changed", [peer, p.character])
 
 
 ## This machine's player token, made once and kept in user://.
@@ -1276,12 +1469,12 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	callv(method, args + [peer])
 	var p := player(peer)
-	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol)
+	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol, p.rounds)
 
 
 ## Client: the host's word on our own state, after request `seq`.
 @rpc("authority", "call_remote", "reliable")
-func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int, specials: Array, armed: String, pistol: bool) -> void:
+func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int, specials: Array, armed: String, pistol: bool, rounds: Dictionary) -> void:
 	_acked_seq = seq
 	if seq != _sent_seq:
 		return  # newer requests are still on their way; their answer will have it all
@@ -1294,6 +1487,9 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 		p.specials.assign(specials)  # the host rolls them: a client only learns of them here
 		p.armed = armed
 		specials_changed.emit()
+	if p.rounds != rounds:
+		p.rounds = rounds.duplicate()
+		rounds_changed.emit()
 	if p.carried != carried_:
 		_set_carried(0, carried_)
 	if p.loaded != loaded_:
@@ -1392,6 +1588,11 @@ func _event(event: StringName, args: Array) -> void:
 			slots = args[0]
 		&"vault_changed":
 			vault = args[0]
+		&"melter_changed":
+			melt_bin = args[0]
+			brass = args[1]
+			melt_level = args[2]
+			press_level = args[3]
 		&"gear_changed":
 			gear_stock = args[0]
 		&"gear_placed":
@@ -1419,6 +1620,12 @@ func _event(event: StringName, args: Array) -> void:
 			if args[0] == local_peer():
 				return  # our own: predicted, and settled by the host's answer (_state)
 			player(args[0]).gun = args[1]
+		&"pistol_grip":
+			if args[0] == local_peer():
+				return  # ours: bought here, and the host's answer (_state) settles it
+			player(args[0]).levels.grip = args[1]
+		&"character_changed":
+			player(args[0]).character = args[1]
 	if NODE_ARG.has(event):
 		# A node only the host has lands as null (spent shells are on no layer, so none yet).
 		var i: int = NODE_ARG[event]

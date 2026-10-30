@@ -2,6 +2,7 @@ extends SceneTree
 ## Renders main.tscn from fixed cameras and saves PNGs, for checking visuals without playing.
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/shot.gd
 ## Add `-- --gold=N` to give the local player N gold first (the desk's cash heap follows it).
+## Add `-- --open` to finish every quest that opens something first (the bench, hopper, press drop in).
 ## Add `-- --dig` to drain 3M bullets from one spot on the heap first; name shots after `--` to take only those.
 
 const SHOTS := {
@@ -64,6 +65,8 @@ const SHOTS := {
 	"rubber": [Vector3(15.5, 1.7, -3.0), Vector3(21.0, 0.0, -8.0)],
 	"lining_close": [Vector3(26.0, 1.5, 15.5), Vector3(27.9, 0.9, 18.5)],
 	"brass": [Vector3(15.0, 1.5, -6.0), Vector3(15.8, 0.0, -4.5)],
+	"press": [Vector3(11.0, 1.6, 25.6), Vector3(11.3, 1.25, 27.4)],
+	"press_corner": [Vector3(9.5, 1.7, 22.0), Vector3(10.8, 1.2, 27.0)],
 }
 
 
@@ -80,6 +83,14 @@ func _initialize() -> void:
 			var gs := root.get_node("GameState")
 			gs.player().gold = a.trim_prefix("--gold=").to_int()
 			gs.gold_changed.emit(gs.player().gold)
+	if "--open" in OS.get_cmdline_user_args():
+		await process_frame
+		var gs := root.get_node("GameState")
+		for id: String in gs.QUESTS:
+			if gs.QUESTS[id].has("unlock") and id not in gs.quests_done:
+				gs.quests_done.append(id)
+				gs.quest_done.emit(id, 0)
+		await create_timer(14.0).timeout  # the drops and their beams (reveal.gd)
 	if "--dig" in OS.get_cmdline_user_args():
 		await process_frame
 		var pile: Node3D = main.get_node("Pile")
