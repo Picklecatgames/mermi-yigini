@@ -15,7 +15,7 @@ const GUN_SOUNDS := ["ShotSound", "DrySound", "SlideSound", "MagSound", "Tink"] 
 # The actions the player may move to another key, in the order the page lists them.
 const ACTIONS := [
 	["move_forward", "İleri"], ["move_back", "Geri"], ["move_left", "Sola"], ["move_right", "Sağa"],
-	["jump", "Zıpla"], ["sprint", "Koş"], ["fire", "Ateş et"], ["aim", "Nişan al"],
+	["jump", "Zıpla"], ["sprint", "Koş"], ["crouch", "Eğil"], ["fire", "Ateş et"], ["aim", "Nişan al"],
 	["reload", "Şarjör / mermi çarkı"], ["pick_up", "Yığından mermi al"], ["throw", "Mermi fırlat"],
 	["placement_mode", "Yerleştirme modu"],
 ]

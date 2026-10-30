@@ -6,12 +6,12 @@ extends SceneTree
 ## Add `-- --tag=NAME` to save user://light_NAME_<shot>.png (before/after); the folder is printed.
 
 ## peer -> [character, feet, the point it faces]. Under the glass, at the spawns, round the heap's
-## foot, under the hall lamps and out in the dark west side.
+## foot, right under a hall lamp (0, 14), between two of them and out in the dark west side.
 const CREW := {
 	2: ["boss", Vector3(5.0, 0, -2.0), Vector3(12.0, 0, 3.0)],
 	3: ["worker", Vector3(8.7, 0, 2.4), Vector3(14.0, 0, 6.0)],
-	4: ["brute", Vector3(-1.0, 0, 8.5), Vector3(8.0, 0, 10.0)],
-	5: ["chupacabra", Vector3(4.0, 0, 18.0), Vector3(10.0, 0, 12.0)],
+	4: ["brute", Vector3(0.8, 0, 15.0), Vector3(8.0, 0, 12.0)],
+	5: ["chupacabra", Vector3(6.0, 0, 15.5), Vector3(12.0, 0, 12.0)],
 	6: ["masked", Vector3(-18.0, 0, 10.0), Vector3(-10.0, 0, 14.0)],
 }
 ## Wide shots: [camera, look-at].
@@ -79,6 +79,13 @@ func _initialize() -> void:
 		var dir: Vector3 = (CREW[peer][2] - feet).normalized()
 		cam.look_at_from_position(feet + dir * 2.6 + Vector3(0.5, 1.55, 0.0), feet + Vector3(0, 1.2, 0))
 		await _save(tag, "close_" + CREW[peer][0])
+	# Down at the feet: does the shadow start at the soles and fall away from the light over it?
+	cam.fov = 50.0
+	for peer: int in [2, 4, 5]:
+		var feet: Vector3 = CREW[peer][1]
+		var dir: Vector3 = (CREW[peer][2] - feet).normalized()
+		cam.look_at_from_position(feet + dir * 2.2 + dir.cross(Vector3.UP) * 1.2 + Vector3(0, 1.1, 0), feet + Vector3(0, 0.25, 0))
+		await _save(tag, "feet_" + CREW[peer][0])
 
 	# First person: the player's own camera and the gun's viewport over it, no menus.
 	player.get_node("ViewmodelView").visible = true

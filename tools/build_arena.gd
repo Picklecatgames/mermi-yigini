@@ -488,9 +488,10 @@ func _sun(roof: Node3D) -> void:
 	# under the glass, where the moon is the only light, they stood black on a lit floor.
 	sun.light_cull_mask = 1 | 1 << (GS.OVERHEAD_LAYER - 1)
 	sun.shadow_enabled = true
-	sun.shadow_bias = 0.03
-	sun.shadow_normal_bias = 1.2
-	sun.shadow_blur = 1.6  # the glazing bars' lines soft at the edges, as moonlight through dirty glass
+	sun.shadow_bias = 0.02
+	sun.shadow_normal_bias = 0.5  # 1.2 floated a body's shadow off its soles
+	sun.shadow_blur = 0.8
+	sun.light_angular_distance = 0.3  # about the moon's own size: sharp at the feet, softer as the shadow runs away from them
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 90.0
 	sun.directional_shadow_blend_splits = true
@@ -590,7 +591,17 @@ func _lamps() -> void:
 				spot.spot_angle = 58.0  # the shade's rim seen from the bulb
 				spot.spot_angle_attenuation = 1.1  # pools of light on the floor fading softly into the dark between (1.6 left hard spots on whoever stood at the edge)
 				spot.light_volumetric_fog_energy = 1.2  # a soft cone in the dust under each bulb: the light visibly leaves the lamp
-				spot.shadow_enabled = false
+				# Each bulb throws its own shadows (2026-10-30, the user: under a lamp the shadows all
+				# fell the moon's way): walk under one and yours falls round your feet, away from it.
+				# Only near the camera; past that they fade out (Settings turns them off on low).
+				spot.shadow_enabled = true
+				spot.shadow_bias = 0.02
+				spot.shadow_normal_bias = 0.6
+				spot.light_size = 0.12  # the bulb in its shade: soft edges further from the feet
+				spot.distance_fade_enabled = true
+				spot.distance_fade_begin = 60.0  # the light itself: everywhere in the hall
+				spot.distance_fade_length = 10.0
+				spot.distance_fade_shadow = 22.0
 				add(spot, lamp)
 			x += LAMP_STEP
 

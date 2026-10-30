@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bl0ojdavvon0t"
-path="res://.godot/imported/service_pistol_service_pistol_metal_4k-service_pistol_rough_4k.png-77da2a3a391429a55bf7df8d222047b6.ctex"
+path.s3tc="res://.godot/imported/service_pistol_service_pistol_metal_4k-service_pistol_rough_4k.png-77da2a3a391429a55bf7df8d222047b6.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "cf45bb1b2469f50f22ef7d54ab36b91c"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/weapons/service_pistol/service_pistol_service_pistol_metal_4k-service_pistol_rough_4k.png"
-dest_files=["res://.godot/imported/service_pistol_service_pistol_metal_4k-service_pistol_rough_4k.png-77da2a3a391429a55bf7df8d222047b6.ctex"]
+dest_files=["res://.godot/imported/service_pistol_service_pistol_metal_4k-service_pistol_rough_4k.png-77da2a3a391429a55bf7df8d222047b6.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -19,3 +19,6 @@ waveletNoiseTile.bin
 # Mixamo ham indirmeleri: projede kalmaz, dağıtılamaz (tools/build_zombies.gd okur)
 assets/characters/zombies/raw/
 assets/characters/players/raw/
+
+# ActionVFX ham kan videoları ve dokuları, TextureCan 4K: dağıtılamaz (tools/build_blood.py okur)
+assets/vfx/blood/raw/

@@ -144,4 +144,4 @@ func _physics_process(delta: float) -> void:
 	var pitch := atan2(to.y, Vector2(to.x, to.z).length())
 	_shooting = maxf(_shooting - delta, 0.0)
 	var act := GameState.Act.SHOOTING if _shooting > 0.0 else GameState.Act.IDLE
-	GameState.pose_received.emit(PEER, Time.get_ticks_msec() / 1000.0, _body.global_position, yaw, pitch, act, not _body.is_on_floor())
+	GameState.pose_received.emit(PEER, Time.get_ticks_msec() / 1000.0, _body.global_position, yaw, pitch, act, not _body.is_on_floor(), false)

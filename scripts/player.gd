@@ -1,5 +1,5 @@
 extends CharacterBody3D
-## First-person player: walk, sprint, jump, mouse look, grab bullets from the pile.
+## First-person player: walk, sprint, crouch, jump, mouse look, grab bullets from the pile.
 ## The body moves at the physics rate and is drawn interpolated (physics interpolation is on);
 ## the head is top level and placed every frame from the interpolated body plus the mouse look,
 ## so the view never waits a physics tick and never steps on a fast monitor.
@@ -9,6 +9,13 @@ const SPRINT_SPEED := 8.0
 const JUMP_VELOCITY := 4.5
 const MOUSE_SENSITIVITY := 0.002
 const EYE := 1.6         # m, head above the feet
+## Ctrl held: crouched. The eye where the bodies' eyes are in the crouching idle (~0.68 of standing,
+## remote_players.gd), a capsule that fits under 1.3 m, a slow walk and no sprint.
+const CROUCH_EYE := GameState.CROUCH_EYE
+const STAND_HEIGHT := 1.8  # m, the capsule (player.tscn)
+const CROUCH_HEIGHT := 1.3
+const CROUCH_SPEED := 2.5
+const CROUCH_RATE := 8.0  # 1/s the view goes down and back up at
 const BOB_FREQ := 1.4    # bob cycles per metre walked, scaled by speed
 const BOB_AMP := 0.05    # metres
 const LAND_AIR_TIME := 0.15  # s in the air before touching down counts as a landing step
@@ -114,8 +121,11 @@ var _bounces := 0  # punch round bounces left
 var _dizzy := 0.0  # s left
 var _dizzy_t := 0.0  # s into it, for the sways
 var _special_sound: AudioStreamPlayer
+var crouched := false
+var _crouch_view := 0.0  # 0..1, the eye on its way between EYE and CROUCH_EYE
 
 @onready var _head: Node3D = $Head
+@onready var _collision: CollisionShape3D = $Collision
 @onready var _shop: CanvasLayer = $UpgradeMenu
 var _bench: CanvasLayer = BENCH_MENU.new()  # the workshop bench's view (E in front of it)
 var _board_menu: CanvasLayer = BOARD_MENU.new()  # the quest board's screen (E in front of it)
@@ -157,6 +167,7 @@ func _ready() -> void:
 	# The heap stands at 45° and its height field's diagonals reach ~55°: at the default 45° those
 	# faces were walls and we snagged on its sides.
 	floor_max_angle = deg_to_rad(60.0)
+	_collision.shape = _collision.shape.duplicate()  # crouching resizes it
 	_go_to_spawn(GameState.spawn_index)
 	GameState.spawn_assigned.connect(_go_to_spawn)
 	_hip_fov = _camera.fov
@@ -635,7 +646,8 @@ func _process(delta: float) -> void:
 
 func _place_head() -> void:
 	var feet := get_global_transform_interpolated().origin
-	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), feet + Vector3.UP * EYE)
+	var eye := lerpf(EYE, CROUCH_EYE, smoothstep(0.0, 1.0, _crouch_view))
+	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), feet + Vector3.UP * eye)
 	_camera.position = _bob_offset
 	var k := smoothstep(0.0, 1.0, _dizzy / DIZZY_TIME)
 	_camera.rotation.x = _recoil + _tumble.x
@@ -655,6 +667,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y = JUMP_VELOCITY
 	if is_on_floor() and _balloon == 0.0:
 		_drifting = false
+	_crouch(delta)
 
 	# Placement mode: WASD moves the overview camera, not us; the Q menu holds us still.
 	var input := Vector2.ZERO if _hands_busy() else Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -675,7 +688,7 @@ func _physics_process(delta: float) -> void:
 		_tumble += _tumble_vel * delta
 	# Turning minigun barrels hold you back too, and you can't sprint with them (viewmodel walk_share).
 	var walk: float = _viewmodel.walk_share
-	var speed: float = SPRINT_SPEED if Input.is_action_pressed("sprint") and _viewmodel.aim == 0.0 and walk == 1.0 else SPEED * lerpf(1.0, ADS_WALK, _viewmodel.aim) * walk
+	var speed: float = SPRINT_SPEED if Input.is_action_pressed("sprint") and not crouched and _viewmodel.aim == 0.0 and walk == 1.0 		else (CROUCH_SPEED if crouched else SPEED) * lerpf(1.0, ADS_WALK, _viewmodel.aim) * walk
 	_shove = _shove * exp(-(SHOVE_DECAY if is_on_floor() else AIR_DRAG) * delta)
 	velocity.x = dir.x * speed + _shove.x
 	velocity.z = dir.z * speed + _shove.z
@@ -696,7 +709,7 @@ func _physics_process(delta: float) -> void:
 	_pose_timer -= delta
 	if _pose_timer <= 0.0:
 		_pose_timer += POSE_INTERVAL
-		GameState.send_pose(global_position, _yaw, _pitch, _act(), _air_time > AIR_SHOWN)
+		GameState.send_pose(global_position, _yaw, _pitch, _act(), _air_time > AIR_SHOWN, crouched)
 	if is_on_floor():
 		if _air_time > LAND_AIR_TIME:
 			_step_sound.play()
@@ -758,6 +771,17 @@ func _push_others(delta: float, walked: Vector3) -> void:
 			GameState.request_push(other.get_meta("peer"), away.normalized() * into * PUSH_SHARE)
 			_push_timer = PUSH_INTERVAL
 		return
+
+
+## Ctrl held, crouched; let go, up again once there is room over the head.
+func _crouch(delta: float) -> void:
+	var want := Input.is_action_pressed("crouch") and not _hands_busy()
+	if want != crouched and (want or not test_move(global_transform, Vector3.UP * (STAND_HEIGHT - CROUCH_HEIGHT))):
+		crouched = want
+		var shape := _collision.shape as CapsuleShape3D
+		shape.height = CROUCH_HEIGHT if crouched else STAND_HEIGHT
+		_collision.position.y = shape.height * 0.5
+	_crouch_view = move_toward(_crouch_view, 1.0 if crouched else 0.0, delta * CROUCH_RATE)
 
 
 func _head_bob(delta: float) -> void:
