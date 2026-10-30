@@ -28,6 +28,8 @@ const KIND_VOICE := {
 	&"brute": {"banks": [&"wet", &"growl"], "gap": [5.0, 10.0], "pitch": [0.72, 0.84]},
 	&"blob": {"banks": [&"wet"], "gap": [3.0, 8.0], "pitch": [0.6, 0.75]},
 	&"dog": {"banks": [&"growl"], "gap": [2.0, 5.0], "pitch": [1.25, 1.45]},
+	&"bloater": {"banks": [&"wet", &"groan"], "gap": [3.5, 8.0], "pitch": [0.78, 0.9]},
+	&"screamer": {"banks": [&"growl", &"groan"], "gap": [3.0, 7.0], "pitch": [1.1, 1.24]},
 }
 const MOANS_AT_ONCE := 5  # ambient voices over the whole room; the rest wait for their next turn
 const MOAN_RANGE := 45.0  # m from the listener; farther ones keep quiet
@@ -98,7 +100,7 @@ func wake() -> void:
 
 
 func scream() -> void:
-	_say(&"scream", 3.0 if kind == &"brute" else 1.0)
+	_say(&"scream", 3.0 if kind == &"brute" else 4.0 if kind == &"screamer" else 1.0)
 	if kind == &"brute":  # a wet growl under the scream: a roar, not a shout
 		gore(&"wet", global_position, 0.0, _pitch)
 	_next_moan = _now() + 4.0

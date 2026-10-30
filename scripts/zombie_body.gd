@@ -55,12 +55,14 @@ const CREATURES := {
 ## and its size range.
 const KINDS := {
 	&"walker": {"models": [&"prisoner", &"copzombie", &"warzombie", &"zombiegirl", &"parasite",
-			&"yaku", &"romero", &"skeletonzombie", &"whiteclown", &"fleshzombie", &"hazmat", &"bloater",
-			&"melty"],
+			&"yaku", &"romero", &"skeletonzombie", &"fleshzombie", &"hazmat", &"melty"],
 			"set": "", "move": "walk", "size": [0.95, 1.06]},
 	&"runner": {"models": [&"prisoner", &"copzombie", &"zombiegirl", &"parasite", &"yaku",
-			&"skeletonzombie", &"whiteclown", &"fleshzombie", &"hazmat", &"melty"],
+			&"skeletonzombie", &"fleshzombie", &"hazmat", &"melty"],
 			"set": "", "move": "run", "size": [0.95, 1.04]},
+	# Roles of their own (waves.gd): each in one look only, so it is known across the hall.
+	&"bloater": {"models": [&"bloater"], "set": "", "move": "walk", "size": [1.02, 1.1]},
+	&"screamer": {"models": [&"whiteclown"], "set": "", "move": "walk", "size": [0.97, 1.03]},
 	&"crawler": {"models": [&"prisoner", &"warzombie", &"zombiegirl", &"romero", &"skeletonzombie",
 			&"fleshzombie", &"hazmat"],
 			"set": "", "move": "crawl", "size": [0.95, 1.05]},
@@ -94,6 +96,8 @@ const LOWER := {&"forearm_l": &"arm_l", &"forearm_r": &"arm_r", &"shin_l": &"leg
 ## every frame: a crowd at the gates costs a third.
 const LOD_FAR := 22.0  # m
 const LOD_STEP := 3
+## How far a loop's playback may be sped up or slowed to match the ground it covers (move()).
+const STRIDE := [0.6, 1.8]
 const FALL_SPEED := 1.5  # the stumble-and-fall clip is slow for a leg torn off
 const LIMB_REACH := 0.1  # m at size 1: how far off a limb's bone a round's line may pass and hit it
 const TORSO_REACH := 0.15  # the same for the spine, which takes the round if it is first in line
@@ -402,12 +406,47 @@ func idle() -> void:
 	_play_loop(_pick("idle"), 1.0)
 
 
-## Loops the kind's walk / run / crawl, its stride stretched to `speed` m/s.
+## Loops the kind's walk / run / crawl, its stride stretched to `speed` m/s: one of its own gait's
+## clips whose stride fits inside STRIDE, else the quicker gait's (a walker driven to a run, one on
+## its belly to the running crawl), else the nearest.
 func move(speed: float) -> void:
 	_voice.wake()
-	var clip := _pick(_move)
-	var natural: float = _lib.get_animation(clip).get_meta("speed", 0.0) * _hip
-	_play_loop(clip, clampf(speed / natural, 0.6, 1.8) if natural > 0.05 else 1.0)
+	var clip := _gait(speed)
+	var natural := _natural(clip)
+	_play_loop(clip, clampf(speed / natural, STRIDE[0], STRIDE[1]) if natural > 0.05 else 1.0)
+
+
+## Whether it goes in the quick gait now (run, running crawl).
+func quick() -> bool:
+	return _loop.contains("run")
+
+
+func _natural(clip: String) -> float:
+	return _lib.get_animation(clip).get_meta("speed", 0.0) * _hip if _lib.has_animation(clip) else 0.0
+
+
+func _gait(speed: float) -> String:
+	var n: int = _count.get(_move, 0)
+	_count[_move] = n + 1
+	var near := ""
+	var off := INF
+	for family in [_move, "run" if _move == "walk" else "crawl_run" if _move == "crawl" else ""]:
+		if family == "":
+			continue
+		var fit := []
+		for c: String in _clips(_lib, _set + family):
+			var nat := _natural(c)
+			if nat <= 0.05:
+				return c  # (a creature clip with no stride: as it is)
+			var r := speed / nat
+			if r >= STRIDE[0] and r <= STRIDE[1]:
+				fit.append(c)
+			if absf(log(r)) < off:
+				off = absf(log(r))
+				near = c
+		if not fit.is_empty():
+			return fit[_roll("%s%d" % [_move, n]) % fit.size()]
+	return near if near != "" else _pick(_move)
 
 
 ## Swing at the fence or a player. Returns the clip's length (s).
