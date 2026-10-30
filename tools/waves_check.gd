@@ -3,14 +3,17 @@ extends SceneTree
 ##   Godot.exe --headless --path . -s res://tools/waves_check.gd --quit-after 600
 ## Alone first, at TIME_SCALE: the lever starts wave 1 (lever down, alarms lit, gates open, the dead
 ## walk out), we shoot every one of them through GameState and the wave clears: gates shut, lever
-## up, wave 2 waits. Wave 2 is left alone: the dead claw the railing down and the wave is lost (the
-## temporary rule), wave 2 waits again with nobody left. Wave 2 once more, every zombie put down in
+## up, wave 2 waits. Wave 2 is left alone: the dead claw the railing down and the wave is lost
+## (GameState.fence), wave 2 waits again with nobody left and the railing patched up a little. Wave 2 once more, every zombie put down in
 ## the pens before the gates are wide (it must still clear). Then dogs and blobs (_new_kinds). Then online: the host pulls wave 3;
 ## the client, in a solo wave of its own, joins mid-wave, drops its own dead and gets the host's
 ## phase and zombies under the same paths, shoots them down through the host, sees the next wave
 ## waiting and pulls the lever itself. Last, the client loses the host: the wave starts over there.
 ## The client aims some rounds at legs and arms; the limbs torn off each zombie by the time it dies
 ## must be the same on both machines (CUTS: the client's, read back by the host).
+## Throughout, on both machines: no zombie still standing ever leaves the floor unless the railing
+## fell (a lost wave, shown as one) or the session was reset (_watch_wipes; the dead ones used to
+## vanish without a word when the old temporary railing ran out).
 
 const PORT := 24693
 const LOG := "user://waves_check_client.log"
@@ -24,6 +27,23 @@ var main: Node
 var waves: Node
 var _log: Array[String] = []
 var _cuts := {}  # zombie id -> the limbs it had lost when the die cue came (wave 3, online)
+var _down := {}  # zombie id -> its die cue came
+var _wipe_ok := false  # the railing fell, or a reset: the living may be cleared away
+
+
+## Fails the moment a living zombie leaves the floor while nothing allows it.
+func _watch_wipes() -> void:
+	gs.wave_cue.connect(func(cue: Array) -> void:
+		if cue[0] == &"die":
+			_down[cue[1]] = true
+		elif cue[0] == &"reset" or (cue[0] == &"phase" and cue[2] == waves.Phase.FAILED):
+			_wipe_ok = true
+		elif cue[0] == &"phase" and cue[2] == waves.Phase.STARTING:
+			_wipe_ok = false)
+	gs.multiplayer.server_disconnected.connect(func() -> void: _wipe_ok = true)
+	waves.child_exiting_tree.connect(func(n: Node) -> void:
+		if n.has_meta("zombie") and not _down.has(n.get_meta("zombie")) and not _wipe_ok:
+			_fail("zombie %d (standing) left the floor with the railing up" % n.get_meta("zombie")))
 
 
 ## Notes what each zombie has lost as it goes down (the die cue comes after its limb cues).
@@ -43,6 +63,7 @@ func _initialize() -> void:
 	waves = main.get_node("Waves")
 	for i in 3:
 		await physics_frame
+	_watch_wipes()
 	if "--client" in OS.get_cmdline_user_args():
 		await _client()
 	else:
@@ -88,14 +109,13 @@ func _host() -> void:
 	var size: int = waves.BASE_COUNT + waves.COUNT_GROW
 	if not _ok(waves.left == size, "wave 2 is %d strong (%d)" % [size, waves.left]): return
 	var bites := [0]
-	gs.wave_cue.connect(func(cue: Array) -> void:
-		if cue[0] == &"fence":
-			bites[0] += 1)
+	gs.fence_changed.connect(func(_hp: int, _wear: Array) -> void: bites[0] += 1)
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FAILED, "the railing to fall", 120.0): return
 	if not _ok(bites[0] > 0 and waves.fence == 0 and waves._status.text == "ÇİT YIKILDI", "it fell bite by bite and the sign says so"): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the lost wave to wait again"): return
 	await process_frame
-	if not _ok(waves.wave == 2 and waves.fence == waves.FENCE_HP and waves._zombies.is_empty(), "wave 2 again, the railing whole, nobody left"): return
+	if not _ok(waves.wave == 2 and gs.fence == gs.FENCE_PATCH and waves._zombies.is_empty(), "wave 2 again, the railing patched up, nobody left"): return
+	gs.mend_fence(gs.FENCE_MAX)  # the rest of the check wants a whole railing
 	# Wave 2 again, all of it shot in the pens before the fight is called: it clears anyway.
 	gs.request_pull_lever()
 	for id: int in waves._zombies.keys():
@@ -125,7 +145,7 @@ func _online() -> void:
 		ProjectSettings.globalize_path("res://"), "-s", "res://tools/waves_check.gd", "--", "--client"])
 	var t0 := Time.get_ticks_msec()
 	while OS.is_process_running(pid):
-		waves.fence = waves.FENCE_HP  # wave 3 must not be lost under the client's slow fire
+		gs.mend_fence(gs.FENCE_MAX)  # wave 3 must not be lost under the client's slow fire
 		if Time.get_ticks_msec() - t0 > 240_000:
 			OS.kill(pid)
 			return _fail("client timed out")
@@ -145,6 +165,7 @@ func _online() -> void:
 	if not _ok(client_id[0] != 0 and pulled_by[0] == client_id[0], "the client's pull reached the host"): return
 	if not _ok(waves.wave == 4 and waves.phase in [waves.Phase.STARTING, waves.Phase.FIGHT], "and started wave 4"): return
 	print("waves_check OK")
+	_wipe_ok = true
 	quit()
 
 
@@ -167,7 +188,7 @@ func _new_kinds() -> bool:
 			break
 		seed += 1
 	waves._rng.seed = seed
-	gs.cue_wave([&"phase", waves.BLOB_FROM, waves.Phase.READY, 0, waves.FENCE_HP])
+	gs.cue_wave([&"phase", waves.BLOB_FROM, waves.Phase.READY, 0])
 	var gibs := {}  # kind -> how they went down
 	var spawned := {}
 	var cue_seen := func(cue: Array) -> void:
@@ -189,7 +210,7 @@ func _new_kinds() -> bool:
 	if not _ok(gibs.has(&"dog") and (gibs.get(&"blob", []) as Array).all(func(g: StringName) -> bool: return g == &"body") and gibs.has(&"blob"),
 			"the dogs went down, every blob burst (%s)" % gibs): return false
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the next wave to wait"): return false
-	gs.cue_wave([&"phase", 3, waves.Phase.READY, 0, waves.FENCE_HP])  # back to where the online part starts
+	gs.cue_wave([&"phase", 3, waves.Phase.READY, 0])  # back to where the online part starts
 	print("waves_check new kinds OK: ", gibs)
 	return true
 
@@ -210,7 +231,7 @@ func _client() -> void:
 	if not await _until(func() -> bool: return waves._zombies.size() > 0, "its zombies"): return
 	if not _ok(own.all(func(id: int) -> bool: return not waves._zombies.has(id)), "our own dead are gone"): return
 	await process_frame
-	var standing := waves.get_children().filter(func(n: Node) -> bool: return not n.is_queued_for_deletion())
+	var standing := waves.get_children().filter(func(n: Node) -> bool: return n.has_meta("zombie") and not n.is_queued_for_deletion())
 	if not _ok(standing.size() == waves._zombies.size(), "nothing else stands under Waves"): return
 	var gate: Node3D = waves._gates[0]
 	if not _ok(waves._lit and gate.position.distance_to(waves._gate_home[gate] + gate.get_meta("open_offset")) < 0.01, "lights on and gates open at once"): return
@@ -241,6 +262,7 @@ func _client() -> void:
 	if not _ok(waves.phase == waves.Phase.STARTING and waves._zombies.size() > 0, "and we can pull it ourselves"): return
 	_log.append("waves_check client OK")
 	_write_log()
+	_wipe_ok = true
 	quit()
 
 
@@ -304,6 +326,7 @@ func _ok(cond: bool, what: String) -> bool:
 
 
 func _fail(what: String) -> void:
+	_wipe_ok = true  # quitting frees the floor
 	_log.append("waves_check FAIL: " + what)
 	printerr("waves_check FAIL: ", what)
 	_write_log()

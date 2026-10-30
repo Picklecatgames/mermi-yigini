@@ -29,7 +29,7 @@ func _initialize() -> void:
 			wave = a.trim_prefix("--wave=").to_int()
 	gs.request_toggle_infinite_ammo()
 	gs.request_select_gun(2)  # the Deagle: its rounds for the bars
-	gs.cue_wave([&"phase", wave, waves.Phase.READY, 0, waves.FENCE_HP])
+	gs.cue_wave([&"phase", wave, waves.Phase.READY, 0])
 	gs.request_pull_lever()
 	print("pulled wave %d: %s" % [wave, waves._queue])
 	var t0 := Time.get_ticks_msec() / 1000.0

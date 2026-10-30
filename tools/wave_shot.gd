@@ -44,7 +44,7 @@ func _initialize() -> void:
 			seed += 1
 		waves._rng.seed = seed
 	if wave != 1:
-		gs.cue_wave([&"phase", wave, waves.Phase.READY, 0, waves.FENCE_HP])
+		gs.cue_wave([&"phase", wave, waves.Phase.READY, 0])
 	var t0 := -1.0
 	for step: Array in STEPS:
 		if step[1] >= 0.0 and t0 < 0.0:

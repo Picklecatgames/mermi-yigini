@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless check of the start (2026-10-28): we stand between the heap and the railing facing the
-## heap, the desk with the pistol in front of us; E on it draws the pistol empty and the desk fades
-## out. Then the heap's sides: walking into it climbs, no snagging (player.gd floor_max_angle).
+## heap, the desk with the pistol in front of us; E on it draws the pistol empty and the pistol goes;
+## the desk stays, for mending the railing (tools/fence_check.gd). Then the heap's sides: walking into it climbs, no snagging (player.gd floor_max_angle).
 ##   Godot.exe --headless --path . -s res://tools/table_check.gd
 
 const HEAP := Vector3(-9.0, 0, 0)
@@ -15,6 +15,7 @@ func _initialize() -> void:
 	var gs: Node = root.get_node("GameState")
 	await process_frame
 	gs.start_quests()
+	gs.request_pick_character("boss")  # the picker holds the hands until then
 	var me: CharacterBody3D = main.get_node("Player")
 	for i in 10:
 		await physics_frame
@@ -48,7 +49,8 @@ func _initialize() -> void:
 	_ok("t00" in gs.quests_done and gs.quest_board[0] == "t01", "the warmup moves on to buying a dummy")
 	_ok(me._hud._subtitle.visible, "the heap's line is said at the bottom")
 	await create_timer(2.5).timeout
-	_ok(not is_instance_valid(table), "the desk faded out and is gone")
+	_ok(is_instance_valid(table) and not is_instance_valid(table._gun), "the pistol is gone, the desk stays")
+	_ok(not me._table_hint.visible and not me._repair_hint.visible, "no hint on the desk with the railing whole")
 	_ok((-me._camera.global_basis.z).dot((HEAP - me._camera.global_position).normalized()) > 0.9, "the view turned to the heap")
 	await create_timer(4.0).timeout
 	_ok(gs.unlocked("workbench") and not me._hud._q.visible, "the bench is open (no Q: everything is bought there)")

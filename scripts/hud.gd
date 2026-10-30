@@ -14,10 +14,15 @@ extends Control
 ## the dummy waits to be bought); arrows point at the pistol and the heap while they are the next
 ## thing. Something just opened gets a line under the heap and, like the board while a reward waits
 ## there, an arrow pointing the way (Reveal). say() puts a line of story at the bottom for a while.
+## Top centre, once there are waves: the railing's life (GameState.fence), a fence and a gauge; the
+## wave lost, the screen says so and darkens until the same wave waits again (scripts/waves.gd).
 ## Listens to GameState itself.
 
 const KeyCache := preload("res://scripts/key_cache.gd")
 const StyleRank := preload("res://scripts/style_rank.gd")
+const Waves := preload("res://scripts/waves.gd")
+const FENCE_W := 190.0  # px, the railing's gauge
+const FENCE_LOW := 0.3  # of its life: the number goes red, the gauge blinks
 const MARGIN := Vector2(36, 28)  # px from the screen's edges
 const BIG := 60  # px, the two big numbers
 const HEAP_W := 200.0  # px, the heap's bar
@@ -71,6 +76,11 @@ var _right: Control  # gold's column
 var _banner: Label  # "Tezgâh açıldı", under the heap for a while
 var _floats: CanvasLayer  # claimed money rising off the gold (_float_money)
 var _pointer: Control  # arrows to what was just opened and to the board while something waits there
+var _fence_row: HBoxContainer  # top centre: the railing's life
+var _fence_bar: Control
+var _fence_hp: Label
+var _lost: Control  # the wave lost: a dark screen and "ÇİT YIKILDI"
+var _lost_tween: Tween
 
 
 func _ready() -> void:
@@ -81,6 +91,7 @@ func _ready() -> void:
 	_build_middle()
 	_build_corner()
 	_build_quests()
+	_build_fence()
 	add_child(StyleRank.new())  # the style rank on the left (style_rank.gd)
 	for s: StringName in [&"pile_changed", &"carried_changed", &"loaded_changed", &"gold_changed", &"vault_changed", &"specials_changed", &"placing_changed"]:
 		GameState.connect(s, func(_a = null) -> void: refresh())
@@ -93,6 +104,8 @@ func _ready() -> void:
 	GameState.quests_changed.connect(func(_b: Array, _p: Dictionary, _r: Array) -> void:
 		_refresh_quests()
 		refresh())
+	GameState.fence_changed.connect(_on_fence)
+	GameState.wave_cue.connect(_on_wave_cue)
 	_build_pointer()
 	refresh()
 	_refresh_quests()
@@ -182,6 +195,11 @@ func _build_pointer() -> void:
 
 func _process(_delta: float) -> void:
 	_pointer.queue_redraw()
+	_fence_row.visible = get_tree().get_first_node_in_group("waves") != null 			and (not GameState.warming() or GameState.fence < GameState.FENCE_MAX)
+	if GameState.fence <= GameState.FENCE_MAX * FENCE_LOW:  # low: the gauge blinks
+		_fence_bar.modulate.a = 0.55 + 0.45 * absf(sin(Time.get_ticks_msec() / 1000.0 * 5.0))
+	else:
+		_fence_bar.modulate.a = 1.0
 
 
 ## [world point, name] for each thing to point at.
@@ -268,6 +286,86 @@ func _build_heap() -> void:
 	_banner = UiStyle.display("", 24, UiStyle.BOLD, UiStyle.ACCENT)
 	_banner.modulate.a = 0.0
 	col.add_child(_banner)
+
+
+func _build_fence() -> void:
+	var col := _column(Control.PRESET_CENTER_TOP)
+	col.offset_top = MARGIN.y
+	_fence_row = HBoxContainer.new()
+	_fence_row.add_theme_constant_override("separation", 10)
+	_fence_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fence_row.visible = false
+	col.add_child(_fence_row)
+	_fence_row.add_child(UiStyle.icon("fence", 26, UiStyle.WHITE))
+	_fence_bar = UiStyle.bar(FENCE_W, 14.0, "fence")
+	_fence_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_fence_row.add_child(_fence_bar)
+	_fence_hp = UiStyle.stencil("", 26)
+	_fence_hp.custom_minimum_size.x = 48
+	_fence_row.add_child(_fence_hp)
+	_lost = Control.new()  # over everything else on the HUD, under the menus
+	_lost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_lost.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_lost.modulate.a = 0.0
+	_lost.visible = false
+	add_child(_lost)
+	var dark := ColorRect.new()
+	dark.color = Color(0.03, 0.0, 0.0, 0.85)
+	dark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dark.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dark.name = "Dark"
+	_lost.add_child(dark)
+	var word := UiStyle.stencil("ÇİT YIKILDI", 96, UiStyle.WARN)
+	word.name = "Word"
+	word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	word.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	word.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	word.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_lost.add_child(word)
+	_on_fence(GameState.fence, GameState.fence_wear)
+
+
+func _on_fence(hp: int, _wear: Array) -> void:
+	var was := int(_fence_hp.text) if _fence_hp.text != "" else hp
+	_fence_hp.text = str(hp)
+	_fence_hp.add_theme_color_override("font_color", UiStyle.WARN if hp <= GameState.FENCE_MAX * FENCE_LOW else UiStyle.WHITE)
+	UiStyle.set_bar(_fence_bar, float(hp) / GameState.FENCE_MAX)
+	if hp < was and _fence_row.visible:  # clawed: the row jolts
+		_fence_row.pivot_offset = _fence_row.size * 0.5
+		var tw := _fence_row.create_tween()
+		tw.tween_property(_fence_row, "position:x", _fence_row.position.x + 4.0, 0.04)
+		tw.tween_property(_fence_row, "position:x", _fence_row.position.x, 0.08)
+	elif hp > was:
+		_pop(_fence_hp)
+
+
+## The wave lost (waves.gd FAILED): the word slams in and the screen darkens a little, then nearly
+## black over the last of the pause, while the dead are cleared away; the next READY lifts it.
+func _on_wave_cue(cue: Array) -> void:
+	if cue[0] != &"phase":
+		return
+	var ph: int = cue[2]
+	if ph == Waves.Phase.FAILED:
+		if _lost_tween:
+			_lost_tween.kill()
+		_lost.visible = true
+		var dark: ColorRect = _lost.get_node("Dark")
+		var word: Label = _lost.get_node("Word")
+		word.pivot_offset = word.size * 0.5
+		dark.modulate.a = 0.3
+		var tw := create_tween()
+		_lost_tween = tw
+		tw.tween_property(_lost, "modulate:a", 1.0, 0.25)
+		tw.parallel().tween_property(word, "scale", Vector2.ONE, 0.35).from(Vector2.ONE * 1.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(maxf(0.0, Waves.FAIL_PAUSE - 1.6))
+		tw.tween_property(dark, "modulate:a", 1.0, 1.0)
+	elif _lost.visible:
+		if _lost_tween:
+			_lost_tween.kill()
+		var tw := create_tween()
+		_lost_tween = tw
+		tw.tween_property(_lost, "modulate:a", 0.0, 0.9).set_delay(0.3)
+		tw.tween_callback(func() -> void: _lost.visible = false)
 
 
 func _build_sides() -> void:

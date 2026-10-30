@@ -27,7 +27,7 @@ func _initialize() -> void:
 	await _strides()
 	await _arrival()
 	gs.request_toggle_infinite_ammo()  # test mode: every gun opens
-	gs.cue_wave([&"phase", 1, waves.Phase.FIGHT, 99, waves.FENCE_HP])
+	gs.cue_wave([&"phase", 1, waves.Phase.FIGHT, 99])
 	_anchor = _spawn(&"walker", Vector3(42, 0, 0))  # never shot: the wave is not cleared under us
 	_anchor.path = []
 	await _limbs()
@@ -284,7 +284,7 @@ func _arrival() -> void:
 				return true
 		return false, "the first at the railing", ARRIVE + 10.0)
 	_expect(first[0] > 0.0 and first[0] <= ARRIVE, "wave 1's first at the railing %.1f s after the lever" % first[0])
-	gs.cue_wave([&"phase", 1, waves.Phase.READY, 0, waves.FENCE_HP])  # the lost-wave reset: everyone gone
+	gs.cue_wave([&"phase", 1, waves.Phase.READY, 0])  # the lost-wave reset: everyone gone
 	await process_frame
 
 
@@ -332,7 +332,7 @@ func _clear() -> void:
 	for id: int in waves._zombies.keys():
 		if not waves._zombies[id].dead and id != _anchor.id:
 			waves._kill(id, &"")
-	waves.fence = waves.FENCE_HP
+	gs.mend_fence(gs.FENCE_MAX)
 
 
 func _wait(cond: Callable, what: String, secs: float) -> bool:

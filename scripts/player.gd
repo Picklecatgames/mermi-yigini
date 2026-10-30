@@ -149,6 +149,7 @@ var _press_hint: Control  # at the press (E makes rounds)
 var _lever_hint: Control  # at the wave lever with a wave waiting (E pulls it, scripts/waves.gd)
 var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
 var _table_hint: Control  # looking at the desk at the spawn with the pistol on it (E takes it)
+var _repair_hint: Control  # looking at the same desk, the pistol taken, the railing clawed (E mends it)
 var _hud: Control
 ## The pistol taken in the warmup, the view turns to the heap while the line about it is said.
 const HEAP_LINE := "Bu mermilerin altına 100 milyon dolarlık bir çek bıraktım. Almak istiyorsan mermilerden kurtul."
@@ -199,6 +200,7 @@ func _ready() -> void:
 	_make_laser_dot()
 	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
+	_repair_hint = _crosshair_hint(UiStyle.hint("E", "Çiti onar"))
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
@@ -523,6 +525,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_toggle_infinite_ammo()
 	elif event.is_action_pressed("placement_mode"):
 		GameState.request_toggle_placing()
+	elif event.is_action_pressed("pick_up") and _looking_at_table() and GameState.player().has_pistol:
+		GameState.request_repair_fence()  # the desk mends the railing once its pistol is gone
 	elif event.is_action_pressed("pick_up") and _looking_at_table():
 		var warm := GameState.warming() and not GameState.player().has_pistol  # a 2nd E before the table fades
 		GameState.request_take_pistol()
@@ -753,7 +757,14 @@ func _physics_process(delta: float) -> void:
 	var p := GameState.player()
 	_reload_hint.visible = not looking and station == "" and p.gun != 0 and GameState.loaded == 0 \
 		and GameState.carried > 0 and not p.placing
-	_table_hint.visible = _looking_at_table()
+	_table_hint.visible = _looking_at_table() and not p.has_pistol
+	_repair_hint.visible = _looking_at_table() and p.has_pistol and GameState.fence < GameState.FENCE_MAX
+	if _repair_hint.visible:  # what mending all of it costs; red when the money falls short
+		var price := GameState.fence_repair_price()
+		var money := GameState.vault if GameState.team_vault() else float(GameState.gold)
+		var l := _repair_hint.get_child(1) as Label
+		l.text = "Çiti onar  $%s" % UiStyle.dotted(price)
+		l.add_theme_color_override("font_color", UiStyle.WHITE if money >= price else UiStyle.WARN)
 	if p.has_pistol:  # taken here, or on record from before a rejoin
 		get_tree().call_group("gun_table", "fade")
 

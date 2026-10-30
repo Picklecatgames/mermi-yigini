@@ -89,6 +89,9 @@ signal quest_done(id: String, gold: int)
 signal wave_cue(cue: Array)
 ## Host only: someone pulled the wave lever (scripts/waves.gd decides whether a wave starts).
 signal lever_pulled(peer: int)
+## The railing's hit points and how worn each of its bays is (FENCE_BAYS, points clawed off there;
+## they add up to FENCE_MAX - hp). Host's, told to everyone (scripts/fence.gd shows it).
+signal fence_changed(hp: int, wear: Array)
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -314,6 +317,19 @@ const MELTER_POS := Vector3(10.24, 0.0, 27.15)  # tools/range_dressing.gd _works
 const PRESS_POS := Vector3(11.34, 0.0, 27.53)  # on the bench's low stand
 const LEVER_POS := Vector3(8.2, 0.0, -27.6)  # the wave lever on the north wall (tools/zombie_bay.gd _lever)
 const STATION_REACH := 2.0  # m from its middle, feet
+## The railing's life (docs/ayrintilar.md "Çit", 2026-10-30, the user's call: the fence has hit
+## points, at 0 the wave is lost, in co-op too, and it is mended at the desk). The dead claw it down
+## (scripts/waves.gd STATS: per claw, by kind); it is mended at the desk at the spawns for gold.
+## It doesn't heal between waves; a lost wave leaves it patched up to FENCE_PATCH for free.
+## Numbers are mine, not the user's.
+const FENCE_MAX := 100
+const FENCE_BAYS := 20  # between the railing's 21 posts (tools/build_arena.gd _firing_line)
+const FENCE_SPAN := 27.5  # ± along z, its end posts
+const FENCE_PATCH := 25
+const FENCE_REPAIR_COST := 3  # gold a point
+const FENCE_SEND := 0.25  # s between the host's updates of the clawing to clients
+const REPAIR_POS := Vector3(7.3, 0.0, 0.0)  # the desk at the spawns (tools/build_arena.gd GUN_TABLE)
+const REPAIR_REACH := 3.0  # m from its middle, feet: the desk is 2 m long
 const MELT_RATES := [2.0, 4.0, 8.0, 16.0, 32.0, 64.0]  # rounds a second, per level
 const MELT_COSTS := [120, 500, 2000, 8000, 30000]  # to the next level
 const PRESS_COSTS := [1500, 9000]
@@ -338,7 +354,7 @@ const REQUESTS := {
 	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
-	&"request_pull_lever": 0,
+	&"request_pull_lever": 0, &"request_repair_fence": 0,
 }
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
@@ -356,7 +372,8 @@ const TOKEN_FILE := "user://player_token.txt"
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed",
-	&"bonus_paid", &"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue"]
+	&"bonus_paid", &"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
+	&"fence_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0, &"bonus_paid": 1}
 
@@ -427,6 +444,10 @@ var press_level := 0
 var _melt_part := 0.0  # host: the round melting now, how far
 var _melter_wait := 0.0  # host: s until clients hear of the melting again
 var _melter_news := false  # host: something changed since they last did
+var fence := FENCE_MAX
+var fence_wear: Array[int] = []  # per FENCE_BAYS bay, from -z to +z
+var _fence_wait := 0.0  # host: s until clients hear of the clawing again
+var _fence_news := false
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -479,6 +500,7 @@ func mag_capacity_of(peer: int) -> int:
 
 func _ready() -> void:
 	_reset_quests()  # Net isn't in the tree yet; a joiner gets the host's board on joining
+	fence_wear.resize(FENCE_BAYS)
 	# Someone joined: they get the world as it is now, in one go, before any later event.
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		if multiplayer.is_server():
@@ -487,6 +509,7 @@ func _ready() -> void:
 			_event.rpc_id(id, &"vault_changed", [vault])
 			_event.rpc_id(id, &"gear_changed", [gear_stock])
 			_event.rpc_id(id, &"melter_changed", [melt_bin, brass, melt_level, press_level])
+			_event.rpc_id(id, &"fence_changed", [fence, fence_wear])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
 				_event.rpc_id(id, &"quest_done", [q, 0])
 			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress, quests_ready])
@@ -575,6 +598,9 @@ func _process(delta: float) -> void:
 	_melter_wait -= delta
 	if _melter_news and _melter_wait <= 0.0:
 		_melter_now(true)
+	_fence_wait -= delta
+	if _fence_news and _fence_wait <= 0.0:
+		_fence_now(true)
 
 
 ## Host: the hopper or the press changed. Here at once; to clients now if `send`, else at most
@@ -588,6 +614,73 @@ func _melter_now(send := false) -> void:
 	_melter_news = false
 	_melter_wait = MELTER_SEND
 	_world(&"melter_changed", args)
+
+
+## Host (or solo): a claw took `amount` off the railing at `along` (z). Clients hear of it at most
+## every FENCE_SEND; the last point at once. A client's own call is dropped.
+func hurt_fence(amount: int, along: float) -> void:
+	if Net.is_client or fence <= 0 or amount <= 0:
+		return
+	amount = mini(amount, fence)
+	fence -= amount
+	var bay := clampi(floori((along + FENCE_SPAN) / (FENCE_SPAN * 2.0) * FENCE_BAYS), 0, FENCE_BAYS - 1)
+	fence_wear[bay] += amount
+	_fence_now(fence == 0)
+
+
+## Host (or solo): `amount` points back on the railing, free (a lost wave's patch). The worst bays
+## are mended first.
+func mend_fence(amount: int) -> void:
+	if Net.is_client:
+		return
+	amount = mini(amount, FENCE_MAX - fence)
+	fence += amount
+	for i in amount:
+		var worst := 0
+		for b in FENCE_BAYS:
+			if fence_wear[b] > fence_wear[worst]:
+				worst = b
+		fence_wear[worst] -= 1
+	_fence_now(true)
+
+
+## Mends the railing at the desk at the spawns, as much of it as the money covers
+## (FENCE_REPAIR_COST a point), during a wave too: from the vault in co-op, alone from one's own
+## gold. Returns the points mended (a client's guess; fence_changed says what came of it).
+func request_repair_fence(peer := 0) -> int:
+	var p := player(peer)
+	var slack := 0.0 if _is_local(peer) else 1.0
+	if fence >= FENCE_MAX or (p.has_pose and Vector2(p.pos.x - REPAIR_POS.x, p.pos.z - REPAIR_POS.z).length() > REPAIR_REACH + slack):
+		return 0
+	var money := vault if team_vault() else float(p.gold)
+	var n := mini(FENCE_MAX - fence, int(money) / FENCE_REPAIR_COST)
+	if n <= 0 or _send(&"request_repair_fence", [], peer):
+		return maxi(n, 0)
+	if team_vault():
+		vault -= n * FENCE_REPAIR_COST
+		_world(&"vault_changed", [vault])
+	else:
+		p.gold -= n * FENCE_REPAIR_COST
+		if _is_local(peer):
+			gold_changed.emit(p.gold)
+	mend_fence(n)
+	return n
+
+
+## What mending the whole railing costs now.
+func fence_repair_price() -> int:
+	return (FENCE_MAX - fence) * FENCE_REPAIR_COST
+
+
+## Host: the railing changed. Here at once; to clients now if `send`, else at most every FENCE_SEND.
+func _fence_now(send := false) -> void:
+	if not send:
+		fence_changed.emit(fence, fence_wear)
+		_fence_news = true
+		return
+	_fence_news = false
+	_fence_wait = FENCE_SEND
+	_world(&"fence_changed", [fence, fence_wear.duplicate()])
 
 
 ## Feet within reach of a station (MELTER_POS, PRESS_POS). The host allows a metre more for
@@ -1614,6 +1707,9 @@ func _event(event: StringName, args: Array) -> void:
 			slots = args[0]
 		&"vault_changed":
 			vault = args[0]
+		&"fence_changed":
+			fence = args[0]
+			fence_wear.assign(args[1])
 		&"melter_changed":
 			melt_bin = args[0]
 			brass = args[1]
