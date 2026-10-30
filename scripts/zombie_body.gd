@@ -9,10 +9,14 @@ extends Node3D
 ##   body.setup(&"walker", seed)
 ##   add_child(body)
 ## Sounds come from a zombie_voice.gd child on the head bone; die(&"head") / die(&"body") tears it
-## apart (zombie_gibs.gd) instead of letting it fall whole.
+## apart (zombie_gibs.gd) instead of letting it fall whole. The blood is blood_fx.gd's, and every
+## splash of it is rolled from `seed` and the count of hits, so it lands the same on every peer.
 
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const GIBS := preload("res://scripts/zombie_gibs.gd")
+const BLOOD := preload("res://scripts/blood_fx.gd")
+const FLESH := preload("res://materials/env/gore/flesh.tres")
+const STUMP := preload("res://materials/env/gore/meat_1.res")
 const LIB := preload("res://assets/characters/zombies/zombie_anims.res")
 const MODELS := {
 	&"prisoner": preload("res://assets/characters/zombies/prisoner/prisoner.scn"),
@@ -52,13 +56,7 @@ const KICK_HEAD := 2.5  # times that on the head
 const KICK_STIFF := 160.0  # 1/s², ~2 Hz
 const KICK_DAMP := 15.0  # 1/s: one swing back and it has settled
 const KICK_MAX := 0.6  # rad, so a burst can't fold it in two
-const SPLATS := [
-	preload("res://materials/env/decals/blood_splat_0.res"),
-	preload("res://materials/env/decals/blood_splat_1.res"),
-	preload("res://materials/env/decals/blood_splat_2.res"),
-]
-const POOL := preload("res://materials/env/decals/blood_pool_0.res")
-const FLOOR_MARKS := 10  # splats one zombie leaves on the floor before its oldest is reused
+const DROP := preload("res://materials/env/decals/blood_splat_0.res")  # the flying drops' look
 
 var kind := &"walker"
 var model := &""
@@ -81,8 +79,8 @@ var _bend := Vector3.ZERO  # skeleton-space rotation vectors and their speeds
 var _bend_v := Vector3.ZERO
 var _nod := Vector3.ZERO
 var _nod_v := Vector3.ZERO
-var _marks: Array[Decal] = []
-var _next_mark := 0
+var _rng := RandomNumberGenerator.new()
+var _wounds := 0  # hits taken: with `_seed` it seeds each hit's blood
 var _voice: Node3D
 var _last_dir := Vector3.FORWARD  # the way the last round went, for where the pieces fly
 
@@ -159,17 +157,13 @@ func _process(delta: float) -> void:
 	_flinch.nod = _nod
 
 
-func _exit_tree() -> void:
-	for d in _marks:
-		if is_instance_valid(d):
-			d.queue_free()
-
-
 ## A round went in at `at` travelling along `dir`: the body jerks away from it, blood sprays out
 ## the back and a little back toward the shooter, and drops land on the floor behind.
 func wound(at: Vector3, dir: Vector3, head: bool) -> void:
 	dir = dir.normalized()
 	_last_dir = dir
+	_reseed("wound%d" % _wounds)
+	_wounds += 1
 	_voice.shot(at, head)
 	if not _dead:
 		var axis := Vector3.UP.cross(dir)
@@ -181,8 +175,12 @@ func wound(at: Vector3, dir: Vector3, head: bool) -> void:
 				_bend_v += axis * KICK
 	_spray(at, dir, 22 if head else 14, 1.0)
 	_spray(at, -dir, 6, 0.5)
+	var world := _world()
+	BLOOD.mist(world, at, dir, _rng, (0.75 if head else 0.55) * size)
+	BLOOD.wall(world, at, dir, _rng, 2.5, (0.9 if head else 0.6) * size)
 	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
-	_mark(at + flat * randf_range(0.4, 1.6), SPLATS.pick_random(), randf_range(0.35, 0.7) * (1.4 if head else 1.0))
+	BLOOD.ground(world, at + flat * _rng.randf_range(0.4, 1.6), global_position.y, [&"drop", &"spray"], _rng,
+			_rng.randf_range(0.35, 0.7) * (1.4 if head else 1.0), flat)
 
 
 ## Loops one of the kind's idles (in the pen, at the gate).
@@ -228,14 +226,25 @@ func die(gib := &"") -> float:
 	var head := _skel.to_global(_skel.get_bone_global_pose(_flinch.head).origin)
 	var chest := _skel.to_global(_skel.get_bone_global_pose(_flinch.spine[1]).origin)
 	_voice.die(head if gib == &"head" else chest, gib != &"", gib == &"head")
+	_reseed("die")
 	if gib != &"":
 		var from := head if gib == &"head" else chest
-		GIBS.burst(get_parent().get_parent(), from, _last_dir, global_position.y,
-				(9 if gib == &"head" else 14) + (8 if kind == &"brute" else 0), size)
+		var world := _world()
+		GIBS.burst(world, from, _last_dir, global_position.y,
+				(9 if gib == &"head" else 14) + (8 if kind == &"brute" else 0), size, _rng.randi())
 		_spray(from, Vector3.UP, 40, 1.3)
 		_spray(from, _last_dir, 30, 1.2)
+		BLOOD.mist(world, from, _last_dir, _rng, 1.3 * size)
+		BLOOD.mist(world, from, (Vector3.UP + _last_dir).normalized(), _rng, 1.0 * size)
+		BLOOD.wall(world, from, _last_dir, _rng, 3.5, 1.4 * size)
+		var flat := Vector3(_last_dir.x, 0.0, _last_dir.z).normalized()
+		BLOOD.ground(world, from + flat * _rng.randf_range(0.6, 1.4), global_position.y, [&"spray", &"mist"], _rng,
+				1.6 * size, flat)
 		if gib == &"head":
 			_flinch.head_gone = true
+			_stump(&"Neck", 0.16)
+		else:
+			_stump(&"Spine1", 0.3)
 	_ap.speed_scale = 1.0
 	_ap.play(clip, BLEND)
 	var length := LIB.get_animation(clip).length
@@ -249,27 +258,29 @@ func _bleed_out(after: float) -> void:
 	if not is_inside_tree():
 		return
 	var hips := _skel.to_global(_skel.get_bone_global_pose(0).origin)
-	var d := _mark(hips, POOL, 0.3)
+	_reseed("pool")
+	BLOOD.ground(_world(), hips, global_position.y, [&"pool"], _rng, 1.4 * size, Vector3.ZERO, 5.0)
 	_voice.ooze(hips)
-	create_tween().tween_property(d, "size", Vector3(1.4, 0.6, 1.4) * size, 5.0) \
-			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
 
 
-## A blood decal on the floor under `at`, in the world (it stays put while the zombie walks on).
-func _mark(at: Vector3, tex: Texture2D, width: float) -> Decal:
-	var d: Decal
-	if _marks.size() < FLOOR_MARKS:
-		d = Decal.new()
-		d.normal_fade = 0.5
-		get_parent().get_parent().add_child(d)
-		_marks.append(d)
-	else:
-		d = _marks[_next_mark]
-		_next_mark = (_next_mark + 1) % FLOOR_MARKS
-	d.texture_albedo = tex
-	d.size = Vector3(width, 0.6, width)
-	d.global_transform = Transform3D(Basis(Vector3.UP, randf() * TAU), Vector3(at.x, global_position.y + 0.1, at.z))
-	return d
+## Raw meat where a part tore off: a lump of flesh on the bone, `width` m across at this size.
+func _stump(bone: StringName, width: float) -> void:
+	var m := MeshInstance3D.new()
+	m.mesh = STUMP
+	m.material_override = FLESH
+	var s := width * size
+	m.scale = Vector3(s, s * 0.7, s)
+	attach(bone).add_child(m)
+
+
+## Blood and pieces are decals and nodes in the wave's world, so they stay put while the body moves.
+func _world() -> Node:
+	return get_parent().get_parent()
+
+
+func _reseed(salt: String) -> void:
+	_rng.seed = hash("%d:blood:%s" % [_seed, salt])
+	_rng.state = 0
 
 
 static var _drop_mesh: QuadMesh
@@ -280,12 +291,14 @@ func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
 	if _drop_mesh == null:
 		var m := StandardMaterial3D.new()
 		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-		m.albedo_texture = SPLATS[0]
-		m.albedo_color = Color(0.5, 0.03, 0.03)
+		m.albedo_texture = DROP
+		m.albedo_color = Color(0.42, 0.02, 0.02)
+		m.metallic_specular = 0.25  # a lamp turned the drops into a brown-gold cloud
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 		m.alpha_scissor_threshold = 0.3
 		m.roughness = 0.25
 		_drop_mesh = QuadMesh.new()
+		_drop_mesh.size = Vector2(0.09, 0.09)  # billboarded particles drew at the quad's size, scale or not
 		_drop_mesh.material = m
 		_drop_mat = ParticleProcessMaterial.new()
 		_drop_mat.direction = Vector3(0, 0, -1)
@@ -293,8 +306,8 @@ func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
 		_drop_mat.initial_velocity_min = 1.5
 		_drop_mat.initial_velocity_max = 4.5
 		_drop_mat.gravity = Vector3(0, -9.8, 0)
-		_drop_mat.scale_min = 0.03
-		_drop_mat.scale_max = 0.09
+		_drop_mat.scale_min = 0.33
+		_drop_mat.scale_max = 1.0
 		_drop_mat.damping_min = 1.0
 		_drop_mat.damping_max = 2.0
 	var p := GPUParticles3D.new()
@@ -304,6 +317,8 @@ func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
 	p.explosiveness = 0.95
 	p.speed_scale = force
 	p.process_material = _drop_mat
+	p.use_fixed_seed = true  # the same drops on every peer
+	p.seed = _rng.randi()
 	p.draw_pass_1 = _drop_mesh
 	get_parent().get_parent().add_child(p)
 	var up := Vector3.UP if absf(dir.y) < 0.95 else Vector3.RIGHT
