@@ -1,20 +1,18 @@
 extends Node3D
-## A zombie coming apart: lumps of meat (the pen's own meat meshes, materials/env/gore) thrown out
-## of `at`, falling, bouncing once and lying in a splash of blood. Each lump that lands is heard
+## A zombie coming apart: lumps of meat (the pen's own meat meshes in the scanned flesh,
+## materials/env/gore/flesh.tres) thrown out of `at`, falling, bouncing once and lying in a splash of
+## blood (blood_fx.gd). Everything is rolled from `seed`, so the pieces fly the same on every peer. Each lump that lands is heard
 ## where it lands (zombie_voice.gd "chunk"), the first few only, so the rain of meat patters down
 ## over a second instead of a single thud. Visual and sound only; frees itself after LINGER s.
-##   ZombieGibs.burst(world, at, dir, floor_y, count, scale)
+##   ZombieGibs.burst(world, at, dir, floor_y, count, scale, seed)
 
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const MESHES := [
 	preload("res://materials/env/gore/meat_0.res"), preload("res://materials/env/gore/meat_1.res"),
 	preload("res://materials/env/gore/meat_2.res"), preload("res://materials/env/gore/meat_3.res"),
 ]
-const SPLATS := [
-	preload("res://materials/env/decals/blood_splat_0.res"),
-	preload("res://materials/env/decals/blood_splat_1.res"),
-	preload("res://materials/env/decals/blood_splat_2.res"),
-]
+const FLESH := preload("res://materials/env/gore/flesh.tres")
+const BLOOD := preload("res://scripts/blood_fx.gd")
 const GRAVITY := 9.8
 const HEARD := 5  # lumps per burst that make a sound on landing
 const LINGER := 10.0  # s on the floor before they sink away
@@ -25,26 +23,31 @@ var _floor := 0.0
 var _heard := 0
 var _age := 0.0
 var _pitch := 1.0
+var _rng := RandomNumberGenerator.new()
 
 
 ## `dir`: the way the round was going (most of it flies on that way). `size`: the zombie's scale.
-static func burst(world: Node, at: Vector3, dir: Vector3, floor_y: float, count: int, size := 1.0) -> void:
+static func burst(world: Node, at: Vector3, dir: Vector3, floor_y: float, count: int, size := 1.0, seed := 0) -> void:
 	var g = load("res://scripts/zombie_gibs.gd").new()
 	world.add_child(g)
+	var rng: RandomNumberGenerator = g._rng
+	rng.seed = seed
+	rng.state = 0
 	g._floor = floor_y
 	g._pitch = 1.0 / sqrt(size)
 	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
 	for i in count:
 		var m := MeshInstance3D.new()
-		m.mesh = MESHES.pick_random()
-		var s := randf_range(0.05, 0.13) * size
-		m.scale = Vector3(s, s * randf_range(0.6, 0.9), s * randf_range(0.8, 1.2))
+		m.mesh = MESHES[rng.randi() % MESHES.size()]
+		m.material_override = FLESH
+		var s := rng.randf_range(0.05, 0.13) * size
+		m.scale = Vector3(s, s * rng.randf_range(0.6, 0.9), s * rng.randf_range(0.8, 1.2))
 		g.add_child(m)
-		m.global_position = at + Vector3(randf_range(-0.1, 0.1), randf_range(-0.05, 0.1), randf_range(-0.1, 0.1))
-		var out := (flat * randf_range(0.5, 1.4) + Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * 0.9)
-		var v := out * randf_range(1.5, 3.5) + Vector3.UP * randf_range(2.0, 5.0)
-		g._lumps.append({"node": m, "v": v, "spin": Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * 12.0,
-				"bounced": false, "rest": false, "r": s * 0.3})
+		m.global_position = at + Vector3(rng.randf_range(-0.1, 0.1), rng.randf_range(-0.05, 0.1), rng.randf_range(-0.1, 0.1))
+		var out := (flat * rng.randf_range(0.5, 1.4) + Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)) * 0.9)
+		var v := out * rng.randf_range(1.5, 3.5) + Vector3.UP * rng.randf_range(2.0, 5.0)
+		g._lumps.append({"node": m, "v": v, "spin": Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)) * 12.0,
+				"bounced": false, "rest": false, "r": s * 0.3, "seed": rng.randi()})
 
 
 func _process(delta: float) -> void:
@@ -62,7 +65,7 @@ func _process(delta: float) -> void:
 		m.global_position.y = _floor + l.r
 		if not l.bounced:  # first touch: splash, sound, a small hop
 			l.bounced = true
-			_landed(m.global_position, l.r)
+			_landed(m.global_position, l.r, l.seed)
 			l.v = Vector3(l.v.x * 0.3, -l.v.y * 0.2, l.v.z * 0.3)
 			l.spin *= 0.3
 		else:
@@ -75,14 +78,10 @@ func _process(delta: float) -> void:
 			queue_free()
 
 
-func _landed(at: Vector3, r: float) -> void:
+func _landed(at: Vector3, r: float, seed: int) -> void:
 	if _heard < HEARD:
 		_heard += 1
 		VOICE.gore(&"chunk", at, -3.0 + r * 20.0, _pitch * (1.25 if r < 0.02 else 1.0))
-	var d := Decal.new()
-	d.texture_albedo = SPLATS.pick_random()
-	d.normal_fade = 0.5
-	var w := r * 14.0
-	d.size = Vector3(w, 0.3, w)
-	add_child(d)
-	d.global_transform = Transform3D(Basis(Vector3.UP, randf() * TAU), Vector3(at.x, _floor + 0.05, at.z))
+	_rng.seed = seed  # rolled at the burst: lumps land in a different order on each peer
+	_rng.state = 0
+	BLOOD.ground(get_parent(), at, _floor, [&"drop", &"smear"], _rng, r * 14.0)

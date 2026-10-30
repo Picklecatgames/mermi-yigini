@@ -1,0 +1,18 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://materials/env/gore/flesh_albedo.jpg" id="1"]
+[ext_resource type="Texture2D" path="res://materials/env/gore/flesh_normal.png" id="2"]
+[ext_resource type="Texture2D" path="res://materials/env/gore/flesh_orm.png" id="3"]
+
+[resource]
+albedo_texture = ExtResource("1")
+orm_texture = ExtResource("3")
+normal_enabled = true
+normal_texture = ExtResource("2")
+normal_scale = 1.4
+clearcoat_enabled = true
+clearcoat = 0.6
+clearcoat_roughness = 0.15
+uv1_scale = Vector3(1.5, 1.5, 1.5)
+uv1_triplanar = true
+uv1_world_triplanar = false
