@@ -527,7 +527,7 @@ func _alarm_glass(m: MeshInstance3D, glass: Array[Material]) -> void:
 # --- the wave lever -------------------------------------------------------------------------------
 
 const LEVER := "res://assets/props/lever/"
-const LEVER_SCALE := 1.5  # the model is a real 41 cm panel: too small to spot across the hall
+const LEVER_SCALE := 1.8  # the model is a real 41 cm panel: too small to spot across the hall
 const WALL_Z := -28.0  # the north wall's inner face (build_arena _walls)
 
 
@@ -542,15 +542,17 @@ func _lever() -> void:
 	b.add(holder, root)
 	holder.add_to_group("wave_lever", true)
 	holder.add_to_group("steel", true)
-	b.block(Vector3(0.62, 0.9, 0.03), Vector3(0, 1.25, 0.015), dark, holder)
-	for x in [-0.27, 0.27]:
-		for y in [0.85, 1.65]:
+	b.block(Vector3(0.72, 1.05, 0.03), Vector3(0, 1.25, 0.015), dark, holder)
+	for x in [-0.32, 0.32]:
+		for y in [0.78, 1.72]:
 			b.block(Vector3(0.03, 0.03, 0.012), Vector3(x, y, 0.035), frame_static, holder)  # bolt heads
 	# Copied out of the FBX rather than instanced: a packed instance drops the materials set on its parts.
 	var src: Node3D = (load(LEVER + "lever.fbx") as PackedScene).instantiate()
 	var model := Node3D.new()
 	model.name = "Lever"
-	model.transform = Transform3D(Basis().scaled(Vector3.ONE * LEVER_SCALE), Vector3(0, 1.2, 0.03 + 0.054 * LEVER_SCALE))
+	# The panel sits 10 cm right of and 2.7 cm over the model's origin, its back 5.4 cm behind it.
+	model.transform = Transform3D(Basis().scaled(Vector3.ONE * LEVER_SCALE),
+			Vector3(-0.1 * LEVER_SCALE, 1.25 - 0.027 * LEVER_SCALE, 0.03 + 0.054 * LEVER_SCALE))
 	b.add(model, holder)
 	for part in ["Panel", "Lever"]:
 		var mi := src.get_node(part).duplicate() as MeshInstance3D
@@ -579,7 +581,7 @@ func _lever() -> void:
 	status.position = Vector3(0, SIGN_Y - 0.25, 0.085)
 	status.shaded = false  # a lit strip: readable whatever the hall's light does
 	b.add(status, holder)
-	b.collide(Vector3(0.62, 0.9, 0.1), Vector3(0, 1.25, 0.05), holder)
+	b.collide(Vector3(0.72, 1.05, 0.1), Vector3(0, 1.25, 0.05), holder)
 	b.collide(Vector3(1.24, 0.78, 0.1), Vector3(0, SIGN_Y, 0.05), holder)
 	var lamp := SpotLight3D.new()
 	lamp.position = Vector3(0, SIGN_Y + 0.75, 0.45)

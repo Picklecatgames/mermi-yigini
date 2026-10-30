@@ -12,13 +12,17 @@ extends Node3D
 ## A joiner gets the phase and the living zombies where they stand (join_cues).
 ##
 ## Cues (wave_cue): [&"phase", wave, phase, left, fence] · [&"spawn", id, kind, seed, gate, pos, yaw,
-## speed, rail_z, walking] · [&"die", id, left] · [&"fence", fence].
+## speed, rail_z, walking] · [&"die", id, left, killer, weak, at, gun] · [&"fence", fence].
 ##
 ## TEMPORARY until players can die: the railing has FENCE_HP, every claw takes a bite, and at 0 the
 ## wave is lost (the dead go, the same wave waits again). The numbers below are first guesses.
 ##
 ## Sounds come from the user (assets/sounds/waves/<slot>.ogg|wav): lever, siren, gate. A missing
 ## file stays silent.
+
+## On every peer when a zombie goes down: who shot it (peer id), its kind, a head shot or not,
+## where it stood (x: how close it got to the railing at 14) and the gun's GameState.GUNS id.
+signal zombie_killed(peer: int, kind: StringName, weak: bool, at: Vector3, gun: String)
 
 enum Phase { READY, STARTING, FIGHT, CLEARED, FAILED }
 
@@ -260,6 +264,9 @@ func _on_cue(cue: Array) -> void:
 			_add_zombie(cue[1], cue[2], cue[3], cue[4], cue[5], cue[6], cue[7], cue[8], cue[9])
 		&"die":
 			left = cue[2]
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead:
+				zombie_killed.emit(cue[3], z.kind, cue[4], cue[5], cue[6])
 			_kill(cue[1])
 			_sign()
 			if not Net.is_client:
@@ -482,7 +489,7 @@ func _claw(z: Dictionary) -> void:
 		await get_tree().create_timer(t * 0.5 + 0.4).timeout
 
 
-func _on_shot(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _gold: int, weak: bool, combo: int) -> void:
+func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _gold: int, weak: bool, combo: int) -> void:
 	if target == null or not target.has_meta("zombie"):
 		return
 	var z: Dictionary = _zombies.get(target.get_meta("zombie"), {})
@@ -496,7 +503,9 @@ func _on_shot(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, 
 	_hp[z.id] -= 3 if weak else 1
 	if _hp[z.id] <= 0:
 		_hp.erase(z.id)
-		GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1])
+		var gun: String = GameState.GUNS[GameState.player(peer).gun].id
+		GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1, peer, weak,
+				(z.node as Node3D).global_position, gun])
 
 
 func _kill(id: int) -> void:
