@@ -17,6 +17,7 @@ extends Control
 ## Listens to GameState itself.
 
 const KeyCache := preload("res://scripts/key_cache.gd")
+const StyleRank := preload("res://scripts/style_rank.gd")
 const MARGIN := Vector2(36, 28)  # px from the screen's edges
 const BIG := 60  # px, the two big numbers
 const HEAP_W := 200.0  # px, the heap's bar
@@ -80,6 +81,7 @@ func _ready() -> void:
 	_build_middle()
 	_build_corner()
 	_build_quests()
+	add_child(StyleRank.new())  # the style rank on the left (style_rank.gd)
 	for s: StringName in [&"pile_changed", &"carried_changed", &"loaded_changed", &"gold_changed", &"vault_changed", &"specials_changed", &"placing_changed"]:
 		GameState.connect(s, func(_a = null) -> void: refresh())
 	GameState.upgraded.connect(refresh.unbind(2))
