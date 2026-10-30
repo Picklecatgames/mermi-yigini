@@ -7,6 +7,7 @@ extends Node3D
 # ponytail: no reload sounds yet (real recordings come from the user, synced to each Reload clip).
 
 signal kicked(amount: float, yaw: float)  # rad of view climb, and of sideways throw
+signal shook(trauma: float)  # adds to the camera's shake (player.gd), 1 = the hardest
 
 const LAYER := 2
 const MAG_OUT := preload("res://assets/weapons/sounds/mag_out.wav")
@@ -53,6 +54,11 @@ const PISTOL_HAMMER := Basis(Vector3.LEFT, deg_to_rad(64.4))
 ## Kept low: at 2.5-4 the dark steel washed out into flat grey plastic.
 ## shot: the gun's own shot sound in place of ShotSound's; cues: sounds at those seconds into a
 ## clip, read off where its magazine and slide move (out, into the well, seated, slide home).
+## shake: the camera's jolt per round (player.gd, the settings can turn it down); rise: how much
+## more each round of a burst climbs than the first (the SMGs walk up as they run, up to RISE_CAP
+## rounds); weight: how heavy it is in the hands, 1 the Deagle: heavier swings slower and further
+## behind a turn, bobs more with the steps, and settles harder when it is drawn or a magazine
+## seats; ads_time: s to bring its sights up.
 const SETS := {
 	# The starting pistol has no set of its own: its parts ride the Deagle's bones and it plays the
 	# Deagle's clips (add_pistol). Lighter in the hand than the Deagle. grip: its recoil left with
@@ -61,7 +67,7 @@ const SETS := {
 		"muzzle": Vector3(0.0006, 0.0073, 0.089), "port": Vector3(-0.014, 0.016, -0.04),
 		"rear": Vector3(0.0, 0.0235, -0.094), "front": Vector3(0.0, 0.0227, 0.076), "ads_eye": 0.32,
 		"clip_fire": true, "move": 0.85, "kick": 0.26, "climb": 0.024, "yaw": 0.003, "bloom": 0.0026, "jiggle": 0.75, "flash": 0.7,
-		"grip": 0.7, "shot": preload("res://assets/weapons/sounds/pistol_shot.tres"),
+		"shake": 0.45, "weight": 0.8, "ads_time": 0.15, "grip": 0.7, "shot": preload("res://assets/weapons/sounds/pistol_shot.tres"),
 		"cues": {"draw": [[0.85, SAFETY]], "reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
 			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
 	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 60.0},
@@ -69,16 +75,18 @@ const SETS := {
 		"muzzle": Vector3(-0.0006, 0.0099, 0.111), "port": Vector3(-0.0202, 0.0184, -0.037),
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
 		"clip_fire": true, "move": 1.0, "kick": 0.35, "climb": 0.035, "yaw": 0.004, "bloom": 0.0032, "jiggle": 1.0, "flash": 1.0,
-		"shot": preload("res://assets/weapons/sounds/deagle_shot.tres"),
+		"shake": 0.7, "weight": 1.0, "ads_time": 0.19, "shot": preload("res://assets/weapons/sounds/deagle_shot.tres"),
 		"cues": {"draw": [[0.85, SAFETY]], "reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
 			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
 	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 60.0,
 		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 1.6,
-		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75},
+		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75,
+		"shake": 0.3, "rise": 0.05, "weight": 1.15, "ads_time": 0.21},
 	"scorpion": {"mesh": "CZScorpion", "clips": "Scorpion_", "bone": "Scorpion Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 60.0,
 		"muzzle": Vector3(-0.0007, 0.0102, 0.2749), "port": Vector3(-0.0325, 0.0314, 0.0339), "paint": 2.0,
 		"rear": Vector3(0.0, 0.079, -0.11), "front": Vector3(0.0, 0.077, 0.13), "ads_eye": 0.34,
-		"clip_fire": false, "move": 0.75, "kick": 0.26, "climb": 0.0071, "yaw": 0.0089, "bloom": 0.0013, "jiggle": 0.22, "flash": 0.65},
+		"clip_fire": false, "move": 0.75, "kick": 0.26, "climb": 0.0071, "yaw": 0.0089, "bloom": 0.0013, "jiggle": 0.22, "flash": 0.65,
+		"shake": 0.25, "rise": 0.035, "weight": 0.9, "ads_time": 0.16},
 	# Held at the hip, no sights: the aim button spins the barrels up without firing. spin: we turn
 	# the barrel bone ourselves (axis in its space, speed rad/s: the set's Fire clip turns them at
 	# ~675°/s), so they keep turning over Idle, Walk and Sprint. They get up to speed in up s (Fire_Start
@@ -90,7 +98,8 @@ const SETS := {
 		"muzzle": Vector3(0.0, 0.9167, -0.0359), "port": Vector3(0.126, 0.124, -0.025), "run": "Sprint", "no_aim": true, "paint": 1.6,
 		"spin": {"bone": "Minigun_M-134_Guns", "axis": Vector3.DOWN, "speed": 11.8, "up": 0.6, "down": 1.3,
 			"ramp": 1.5, "first": 0.16, "walk": 0.5, "rumble": 0.25},
-		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
+		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8,
+		"shake": 0.12, "weight": 2.2},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
 const FP_ARMS := preload("res://scripts/fp_arms.gd")  # the player character's own arms (dress)
@@ -178,6 +187,14 @@ const MUZZLE_FX := preload("res://scenes/muzzle_fx.tscn")
 const MUZZLE_FX_POOL := 3
 const WISP_TIME := 1.6  # s for a hot barrel's smoke to thin out to nothing
 const FLASH_TIME := 0.05  # s
+const RISE_CAP := 12  # rounds into a burst after which the climb stops growing (SETS rise)
+const ADS_SHAKE := 0.6  # share of the camera's jolt left aimed (braced)
+## A magazine seating, the slide going home or a gun coming up at the end of its draw jolts the gun
+## (rad/s of muzzle dip, m/s down), times its weight: the hands take the weight of it.
+const SEAT_JOLT := Vector2(1.4, 0.07)
+## A spinning gun fires 20 a second: its muzzle smoke and sparks only go with every this-many
+## rounds (the flash and its light still go with each), so a long burst can't flood the screen.
+const SPIN_FX_EVERY := 2
 
 var body: CharacterBody3D  # set via setup(); drives bob and keeps shells off the capsule
 ## Vertical fov (degrees) the gun's own camera draws it at, before the aim zoom; 0 follows the
@@ -191,6 +208,7 @@ var _want_gun := 0  # drawn once the one in hand is put away
 var _clip := ""
 var _punch := 0
 var _burst := 0  # rounds in the current burst
+var _rounds := 0  # rounds fired since the start, for SPIN_FX_EVERY
 ## Spinning guns (SETS spin): barrel speed 0 stopped → 1 up to speed, the fire rate's ramp 0 → 1,
 ## and how far the barrels have turned (rad).
 var spin := 0.0
@@ -668,7 +686,7 @@ func _process(delta: float) -> void:
 	_cues()
 	if _kit.get("no_aim", false):
 		want_aim = false  # no sights (the minigun's aim button only turns the barrels)
-	_aim_lin = move_toward(_aim_lin, 1.0 if want_aim else 0.0, delta / ADS_TIME)
+	_aim_lin = move_toward(_aim_lin, 1.0 if want_aim else 0.0, delta / float(_kit.get("ads_time", ADS_TIME)))
 	aim = smoothstep(0.0, 1.0, _aim_lin)
 	_want_fire -= delta
 	_want_reload -= delta
@@ -783,7 +801,9 @@ func fire() -> void:
 		_play("fire")
 	_effects()
 	var wander := 1.0 + minf(_burst, 20) * 0.08
-	kicked.emit(float(_kit.climb) * held * randf_range(0.8, 1.2), float(_kit.yaw) * randf_range(-1.0, 1.0) * wander)
+	var rise := 1.0 + minf(_burst, RISE_CAP) * float(_kit.get("rise", 0.0))
+	kicked.emit(float(_kit.climb) * held * rise * randf_range(0.8, 1.2), float(_kit.yaw) * randf_range(-1.0, 1.0) * wander)
+	shook.emit(float(_kit.get("shake", 0.0)) * held * lerpf(1.0, ADS_SHAKE, aim))
 
 
 ## The share of the gun's recoil left: less with the pistol's wooden grips (SETS grip).
@@ -831,7 +851,16 @@ func _cues() -> void:
 			_next_cue_player = 1 - _next_cue_player
 			p.stream = c[1]
 			p.play()
+			if c[1] == MAG_SEAT or c[1] == SLIDE:
+				_jolt(1.0 if c[1] == MAG_SEAT else -0.6)
 	_cue_at = now
+
+
+## The gun takes a knock in the hands (SEAT_JOLT): `share` of it, muzzle down (negative: up).
+func _jolt(share: float) -> void:
+	var w := float(_kit.get("weight", 1.0))
+	_jelly_rot_vel.x -= SEAT_JOLT.x * share * w
+	_jelly_pos_vel.y -= SEAT_JOLT.y * absf(share) * w
 
 
 ## Shoves the hand so the gun alone would peak at `amount` (1 = one shot).
@@ -844,6 +873,8 @@ func _on_clip_finished() -> void:
 	if _clip == "holster":
 		_swap()
 	else:
+		if _clip == "draw":
+			_jolt(0.5)  # up in the hands: it settles with its weight
 		_clip = ""
 
 
@@ -874,7 +905,7 @@ func _effects() -> void:
 	var quads: Node3D = $Flash/Quads
 	quads.rotation.z = randf() * TAU
 	quads.scale = Vector3(randf_range(0.85, 1.3), randf_range(0.85, 1.3), randf_range(0.9, 1.5)) * float(_kit.flash)
-	_flash_light.light_energy = randf_range(4.0, 6.0)
+	_flash_light.light_energy = randf_range(4.0, 6.0) * lerpf(0.6, 1.0, float(_kit.flash))
 	# Same coordinates in both worlds: the gun camera copies the player camera every frame.
 	_world_flash.global_position = muzzle_position()
 	_world_flash.light_energy = _flash_light.light_energy
@@ -888,10 +919,12 @@ func _effects() -> void:
 		_shot_sound.play()
 	elif _spin_sound.stream != SPIN_LOOP or not _spin_sound.playing:
 		_spin_play(SPIN_LOOP)
-	var fx := _muzzle_fx[_next_muzzle_fx]
-	_next_muzzle_fx = (_next_muzzle_fx + 1) % MUZZLE_FX_POOL
-	fx.global_transform = _muzzle.global_transform.orthonormalized().translated_local(Vector3(0.0, 0.0, 0.015))  # past the opening
-	_play_fx(fx)
+	_rounds += 1
+	if not _kit.has("spin") or _rounds % SPIN_FX_EVERY == 0:
+		var fx := _muzzle_fx[_next_muzzle_fx]
+		_next_muzzle_fx = (_next_muzzle_fx + 1) % MUZZLE_FX_POOL
+		fx.global_transform = _muzzle.global_transform.orthonormalized().translated_local(Vector3(0.0, 0.0, 0.015))  # past the opening
+		_play_fx(fx)
 	_barrel_heat = 1.0
 	_wisp.amount_ratio = 1.0
 	_wisp.emitting = true
@@ -985,7 +1018,10 @@ func _sway_and_bob(delta: float) -> void:
 	_mouse = Vector2.ZERO
 	_mouse_vel = _mouse_vel.lerp(mv, 1.0 - exp(-delta * 10.0))
 	# Lags the turn: swing right and the muzzle trails left, cants, then wobbles back past centre.
-	var rot_target := Vector3(_mouse_vel.y * SWAY_ROT.x, _mouse_vel.x * SWAY_ROT.y, _mouse_vel.x * SWAY_ROT.z).clampf(-SWAY_ROT_MAX, SWAY_ROT_MAX)
+	# Heavier guns trail a turn further and swing slower (SETS weight).
+	var heft := sqrt(float(_kit.get("weight", 1.0)))
+	var rot_target := (Vector3(_mouse_vel.y * SWAY_ROT.x, _mouse_vel.x * SWAY_ROT.y, _mouse_vel.x * SWAY_ROT.z) * heft).clampf(-SWAY_ROT_MAX, SWAY_ROT_MAX)
+	var jelly_omega := JELLY_OMEGA / heft
 	var pos_target := Vector3.ZERO
 	if body:
 		var local_v := (get_parent() as Node3D).global_basis.inverse() * body.velocity
@@ -1008,8 +1044,8 @@ func _sway_and_bob(delta: float) -> void:
 		var speed := Vector2(body.velocity.x, body.velocity.z).length()
 		if speed > 0.1:
 			_bob += delta * speed * 1.4
-			bob = Vector3(sin(_bob) * BOB_AMP.x, -absf(cos(_bob)) * BOB_AMP.y, 0.0) * minf(speed / 5.0, 1.6)
-			rot_target.z += sin(_bob) * BOB_ROLL * minf(speed / 5.0, 1.6)
+			bob = Vector3(sin(_bob) * BOB_AMP.x, -absf(cos(_bob)) * BOB_AMP.y, 0.0) * minf(speed / 5.0, 1.6) * heft
+			rot_target.z += sin(_bob) * BOB_ROLL * minf(speed / 5.0, 1.6) * heft
 	_base = _base.lerp((_sway + bob + breath) * lerpf(1.0, ADS_STEADY, aim), 1.0 - exp(-delta * 10.0))
 	var w := _kick_omega()
 	var dt := minf(delta, 0.1)  # a long hitch must not fling the gun
@@ -1020,9 +1056,9 @@ func _sway_and_bob(delta: float) -> void:
 		_push += _push_vel * h
 		_kick_vel += (-RECOIL_SNAP * RECOIL_SNAP * (_kick - _push) - 2.0 * RECOIL_SNAP * _kick_vel) * h
 		_kick += _kick_vel * h
-		_jelly_rot_vel += (-JELLY_OMEGA * JELLY_OMEGA * (_jelly_rot - rot_target) - 2.0 * JELLY_DAMPING * JELLY_OMEGA * _jelly_rot_vel) * h
+		_jelly_rot_vel += (-jelly_omega * jelly_omega * (_jelly_rot - rot_target) - 2.0 * JELLY_DAMPING * jelly_omega * _jelly_rot_vel) * h
 		_jelly_rot += _jelly_rot_vel * h
-		_jelly_pos_vel += (-JELLY_OMEGA * JELLY_OMEGA * (_jelly_pos - pos_target) - 2.0 * JELLY_DAMPING * JELLY_OMEGA * _jelly_pos_vel) * h
+		_jelly_pos_vel += (-jelly_omega * jelly_omega * (_jelly_pos - pos_target) - 2.0 * JELLY_DAMPING * jelly_omega * _jelly_pos_vel) * h
 		_jelly_pos += _jelly_pos_vel * h
 	var steady := lerpf(1.0, ADS_STEADY, aim)
 	# Aimed, the shot goes where the sights point; from the hip only a share of the sway.

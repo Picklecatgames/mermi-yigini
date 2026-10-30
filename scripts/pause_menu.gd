@@ -466,12 +466,13 @@ func _controls_page() -> Control:
 
 
 func _game_page() -> Control:
-	var keys := ["fov", "head_bob", "crosshair_color", "crosshair_size", "crosshair_dot", "show_fps"]
+	var keys := ["fov", "head_bob", "screen_shake", "crosshair_color", "crosshair_size", "crosshair_dot", "show_fps"]
 	var pl := _scroll_page(keys)
 	var list: VBoxContainer = pl[1]
 	list.add_child(_heading("KAMERA"))
 	list.add_child(_slider("fov", "Görüş açısı", 60, 110, 1, "%d°", ""))
 	list.add_child(_slider("head_bob", "Kafa sallantısı", 0, 100, 5, "%d%%", ""))
+	list.add_child(_slider("screen_shake", "Ekran sarsıntısı", 0, 100, 5, "%d%%", ""))
 	list.add_child(_heading("NİŞANGÂH"))
 	list.add_child(_choice("crosshair_color", "Renk", ["Beyaz", "Yeşil", "Sarı", "Camgöbeği", "Turuncu"], ""))
 	list.add_child(_slider("crosshair_size", "Boyut", 50, 200, 10, "%d%%", ""))

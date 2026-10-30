@@ -76,6 +76,17 @@ const FLY_POOL := 16       # bullets in flight at most: GRAB_TIME / GRAB_REPEAT 
 ## View kick: a critically damped spring, so the climb takes a few frames instead of one.
 const KICK_OMEGA := 28.0     # rad/s; peak at 1 / KICK_OMEGA ≈ 36 ms
 const KICK_CLIMB := 0.35     # share of the kick that stays as aim climb
+## Shake: each round adds to a trauma (viewmodel.gd SETS shake) that runs down at SHAKE_DECAY a second;
+## the camera wobbles by its square on smooth noise, mostly in roll so the aim point barely moves.
+## A spinning gun keeps it at SPIN_SHAKE times its barrel speed. Settings "screen_shake" scales it.
+const SHAKE_DECAY := 2.5
+const SHAKE_MAX := Vector3(0.006, 0.006, 0.03)  # rad pitch, yaw, roll at full trauma
+const SHAKE_SPEED := 24.0  # noise units a second: the wobble's pace
+const SPIN_SHAKE := 0.3
+## A kill of ours narrows the view for a blink (deg), springing back: a felt "got it", not a zoom.
+const KILL_PUNCH := 0.9
+const HEAD_PUNCH := 1.6
+const PUNCH_OMEGA := 22.0
 const ADS_ZOOM := 1.25  # magnification when aimed down the sights
 const ADS_WALK := 0.6  # share of walking speed left aimed: aiming while moving is allowed, slowly
 const POSE_INTERVAL := 0.05  # s: the body goes out to the other players 20 times a second
@@ -101,6 +112,12 @@ var _bob_amount := 0.0  # 0..1, fades the bob in and out without lagging its pha
 var _air_time := 0.0
 var _recoil := 0.0  # rad of view kick
 var _recoil_vel := 0.0
+var _trauma := 0.0  # 0..1, see SHAKE_DECAY
+var _shake := Vector3.ZERO  # rad pitch, yaw, roll this frame
+var _shake_t := 0.0
+var _shake_noise := FastNoiseLite.new()
+var _punch := 0.0  # deg off the fov
+var _punch_vel := 0.0
 var _fly: Array[Node3D] = []
 var _next_fly := 0
 var _vm_env: Environment
@@ -205,6 +222,12 @@ func _ready() -> void:
 		_climb += a * KICK_CLIMB
 		_yaw_climb += yaw
 		_recoil_vel += a * (1.0 - KICK_CLIMB) * KICK_OMEGA * exp(1.0))  # peak = v / (w·e)
+	_viewmodel.shook.connect(func(t: float) -> void:
+		_trauma = minf(_trauma + t, 1.0))
+	_shake_noise.frequency = 1.0
+	GameState.wave_cue.connect(func(cue: Array) -> void:
+		if cue[0] == &"die" and cue[3] == GameState.local_peer():
+			_punch_vel -= (HEAD_PUNCH if cue[4] else KILL_PUNCH) * PUNCH_OMEGA * exp(1.0))
 	_viewmodel.equip(GameState.player().gun)
 	GameState.gun_changed.connect(func(peer: int, gun: int) -> void:
 		if peer == GameState.local_peer():
@@ -615,6 +638,9 @@ func _process(delta: float) -> void:
 		var h := dt / 4.0
 		_recoil_vel += (-KICK_OMEGA * KICK_OMEGA * _recoil - 2.0 * KICK_OMEGA * _recoil_vel) * h
 		_recoil += _recoil_vel * h
+		_punch_vel += (-PUNCH_OMEGA * PUNCH_OMEGA * _punch - 2.0 * PUNCH_OMEGA * _punch_vel) * h
+		_punch += _punch_vel * h
+	_shake_camera(dt)
 	_head_bob(delta)
 	_place_head()
 	# R held with special rounds in the pocket: the ammo wheel; let go, it loads what was picked
@@ -630,7 +656,7 @@ func _process(delta: float) -> void:
 		_wheel.close()
 	_zoom = lerpf(1.0, ADS_ZOOM, _viewmodel.aim)
 	_hip_fov = Settings.value("fov")
-	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom))
+	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom)) + _punch * Settings.value("screen_shake") / 100.0
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
 	_crosshair.visible = not GameState.player().placing  # the overview has its own cursor
 	# Screen px per unit of tan(angle) off the view axis (fov is vertical).
@@ -656,8 +682,18 @@ func _place_head() -> void:
 	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), feet + Vector3.UP * eye)
 	_camera.position = _bob_offset
 	var k := smoothstep(0.0, 1.0, _dizzy / DIZZY_TIME)
-	_camera.rotation.x = _recoil + _tumble.x
-	_camera.rotation.z = _tumble.y + (sin(_dizzy_t * 2.1) + 0.5 * sin(_dizzy_t * 3.7)) / 1.5 * DIZZY_ROLL * k
+	_camera.rotation.x = _recoil + _tumble.x + _shake.x
+	_camera.rotation.y = _shake.y
+	_camera.rotation.z = _tumble.y + (sin(_dizzy_t * 2.1) + 0.5 * sin(_dizzy_t * 3.7)) / 1.5 * DIZZY_ROLL * k + _shake.z
+
+
+## Runs the trauma down (or holds it at a spinning gun's floor) and picks this frame's wobble.
+func _shake_camera(dt: float) -> void:
+	_trauma = maxf(_trauma - SHAKE_DECAY * dt, _viewmodel.spin * SPIN_SHAKE)
+	_shake_t += dt * SHAKE_SPEED
+	var k: float = _trauma * _trauma * Settings.value("screen_shake") / 100.0
+	_shake = Vector3(_shake_noise.get_noise_2d(_shake_t, 0.0), _shake_noise.get_noise_2d(_shake_t, 50.0),
+			_shake_noise.get_noise_2d(_shake_t, 100.0)) * SHAKE_MAX * k
 
 
 func _physics_process(delta: float) -> void:

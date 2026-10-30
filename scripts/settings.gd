@@ -48,7 +48,7 @@ const DEFAULTS := {
 	# controls
 	"sensitivity": 1.0, "ads_sensitivity": 100, "invert_y": false,
 	# game
-	"fov": 75, "head_bob": 100, "crosshair_color": 0, "crosshair_size": 100, "crosshair_dot": false, "show_fps": false,
+	"fov": 75, "head_bob": 100, "screen_shake": 100, "crosshair_color": 0, "crosshair_size": 100, "crosshair_dot": false, "show_fps": false,
 }
 
 # What a loaded number may be: the pause menu's own slider and choice ranges.
@@ -59,7 +59,7 @@ const RANGES := {
 	"fps_limit": Vector2(0, 7), "render_scale": Vector2(50, 100), "upscaler": Vector2(0, 2),
 	"antialias": Vector2(0, 5), "shadows": Vector2(0, 3), "brightness": Vector2(50, 150),
 	"sensitivity": Vector2(0.1, 4.0), "ads_sensitivity": Vector2(20, 150), "fov": Vector2(60, 110),
-	"head_bob": Vector2(0, 100), "crosshair_color": Vector2(0, 4), "crosshair_size": Vector2(50, 200),
+	"head_bob": Vector2(0, 100), "screen_shake": Vector2(0, 100), "crosshair_color": Vector2(0, 4), "crosshair_size": Vector2(50, 200),
 }
 
 var values := {}
