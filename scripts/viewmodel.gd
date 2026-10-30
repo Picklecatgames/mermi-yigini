@@ -95,6 +95,7 @@ const SETS := {
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
 ## The arms' materials a player character repaints (dress): material -> arms_<part>.png.
 const ARMS_PAINT := {"Gloves": "gloves", "Cloths": "sleeves", "Body": "body"}
+const BARE_ROUGHNESS := 0.6  # skin's sheen on a bare hand, in place of the glove's leather
 const Attachments := preload("res://scripts/gun_attachments.gd")
 ## A spinning gun is one sound, not one per round: barrels coming up, a firing loop while rounds
 ## leave, the run-down when they stop (all cut from one recording).
@@ -385,10 +386,13 @@ func gild() -> void:
 
 
 ## The arms in GameState.CHARACTERS `id`'s colours (assets/characters/players/<id>/arms_*.png,
-## tools/paint_player_arms.py: gloves its hands', sleeves its forearms'); "" or an id without
-## them, the arms' own.
+## tools/paint_player_arms.py: the hands as the character's are, sleeves its forearms'); "" or an
+## id without them, the arms' own. A character with bare hands (arms.tres) has the glove's pads and
+## stitching taken off its bumps and its shine made skin's.
 static func dress(skel: Skeleton3D, id: String) -> void:
 	var mi := skel.get_node("Mesh") as MeshInstance3D
+	var info := "res://assets/characters/players/%s/arms.tres" % id
+	var bare: bool = id != "" and ResourceLoader.exists(info) and load(info).get_meta("bare_hands", false)
 	for i in mi.mesh.get_surface_count():
 		var own := mi.mesh.surface_get_material(i) as StandardMaterial3D
 		var part: String = ARMS_PAINT.get(own.resource_name if own else "", "")
@@ -398,6 +402,12 @@ static func dress(skel: Skeleton3D, id: String) -> void:
 			continue
 		var worn := own.duplicate() as StandardMaterial3D
 		worn.albedo_texture = load(path)
+		if part == "gloves" and bare:
+			worn.normal_enabled = false
+			worn.metallic = 0.0
+			worn.metallic_texture = null
+			worn.roughness_texture = null
+			worn.roughness = BARE_ROUGHNESS
 		mi.set_surface_override_material(i, worn)
 
 

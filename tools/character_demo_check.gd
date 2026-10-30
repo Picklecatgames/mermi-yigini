@@ -34,6 +34,20 @@ func _initialize() -> void:
 		await physics_frame
 	var came: float = (start - c.global_position).dot(ahead.normalized())
 	assert(came > 0.8, "comes toward us: %.2f m" % came)
+	# A quick turn of the look: the head turns at once, the body (and gun) comes after.
+	var body_was: float = c.rotation.y
+	var head_was: Basis = _head_on_chest(c)
+	me._yaw += 0.5
+	for i in 12:
+		await physics_frame
+	var head_now: Basis = _head_on_chest(c)
+	var head_turn := (head_was.inverse() * head_now).get_rotation_quaternion().get_angle()
+	var body_turn := absf(wrapf(c.rotation.y - body_was, -PI, PI))
+	print("0.2 s after a 0.5 rad look: body %.2f rad, head %.2f rad off the chest" % [body_turn, head_turn])
+	assert(body_turn < 0.25 and head_turn > 0.25, "the head turns first")
+	for i in 120:
+		await physics_frame
+	assert(absf(wrapf(c.rotation.y - body_was, -PI, PI)) > 0.45, "then the body catches up")
 	# K: the next character, on us and the stand-in.
 	me._toggle_mirror(true)
 	await physics_frame
@@ -55,3 +69,9 @@ func _initialize() -> void:
 	assert(others.character(peer) == null and not gs._players.has(peer), "Shift+K: gone")
 	print("character demo: ok")
 	quit()
+
+
+func _head_on_chest(c: Node3D) -> Basis:
+	var sk: Skeleton3D = c._skel
+	var chest := sk.get_bone_global_pose(sk.find_bone("mixamorig_Spine2")).basis.orthonormalized()
+	return chest.inverse() * sk.get_bone_global_pose(c._head).basis.orthonormalized()

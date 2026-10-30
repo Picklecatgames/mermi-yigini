@@ -34,9 +34,9 @@ func _initialize() -> void:
 			await _hold(p, 0.0, 0, false, 0.3)
 			_ok(_left_off_gun(c) < 0.01, "%s %s: both hands on the gun (%.1f cm off)" % [id, gun, _left_off_gun(c) * 100.0])
 			_ok(_aim(c, 0.0) > 0.995, "%s %s: aims ahead (%.3f)" % [id, gun, _aim(c, 0.0)])
-			await _hold(p, 0.7, 0, false, 0.4)
+			await _hold(p, 0.7, 0, false, 1.6)  # the head looks up at once, the body and gun after it
 			_ok(_aim(c, 0.7) > 0.995 and c.muzzle_position().y > 1.5, "%s %s: aims up with the look (%.3f)" % [id, gun, _aim(c, 0.7)])
-			await _hold(p, 0.0, 0, false, 0.3)
+			await _hold(p, 0.0, 0, false, 1.6)
 		# Running: forward, to the right (+X with the player facing -Z), backwards, in the pistol stance.
 		gs.gun_changed.emit(7, 1)
 		# A big body (the Brute) takes 5 m/s nearer its walk than its run.

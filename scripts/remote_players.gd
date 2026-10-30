@@ -63,6 +63,14 @@ const KICK := 0.07
 const KICK_BACK := 14.0
 const SPINE_SHARE := 0.35  # of the pitch; the chest takes the rest, so arms and gun aim with all of it
 const PITCH_MAX := 1.2  # rad either way; beyond it the torso would fold
+## The head looks where the player looks; the body (arms and gun with it) comes after it, so a
+## quick nod or shake of the mouse is a nod or a shake of the head, a yes or a no, the hands staying
+## put. The head turns this far off the body (rad: yaw, pitch) before the body is pulled along...
+const HEAD_FREE := Vector2(1.1, 0.6)
+## ...and the body catches up this fast (1/s), much faster while shooting so the gun points true.
+const BODY_CATCH := 2.5
+const BODY_CATCH_SHOOTING := 18.0
+const NECK_SHARE := 0.35  # of the head's turn the neck takes, the head the rest
 const FLASH_TIME := 0.05  # s
 const LABEL_OVER := 0.25  # m over the top of the head
 const LABEL_HEIGHT := 2.0  # m above the feet before there is a body
@@ -121,7 +129,10 @@ class Character extends Node3D:
 	var _vel := Vector2.ZERO  # m/s in the model's frame (x its left, y its forward), smoothed
 	var _snaps: Array = []  # [local time, pos, yaw, pitch, act, air], oldest first
 	var _clock := 0.0  # the sender's clock minus ours, smoothed
-	var _pitch := 0.0
+	var _pitch := 0.0  # rad the body leans to look, after the head (HEAD_FREE)
+	var _look_pitch := 0.0  # rad the player looks, smoothed
+	var _body_yaw := INF  # rad the body faces; the look's yaw is the head's
+	var _look_yaw := 0.0
 	var _last_pos := Vector3.INF
 	var _model: Node3D  # the body, null before they pick
 	var _skel: Skeleton3D
@@ -131,6 +142,7 @@ class Character extends Node3D:
 	var _air_arms := 0.0  # 0..1, the stance's arms over the jump
 	var _gun: Node3D  # holds the first-person rig, in the body's frame
 	var _fp_skel: Skeleton3D
+	var _rig: Node3D  # the first-person arms under _gun, sized to this body's hand (_show_gun)
 	var _fp_anim: AnimationPlayer
 	var _muzzle: Node3D
 	var gun := 0  # GameState.GUNS index shown; 0 is bare fists
@@ -156,6 +168,8 @@ class Character extends Node3D:
 	var _spine := -1
 	var _chest := -1
 	var _wrist := -1
+	var _neck := -1
+	var _head := -1
 	var _flash: Node3D
 	var _flash_left := 0.0
 	var _fx: Node3D
@@ -191,10 +205,10 @@ class Character extends Node3D:
 		# The first-person arms with every gun on them; only the gun in hand shows, and the arms
 		# only lend their grip. Carried over from body to body.
 		_gun = Node3D.new()
-		var rig: Node3D = ARMS.instantiate()
-		_gun.add_child(rig)
-		_fp_skel = rig.find_child("Skeleton3D", true, false)
-		_fp_anim = rig.find_child("AnimationPlayer", true, false)
+		_rig = ARMS.instantiate()
+		_gun.add_child(_rig)
+		_fp_skel = _rig.find_child("Skeleton3D", true, false)
+		_fp_anim = _rig.find_child("AnimationPlayer", true, false)
 		(_fp_skel.get_node("Mesh") as Node3D).visible = false
 		VIEWMODEL.load_clips(_fp_anim, _fp_skel)
 		VIEWMODEL.add_pistol(_fp_skel)
@@ -264,6 +278,8 @@ class Character extends Node3D:
 		_spine = _skel.find_bone("mixamorig_Spine")
 		_chest = _skel.find_bone("mixamorig_Spine1")
 		_wrist = _skel.find_bone("mixamorig_RightHand")
+		_neck = _skel.find_bone("mixamorig_Neck")
+		_head = _skel.find_bone("mixamorig_Head")
 		_hand.clear()
 		for side in ["L", "R"]:
 			for h: String in HAND:
@@ -311,6 +327,13 @@ class Character extends Node3D:
 		_fp_anim.advance(0.0)
 		_fp_anim.pause()  # held still: the body's own clips move the hands
 		_gun.transform = Transform3D()
+		# The gun grows with the hand holding it: a Brute's fist round the first-person pistol made
+		# it look a toy. The rig is scaled so its hand is this body's, and the body's hand stays as is.
+		var fp_hand := _fp_skel.get_bone_global_rest(_fp_skel.find_bone(_fp_name("R_wrist"))).origin.distance_to(
+				_fp_skel.get_bone_global_rest(_fp_skel.find_bone(_fp_name("R_middle1"))).origin)
+		var own_hand := _skel.get_bone_global_rest(_hand["R_wrist"]).origin.distance_to(
+				_skel.get_bone_global_rest(_hand["R_middle1"]).origin)
+		_rig.scale = Vector3.ONE * own_hand / fp_hand
 		var to_gun := _gun.global_transform.affine_inverse() * _fp_skel.global_transform
 		var on_gun := {}
 		for key: String in _hand:
@@ -534,7 +557,14 @@ class Character extends Node3D:
 			a = s
 		var f := 0.0 if b[0] <= a[0] else clampf((t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
 		global_position = (a[1] as Vector3).lerp(b[1], f)
-		rotation.y = lerp_angle(a[2], b[2], f)
+		_look_yaw = lerp_angle(a[2], b[2], f)
+		var catch := BODY_CATCH_SHOOTING if b[4] == GameState.Act.SHOOTING else BODY_CATCH
+		if _body_yaw == INF:
+			_body_yaw = _look_yaw
+		_body_yaw = lerp_angle(_body_yaw, _look_yaw, 1.0 - exp(-delta * catch))
+		var off := wrapf(_look_yaw - _body_yaw, -PI, PI)
+		_body_yaw = _look_yaw - clampf(off, -HEAD_FREE.x, HEAD_FREE.x)
+		rotation.y = _body_yaw
 		if _last_pos != Vector3.INF and delta > 0.0:
 			var step := (global_position - _last_pos) * Vector3(1, 0, 1) / delta
 			var local := global_basis.inverse() * step  # forward is -Z here, +Z on the model
@@ -558,13 +588,16 @@ class Character extends Node3D:
 		_tree.set("parameters/mix/blend_amount", _air_arms)
 		_tree.advance(delta)
 		_kick = move_toward(_kick, 0.0, _kick * KICK_BACK * delta + 0.0001)
-		_pitch = lerpf(_pitch, clampf(lerpf(a[3], b[3], f), -PITCH_MAX, PITCH_MAX), 1.0 - exp(-delta * 20.0))
+		_look_pitch = lerpf(_look_pitch, clampf(lerpf(a[3], b[3], f), -PITCH_MAX, PITCH_MAX), 1.0 - exp(-delta * 20.0))
+		_pitch = lerpf(_pitch, _look_pitch, 1.0 - exp(-delta * catch))
+		_pitch = _look_pitch - clampf(_look_pitch - _pitch, -HEAD_FREE.y, HEAD_FREE.y)
 		_bend(_pitch + _kick)
 		_left_hold = move_toward(_left_hold, 0.0 if act == GameState.Act.RELOADING else 1.0, delta / LEFT_LET_GO)
 		if gun != 0:
 			var tip := Transform3D(Basis(Vector3.RIGHT, -RELOAD_TIP * (1.0 - _left_hold)), Vector3.ZERO)
 			_gun.transform = _skel.get_bone_global_pose(_wrist) * _gun_in_hand * Transform3D(Basis(), Vector3(0.0, 0.0, -_pull)) * tip
 			_grip()
+		_turn_head(wrapf(_look_yaw - _body_yaw, -PI, PI), _look_pitch - _pitch)
 		if _flash:
 			_flash.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 			_flash_left -= delta
@@ -610,6 +643,18 @@ class Character extends Node3D:
 		var chest := Basis(Vector3.RIGHT, -pitch * (1.0 - SPINE_SHARE)) * spine * Basis(_skel.get_bone_pose_rotation(_chest))
 		_skel.set_bone_pose_rotation(_spine, (parent.inverse() * spine).get_rotation_quaternion())
 		_skel.set_bone_pose_rotation(_chest, (spine.inverse() * chest).get_rotation_quaternion())
+
+	## The head's own turn off the body's (rad, about the body's up and side), shared with the neck.
+	func _turn_head(yaw: float, pitch: float) -> void:
+		# Some bodies have a second neck bone between: whatever is between turns with the neck.
+		var parent := _skel.get_bone_global_pose(_skel.get_bone_parent(_neck)).basis.orthonormalized()
+		var neck := _skel.get_bone_global_pose(_neck).basis.orthonormalized()
+		var above := _skel.get_bone_global_pose(_skel.get_bone_parent(_head)).basis.orthonormalized()
+		var head := _skel.get_bone_global_pose(_head).basis.orthonormalized()
+		var by_neck := Basis(Vector3.UP, yaw * NECK_SHARE) * Basis(Vector3.RIGHT, -pitch * NECK_SHARE)
+		var turned_head := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -pitch) * head
+		_skel.set_bone_pose_rotation(_neck, (parent.inverse() * by_neck * neck).get_rotation_quaternion())
+		_skel.set_bone_pose_rotation(_head, ((by_neck * above).inverse() * turned_head).get_rotation_quaternion())
 
 	## Both hands on the gun as the first-person hands hold it, over whatever the clips did: the right
 	## one wraps the grip with the index on the trigger guard, the left cups it from below. The left
