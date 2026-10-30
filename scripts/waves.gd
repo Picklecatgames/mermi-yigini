@@ -57,6 +57,7 @@ const BAY_HALF := 12.0  # tools/build_arena.gd
 const BAY_END := 36.3
 const MAX_ALIVE := 40  # on the floor at once, the rest wait their turn (network load stays flat)
 const SPAWN_EVERY := 0.5  # s between the waiting ones once the gates are open
+const PEN_BATCH := 8  # made in one frame at the pull: 24 at once held that frame up ~40 ms
 ## How it comes apart (the host decides, the die cue carries it): a head shot kill takes the head
 ## off, SHRED of its hit points taken inside SHRED_TIME (a burst from the minigun) bursts the body,
 ## a brute, a blob and a bloater always burst (a blob has no head to lose).
@@ -118,6 +119,12 @@ const ZIG := 1.2
 const ZIG_TIME := 1.4
 const ZIG_STOP := 3.0
 const HP_SEND := 0.1  # s between the host's hit point updates
+## The bone hit shapes are laid on the bones every FIT_EVERY frames (each zombie on its own beat):
+## putting 40 zombies' 11 shapes to the physics every frame took ~2 ms. A round about to be traced
+## (GameState.fired, before the trace) has the ones within FIT_NEAR m of its line fitted first, so it
+## meets each body where it is drawn now.
+const FIT_EVERY := 3
+const FIT_NEAR := 2.5
 ## The ones that keep low, lying along their way: kind -> trunk radius, trunk length, trunk height,
 ## head radius (m, ×the body's size; the crawler's is the same at every size).
 const LOW := {&"crawler": [0.3, 0.9, 0.35, 0.13], &"blob": [0.42, 1.0, 0.4, 0.2], &"dog": [0.2, 0.9, 0.45, 0.13]}
@@ -198,6 +205,7 @@ var _hp_wait := 0.0
 var _next_id := 1
 var _next_spawn := 0
 var _spawn_wait := 0.0
+var _beat := 0  # frames, for FIT_EVERY
 
 
 ## A zombie's body: what the shot code and the HUD ask of a target.
@@ -234,6 +242,10 @@ func _ready() -> void:
 	GameState.wave_cue.connect(_on_cue)
 	GameState.lever_pulled.connect(_on_lever)
 	GameState.shot_landed.connect(_on_shot)
+	GameState.fired.connect(func(_peer: int, from: Vector3, dir: Vector3) -> void: fit_along(from, dir))
+	BLOOD.warm()
+	VOICE.warm()
+	_prewarm.call_deferred()
 	GameState.fence_changed.connect(func(_hp: int, _wear: Array) -> void: _sign())
 	_fence = FENCE.new()
 	add_child(_fence)
@@ -274,10 +286,12 @@ func _process(delta: float) -> void:
 		if not z.dead:
 			_walk(z, delta)
 	_spread(delta)
+	_beat += 1
 	for z: Dictionary in _zombies.values():
 		if not z.dead:
 			(z.head_shape as Node3D).global_position = (z.head as Node3D).global_position
-			_fit(z)
+			if (_beat + z.id) % FIT_EVERY == 0:
+				_fit(z)
 	if Net.is_client:
 		return
 	if phase == Phase.FIGHT and not _queue.is_empty():
@@ -309,10 +323,15 @@ func _on_lever(_peer: int) -> void:
 	_limb_hits.clear()
 	_next_spawn = 0
 	GameState.cue_wave([&"phase", wave, Phase.STARTING, _queue.size()])
-	for i in mini(_spawns.size(), _queue.size()):  # a pen-full waits behind the gates
-		_spawn_next()
 	var seq := _seq
-	await get_tree().create_timer(FIGHT_AT).timeout
+	var fight := get_tree().create_timer(FIGHT_AT)
+	for i in mini(_spawns.size(), _queue.size()):  # a pen-full waits behind the gates, PEN_BATCH a frame
+		if i > 0 and i % PEN_BATCH == 0:
+			await get_tree().process_frame
+			if seq != _seq:
+				return
+		_spawn_next()
+	await fight.timeout
 	if seq == _seq:
 		GameState.cue_wave([&"phase", wave, Phase.FIGHT, left])
 		_check_clear()  # shot down in the pens before the gates were wide enough
@@ -645,7 +664,7 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"head_shape": head, "trunk": trunk, "bones": bones, "react": react, "speed": speed, "dead": false, "path": [],
 			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [],
 			"bar": BAR.new(), "rush": 0.0, "hold": 0.0, "zig": float(absi(seed) % 1000) / 1000.0 * TAU,
-			"cry": 0.0}
+			"cry": 0.0, "fit": -1}
 	_zombies[id] = z
 	node.add_child(z.bar)
 	(z.bar as Node3D).position = Vector3.UP * (node.tall + 0.25)
@@ -823,6 +842,15 @@ func _limb_hit(z: Dictionary, part: StringName, dmg: float) -> void:
 		GameState.cue_wave([&"limb", z.id, part])
 
 
+## Once the hall is up: the blood and the pieces drawn once, a speck in front of the camera, so
+## their shaders compile now and not at the first hit (zombie_body.gd prewarm()).
+func _prewarm() -> void:
+	await get_tree().process_frame
+	var cam := get_viewport().get_camera_3d()
+	if cam:
+		BODY.prewarm(self, cam.global_transform * Transform3D(Basis().scaled(Vector3.ONE * 0.001), Vector3(0, 0, -1)))
+
+
 ## Every peer, the wave lost: off back the way it came, to the bay's mouth and its gate.
 func _retreat(z: Dictionary) -> void:
 	z.released = true
@@ -939,10 +967,23 @@ func _bone_shapes(node: Node3D, body: Node3D) -> Array:
 	return out
 
 
+## Fits the bone shapes of the living ones near the line from `from` along `dir` (a round about to be
+## traced) that were not fitted this frame. A check tracing its own rays calls it too.
+func fit_along(from: Vector3, dir: Vector3) -> void:
+	dir = dir.normalized()
+	for z: Dictionary in _zombies.values():
+		if z.dead or z.bones.is_empty() or z.fit == _beat:
+			continue
+		var to := (z.node as Node3D).global_position + Vector3.UP - from
+		if to.dot(dir) > -FIT_NEAR and to.cross(dir).length() < FIT_NEAR:
+			_fit(z)
+
+
 ## Lays each of `z`'s bone shapes along its bones as they are posed now.
 func _fit(z: Dictionary) -> void:
 	if z.bones.is_empty():
 		return
+	z.fit = _beat
 	var sk: Skeleton3D = z.body.get("_skel")
 	for s: Dictionary in z.bones:
 		var cs: CollisionShape3D = s.node

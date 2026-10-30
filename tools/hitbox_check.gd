@@ -142,6 +142,7 @@ func _legless() -> void:
 
 
 func _trace(from: Vector3, to: Vector3) -> Dictionary:
+	waves.fit_along(from, to - from)  # as GameState's trace has them (its fired signal)
 	var q := PhysicsRayQueryParameters3D.create(from, to, gs.SHOT_MASK)
 	return root.get_world_3d().direct_space_state.intersect_ray(q)
 

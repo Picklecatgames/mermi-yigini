@@ -55,6 +55,7 @@ var _last_attack := -10.0
 var _last_flesh := -10.0
 
 static var _streams := {}  # bank -> Array[AudioStream]
+static var _warming := {}  # path -> asked of the loader thread (warm())
 static var _bags := {}  # bank -> Array[int], what is left to play this round
 static var _last := {}  # bank -> index played last
 static var _moaning := 0
@@ -212,13 +213,29 @@ func _far() -> bool:
 	return cam != null and cam.global_position.distance_to(global_position) > MOAN_RANGE
 
 
+## Starts reading every bank off the disk on a thread: a bank loaded the first time it was needed
+## held up that frame (tools/spike_probe.gd). waves.gd calls it with the hall.
+static func warm() -> void:
+	for bank: StringName in BANKS:
+		var b: Array = BANKS[bank]
+		for i in b[1]:
+			var path := "%s%s%02d.ogg" % [b[2], b[0], i + 1]
+			if not _streams.has(bank) and not _warming.has(path):
+				_warming[path] = ResourceLoader.load_threaded_request(path) == OK
+
+
 ## Next sound of a bank from its shuffled bag; a fresh bag never starts with the one just played.
 static func _draw(bank: StringName) -> AudioStream:
 	if not _streams.has(bank):
 		var b: Array = BANKS[bank]
 		var list: Array[AudioStream] = []
 		for i in b[1]:
-			list.append(load("%s%s%02d.ogg" % [b[2], b[0], i + 1]))
+			var path := "%s%s%02d.ogg" % [b[2], b[0], i + 1]
+			if _warming.get(path, false):
+				_warming[path] = false
+				list.append(ResourceLoader.load_threaded_get(path))
+			else:
+				list.append(load(path))
 		_streams[bank] = list
 	var list: Array = _streams[bank]
 	var bag: Array = _bags.get(bank, [])

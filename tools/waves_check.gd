@@ -118,6 +118,7 @@ func _host() -> void:
 	gs.mend_fence(gs.FENCE_MAX)  # the rest of the check wants a whole railing
 	# Wave 2 again, all of it shot in the pens before the fight is called: it clears anyway.
 	gs.request_pull_lever()
+	if not await _until(func() -> bool: return waves._zombies.size() == size, "wave 2's pens to fill"): return
 	for id: int in waves._zombies.keys():
 		gs.cue_wave([&"die", id, waves.left - 1, gs.local_peer(), false, waves._zombies[id].node.global_position, "scorpion"])
 	if not _ok(waves.phase == waves.Phase.STARTING and waves.left == 0, "all of wave 2 down before the gates"): return

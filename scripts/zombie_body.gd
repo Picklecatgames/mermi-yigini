@@ -651,6 +651,26 @@ static var _drop_mat: ParticleProcessMaterial
 
 
 func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
+	_drops()
+	var p := GPUParticles3D.new()
+	p.one_shot = true
+	p.amount = amount
+	p.lifetime = 0.7
+	p.explosiveness = 0.95
+	p.speed_scale = force
+	p.process_material = _drop_mat
+	p.use_fixed_seed = true  # the same drops on every peer
+	p.seed = _rng.randi()
+	p.draw_pass_1 = _drop_mesh
+	get_parent().get_parent().add_child(p)
+	var up := Vector3.UP if absf(dir.y) < 0.95 else Vector3.RIGHT
+	p.global_transform = Transform3D(Basis.looking_at(dir, up), at)
+	p.emitting = true
+	p.finished.connect(p.queue_free)
+
+
+## The blood drops' mesh and particle material, made once.
+static func _drops() -> void:
 	if _drop_mesh == null:
 		var m := StandardMaterial3D.new()
 		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
@@ -686,21 +706,34 @@ func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
 		_drop_mat.scale_max = 1.0
 		_drop_mat.damping_min = 1.0
 		_drop_mat.damping_max = 2.0
+
+
+## Everything a zombie's blood and pieces draw with, drawn once at `at` (a speck in front of the
+## camera) under `world`, so their shaders compile with the hall instead of at the first hit or the
+## first head blown off (each of those held up its frame for 20 ms or more). waves.gd does it.
+static func prewarm(world: Node, at: Transform3D) -> void:
+	_drops()
+	var shown: Array[Node3D] = []
 	var p := GPUParticles3D.new()
 	p.one_shot = true
-	p.amount = amount
-	p.lifetime = 0.7
-	p.explosiveness = 0.95
-	p.speed_scale = force
+	p.amount = 1
+	p.lifetime = 0.1
 	p.process_material = _drop_mat
-	p.use_fixed_seed = true  # the same drops on every peer
-	p.seed = _rng.randi()
 	p.draw_pass_1 = _drop_mesh
-	get_parent().get_parent().add_child(p)
-	var up := Vector3.UP if absf(dir.y) < 0.95 else Vector3.RIGHT
-	p.global_transform = Transform3D(Basis.looking_at(dir, up), at)
+	shown.append(p)
+	for mesh: Mesh in GIBS.MESHES:
+		var m := MeshInstance3D.new()
+		m.mesh = mesh
+		m.material_override = FLESH
+		shown.append(m)
+	for n in shown:
+		world.add_child(n)
+		n.global_transform = at
 	p.emitting = true
-	p.finished.connect(p.queue_free)
+	BLOOD.prewarm(world, at.origin)
+	await world.get_tree().create_timer(0.3).timeout
+	for n in shown:
+		n.queue_free()
 
 
 ## Node that follows a bone, for hit shapes (the head's weak spot) or effects.
