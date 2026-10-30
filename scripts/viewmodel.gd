@@ -93,6 +93,8 @@ const SETS := {
 		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
+## The arms' materials a player character repaints (dress): material -> arms_<part>.png.
+const ARMS_PAINT := {"Gloves": "gloves", "Cloths": "sleeves", "Body": "body"}
 const Attachments := preload("res://scripts/gun_attachments.gd")
 ## A spinning gun is one sound, not one per round: barrels coming up, a firing loop while rounds
 ## leave, the run-down when they stop (all cut from one recording).
@@ -339,6 +341,10 @@ func _ready() -> void:
 					mi.set_surface_override_material(i, steel)
 	if Wishlist.golden():
 		gild()
+	dress(_skel, GameState.player().character)
+	GameState.character_changed.connect(func(who: int, id: String) -> void:
+		if who == GameState.local_peer():
+			dress(_skel, id))
 
 
 func _flat(from: AudioStreamPlayer3D, louder := 0.0) -> AudioStreamPlayer:
@@ -376,6 +382,23 @@ static func gun_bus() -> StringName:
 ## The wishlist reward (scripts/wishlist.gd): the Deagle in gold. Also called on the claim.
 func gild() -> void:
 	Wishlist.gild(_skel.get_node(NodePath(SETS.deagle.mesh)))
+
+
+## The arms in GameState.CHARACTERS `id`'s colours (assets/characters/players/<id>/arms_*.png,
+## tools/paint_player_arms.py: gloves its hands', sleeves its forearms'); "" or an id without
+## them, the arms' own.
+static func dress(skel: Skeleton3D, id: String) -> void:
+	var mi := skel.get_node("Mesh") as MeshInstance3D
+	for i in mi.mesh.get_surface_count():
+		var own := mi.mesh.surface_get_material(i) as StandardMaterial3D
+		var part: String = ARMS_PAINT.get(own.resource_name if own else "", "")
+		var path := "res://assets/characters/players/%s/arms_%s.png" % [id, part]
+		if part == "" or id == "" or not ResourceLoader.exists(path):
+			mi.set_surface_override_material(i, null)
+			continue
+		var worn := own.duplicate() as StandardMaterial3D
+		worn.albedo_texture = load(path)
+		mi.set_surface_override_material(i, worn)
 
 
 ## The starting pistol's parts on `skel`'s Deagle bones (PISTOL_PARTS), under one node named

@@ -22,6 +22,7 @@ const BENCH_MENU := preload("res://scripts/bench_menu.gd")
 const BOARD_MENU := preload("res://scripts/quest_board.gd")
 const MELTER_MENU := preload("res://scripts/melter_menu.gd")
 const PRESS_MENU := preload("res://scripts/press_menu.gd")
+const CHARACTER_PICK := preload("res://scripts/character_pick.gd")
 const LASER_DOT := Vector2(0.03, 0.012)  # m across the dot: at least, and per metre away (stays visible far off)
 const LASER_BEAM := Vector2(0.0006, 0.0005)  # m beam radius at the lens, and per metre on: about a pixel all the way
 const WHEEL_HOLD := 0.22  # s R is held before the ammo wheel opens; a shorter press reloads
@@ -119,6 +120,7 @@ var _bench: CanvasLayer = BENCH_MENU.new()  # the workshop bench's view (E in fr
 var _board_menu: CanvasLayer = BOARD_MENU.new()  # the quest board's screen (E in front of it)
 var _melter: CanvasLayer = MELTER_MENU.new()  # the hopper's screen (E beside it pours the hand in)
 var _press: CanvasLayer = PRESS_MENU.new()  # the press's screen (E in front of it)
+var _pick: CanvasLayer = CHARACTER_PICK.new()  # who to play as, until picked (GameState.CHARACTERS)
 var _laser_dot := MeshInstance3D.new()  # where the bought laser says the shot will land
 var _laser_beam := MeshInstance3D.new()  # from the laser's lens to the dot, through the air
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
@@ -179,6 +181,7 @@ func _ready() -> void:
 	add_child(_board_menu)
 	add_child(_melter)
 	add_child(_press)
+	add_child(_pick)
 	_make_laser_dot()
 	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
@@ -451,7 +454,7 @@ void fragment() {
 ## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
 func _hands_busy() -> bool:
 	return GameState.player().placing or _shop.visible or _bench.visible or _board_menu.visible \
-		or _melter.visible or _press.visible
+		or _melter.visible or _press.visible or _pick.visible
 
 
 ## E in the workshop: of the board, bench, hopper and press in reach, the one the view points

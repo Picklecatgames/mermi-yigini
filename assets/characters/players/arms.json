@@ -1,0 +1,72 @@
+{
+	"boss": {
+		"forearm": [
+			0.788,
+			0.478,
+			0.341
+		],
+		"forearm_skin": true,
+		"hand": [
+			0.733,
+			0.298,
+			0.235
+		],
+		"hand_skin": true
+	},
+	"brute": {
+		"forearm": [
+			0.71,
+			0.529,
+			0.455
+		],
+		"forearm_skin": true,
+		"hand": [
+			0.659,
+			0.486,
+			0.42
+		],
+		"hand_skin": true
+	},
+	"chupacabra": {
+		"forearm": [
+			0.42,
+			0.271,
+			0.416
+		],
+		"forearm_skin": false,
+		"hand": [
+			0.0,
+			0.0,
+			0.0
+		],
+		"hand_skin": false
+	},
+	"masked": {
+		"forearm": [
+			0.569,
+			0.439,
+			0.404
+		],
+		"forearm_skin": true,
+		"hand": [
+			0.518,
+			0.353,
+			0.337
+		],
+		"hand_skin": true
+	},
+	"worker": {
+		"forearm": [
+			0.875,
+			0.298,
+			0.102
+		],
+		"forearm_skin": false,
+		"hand": [
+			0.643,
+			0.42,
+			0.322
+		],
+		"hand_skin": true
+	}
+}
