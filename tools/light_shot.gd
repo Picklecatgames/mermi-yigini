@@ -25,9 +25,22 @@ const FP := {
 	"fp_range": [Vector3(10.0, 0, 6.0), -PI / 2.0, 0.0],
 	"fp_lamps": [Vector3(4.0, 0, 20.0), PI, -0.2],
 }
+## The hall lamps' own shadows, out of the moon's reach on the west side: [feet, the point it
+## faces]. Just off the bulb at (-18, 6.8, 7), and halfway to the next one at (-18, -7), where
+## each throws its own shadow, one either way. Shot with the moon on and off.
+const LAMP_FEET := {
+	"under": [Vector3(-17.2, 0, 7.8), Vector3(-10.0, 0, 9.0)],
+	"between": [Vector3(-18.0, 0, 0.0), Vector3(-10.0, 0, 1.0)],
+}
+## First person looking down at our own shadow under that lamp: [feet, yaw, pitch].
+const FP_FEET := {
+	"fp_feet_lamp": [Vector3(-17.2, 0, 7.8), -PI / 2.0, -1.1],
+	"fp_feet_moon": [Vector3(2.0, 0, -5.0), PI / 2.0, -1.1],
+}
 
 var mgr: Node3D
 var gs: Node
+var stand := CREW.duplicate(true)  # where each of the crew stands now
 
 
 func _initialize() -> void:
@@ -86,6 +99,18 @@ func _initialize() -> void:
 		var dir: Vector3 = (CREW[peer][2] - feet).normalized()
 		cam.look_at_from_position(feet + dir * 2.2 + dir.cross(Vector3.UP) * 1.2 + Vector3(0, 1.1, 0), feet + Vector3(0, 0.25, 0))
 		await _save(tag, "feet_" + CREW[peer][0])
+	# The lamps alone (the moon off), then with it: under one bulb and between two.
+	var sun := main.find_child("Sun", true, false) as Light3D
+	for moon: bool in [false, true]:
+		sun.visible = moon
+		for spot: String in LAMP_FEET:
+			stand[6] = ["masked", LAMP_FEET[spot][0], LAMP_FEET[spot][1]]
+			var feet: Vector3 = LAMP_FEET[spot][0]
+			var dir: Vector3 = (LAMP_FEET[spot][1] - feet).normalized()
+			cam.look_at_from_position(feet + dir * 3.2 + Vector3(0, 2.4, 0), feet)
+			await _save(tag, "lamp_%s%s" % [spot, "_moon" if moon else ""])
+	sun.visible = true
+	stand[6] = CREW[6].duplicate()
 
 	# First person: the player's own camera and the gun's viewport over it, no menus.
 	player.get_node("ViewmodelView").visible = true
@@ -95,6 +120,14 @@ func _initialize() -> void:
 		player.velocity = Vector3.ZERO
 		player._yaw = FP[shot][1]
 		player._pitch = FP[shot][2]
+		await _save(tag, shot)
+	# Our own shadow (remote_players.gd _own_shadow), the gun's view off to see the floor.
+	player.get_node("ViewmodelView").visible = false
+	for shot: String in FP_FEET:
+		player.global_position = FP_FEET[shot][0]
+		player.velocity = Vector3.ZERO
+		player._yaw = FP_FEET[shot][1]
+		player._pitch = FP_FEET[shot][2]
 		await _save(tag, shot)
 	quit()
 
@@ -111,7 +144,7 @@ func _save(tag: String, shot: String) -> void:
 func _hold(secs: float) -> void:
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < secs * 1000.0:
-		for peer: int in CREW:
-			var d: Vector3 = CREW[peer][2] - CREW[peer][1]
-			mgr._on_pose(peer, Time.get_ticks_msec() / 1000.0, CREW[peer][1], atan2(-d.x, -d.z), 0.0, 0, false)
+		for peer: int in stand:
+			var d: Vector3 = stand[peer][2] - stand[peer][1]
+			mgr._on_pose(peer, Time.get_ticks_msec() / 1000.0, stand[peer][1], atan2(-d.x, -d.z), 0.0, 0, false)
 		await process_frame
