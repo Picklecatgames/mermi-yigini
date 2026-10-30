@@ -78,6 +78,25 @@ const KICK_HEAD := 2.5  # times that on the head
 const KICK_STIFF := 160.0  # 1/s², ~2 Hz
 const KICK_DAMP := 15.0  # 1/s: one swing back and it has settled
 const KICK_MAX := 0.6  # rad, so a burst can't fold it in two
+const KICK_ARM := 3.0  # times KICK on the arm a round hit
+## Limbs that come off (Mixamo rigs only): part -> the bone it comes off at and the one at its far
+## end. A round is put on the first limb along its line (limb_at); the host counts the hits and
+## sends the cut (waves.gd), so the same part goes on every peer. An arm can lose its forearm first
+## and the rest after; a leg likewise from the knee.
+const LIMBS := {
+	&"arm_l": ["LeftArm", "LeftForeArm"], &"forearm_l": ["LeftForeArm", "LeftHand"],
+	&"arm_r": ["RightArm", "RightForeArm"], &"forearm_r": ["RightForeArm", "RightHand"],
+	&"leg_l": ["LeftUpLeg", "LeftLeg"], &"shin_l": ["LeftLeg", "LeftFoot"],
+	&"leg_r": ["RightUpLeg", "RightLeg"], &"shin_r": ["RightLeg", "RightFoot"],
+}
+const LOWER := {&"forearm_l": &"arm_l", &"forearm_r": &"arm_r", &"shin_l": &"leg_l", &"shin_r": &"leg_r"}
+## Far from the camera the clips are stepped every LOD_STEP frames (each zombie on its own beat), not
+## every frame: a crowd at the gates costs a third.
+const LOD_FAR := 22.0  # m
+const LOD_STEP := 3
+const FALL_SPEED := 1.5  # the stumble-and-fall clip is slow for a leg torn off
+const LIMB_REACH := 0.1  # m at size 1: how far off a limb's bone a round's line may pass and hit it
+const TORSO_REACH := 0.15  # the same for the spine, which takes the round if it is first in line
 
 var kind := &"walker"
 var model := &""
@@ -106,6 +125,13 @@ var _wounds := 0  # hits taken: with `_seed` it seeds each hit's blood
 var _voice: Node3D
 var _chest := -1  # the bone a body burst comes out of
 var _last_dir := Vector3.FORWARD  # the way the last round went, for where the pieces fly
+var cuts: Array[StringName] = []  # LIMBS parts gone
+var crawling := false  # on its belly: a crawler, or one that lost a leg
+var _lod_wait := 0.0  # s of animation held back while far
+var _lod_beat := 0
+var fall_speed := 0.0  # m/s it stumbles on while going down (the clip is in place)
+var _arm_kick := [Vector3.ZERO, Vector3.ZERO]  # left, right: the springs on the upper arms
+var _arm_kick_v := [Vector3.ZERO, Vector3.ZERO]
 
 
 ## Lays the spring's bend over whatever the animation posed.
@@ -115,14 +141,21 @@ class Flinch extends SkeletonModifier3D:
 	var spine: Array[int] = []
 	var head := -1
 	var head_gone := false
+	var arms: Array[int] = []  # the upper arms' bones, and their kicks
+	var arm_kick: Array = []
+	var cut: Array[int] = []  # bones folded to nothing: the limb hanging off them is gone
 
 	func _process_modification() -> void:
 		var sk := get_skeleton()
 		for b in spine:
 			_turn(sk, b, bend / spine.size())
 		_turn(sk, head, nod)
+		for i in arms.size():
+			_turn(sk, arms[i], arm_kick[i])
 		if head_gone and head >= 0:  # blown off: folded to nothing at the neck
 			sk.set_bone_pose_scale(head, Vector3.ONE * 0.001)
+		for b in cut:
+			sk.set_bone_pose_scale(b, Vector3.ONE * 0.001)
 
 	func _turn(sk: Skeleton3D, b: int, v: Vector3) -> void:
 		if b < 0 or v.length() < 0.0001:
@@ -168,8 +201,11 @@ func _ready() -> void:
 	for b in ["Spine", "Spine1", "Spine2", "Neck"]:
 		_flinch.spine.append(_skel.find_bone("mixamorig_" + b))
 	_flinch.head = _skel.find_bone("mixamorig_Head")
+	_flinch.arms = [_skel.find_bone("mixamorig_LeftArm"), _skel.find_bone("mixamorig_RightArm")]
+	_flinch.arm_kick = _arm_kick
 	_chest = _flinch.spine[1]
 	_skel.add_child(_flinch)
+	crawling = _move == "crawl"  # (a creature never: it has no belly clips)
 	_add_voice()
 	idle()
 
@@ -209,19 +245,42 @@ func _ready_creature() -> void:
 
 
 func _process(delta: float) -> void:
+	_step_clips(delta)
 	_bend_v += (-KICK_STIFF * _bend - KICK_DAMP * _bend_v) * delta
 	_bend = (_bend + _bend_v * delta).limit_length(KICK_MAX)
 	_nod_v += (-KICK_STIFF * _nod - KICK_DAMP * _nod_v) * delta
 	_nod = (_nod + _nod_v * delta).limit_length(KICK_MAX)
 	_flinch.bend = _bend
 	_flinch.nod = _nod
+	for i in 2:
+		_arm_kick_v[i] += (-KICK_STIFF * _arm_kick[i] - KICK_DAMP * _arm_kick_v[i]) * delta
+		_arm_kick[i] = (_arm_kick[i] + _arm_kick_v[i] * delta).limit_length(KICK_MAX * 1.5)
+
+
+func _step_clips(delta: float) -> void:
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	var far := cam != null and not _dead and cam.global_position.distance_squared_to(global_position) > LOD_FAR * LOD_FAR
+	if not far:
+		if _ap.callback_mode_process == AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL:
+			_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
+			_ap.advance(_lod_wait)
+			_lod_wait = 0.0
+		return
+	_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	_lod_wait += delta
+	_lod_beat += 1
+	if (_lod_beat + _seed) % LOD_STEP == 0:
+		_ap.advance(_lod_wait)
+		_lod_wait = 0.0
 
 
 ## A round went in at `at` travelling along `dir`: the body jerks away from it, blood sprays out
-## the back and a little back toward the shooter, and drops land on the floor behind.
-func wound(at: Vector3, dir: Vector3, head: bool) -> void:
+## the back and a little back toward the shooter, and drops land on the floor behind. Returns the
+## limb it went into (limb_at), &"" for the head or the trunk; an arm swings back with the hit.
+func wound(at: Vector3, dir: Vector3, head: bool) -> StringName:
 	dir = dir.normalized()
 	_last_dir = dir
+	var part := &"" if head else limb_at(at, dir)
 	_reseed("wound%d" % _wounds)
 	_wounds += 1
 	_voice.shot(at, head)
@@ -231,8 +290,12 @@ func wound(at: Vector3, dir: Vector3, head: bool) -> void:
 			axis = _skel.global_basis.orthonormalized().inverse() * axis.normalized()
 			if head:
 				_nod_v += axis * KICK * KICK_HEAD
+			elif String(part).contains("arm"):
+				var i := 0 if part.ends_with("_l") else 1
+				_arm_kick_v[i] += axis * KICK * KICK_ARM
+				_bend_v += axis * KICK * 0.4
 			else:
-				_bend_v += axis * KICK
+				_bend_v += axis * KICK * (0.5 if part != &"" else 1.0)  # a leg: it stumbles instead
 	_spray(at, dir, 12 if head else 7, 1.0)
 	_spray(at, -dir, 4, 0.5)
 	var world := _world()
@@ -245,11 +308,97 @@ func wound(at: Vector3, dir: Vector3, head: bool) -> void:
 	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
 	BLOOD.ground(world, at + flat * _rng.randf_range(0.4, 1.6), global_position.y, [&"drop", &"spray"], _rng,
 			_rng.randf_range(0.35, 0.7) * (1.4 if head else 1.0), flat)
+	return part
 
 
-## Loops one of the kind's idles (in the pen, at the gate).
+## The limb a round at `at` going along `dir` went into: the first bone along its line that it
+## passes within reach of, or &"" if the trunk is first (or it has no limbs to lose: creatures).
+## Each peer asks its own copy; only the host's answer counts toward a cut.
+func limb_at(at: Vector3, dir: Vector3) -> StringName:
+	if CREATURES.has(model) or _dead:
+		return &""
+	var from := at - dir * 0.4  # the shapes are rough: from a little before where it touched them
+	var to := at + dir * 0.8
+	var best := &""
+	var first := INF
+	var hips := _bone_at("Hips")
+	var pts := Geometry3D.get_closest_points_between_segments(from, to, hips, _bone_at("Neck"))
+	if pts[0].distance_to(pts[1]) < TORSO_REACH * size:
+		first = from.distance_to(pts[0])
+	for part: StringName in LIMBS:
+		if not can_lose(part):
+			continue
+		pts = Geometry3D.get_closest_points_between_segments(from, to, _bone_at(LIMBS[part][0]), _bone_at(LIMBS[part][1]))
+		if pts[0].distance_to(pts[1]) < LIMB_REACH * size and from.distance_to(pts[0]) < first:
+			first = from.distance_to(pts[0])
+			best = part
+	return best
+
+
+## Whether `part` is still there to come off: a Mixamo rig (not a brute's legs, it has no crawl),
+## and neither it nor the limb it hangs from gone.
+func can_lose(part: StringName) -> bool:
+	if CREATURES.has(model) or part in cuts or LOWER.get(part, &"") in cuts:
+		return false
+	return kind != &"brute" or not is_leg(part)
+
+
+static func is_leg(part: StringName) -> bool:
+	return part.begins_with("leg") or part.begins_with("shin")
+
+
+## Arms that lost something: each one makes its swings slower (waves.gd).
+func arms_hurt() -> int:
+	var n := 0
+	for side in ["_l", "_r"]:
+		if (&"arm" + side) in cuts or (&"forearm" + side) in cuts:
+			n += 1
+	return n
+
+
+## Takes `part` off. `fly`: it tears off now, thrown along the last round with a spurt of blood
+## (zombie_gibs.gd limb()); without, it is simply gone (a joiner seeing it already off). A leg drops
+## it to its belly: returns how long the fall takes (s, 0 if it was down already), after which it
+## crawls (move()).
+func cut(part: StringName, fly := true) -> float:
+	if not can_lose(part):
+		return 0.0
+	var b := _skel.find_bone("mixamorig_" + LIMBS[part][0])
+	var joint := _skel.to_global(_skel.get_bone_global_pose(b).origin)
+	if fly:
+		var tip := _skel.to_global(_skel.get_bone_global_pose(_skel.find_bone("mixamorig_" + LIMBS[part][1])).origin)
+		if part.begins_with("forearm") or part.begins_with("shin"):  # the hand and the foot go with it
+			var end := _skel.find_bone("mixamorig_" + ("LeftHand" if part == &"forearm_l" else "RightHand" if part == &"forearm_r" else
+					"LeftToeBase" if part == &"shin_l" else "RightToeBase"))
+			tip = _skel.to_global(_skel.get_bone_global_pose(end).origin)
+		_reseed("cut" + part)
+		GIBS.limb(_world(), _piece(b), joint, tip, _last_dir, global_position.y, size, _rng.randi())
+	cuts.append(part)
+	_flinch.cut.append(b)
+	if LOWER.has(part):
+		_stump_on(_skel.get_bone_parent(b), _skel.get_bone_rest(b).origin, 0.13 if is_leg(part) else 0.1)
+	else:
+		_stump_on(_skel.get_bone_parent(b), _skel.get_bone_rest(b).origin, 0.17 if is_leg(part) else 0.13)
+	if fly:
+		var out := (joint - _skel.to_global(_skel.get_bone_global_pose(_skel.get_bone_parent(b)).origin)).normalized()
+		_spray(joint, out, 18, 1.2)
+		_spray(joint, Vector3.UP, 10, 0.9)
+		var world := _world()
+		BLOOD.mist(world, joint, _aside(_last_dir, 0.4), _rng, 0.8 * size, 0.5)
+		BLOOD.ground(world, joint, global_position.y, [&"spray", &"drop"], _rng, 0.9 * size, Vector3(out.x, 0, out.z).normalized())
+		VOICE.gore(&"burst", joint, -2.0, 1.2 if is_leg(part) else 1.35)
+		_voice.pain()
+		_pump(b)
+	if is_leg(part) and not crawling:
+		return _go_down(fly)
+	return 0.0
+
+## Loops one of the kind's idles (in the pen, at the gate). One on its belly creeps on the spot.
 func idle() -> void:
 	_voice.wake()
+	if crawling:
+		_play_loop(_pick(_move), 0.35)
+		return
 	_play_loop(_pick("idle"), 1.0)
 
 
@@ -264,12 +413,15 @@ func move(speed: float) -> void:
 ## Swing at the fence or a player. Returns the clip's length (s).
 func attack() -> float:
 	_voice.attack()
+	if crawling:  # bites from the floor
+		return _one_shot("floor_bite")
 	return _one_shot("attack")
 
 
-## Flinch from a shot; back to the loop after. Ignored mid-attack.
+## Flinch from a shot; back to the loop after. Ignored mid-attack, and on its belly (the hit clips
+## stand it up): there the spring alone (wound()) jerks it.
 func hit() -> void:
-	if not _busy:
+	if not _busy and not crawling:
 		_one_shot("hit")
 
 
@@ -311,8 +463,14 @@ func die(gib := &"") -> float:
 		else:
 			_stump(&"Spine1", 0.3)
 	_ap.speed_scale = 1.0
-	_ap.play(clip, BLEND)
 	var length := _lib.get_animation(clip).length
+	if crawling:
+		# The deaths start standing: from the belly it only slumps into the last of one.
+		_ap.play(clip, 0.6)
+		_ap.seek(length * 0.8, true)
+		length *= 0.2
+	else:
+		_ap.play(clip, BLEND)
 	_bleed_out(length * 0.7)
 	return length
 
@@ -336,6 +494,80 @@ func _stump(bone: StringName, width: float) -> void:
 	var s := width * size
 	m.scale = Vector3(s, s * 0.7, s)
 	attach(bone).add_child(m)
+
+
+## The same at `offset` (the bone's own space, at size 1: the body's scale carries it) on bone `b`,
+## where the limb hanging off it was.
+func _stump_on(b: int, offset: Vector3, width: float) -> void:
+	var a := BoneAttachment3D.new()
+	a.bone_name = _skel.get_bone_name(b)
+	_skel.add_child(a)
+	var m := MeshInstance3D.new()
+	m.mesh = STUMP
+	m.material_override = FLESH
+	m.position = offset
+	m.scale = Vector3(width, width * 0.8, width)
+	a.add_child(m)
+
+
+## Where bone "mixamorig_<name>" is now, in the world.
+func _bone_at(name: String) -> Vector3:
+	return _skel.to_global(_skel.get_bone_global_pose(_skel.find_bone("mixamorig_" + name)).origin)
+
+
+## A torn limb's stump spurts a few more times as the heart beats on, out of bone `b`'s joint.
+func _pump(b: int) -> void:
+	for i in 3:
+		await get_tree().create_timer(0.35 + 0.1 * i).timeout
+		if not is_inside_tree():
+			return
+		var joint := _skel.to_global(_skel.get_bone_global_pose(b).origin)
+		var out := joint - _skel.to_global(_skel.get_bone_global_pose(_skel.get_bone_parent(b)).origin)
+		_spray(joint, (out.normalized() + Vector3.UP * 0.3).normalized(), 9 - 2 * i, 0.8 - 0.15 * i)
+
+
+## The limb hanging off bone `b`, as it is posed now, for the throw: a second copy of the model
+## with every other bone folded to nothing at the joint (so their skin hides inside the torn end).
+## Each bone's pose is set from where it must be in the skeleton, so the folding doesn't add up
+## down the chain.
+func _piece(b: int) -> Node3D:
+	var copy: Node3D = MODELS[model].instantiate()
+	var sk: Skeleton3D = copy.get_node("Skeleton3D")
+	var keep := {}
+	var todo: Array[int] = [b]
+	while not todo.is_empty():
+		var i: int = todo.pop_back()
+		keep[i] = true
+		todo.append_array(_skel.get_bone_children(i))
+	var hide := Transform3D(Basis.from_scale(Vector3.ONE * 0.001), _skel.get_bone_global_pose(b).origin)
+	var global := {}
+	todo.assign(sk.get_parentless_bones())
+	while not todo.is_empty():
+		var i: int = todo.pop_back()
+		var g: Transform3D = _skel.get_bone_global_pose(i) if keep.has(i) else hide
+		var p := sk.get_bone_parent(i)
+		sk.set_bone_pose(i, global[p].affine_inverse() * g if p >= 0 else g)
+		global[i] = g
+		todo.append_array(sk.get_bone_children(i))
+	copy.transform = (_skel.get_parent() as Node3D).global_transform * _skel.transform
+	return copy
+
+
+## Drops to its belly (a leg is gone) and crawls from here on: the fall, unless `fall` is off,
+## then the crawl as its loop (a runner's quick one). Returns the fall's length.
+func _go_down(fall: bool) -> float:
+	crawling = true
+	_move = "crawl_run" if _move == "run" else "crawl"
+	_loop = _pick(_move)
+	_loop_speed = 1.0
+	if not fall or _dead:
+		_busy = false
+		_ap.play(_loop, BLEND)
+		return 0.0
+	var length := _one_shot("fall") / FALL_SPEED
+	_ap.speed_scale = FALL_SPEED
+	fall_speed = _lib.get_animation(_ap.current_animation).get_meta("speed", 0.0) * _hip * FALL_SPEED
+	return length
 
 
 ## A way out of a hit going along `dir`: back toward the shooter by `back`, mostly to one side, a little up.

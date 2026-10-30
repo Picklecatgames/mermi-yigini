@@ -127,17 +127,19 @@ func _run() -> void:
 			seen[a.model] = true
 			root.add_child(a)
 			var ap: AnimationPlayer = a.find_children("*", "AnimationPlayer", true, false)[0]
-			_expect(String(ap.current_animation).contains("idle"), "%s starts on %s" % [kind, ap.current_animation])
+			var low: bool = a.crawling  # on its belly it idles, swings and flinches there
+			var swing_clip := "floor_bite" if low else "attack"
+			_expect(String(ap.current_animation).contains("crawl" if low else "idle"), "%s starts on %s" % [kind, ap.current_animation])
 			a.move(1.2)
 			_expect(ap.current_animation.contains(BODY.KINDS[kind].move), "%s moves with %s" % [kind, ap.current_animation])
 			var swing: float = a.attack()
-			_expect(swing > 0.5 and ap.current_animation.contains("attack"), "%s attacks with %s" % [kind, ap.current_animation])
+			_expect(swing > 0.5 and ap.current_animation.contains(swing_clip), "%s attacks with %s" % [kind, ap.current_animation])
 			a.hit()  # ignored mid-swing
-			_expect(ap.current_animation.contains("attack"), "%s: a hit cut the attack" % kind)
+			_expect(ap.current_animation.contains(swing_clip), "%s: a hit cut the attack" % kind)
 			ap.advance(swing + 0.1)
 			_expect(ap.current_animation.contains(BODY.KINDS[kind].move), "%s back to %s after attacking" % [kind, ap.current_animation])
 			a.hit()
-			_expect(ap.current_animation.contains("hit"), "%s flinches with %s" % [kind, ap.current_animation])
+			_expect(ap.current_animation.contains(BODY.KINDS[kind].move if low else "hit"), "%s flinches with %s" % [kind, ap.current_animation])
 			var fall: float = a.die()
 			_expect(fall > 0.5 and ap.current_animation.contains("death"), "%s dies with %s" % [kind, ap.current_animation])
 			a.move(1.0)
@@ -145,9 +147,84 @@ func _run() -> void:
 			_expect(a.attach("Head").get_parent() is Skeleton3D, "%s head attachment" % kind)
 			a.free()
 	_expect(seen.size() == BODY.MODELS.size() + BODY.CREATURES.size(), "only %s ever picked" % [seen.keys()])
+	await _limbs()
 
 	print("zombie_body_check ", "ok" if _fails == 0 else "FAILED (%d)" % _fails)
 	quit(1 if _fails else 0)
+
+
+## Limbs: a round along a limb's line finds it (and the trunk keeps the ones through the chest), a
+## cut folds the bone, throws a copy of the limb that shows only that limb, and a leg drops a walker
+## to its belly to crawl and bite from there; a brute keeps its legs, a creature has none to lose.
+func _limbs() -> void:
+	var holder := Node3D.new()  # bodies look for the world two parents up
+	root.add_child(holder)
+	var parent := Node3D.new()
+	holder.add_child(parent)
+	var a: Node3D = BODY.new()
+	a.setup(&"walker", 3)
+	a.model = &"prisoner"
+	parent.add_child(a)
+	a.move(0.9)
+	var sk: Skeleton3D = a.find_children("*", "Skeleton3D", true, false)[0]
+	var ap: AnimationPlayer = a.find_children("*", "AnimationPlayer", true, false)[0]
+	ap.advance(0.5)
+	var bone := func(n: String) -> Vector3: return sk.to_global(sk.get_bone_global_pose(sk.find_bone("mixamorig_" + n)).origin)
+	for part: StringName in BODY.LIMBS:
+		var mid: Vector3 = (bone.call(BODY.LIMBS[part][0]) + bone.call(BODY.LIMBS[part][1])) / 2.0
+		var out: Vector3 = mid - bone.call("Hips")
+		out.y = 0.0
+		# from out to the side, toward the body: the limb is first in line
+		var dir := -out.normalized() if out.length() > 0.05 else Vector3.LEFT
+		_expect(a.limb_at(mid - dir * 0.05, dir) == part, "a round across %s finds %s" % [part, a.limb_at(mid - dir * 0.05, dir)])
+	var chest: Vector3 = bone.call("Spine2")
+	_expect(a.limb_at(chest + Vector3(0, 0, 0.2), Vector3(0, 0, -1)) in [&"", &"arm_l", &"arm_r"], "a round into the chest from the front")
+	var pieces := holder.get_child_count()
+	var fall: float = a.cut(&"forearm_l")
+	_expect(fall == 0.0 and &"forearm_l" in a.cuts and not a.can_lose(&"forearm_l") and a.can_lose(&"arm_l"), "forearm off, the arm still on")
+	_expect(holder.get_child_count() > pieces, "the forearm flew off")
+	var piece: Node3D = null
+	for n in holder.get_children():
+		if n.get_script() == preload("res://scripts/zombie_gibs.gd") and n.find_children("*", "Skeleton3D", true, false).size() > 0:
+			piece = n
+	_expect(piece != null, "the thrown forearm is a copy of the model")
+	if piece:
+		var psk: Skeleton3D = piece.find_children("*", "Skeleton3D", true, false)[0]
+		var hand := psk.get_bone_global_pose(psk.find_bone("mixamorig_LeftHand"))
+		var head := psk.get_bone_global_pose(psk.find_bone("mixamorig_Head"))
+		_expect(hand.basis.get_scale().x > 0.9 and head.basis.get_scale().x < 0.01, "the copy shows the hand and not the head")
+		_expect(psk.to_global(hand.origin).distance_to(bone.call("LeftHand")) < 0.05, "the copy's hand starts where the hand was")
+	var folded := [INF]  # the folding is a modifier: read it as the skeleton finishes its update
+	var read := func() -> void: folded[0] = sk.get_bone_global_pose(sk.find_bone("mixamorig_LeftHand")).basis.get_scale().x
+	sk.skeleton_updated.connect(read)
+	await process_frame
+	await process_frame
+	sk.skeleton_updated.disconnect(read)
+	_expect(folded[0] < 0.01, "the body's hand is folded away (%.3f)" % folded[0])
+	_expect(a.arms_hurt() == 1, "one arm hurt")
+	_expect(not a.crawling, "still on its feet")
+	fall = a.cut(&"shin_r")
+	_expect(fall > 0.5 and a.crawling and ap.current_animation.begins_with("fall"), "a shin off: it falls (%.2f s, %s)" % [fall, ap.current_animation])
+	ap.advance(fall + 0.3)
+	_expect(ap.current_animation.begins_with("crawl"), "and crawls after (%s)" % ap.current_animation)
+	var bite: float = a.attack()
+	_expect(bite > 0.5 and ap.current_animation.begins_with("floor_bite"), "and bites from the floor")
+	_expect(a.cut(&"shin_r") == 0.0 and a.cuts.count(&"shin_r") == 1, "a part goes once")
+	_expect(a.cut(&"leg_l") == 0.0 and &"leg_l" in a.cuts, "the other leg on the belly: no second fall")
+	a.die()
+	ap.advance(0.1)
+	_expect(ap.current_animation.begins_with("death"), "dies on its belly with %s" % ap.current_animation)
+	var brute: Node3D = BODY.new()
+	brute.setup(&"brute", 1)
+	parent.add_child(brute)
+	_expect(not brute.can_lose(&"leg_l") and brute.can_lose(&"arm_l"), "a brute keeps its legs")
+	for kind in [&"dog", &"blob"]:
+		var c: Node3D = BODY.new()
+		c.setup(kind, 1)
+		parent.add_child(c)
+		_expect(c.limb_at(c.global_position + Vector3(0.3, 0.3, 0), Vector3.LEFT) == &"" and not c.can_lose(&"leg_l"), "%s has no limbs to lose" % kind)
+	holder.free()
+	print("limbs ok")
 
 
 func _y(sk: Skeleton3D, bone: String, body: Node3D) -> float:

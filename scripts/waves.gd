@@ -12,7 +12,8 @@ extends Node3D
 ## A joiner gets the phase and the living zombies where they stand (join_cues).
 ##
 ## Cues (wave_cue): [&"reset"] (a joiner drops what it had alone) · [&"phase", wave, phase, left, fence] · [&"spawn", id, kind, seed, gate, pos, yaw,
-## speed, rail_z, walking] · [&"die", id, left, killer, weak, at, gun, gib] · [&"fence", fence].
+## speed, rail_z, walking, cuts] · [&"die", id, left, killer, weak, at, gun, gib] · [&"fence", fence] ·
+## [&"limb", id, part] (a limb torn off, zombie_body.gd LIMBS).
 ##
 ## TEMPORARY until players can die: the railing has FENCE_HP, every claw takes a bite, and at 0 the
 ## wave is lost (the dead go, the same wave waits again). The numbers below are first guesses.
@@ -51,6 +52,18 @@ const FENCE_SEND := 0.25  # s between the host's fence updates
 ## and a blob always burst (a blob has no head to lose).
 const SHRED := 4
 const SHRED_TIME := 0.5
+## Limbs (Mixamo bodies; zombie_body.gd LIMBS): the host counts paying hits per arm and per leg, and
+## at LIMB_HITS ("arm" / "leg", ×LIMB_HITS_BRUTE for a brute, which keeps its legs) tears it off at
+## the joint above the last hit. A torn arm slows its swings by ARM_SLOW of a swing each; a torn
+## leg drops it to its belly to crawl at LEGLESS of its speed.
+const LIMB_HITS := {"arm": 2, "leg": 3}
+const LIMB_HITS_BRUTE := 3
+const ARM_SLOW := 0.6
+const LEGLESS := {&"walker": 0.65, &"runner": 0.45}
+## The crowd keeps apart: two closer than SPREAD m (×size; the low ones more) push each other off.
+const SPREAD := 0.6
+const SPREAD_PUSH := 4.0  # 1/s
+const WAYPOINT_SLACK := 0.8  # m: near enough to a gate's mouth on the way (only the railing spot is exact)
 ## kind -> walk speed (m/s), hit points (a head shot takes 3), bite out of the fence per claw
 const STATS := {&"walker": [0.9, 5, 1], &"runner": [3.0, 3, 1], &"crawler": [0.6, 4, 1], &"brute": [1.4, 25, 4],
 		&"blob": [0.7, 12, 2], &"dog": [4.5, 2, 1]}
@@ -105,6 +118,7 @@ var _seq := 0  # bumped by every phase, so a sequence left waiting stops when th
 var _rng := RandomNumberGenerator.new()
 var _queue: Array[StringName] = []
 var _hp := {}  # id -> hit points left
+var _limb_hits := {}  # id -> {"arm_l": hits, ...}
 var _next_id := 1
 var _next_spawn := 0
 var _spawn_wait := 0.0
@@ -166,7 +180,7 @@ func join_cues() -> Array:
 		if not z.dead:
 			var node: Node3D = z.node
 			cues.append([&"spawn", id, z.kind, z.seed, z.gate, node.global_position, node.global_rotation.y,
-					z.speed, z.rail.z, z.moving])
+					z.speed, z.rail.z, z.moving, z.body.cuts.duplicate()])
 	return cues
 
 
@@ -176,6 +190,9 @@ func _process(delta: float) -> void:
 	for z: Dictionary in _zombies.values():
 		if not z.dead:
 			_walk(z, delta)
+	_spread(delta)
+	for z: Dictionary in _zombies.values():
+		if not z.dead:
 			(z.head_shape as Node3D).global_position = (z.head as Node3D).global_position
 	if Net.is_client:
 		return
@@ -198,6 +215,7 @@ func _on_lever(_peer: int) -> void:
 		return
 	_queue = _plan(wave)
 	_hp.clear()
+	_limb_hits.clear()
 	_next_spawn = 0
 	GameState.cue_wave([&"phase", wave, Phase.STARTING, _queue.size(), FENCE_HP])
 	for i in mini(_spawns.size(), _queue.size()):  # a pen-full waits behind the gates
@@ -291,7 +309,12 @@ func _on_cue(cue: Array) -> void:
 		&"phase":
 			_set_phase(cue[1], cue[2], cue[3], cue[4])
 		&"spawn":
-			_add_zombie(cue[1], cue[2], cue[3], cue[4], cue[5], cue[6], cue[7], cue[8], cue[9])
+			_add_zombie(cue[1], cue[2], cue[3], cue[4], cue[5], cue[6], cue[7], cue[8], cue[9],
+					cue[10] if cue.size() > 10 else [])
+		&"limb":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty():
+				_cut(z, cue[2], true)
 		&"die":
 			left = cue[2]
 			var z: Dictionary = _zombies.get(cue[1], {})
@@ -444,7 +467,7 @@ func _slide(open: bool, instant: bool) -> void:
 		_sound(&"gate", g)
 
 
-func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector3, yaw: float, speed: float, rail_z: float, walking: bool) -> void:
+func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector3, yaw: float, speed: float, rail_z: float, walking: bool, cuts: Array = []) -> void:
 	if _zombies.has(id):
 		return
 	var node := Zombie.new()
@@ -485,10 +508,12 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 	var z := {"id": id, "node": node, "body": body, "kind": kind, "seed": seed, "gate": gate,
 			"mouth": mouth, "rail": Vector3(RAIL_X, 0.0, rail_z), "head": body.attach("Head"),
 			"head_shape": head, "trunk": trunk, "speed": speed, "dead": false, "path": [],
-			"stagger": 0.0, "released": false, "moving": false, "hits": []}
+			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": []}
 	_zombies[id] = z
 	_next_id = maxi(_next_id, id + 1)  # should this machine ever be the one handing them out
 	body.idle()
+	for part: StringName in cuts:  # a joiner: what was torn off before it came, already off
+		_cut(z, part, false)
 	if phase == Phase.FIGHT:  # one still waiting to set off on the host waits a little here too
 		_release(z, not walking)
 
@@ -519,15 +544,24 @@ func _release(z: Dictionary, stagger: bool) -> void:
 
 
 func _walk(z: Dictionary, delta: float) -> void:
+	var falling: bool = z.down > 0.0  # going down on a torn leg: stumbles on a little, then crawls
+	z.down = maxf(0.0, z.down - delta)
 	if z.path.is_empty():
 		return
 	var node: StaticBody3D = z.node
 	var to: Vector3 = z.path[0] - node.global_position
 	to.y = 0.0
+	if falling:
+		node.global_position += to.limit_length(z.body.fall_speed * delta)
+		if z.down <= 0.0:
+			z.body.move(z.speed)
+		return
 	z.stagger = maxf(0.0, z.stagger - delta)
 	var step: float = z.speed * delta * (0.2 if z.stagger > 0.0 else 1.0)
-	if to.length() <= step:
-		node.global_position += to
+	var last: bool = z.path.size() == 1
+	if to.length() <= (step if last else maxf(step, WAYPOINT_SLACK)):  # a crowd at a gate can't all stand on its spot
+		if last:
+			node.global_position += to
 		z.path.pop_front()
 		if z.path.is_empty():
 			node.look_at(node.global_position + Vector3.LEFT, Vector3.UP)
@@ -541,13 +575,16 @@ func _walk(z: Dictionary, delta: float) -> void:
 
 func _claw(z: Dictionary) -> void:
 	while not z.dead and is_instance_valid(z.node) and phase == Phase.FIGHT:
+		if z.down > 0.0:  # a leg torn off at the railing: down first, then it bites from there
+			await get_tree().process_frame
+			continue
 		var t: float = z.body.attack()
 		await get_tree().create_timer(t * 0.5).timeout
 		if z.dead or phase != Phase.FIGHT:
 			return
 		if not Net.is_client:
 			_bite(z.kind)
-		await get_tree().create_timer(t * 0.5 + 0.4).timeout
+		await get_tree().create_timer(t * (0.5 + ARM_SLOW * z.body.arms_hurt()) + 0.4).timeout
 
 
 func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _gold: int, weak: bool, combo: int) -> void:
@@ -556,11 +593,13 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 	var z: Dictionary = _zombies.get(target.get_meta("zombie"), {})
 	if z.is_empty() or z.dead:
 		return
-	z.body.wound(at, dir, weak)
-	z.stagger = 0.35  # held back a moment by the hit
+	var part: StringName = z.body.wound(at, dir, weak)
+	z.stagger = 0.7 if BODY.is_leg(part) else 0.35  # held back a moment by the hit, a leg longer
 	z.body.hit()
 	if Net.is_client or combo == 0 or not _hp.has(z.id):  # combo 0: not a paying hit (wrong side of the line)
 		return
+	if part != &"":
+		_limb_hit(z, part)
 	_hp[z.id] -= 3 if weak else 1
 	var now := Time.get_ticks_msec() / 1000.0
 	z.hits = (z.hits as Array).filter(func(t: float) -> bool: return now - t < SHRED_TIME) + [now]
@@ -574,6 +613,68 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 			gib = &"body"
 		GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1, peer, weak,
 				(z.node as Node3D).global_position, gun, gib])
+
+
+## Host: a paying hit on `part`; enough of them on that arm or leg and it goes, at the joint above
+## where this one went in.
+func _limb_hit(z: Dictionary, part: StringName) -> void:
+	var limb := ("leg" if BODY.is_leg(part) else "arm") + String(part).right(2)
+	var hits: Dictionary = _limb_hits.get_or_add(z.id, {})
+	hits[limb] = hits.get(limb, 0) + 1
+	var need: int = LIMB_HITS[limb.left(3)] * (LIMB_HITS_BRUTE if z.kind == &"brute" else 1)
+	if hits[limb] >= need:
+		hits[limb] = 0  # what is left of it (an arm that lost the forearm) can go too
+		GameState.cue_wave([&"limb", z.id, part])
+
+
+## Every peer: `part` comes off (zombie_body.gd cut()). A leg lost drops a standing one to its belly:
+## it waits out the fall, then crawls on slower and lies low for the rounds.
+func _cut(z: Dictionary, part: StringName, fly: bool) -> void:
+	var was_low: bool = z.body.crawling
+	z.down = maxf(z.down, z.body.cut(part, fly))
+	if was_low or not z.body.crawling:
+		return
+	z.speed *= LEGLESS.get(z.kind, 0.6)
+	(z.node as Zombie).tall = 0.9
+	var trunk: CollisionShape3D = z.trunk
+	var low: Array = LOW[&"crawler"]
+	var cap := trunk.shape as CapsuleShape3D
+	cap.radius = low[0]
+	cap.height = low[1]
+	trunk.rotation.x = PI / 2
+	trunk.position = Vector3(0, low[2], 0)
+	if z.down <= 0.0 and not z.path.is_empty():
+		z.body.move(z.speed)
+
+
+## Keeps the crowd from walking into each other: every pair of the living standing too close is
+## pushed apart along the floor, those already at the railing only along it. Each peer its own.
+func _spread(delta: float) -> void:
+	var live: Array[Dictionary] = []
+	var reach: Array[float] = []
+	for z: Dictionary in _zombies.values():
+		if not z.dead and z.released:
+			live.append(z)
+			reach.append(SPREAD * (1.5 if z.body.crawling or LOW.has(z.kind) else 1.0) * z.body.size)
+	var k := minf(1.0, SPREAD_PUSH * delta)
+	for i in live.size():
+		var a: Node3D = live[i].node
+		for j in range(i + 1, live.size()):
+			var off := a.global_position - (live[j].node as Node3D).global_position
+			off.y = 0.0
+			var r := (reach[i] + reach[j]) * 0.5
+			var d := off.length()
+			if d >= r:
+				continue
+			var push := (off / d if d > 0.001 else Vector3(0, 0, 1)) * (r - d) * 0.5 * k
+			_nudge(live[i], push)
+			_nudge(live[j], -push)
+
+
+func _nudge(z: Dictionary, by: Vector3) -> void:
+	if z.path.is_empty():  # clawing at the railing: slides along it, never through
+		by = Vector3(0.0, 0.0, by.z)
+	(z.node as Node3D).global_position += by
 
 
 func _kill(id: int, gib: StringName) -> void:
