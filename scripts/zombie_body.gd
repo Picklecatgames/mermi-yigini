@@ -8,7 +8,11 @@ extends Node3D
 ##   var body := ZOMBIE_BODY.new()
 ##   body.setup(&"walker", seed)
 ##   add_child(body)
+## Sounds come from a zombie_voice.gd child on the head bone; die(&"head") / die(&"body") tears it
+## apart (zombie_gibs.gd) instead of letting it fall whole.
 
+const VOICE := preload("res://scripts/zombie_voice.gd")
+const GIBS := preload("res://scripts/zombie_gibs.gd")
 const LIB := preload("res://assets/characters/zombies/zombie_anims.res")
 const MODELS := {
 	&"prisoner": preload("res://assets/characters/zombies/prisoner/prisoner.scn"),
@@ -79,6 +83,8 @@ var _nod := Vector3.ZERO
 var _nod_v := Vector3.ZERO
 var _marks: Array[Decal] = []
 var _next_mark := 0
+var _voice: Node3D
+var _last_dir := Vector3.FORWARD  # the way the last round went, for where the pieces fly
 
 
 ## Lays the spring's bend over whatever the animation posed.
@@ -87,12 +93,15 @@ class Flinch extends SkeletonModifier3D:
 	var nod := Vector3.ZERO
 	var spine: Array[int] = []
 	var head := -1
+	var head_gone := false
 
 	func _process_modification() -> void:
 		var sk := get_skeleton()
 		for b in spine:
 			_turn(sk, b, bend / spine.size())
 		_turn(sk, head, nod)
+		if head_gone and head >= 0:  # blown off: folded to nothing at the neck
+			sk.set_bone_pose_scale(head, Vector3.ONE * 0.001)
 
 	func _turn(sk: Skeleton3D, b: int, v: Vector3) -> void:
 		if b < 0 or v.length() < 0.0001:
@@ -135,6 +144,9 @@ func _ready() -> void:
 		_flinch.spine.append(_skel.find_bone("mixamorig_" + b))
 	_flinch.head = _skel.find_bone("mixamorig_Head")
 	_skel.add_child(_flinch)
+	_voice = VOICE.new()
+	_voice.setup(kind, _seed)
+	attach("Head").add_child(_voice)
 	idle()
 
 
@@ -157,6 +169,8 @@ func _exit_tree() -> void:
 ## the back and a little back toward the shooter, and drops land on the floor behind.
 func wound(at: Vector3, dir: Vector3, head: bool) -> void:
 	dir = dir.normalized()
+	_last_dir = dir
+	_voice.shot(at, head)
 	if not _dead:
 		var axis := Vector3.UP.cross(dir)
 		if axis.length() > 0.01:
@@ -173,11 +187,13 @@ func wound(at: Vector3, dir: Vector3, head: bool) -> void:
 
 ## Loops one of the kind's idles (in the pen, at the gate).
 func idle() -> void:
+	_voice.wake()
 	_play_loop(_pick("idle"), 1.0)
 
 
 ## Loops the kind's walk / run / crawl, its stride stretched to `speed` m/s.
 func move(speed: float) -> void:
+	_voice.wake()
 	var clip := _pick(_move)
 	var natural: float = LIB.get_animation(clip).get_meta("speed", 0.0) * _hip
 	_play_loop(clip, clampf(speed / natural, 0.6, 1.8) if natural > 0.05 else 1.0)
@@ -185,6 +201,7 @@ func move(speed: float) -> void:
 
 ## Swing at the fence or a player. Returns the clip's length (s).
 func attack() -> float:
+	_voice.attack()
 	return _one_shot("attack")
 
 
@@ -196,15 +213,29 @@ func hit() -> void:
 
 ## Roar (mutants) or scream (zombies). Returns the clip's length (s).
 func scream() -> float:
+	_voice.scream()
 	return _one_shot("scream" if _set == "" else "roar")
 
 
-## Falls and stays down. Returns the clip's length (s).
-func die() -> float:
+## Falls and stays down. Returns the clip's length (s). `gib`: &"head" blows the head off in a
+## spray of meat (no death rattle, the mouth is gone), &"body" bursts the chest; the wave code
+## decides when (a head shot kill, a burst of rounds, a brute going down).
+func die(gib := &"") -> float:
 	if _dead:
 		return 0.0
 	var clip := _pick("death")
 	_dead = true
+	var head := _skel.to_global(_skel.get_bone_global_pose(_flinch.head).origin)
+	var chest := _skel.to_global(_skel.get_bone_global_pose(_flinch.spine[1]).origin)
+	_voice.die(head if gib == &"head" else chest, gib != &"", gib == &"head")
+	if gib != &"":
+		var from := head if gib == &"head" else chest
+		GIBS.burst(get_parent().get_parent(), from, _last_dir, global_position.y,
+				(9 if gib == &"head" else 14) + (8 if kind == &"brute" else 0), size)
+		_spray(from, Vector3.UP, 40, 1.3)
+		_spray(from, _last_dir, 30, 1.2)
+		if gib == &"head":
+			_flinch.head_gone = true
 	_ap.speed_scale = 1.0
 	_ap.play(clip, BLEND)
 	var length := LIB.get_animation(clip).length
@@ -219,6 +250,7 @@ func _bleed_out(after: float) -> void:
 		return
 	var hips := _skel.to_global(_skel.get_bone_global_pose(0).origin)
 	var d := _mark(hips, POOL, 0.3)
+	_voice.ooze(hips)
 	create_tween().tween_property(d, "size", Vector3(1.4, 0.6, 1.4) * size, 5.0) \
 			.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
 

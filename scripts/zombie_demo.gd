@@ -13,6 +13,11 @@ const RAIL_X := 14.8  # where they stop, just past the railing (x 14)
 const RAIL_Z := 11.0  # ± along it
 ## kind -> walk speed (m/s), shots to kill (a head shot counts 3)
 const STATS := {&"walker": [0.9, 5], &"runner": [3.0, 3], &"crawler": [0.6, 4], &"brute": [1.4, 25]}
+## How it comes apart: a head shot kill takes the head off, SHRED rounds inside SHRED_TIME (a burst
+## from the UZI or the minigun) burst the body, a brute always bursts.
+const SHRED := 4
+const SHRED_TIME := 0.5
+const VOICE := preload("res://scripts/zombie_voice.gd")
 
 var _zombies: Array[Dictionary] = []
 var _round := 0
@@ -22,6 +27,7 @@ var _spins: Array[Node3D] = []
 
 func _ready() -> void:
 	GameState.shot_landed.connect(_on_shot)
+	_pen_cries()
 	await get_tree().process_frame  # Main is still adding its children
 	_spawn()
 	await get_tree().create_timer(ALARM_AT).timeout
@@ -104,7 +110,7 @@ func _spawn() -> void:
 		node.add_child(head)
 		_zombies.append({"node": node, "body": body, "kind": kind, "spawn": at,
 				"head": body.attach("Head"), "head_shape": head, "trunk": trunk,
-				"speed": STATS[kind][0], "hp": STATS[kind][1], "dead": false, "path": [], "seed": seed, "stagger": 0.0})
+				"speed": STATS[kind][0], "hp": STATS[kind][1], "dead": false, "path": [], "seed": seed, "stagger": 0.0, "hits": []})
 		if _gates_open:
 			_release(_zombies[-1])
 
@@ -141,6 +147,8 @@ func _on_shot(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, 
 		z.body.wound(at, dir, weak)
 		z.stagger = 0.35  # held back a moment by the hit
 		z.hp -= 3 if weak else 1
+		var now := Time.get_ticks_msec() / 1000.0
+		z.hits = (z.hits as Array).filter(func(t: float) -> bool: return now - t < SHRED_TIME) + [now]
 		if z.hp > 0:
 			z.body.hit()
 			return
@@ -149,7 +157,12 @@ func _on_shot(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, 
 		target.remove_from_group("target")
 		(z.trunk as CollisionShape3D).disabled = true
 		(z.head_shape as CollisionShape3D).disabled = true
-		z.body.die()
+		var gib := &""
+		if weak:
+			gib = &"head"
+		elif z.kind == &"brute" or (z.hits as Array).size() >= SHRED:
+			gib = &"body"
+		z.body.die(gib)
 		_cleanup(z)
 		return
 
@@ -162,6 +175,19 @@ func _cleanup(z: Dictionary) -> void:
 		await get_tree().create_timer(3.0).timeout
 		_round += 1
 		_spawn()
+
+
+## While the gates are shut, now and then one of them screams somewhere behind them.
+func _pen_cries() -> void:
+	await get_tree().process_frame
+	while is_inside_tree():
+		if not _gates_open:
+			var pens := get_tree().get_nodes_in_group("wave_spawn")  # in the pens, behind the gates
+			if not pens.is_empty():
+				VOICE.distant((pens.pick_random() as Node3D).global_position + Vector3.UP * 1.5)
+		await get_tree().create_timer(randf_range(2.0, 5.0)).timeout
+		if _gates_open:
+			return
 
 
 func _alarms() -> void:
