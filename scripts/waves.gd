@@ -28,6 +28,7 @@ signal zombie_killed(peer: int, kind: StringName, weak: bool, at: Vector3, gun: 
 enum Phase { READY, STARTING, FIGHT, CLEARED, FAILED }
 
 const BODY := preload("res://scripts/zombie_body.gd")
+const REACT := preload("res://scripts/zombie_hit_react.gd")
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const SOUNDS := "res://assets/sounds/waves/"
 const LEVER_TIME := 0.6  # s from the pull to the siren and the lights
@@ -518,6 +519,8 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			trunk.position = Vector3(0, cap.height / 2.0, 0)
 		trunk.set_meta("region", &"torso")
 		node.add_child(trunk)
+	var react: Node = REACT.new()
+	react.setup(body.get("_skel"))
 	var head := CollisionShape3D.new()
 	var ball := SphereShape3D.new()
 	ball.radius = low[3] * k if low and not bones else 0.13 * tall / 1.8
@@ -531,7 +534,7 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			mouth = g.get_meta("mouth")
 	var z := {"id": id, "node": node, "body": body, "kind": kind, "seed": seed, "gate": gate,
 			"mouth": mouth, "rail": Vector3(RAIL_X, 0.0, rail_z), "head": body.attach("Head"),
-			"head_shape": head, "trunk": trunk, "bones": bones, "speed": speed, "dead": false, "path": [],
+			"head_shape": head, "trunk": trunk, "bones": bones, "react": react, "speed": speed, "dead": false, "path": [],
 			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": []}
 	_zombies[id] = z
 	_next_id = maxi(_next_id, id + 1)  # should this machine ever be the one handing them out
@@ -619,6 +622,7 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 	if z.is_empty() or z.dead:
 		return
 	var part: StringName = z.body.wound(at, dir, weak)
+	z.react.hit(at, dir, GameState.GUNS[GameState.player(peer).gun].id, weak)  # where it went in gives
 	z.stagger = 0.7 if BODY.is_leg(part) else 0.35  # held back a moment by the hit, a leg longer
 	z.body.hit()
 	if Net.is_client or combo == 0 or not _hp.has(z.id):  # combo 0: not a paying hit (wrong side of the line)

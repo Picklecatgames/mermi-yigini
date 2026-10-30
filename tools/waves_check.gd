@@ -264,13 +264,17 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 				if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
 					match z.id % 3:  # some into the legs, some into an arm
 						1: aim = z.body.call("_bone_at", "RightLeg")  # the knee
-						2: aim = z.body.call("_bone_at", "LeftForeArm")
+						2: if z.body.can_lose(&"forearm_l"):  # (once it is off, the trunk)
+							aim = z.body.call("_bone_at", "LeftForeArm")
 				break
 		if aim != Vector3.INF:
-			var from := Vector3(SHOOT_FROM_X, gs.EYE, aim.z)
+			# Level with it, or a step aside when a railing post stands right in the way.
+			var post := -27.5 + roundf((aim.z + 27.5) / 2.75) * 2.75  # build_arena.gd _firing_line
+			var stand := aim.z if absf(aim.z - post) > 0.12 else aim.z + (0.6 if aim.z >= post else -0.6)
+			var from := Vector3(SHOOT_FROM_X, gs.EYE, stand)
 			if me:
-				if me.global_position.distance_to(Vector3(SHOOT_FROM_X, 0, aim.z)) > 0.3:
-					me.global_position = Vector3(SHOOT_FROM_X, 0, aim.z)
+				if me.global_position.distance_to(Vector3(SHOOT_FROM_X, 0, stand)) > 0.3:
+					me.global_position = Vector3(SHOOT_FROM_X, 0, stand)
 					me.reset_physics_interpolation()
 					await create_timer(0.25).timeout  # our pose reaches the host
 					continue

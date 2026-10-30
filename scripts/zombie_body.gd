@@ -154,6 +154,9 @@ class Flinch extends SkeletonModifier3D:
 			_turn(sk, arms[i], arm_kick[i])
 		if head_gone and head >= 0:  # blown off: folded to nothing at the neck
 			sk.set_bone_pose_scale(head, Vector3.ONE * 0.001)
+			# down into the neck's root too: folded at the neck's top, the skin half on the head
+			# was drawn up into a spike there
+			sk.set_bone_pose_position(head, Vector3.ZERO)
 		for b in cut:
 			sk.set_bone_pose_scale(b, Vector3.ONE * 0.001)
 
