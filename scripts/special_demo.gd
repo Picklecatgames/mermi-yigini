@@ -43,6 +43,10 @@ func _ready() -> void:
 	add_child(_body)
 	_body.global_position = at + Vector3.UP * 0.5
 	GameState.player(PEER).gun = 1
+	for id: String in GameState.CHARACTERS:  # a body other than ours
+		if id != GameState.player().character:
+			GameState.player(PEER).character = id
+			break
 	GameState.player_shot.connect(_on_player_shot)
 	refill()
 	# Top left, under the heap's count (scripts/hud.gd).

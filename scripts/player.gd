@@ -22,6 +22,7 @@ const BENCH_MENU := preload("res://scripts/bench_menu.gd")
 const BOARD_MENU := preload("res://scripts/quest_board.gd")
 const MELTER_MENU := preload("res://scripts/melter_menu.gd")
 const PRESS_MENU := preload("res://scripts/press_menu.gd")
+const CHARACTER_PICK := preload("res://scripts/character_pick.gd")
 const LASER_DOT := Vector2(0.03, 0.012)  # m across the dot: at least, and per metre away (stays visible far off)
 const LASER_BEAM := Vector2(0.0006, 0.0005)  # m beam radius at the lens, and per metre on: about a pixel all the way
 const WHEEL_HOLD := 0.22  # s R is held before the ammo wheel opens; a shorter press reloads
@@ -50,6 +51,7 @@ const BALLOON_TIME := 4.0  # s
 const BALLOON_RISE := 1.0  # m/s
 const BALLOON_FALL := 1.0  # m/s at most on the way down
 const SPECIAL_DEMO := preload("res://scripts/special_demo.gd")  # N, debug builds, solo
+const CHARACTER_DEMO := preload("res://scripts/character_demo.gd")  # K, debug builds, solo
 ## Scream: the clown's face rushes at the view, holds, shakes, is gone. Its sound is the user's
 ## recording, played if it is there (no sound is made in code).
 const SCREAM_FACE := preload("res://assets/bullet/tips/scream_face.glb")
@@ -119,6 +121,7 @@ var _bench: CanvasLayer = BENCH_MENU.new()  # the workshop bench's view (E in fr
 var _board_menu: CanvasLayer = BOARD_MENU.new()  # the quest board's screen (E in front of it)
 var _melter: CanvasLayer = MELTER_MENU.new()  # the hopper's screen (E beside it pours the hand in)
 var _press: CanvasLayer = PRESS_MENU.new()  # the press's screen (E in front of it)
+var _pick: CanvasLayer = CHARACTER_PICK.new()  # who to play as, until picked (GameState.CHARACTERS)
 var _laser_dot := MeshInstance3D.new()  # where the bought laser says the shot will land
 var _laser_beam := MeshInstance3D.new()  # from the laser's lens to the dot, through the air
 @onready var _step_sound: AudioStreamPlayer3D = $StepSound
@@ -179,6 +182,7 @@ func _ready() -> void:
 	add_child(_board_menu)
 	add_child(_melter)
 	add_child(_press)
+	add_child(_pick)
 	_make_laser_dot()
 	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
@@ -451,7 +455,7 @@ void fragment() {
 ## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
 func _hands_busy() -> bool:
 	return GameState.player().placing or _shop.visible or _bench.visible or _board_menu.visible \
-		or _melter.visible or _press.visible
+		or _melter.visible or _press.visible or _pick.visible
 
 
 ## E in the workshop: of the board, bench, hopper and press in reach, the one the view points
@@ -517,6 +521,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:
 		_toggle_demo(not event.shift_pressed)
+	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
+		_toggle_mirror(not event.shift_pressed)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
 		# 1 draws the first gun; the key of the one in hand puts it away (bare fists).
 		GameState.request_select_gun(event.physical_keycode - KEY_1 + 1)
@@ -553,6 +559,22 @@ func _toggle_demo(on: bool) -> void:
 		return
 	demo = SPECIAL_DEMO.new()
 	demo.name = "SpecialDemo"
+	get_parent().add_child(demo)
+
+
+## K: the character test (scripts/character_demo.gd) opens, or puts on the next character;
+## Shift+K closes it.
+func _toggle_mirror(on: bool) -> void:
+	var demo := get_parent().get_node_or_null("CharacterDemo")
+	if not on:
+		if demo:
+			demo.queue_free()
+		return
+	if demo:
+		demo.next_character()
+		return
+	demo = CHARACTER_DEMO.new()
+	demo.name = "CharacterDemo"
 	get_parent().add_child(demo)
 
 

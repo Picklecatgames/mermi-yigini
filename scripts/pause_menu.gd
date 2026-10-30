@@ -124,7 +124,7 @@ func _may_open() -> bool:
 	var p = GameState.player()
 	if p and p.placing:
 		return false
-	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu", "MelterMenu", "PressMenu"]:
+	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu", "MelterMenu", "PressMenu", "CharacterPick"]:
 		for n in get_tree().root.find_children(menu, "CanvasLayer", true, false):
 			if (n as CanvasLayer).visible:
 				return false

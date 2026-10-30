@@ -1,50 +1,69 @@
 extends SceneTree
 ## Headless check of another player's third-person character (scripts/remote_players.gd):
 ##   Godot.exe --headless --path . -s res://tools/remote_anim_check.gd
-## Feeds it poses like the network would and checks that it stands, holds every gun with both hands
-## and aims it where the player looks, jogs, jumps, lands with a crouch, reloads and fires; and that
-## bare-handed it holds nothing.
+## Feeds it poses like the network would and checks, in every body (GameState.CHARACTERS), that it
+## stands, holds every gun with both hands and aims it where the player looks, runs forward,
+## sideways and backwards in the right clips, jumps, lands with a crouch, reloads and fires; that
+## bare-handed it holds nothing; and that before picking there is no body.
 
 var mgr: Node3D
+var gs: Node
 var ok := true
 
 
 func _initialize() -> void:
+	gs = root.get_node("GameState")
 	mgr = load("res://scripts/remote_players.gd").new()
 	root.add_child(mgr)
 	await process_frame
 	var p := Vector3.ZERO
-	var gs := root.get_node("GameState")
-	await _hold(p, 0.0, 0, false, 0.5)
-	_check("ground", -1.0, "stands bare-handed, no gun", func(c) -> bool: return c.speed < 0.1 and _foot(c) < 0.15 and not c._gun.visible)
-	for g in range(1, gs.GUNS.size()):
-		if not gs.GUNS[g].ready:
-			continue
-		gs.gun_changed.emit(7, g)
-		await _hold(p, 0.0, 0, false, 0.3)
-		_check("", -1.0, "%s: both hands on the gun (%.1f cm off)" % [gs.GUNS[g].id, _left_off_gun(mgr.character(7))], func(c) -> bool: return _left_off_gun(c) < 0.5)
-		_check("ground", 0.0, "%s: aims ahead" % gs.GUNS[g].id, func(c) -> bool: return c._gun.visible)
-		await _hold(p, 0.7, 0, false, 0.4)
-		_check("ground", 0.7, "%s: aims up with the look" % gs.GUNS[g].id, func(c) -> bool: return c.muzzle_position().y > 1.7)
-		await _hold(p, 0.0, 0, false, 0.3)
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < 800:
-		p.z -= 5.0 * 0.05
-		mgr._on_pose(7, Time.get_ticks_msec() / 1000.0, p, 0.0, 0.0, 1, false)
-		await create_timer(0.05).timeout
-	_check("ground", 0.0, "jogs at about 5 m/s", func(c) -> bool: return absf(c.speed - 5.0) < 1.0)
-	await _hold(p, 0.0, 0, true, 0.4)
-	_check("jump_start", 0.0, "jumps, feet tucked up", func(c) -> bool: return _foot(c) > 0.3)
-	await _hold(p, 0.0, 0, false, 0.3)
-	_check("ground", 0.0, "lands with a crouch", func(c) -> bool: return c._tree.get("parameters/land/active") and c.muzzle_position().y < 1.2)
-	await _hold(p, 0.0, root.get_node("GameState").Act.RELOADING, false, 0.5)
-	_check("", -1.0, "reloads, left hand off the gun", func(c) -> bool: return c._tree.get("parameters/reload/active") and _left_off_gun(c) > 3.0)
-	mgr.character(7).shoot()
-	await process_frame  # emitted before the nodes process: the second one has advanced the tree
-	await process_frame
-	_check("", -1.0, "fires: shot clip and flash", func(c) -> bool: return c._tree.get("parameters/shoot/active") and c._flash_left > 0.0)
+	await _hold(p, 0.0, 0, false, 0.2)
+	_ok(mgr.character(7)._model == null and mgr.character(7).visible, "no body before picking, the tag shows")
+	for id: String in gs.CHARACTERS:
+		gs.character_changed.emit(7, id)
+		gs.gun_changed.emit(7, 0)
+		await _hold(p, 0.0, 0, false, 0.4)
+		var c = mgr.character(7)
+		_ok(c.look == id and c._model != null, "%s: wears its body" % id)
+		_ok(c.speed < 0.1 and _foot(c) < 0.15 and not c._gun.visible, "%s: stands bare-handed, no gun" % id)
+		for g in range(1, gs.GUNS.size()):
+			if not gs.GUNS[g].ready:
+				continue
+			var gun: String = gs.GUNS[g].id
+			gs.gun_changed.emit(7, g)
+			await _hold(p, 0.0, 0, false, 0.3)
+			_ok(_left_off_gun(c) < 0.01, "%s %s: both hands on the gun (%.1f cm off)" % [id, gun, _left_off_gun(c) * 100.0])
+			_ok(_aim(c, 0.0) > 0.995, "%s %s: aims ahead (%.3f)" % [id, gun, _aim(c, 0.0)])
+			await _hold(p, 0.7, 0, false, 0.4)
+			_ok(_aim(c, 0.7) > 0.995 and c.muzzle_position().y > 1.5, "%s %s: aims up with the look (%.3f)" % [id, gun, _aim(c, 0.7)])
+			await _hold(p, 0.0, 0, false, 0.3)
+		# Running: forward, to the right (+X with the player facing -Z), backwards, in the pistol stance.
+		gs.gun_changed.emit(7, 1)
+		# A big body (the Brute) takes 5 m/s nearer its walk than its run.
+		for way: Array in [[Vector3.FORWARD, ["pistol_run", "pistol_walk"]], [Vector3.RIGHT, ["pistol_strafe_b"]],
+				[Vector3.BACK, ["pistol_run_back", "pistol_walk_back"]]]:
+			p = await _run(p, way[0] * 5.0, 0.8)
+			_ok(absf(c.speed - 5.0) < 1.0 and _strongest(c) in way[1] and _foot(c) < 0.25,
+					"%s: runs %s at about 5 m/s (%s, %.1f m/s)" % [id, way[1][0], _strongest(c), c.speed])
+		await _hold(p, 0.0, 0, false, 0.4)
+		await _hold(p, 0.0, 0, true, 0.4)
+		_ok(_legs(c) in ["jump_up", "jump"], "%s: jumps (%s)" % [id, _legs(c)])
+		await _hold(p, 0.0, 0, false, 0.25)
+		var hips: float = c._skel.get_bone_global_pose(0).origin.y
+		_ok(c._tree.get("parameters/land/active") and hips < c._hip * 0.97, "%s: lands with a crouch (hips %.2f of %.2f)" % [id, hips, c._hip])
+		await _hold(p, 0.0, gs.Act.RELOADING, false, 0.5)
+		_ok(_left_off_gun(c) > 0.03, "%s: reloads, left hand off the gun" % id)
+		await _hold(p, 0.0, 0, false, 0.4)
+		c.shoot()
+		await process_frame
+		_ok(c._kick > 0.0 and c._flash_left > 0.0, "%s: fires: kick and flash" % id)
 	print("remote_anim_check OK" if ok else "remote_anim_check FAIL")
 	quit(0 if ok else 1)
+
+
+func _ok(good: bool, what: String) -> void:
+	print("%s %s" % ["ok  " if good else "FAIL", what])
+	ok = ok and good
 
 
 func _hold(pos: Vector3, pitch: float, act: int, air: bool, secs: float) -> void:
@@ -54,18 +73,40 @@ func _hold(pos: Vector3, pitch: float, act: int, air: bool, secs: float) -> void
 		await create_timer(0.05).timeout
 
 
-## `state`: the legs' state machine node ("" any); `pitch` >= 0: the gun must aim along that look.
-func _check(state: String, pitch: float, what: String, cond: Callable) -> void:
-	var c = mgr.character(7)
-	var legs: AnimationNodeStateMachinePlayback = c._tree.get("parameters/legs/playback")
+func _run(pos: Vector3, vel: Vector3, secs: float) -> Vector3:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < secs * 1000.0:
+		pos += vel * 0.05
+		mgr._on_pose(7, Time.get_ticks_msec() / 1000.0, pos, 0.0, 0.0, 1, false)
+		await create_timer(0.05).timeout
+	return pos
+
+
+## How well the gun points along the look at `pitch`.
+func _aim(c, pitch: float) -> float:
 	var look := Basis.from_euler(Vector3(pitch, c.rotation.y, 0.0)) * Vector3.FORWARD
-	var aim: float = c._gun.global_basis.z.normalized().dot(look)
-	var good: bool = (state == "" or legs.get_current_node() == state) and (pitch < 0.0 or aim > 0.995) and cond.call(c)
-	print("%s %s (legs %s, aim %.3f, speed %.1f)" % ["ok  " if good else "FAIL", what, legs.get_current_node(), aim, c.speed])
-	ok = ok and good
+	return c._gun.global_basis.z.normalized().dot(look)
 
 
-## Centimetres between the left wrist and its place on the gun.
+func _legs(c) -> String:
+	return (c._tree.get("parameters/legs/playback") as AnimationNodeStateMachinePlayback).get_current_node()
+
+
+## The clip the stance's blend space leans on most where the character is moving.
+func _strongest(c) -> String:
+	var space: AnimationNodeBlendSpace2D = c._tree.tree_root.get_node("legs").get_node("ground").get_node(c.stance)
+	var at: Vector2 = c._tree.get("parameters/legs/ground/%s/blend_position" % c.stance)
+	var best := ""
+	var near := INF
+	for i in space.get_blend_point_count():
+		var d := space.get_blend_point_position(i).distance_to(at)
+		if d < near:
+			near = d
+			best = (space.get_blend_point_node(i) as AnimationNodeAnimation).animation
+	return best
+
+
+## Metres between the left wrist and its place on the gun.
 func _left_off_gun(c) -> float:
 	var w: Vector3 = c._skel.get_bone_global_pose(c._hand["L_wrist"]).origin
 	return w.distance_to(c._gun.transform * c._left_wrist_on_gun)
@@ -73,6 +114,6 @@ func _left_off_gun(c) -> float:
 
 func _foot(c) -> float:
 	var sk: Skeleton3D = c._skel
-	var l: Vector3 = c._model.global_transform * sk.get_bone_global_pose(sk.find_bone("L_foot_05")).origin
-	var r: Vector3 = c._model.global_transform * sk.get_bone_global_pose(sk.find_bone("R_foot_010")).origin
+	var l: Vector3 = c._model.global_transform * sk.get_bone_global_pose(sk.find_bone("mixamorig_LeftToeBase")).origin
+	var r: Vector3 = c._model.global_transform * sk.get_bone_global_pose(sk.find_bone("mixamorig_RightToeBase")).origin
 	return minf(l.y, r.y)
