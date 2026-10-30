@@ -1,6 +1,6 @@
 extends SceneTree
 ## Headless: the dummy's hit randomizer has all 6 hits, and the gun's own world can be heard.
-func _init() -> void:
+func _initialize() -> void:  # not _init: the autoloads (GameState...) must exist when player.tscn compiles
 	var r: AudioStreamRandomizer = load("res://assets/props/dummy/sounds/hit.tres")
 	assert(r.streams_count == 6)
 	for i in r.streams_count:

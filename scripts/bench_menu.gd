@@ -221,6 +221,8 @@ func _at(p: Vector3) -> Vector3:
 
 
 func _stage_transform() -> Transform3D:
+	if not is_instance_valid(_bench) and not _find_bench():
+		return Transform3D(Basis(), Vector3(0, TOP, 0))  # no bench in this level (the checks)
 	var b := _bench.global_transform
 	return Transform3D(b.basis.orthonormalized(), b * Vector3(0, TOP, 0))
 
