@@ -53,7 +53,7 @@ func _run() -> void:
 				var feet := minf(_y(sk, "LeftToeBase", body), _y(sk, "RightToeBase", body))
 				low = minf(low, minf(feet, _y(sk, "LeftHand", body)))
 				high = maxf(high, _y(sk, "Head", body))
-				var hips := sk.to_global(sk.get_bone_global_pose(0).origin) - body.global_position
+				var hips := sk.to_global(sk.get_bone_global_pose(sk.find_bone("mixamorig_Hips")).origin) - body.global_position
 				drift = maxf(drift, Vector2(hips.x, hips.z).length())
 				if k == 8 and clip.contains("death"):
 					var head := _y(sk, "Head", body)
@@ -79,24 +79,40 @@ func _run() -> void:
 		var sk: Skeleton3D = body.find_children("*", "Skeleton3D", true, false)[0]
 		var lib := ap.get_animation_library("")
 		_expect(body.height > 0.5, "%s only %.2f m tall" % [name, body.height])
+		var skinned := {}  # the bones that carry weight (not IK poles and such)
+		for mi: MeshInstance3D in body.find_children("*", "MeshInstance3D", true, false):
+			if mi.skin == null:
+				continue
+			for surf in mi.mesh.get_surface_count():
+				var arrays := mi.mesh.surface_get_arrays(surf)
+				var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+				var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+				for i in bones.size():
+					if weights[i] > 0.05:
+						var bind := bones[i]
+						skinned[sk.find_bone(mi.skin.get_bind_name(bind)) if mi.skin.get_bind_name(bind) != &"" else mi.skin.get_bind_bone(bind)] = true
+		var hips := sk.find_bone(BODY.CREATURES[name].bones.Hips)
 		for clip in lib.get_animation_list():
 			var anim := lib.get_animation(clip)
 			ap.play(clip)
 			var low := INF
 			var drift := 0.0
+			var start := Vector3.INF
 			for k in 9:
 				ap.seek(anim.length * k / 8.0, true)
-				for b in sk.get_bone_count():
+				for b in skinned:
 					low = minf(low, sk.to_global(sk.get_bone_global_pose(b).origin).y - body.global_position.y)
-				var mid := sk.to_global(sk.get_bone_global_pose(0).origin) - body.global_position
-				drift = maxf(drift, Vector2(mid.x, mid.z).length())
+				var mid := sk.to_global(sk.get_bone_global_pose(hips).origin) - body.global_position
+				if start == Vector3.INF:
+					start = mid
+				drift = maxf(drift, Vector2(mid.x - start.x, mid.z - start.z).length())
 			var head := sk.to_global(sk.get_bone_global_pose(sk.find_bone(BODY.CREATURES[name].bones.Head)).origin).y - body.global_position.y
 			_expect(low > -0.1, "%s %s: sinks %.2f m into the floor" % [name, clip, low])
 			if anim.loop_mode != Animation.LOOP_NONE:
 				_expect(drift < 0.2, "%s %s: wanders %.2f m off the spot" % [name, clip, drift])
 			if clip.begins_with("death"):
 				_expect(head < 0.3 * body.height, "%s %s: still %.2f m up after dying" % [name, clip, head])
-		print("%-11s %d clips ok" % [name, lib.get_animation_list().size()])
+		print("%-11s %d clips ok, %.2f m" % [name, lib.get_animation_list().size(), body.height])
 		body.free()
 
 	# Kinds, seeds, actions.
