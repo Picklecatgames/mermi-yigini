@@ -43,6 +43,12 @@ const STANCES := {
 }
 ## GUNS id -> stance; anything else held is a pistol's.
 const STANCE_OF := {"fists": "fists", "minigun": "rifle"}
+## Crouched (Ctrl), whatever is in hand: the rifle pack's crouching legs, laid out the same way
+## (a ground of its own next to the stances'), the stance's arms over them as in the air.
+const CROUCH := ["rifle_crouch_idle", ["rifle_crouch_walk", "rifle_crouch_walk_back", "rifle_crouch_walk_left",
+		"rifle_crouch_walk_right", "rifle_crouch_walk_fl", "rifle_crouch_walk_fr", "rifle_crouch_walk_bl",
+		"rifle_crouch_walk_br"]]
+const CROUCH_RATE := 6.0  # 1/s the capsule and the name tag go down and back up at
 const MOVING := 0.5  # m/s; slower than this lands standing (the full crouch), faster runs on
 const AIR_ARMS := 8.0  # 1/s the stance's arms take over in the air, and give back on the ground
 ## Hand bones, parents first, each with "L_"/"R_" in front; Mixamo's 4th (tip) segment stays as animated.
@@ -116,17 +122,17 @@ func _physics_process(_delta: float) -> void:
 		add_child(_own_shadow)
 	_own_shadow.peer = GameState.local_peer()  # a new id on joining someone
 	_own_shadow.push(Time.get_ticks_msec() / 1000.0, me.global_position, me._yaw, me._pitch, me._act(),
-			me._air_time > me.AIR_SHOWN)
+			me._air_time > me.AIR_SHOWN, me.crouched)
 
 
-func _on_pose(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool) -> void:
+func _on_pose(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool) -> void:
 	if peer == GameState.local_peer():
 		return
 	if not _chars.has(peer):
 		var c := Character.new(peer)
 		add_child(c)
 		_chars[peer] = c
-	(_chars[peer] as Character).push(t, pos, yaw, pitch, act, air)
+	(_chars[peer] as Character).push(t, pos, yaw, pitch, act, air, crouch)
 
 
 func _drop(peer: int) -> void:
@@ -142,11 +148,14 @@ class Character extends Node3D:
 	var _delay := DELAY
 	var act := GameState.Act.IDLE
 	var air := false
+	var crouch := false
+	var _crouch_drop := 0.0  # 0..1, the capsule and the tag on their way down to crouching
+	var _ground := ""  # the ground clips playing: the stance's, or "crouch"
 	var speed := 0.0  # m/s along the ground, as drawn
 	var look := ""  # CHARACTERS id worn; "" until they pick
 	var stance := "fists"
 	var _vel := Vector2.ZERO  # m/s in the model's frame (x its left, y its forward), smoothed
-	var _snaps: Array = []  # [local time, pos, yaw, pitch, act, air], oldest first
+	var _snaps: Array = []  # [local time, pos, yaw, pitch, act, air, crouch], oldest first
 	var _clock := 0.0  # the sender's clock minus ours, smoothed
 	var _pitch := 0.0  # rad the body leans to look, after the head (HEAD_FREE)
 	var _look_pitch := 0.0  # rad the player looks, smoothed
@@ -198,6 +207,8 @@ class Character extends Node3D:
 	var _tag_box: MeshInstance3D
 	var _tag_mat: StandardMaterial3D
 	var _tag_label: Label3D
+	var _tag_y := LABEL_HEIGHT  # standing
+	var _shape: CapsuleShape3D
 	## What others collide with and shoot at; carries the peer id as meta "peer".
 	var body: AnimatableBody3D
 
@@ -259,9 +270,10 @@ class Character extends Node3D:
 			body.sync_to_physics = false  # placed with the character every frame
 			body.set_meta("peer", peer)
 			var shape := CollisionShape3D.new()
-			shape.shape = CapsuleShape3D.new()
-			shape.shape.radius = BODY_RADIUS
-			shape.shape.height = BODY_HEIGHT
+			_shape = CapsuleShape3D.new()
+			_shape.radius = BODY_RADIUS
+			_shape.height = BODY_HEIGHT
+			shape.shape = _shape
 			shape.position.y = BODY_HEIGHT * 0.5
 			body.add_child(shape)
 			add_child(body)
@@ -295,8 +307,8 @@ class Character extends Node3D:
 			_tree = null
 		if not BODIES.has(id):
 			_gun.visible = false
-			_tag_label.position.y = LABEL_HEIGHT
-			_tag_box.position.y = LABEL_HEIGHT
+			_tag_y = LABEL_HEIGHT
+			_place_tag()
 			return
 		_model = BODIES[id].instantiate()
 		_model.rotation.y = PI  # it faces +Z; the player's forward is -Z
@@ -316,13 +328,12 @@ class Character extends Node3D:
 			for h: String in HAND:
 				_hand[side + "_" + h] = _skel.find_bone(_mixamo(side + "_" + h))
 		var top := _skel.find_bone("mixamorig_HeadTop_End")
-		var tag_y := _skel.get_bone_global_rest(top).origin.y * _size + LABEL_OVER
-		_tag_label.position.y = tag_y
-		_tag_box.position.y = tag_y
+		_tag_y = _skel.get_bone_global_rest(top).origin.y * _size + LABEL_OVER
+		_place_tag()
 		_paces.clear()
-		for s: String in STANCES:
+		for s: String in _grounds():
 			_paces[s] = []
-			for clip: String in STANCES[s][1]:
+			for clip: String in _grounds()[s][1]:
 				_paces[s].append(_clip_velocity(clip))
 		_tree = _animation_tree()
 		_model.add_child(_tree)
@@ -348,7 +359,8 @@ class Character extends Node3D:
 		if _model == null:
 			return
 		stance = STANCE_OF.get(GameState.GUNS[g].id, "pistol")
-		_tree.set("parameters/legs/ground/stance/transition_request", stance)
+		_ground = ""
+		_pick_ground()
 		_tree.set("parameters/arms/transition_request", stance)
 		_hold_pose()
 		_gun.visible = g != 0
@@ -514,19 +526,21 @@ class Character extends Node3D:
 		pick.xfade_time = 0.2
 		var upper := AnimationNodeTransition.new()
 		upper.xfade_time = 0.2
-		for s: String in STANCES:
+		var grounds := _grounds()
+		for s: String in grounds:
 			var space := AnimationNodeBlendSpace2D.new()
 			space.min_space = Vector2(-12, -12)
 			space.max_space = Vector2(12, 12)
-			space.add_blend_point(_clip(STANCES[s][0]), Vector2.ZERO, -1, "stand")
-			for clip: String in STANCES[s][1]:
+			space.add_blend_point(_clip(grounds[s][0]), Vector2.ZERO, -1, "stand")
+			for clip: String in grounds[s][1]:
 				space.add_blend_point(_clip(clip), _clip_velocity(clip)[0], -1, clip.replace("<", "back_"))
 			ground.add_node(s, space)
 			pick.add_input(s)
+		for s: String in STANCES:
 			upper.add_input(s)
 		ground.add_node("stance", pick)
-		for i in STANCES.size():
-			ground.connect_node("stance", i, STANCES.keys()[i])
+		for i in grounds.size():
+			ground.connect_node("stance", i, grounds.keys()[i])
 		ground.add_node("pace", AnimationNodeTimeScale.new())
 		ground.connect_node("pace", 0, "stance")
 		ground.connect_node("output", 0, "pace")
@@ -595,15 +609,33 @@ class Character extends Node3D:
 			t.switch_mode = AnimationNodeStateMachineTransition.SWITCH_MODE_AT_END
 		return t
 
+	## The ground clips by name: every stance's, and crouching's.
+	static func _grounds() -> Dictionary:
+		var all := STANCES.duplicate()
+		all["crouch"] = CROUCH
+		return all
+
+	## The legs on the stance's ground clips, or on the crouching ones.
+	func _pick_ground() -> void:
+		var want := "crouch" if crouch else stance
+		if want != _ground:
+			_ground = want
+			_tree.set("parameters/legs/ground/stance/transition_request", want)
+
+	func _place_tag() -> void:
+		var y := _tag_y - (PLAYER.EYE - PLAYER.CROUCH_EYE) * smoothstep(0.0, 1.0, _crouch_drop)
+		_tag_label.position.y = y
+		_tag_box.position.y = y
+
 	## One snapshot from the network, on the sender's clock.
-	func push(t: float, pos: Vector3, yaw: float, pitch: float, a: int, in_air: bool) -> void:
+	func push(t: float, pos: Vector3, yaw: float, pitch: float, a: int, in_air: bool, crouched := false) -> void:
 		var now := Time.get_ticks_msec() / 1000.0
 		var gap := now - t
 		_clock = gap if _snaps.is_empty() else lerpf(_clock, gap, 0.05)  # evens out network jitter
 		var at := t + _clock
 		if not _snaps.is_empty() and at <= _snaps[-1][0]:
 			return  # late or repeated
-		_snaps.append([at, pos, yaw, pitch, a, in_air])
+		_snaps.append([at, pos, yaw, pitch, a, in_air, crouched])
 		while _snaps.size() > 2 and _snaps[1][0] < now - KEEP:
 			_snaps.pop_front()
 
@@ -637,17 +669,24 @@ class Character extends Node3D:
 		var was_air := air
 		act = b[4]
 		air = b[5]
+		crouch = b[6]
 		visible = true
+		_crouch_drop = move_toward(_crouch_drop, 1.0 if crouch else 0.0, delta * CROUCH_RATE)
+		if _shape:  # others bump into and shoot at the lower body
+			_shape.height = lerpf(BODY_HEIGHT, PLAYER.CROUCH_HEIGHT, _crouch_drop)
+			(body.get_child(0) as Node3D).position.y = _shape.height * 0.5
+		_place_tag()
 		if _model == null:
 			return
+		_pick_ground()
 		if was_air and not air and speed < MOVING:
 			_tree.set("parameters/land/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
-		_tree.set("parameters/legs/ground/%s/blend_position" % stance, _vel)
+		_tree.set("parameters/legs/ground/%s/blend_position" % _ground, _vel)
 		_tree.set("parameters/legs/ground/pace/scale", _pace())
 		_tree.set("parameters/legs/conditions/air", air)
 		_tree.set("parameters/legs/conditions/landed", not air)
 		var landing: bool = _tree.get("parameters/land/active")
-		_air_arms = move_toward(_air_arms, 1.0 if (air or landing) and stance != "rifle" else 0.0, delta * AIR_ARMS)
+		_air_arms = move_toward(_air_arms, 1.0 if (air or landing or crouch) and stance != "rifle" else 0.0, delta * AIR_ARMS)
 		_tree.set("parameters/mix/blend_amount", _air_arms)
 		_tree.advance(delta)
 		_kick = move_toward(_kick, 0.0, _kick * KICK_BACK * delta + 0.0001)
@@ -673,7 +712,7 @@ class Character extends Node3D:
 			return 1.0
 		var top := 0.0
 		var dir := _vel / speed
-		for p: Array in _paces[stance]:
+		for p: Array in _paces[_ground]:
 			var v: Vector2 = p[0]
 			top = maxf(top, v.dot(dir))
 		return maxf(1.0, speed / top) if top > 0.1 else 1.0
