@@ -11,12 +11,15 @@ extends Node3D
 ## shot_landed names it everywhere; each peer walks and animates its own copy from the cue.
 ## A joiner gets the phase and the living zombies where they stand (join_cues).
 ##
-## Cues (wave_cue): [&"reset"] (a joiner drops what it had alone) · [&"phase", wave, phase, left, fence] · [&"spawn", id, kind, seed, gate, pos, yaw,
-## speed, rail_z, walking, cuts] · [&"die", id, left, killer, weak, at, gun, gib] · [&"fence", fence] ·
+## Cues (wave_cue): [&"reset"] (a joiner drops what it had alone) · [&"phase", wave, phase, left] · [&"spawn", id, kind, seed, gate, pos, yaw,
+## speed, rail_z, walking, cuts] · [&"die", id, left, killer, weak, at, gun, gib] ·
 ## [&"limb", id, part] (a limb torn off, zombie_body.gd LIMBS).
 ##
-## TEMPORARY until players can die: the railing has FENCE_HP, every claw takes a bite, and at 0 the
-## wave is lost (the dead go, the same wave waits again). The numbers below are first guesses.
+## The railing (2026-10-30, the user's call): its hit points are GameState's (GameState.fence), every
+## claw takes a bite (STATS), and at 0 the wave is lost, in co-op too: the dead turn back, the screen
+## says so (hud.gd), the railing is patched up a little and the same wave waits again. It is mended
+## at the desk (GameState.request_repair_fence), never on its own between waves. scripts/fence.gd
+## shows the wear and the sparks. The numbers below are first guesses.
 ##
 ## Sounds come from the user (assets/sounds/waves/<slot>.ogg|wav): lever, siren, gate. A missing
 ## file stays silent.
@@ -28,6 +31,7 @@ signal zombie_killed(peer: int, kind: StringName, weak: bool, at: Vector3, gun: 
 enum Phase { READY, STARTING, FIGHT, CLEARED, FAILED }
 
 const BODY := preload("res://scripts/zombie_body.gd")
+const FENCE := preload("res://scripts/fence.gd")
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const SOUNDS := "res://assets/sounds/waves/"
 const LEVER_TIME := 0.6  # s from the pull to the siren and the lights
@@ -35,7 +39,7 @@ const GATES_AT := 1.8  # s after the pull the gates start to slide
 const GATE_TIME := 2.5  # s to slide open (or shut)
 const FIGHT_AT := GATES_AT + GATE_TIME * 0.6  # the dead may walk once the gap is wide enough
 const CLEAR_PAUSE := 4.0  # s from the last kill to the lever coming back up
-const FAIL_PAUSE := 5.0
+const FAIL_PAUSE := 6.0  # s from the railing going to the same wave waiting again (hud.gd darkens over it)
 const DEAD_STAY := 8.0  # s a body lies before it goes
 const RAIL_X := 14.8  # where they stop, just past the railing (x 14)
 const RAIL_Z := 18.0  # ± along it
@@ -45,8 +49,6 @@ const BAY_HALF := 12.0  # tools/build_arena.gd
 const BAY_END := 44.3
 const MAX_ALIVE := 40  # on the floor at once, the rest wait their turn (network load stays flat)
 const SPAWN_EVERY := 0.5  # s between the waiting ones once the gates are open
-const FENCE_HP := 100
-const FENCE_SEND := 0.25  # s between the host's fence updates
 ## How it comes apart (the host decides, the die cue carries it): a head shot kill takes the head
 ## off, SHRED rounds inside SHRED_TIME (a burst from the UZI or the minigun) burst the body, a brute
 ## and a blob always burst (a blob has no head to lose).
@@ -95,7 +97,8 @@ const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARE
 var wave := 1
 var phase := Phase.READY
 var left := 0  # zombies of this wave not yet down (waiting ones too)
-var fence := FENCE_HP
+var fence: int:  # the railing's hit points, GameState's
+	get: return GameState.fence
 
 var _zombies := {}  # id -> record (see _add_zombie)
 var _spawns: Array[Node3D] = []
@@ -114,6 +117,7 @@ var _number: Label3D
 var _status: Label3D
 var _shown_wave := -1
 var _seq := 0  # bumped by every phase, so a sequence left waiting stops when the next comes
+var _fence: Node3D  # scripts/fence.gd: the railing's wear and sparks
 # Host only.
 var _rng := RandomNumberGenerator.new()
 var _queue: Array[StringName] = []
@@ -122,8 +126,6 @@ var _limb_hits := {}  # id -> {"arm_l": hits, ...}
 var _next_id := 1
 var _next_spawn := 0
 var _spawn_wait := 0.0
-var _fence_wait := 0.0
-var _fence_news := false
 
 
 ## A zombie's body: what the shot code and the HUD ask of a target.
@@ -160,6 +162,9 @@ func _ready() -> void:
 	GameState.wave_cue.connect(_on_cue)
 	GameState.lever_pulled.connect(_on_lever)
 	GameState.shot_landed.connect(_on_shot)
+	GameState.fence_changed.connect(func(_hp: int, _wear: Array) -> void: _sign())
+	_fence = FENCE.new()
+	add_child(_fence)
 	# The host is gone: its timers and hit points went with it, so the wave starts over here.
 	multiplayer.server_disconnected.connect(func() -> void: _reset())
 	_sign()
@@ -174,7 +179,7 @@ func can_pull(at: Vector3) -> bool:
 
 ## Host: what a joiner needs, in order: the phase, then every zombie still standing where it is now.
 func join_cues() -> Array:
-	var cues := [[&"reset"], [&"phase", wave, phase, left, fence]]
+	var cues := [[&"reset"], [&"phase", wave, phase, left]]
 	for id: int in _zombies:
 		var z: Dictionary = _zombies[id]
 		if not z.dead:
@@ -201,11 +206,6 @@ func _process(delta: float) -> void:
 		if _spawn_wait <= 0.0 and _alive() < MAX_ALIVE:
 			_spawn_wait = SPAWN_EVERY
 			_spawn_next()
-	_fence_wait -= delta
-	if _fence_news and _fence_wait <= 0.0:
-		_fence_news = false
-		_fence_wait = FENCE_SEND
-		GameState.cue_wave([&"fence", fence])
 
 
 # --- host -----------------------------------------------------------------------------------------
@@ -217,13 +217,13 @@ func _on_lever(_peer: int) -> void:
 	_hp.clear()
 	_limb_hits.clear()
 	_next_spawn = 0
-	GameState.cue_wave([&"phase", wave, Phase.STARTING, _queue.size(), FENCE_HP])
+	GameState.cue_wave([&"phase", wave, Phase.STARTING, _queue.size()])
 	for i in mini(_spawns.size(), _queue.size()):  # a pen-full waits behind the gates
 		_spawn_next()
 	var seq := _seq
 	await get_tree().create_timer(FIGHT_AT).timeout
 	if seq == _seq:
-		GameState.cue_wave([&"phase", wave, Phase.FIGHT, left, fence])
+		GameState.cue_wave([&"phase", wave, Phase.FIGHT, left])
 		_check_clear()  # shot down in the pens before the gates were wide enough
 
 
@@ -274,30 +274,30 @@ func _alive() -> int:
 	return n
 
 
-## Host: a claw landed on the railing.
-func _bite(kind: StringName) -> void:
+## Host: a claw landed on the railing. Down to nothing, the wave is lost: the dead turn back and,
+## once the screen has said so, the railing is patched up and the same wave waits again.
+func _bite(z: Dictionary) -> void:
 	if phase != Phase.FIGHT:
 		return
-	fence = maxi(fence - STATS[kind][2], 0)
-	_sign()
-	_fence_news = true
-	if fence > 0:
+	GameState.hurt_fence(STATS[z.kind][2], z.rail.z)
+	if GameState.fence > 0:
 		return
-	GameState.cue_wave([&"phase", wave, Phase.FAILED, left, 0])
+	GameState.cue_wave([&"phase", wave, Phase.FAILED, left])
 	var seq := _seq
 	await get_tree().create_timer(FAIL_PAUSE).timeout
 	if seq == _seq:
-		GameState.cue_wave([&"phase", wave, Phase.READY, 0, FENCE_HP])
+		GameState.mend_fence(GameState.FENCE_PATCH)
+		GameState.cue_wave([&"phase", wave, Phase.READY, 0])
 
 
 func _check_clear() -> void:
 	if phase != Phase.FIGHT or not _queue.is_empty() or _alive() > 0:
 		return
-	GameState.cue_wave([&"phase", wave, Phase.CLEARED, 0, fence])
+	GameState.cue_wave([&"phase", wave, Phase.CLEARED, 0])
 	var seq := _seq
 	await get_tree().create_timer(CLEAR_PAUSE).timeout
 	if seq == _seq:
-		GameState.cue_wave([&"phase", wave + 1, Phase.READY, 0, FENCE_HP])
+		GameState.cue_wave([&"phase", wave + 1, Phase.READY, 0])
 
 
 # --- every peer -----------------------------------------------------------------------------------
@@ -307,7 +307,7 @@ func _on_cue(cue: Array) -> void:
 		&"reset":
 			_reset()
 		&"phase":
-			_set_phase(cue[1], cue[2], cue[3], cue[4])
+			_set_phase(cue[1], cue[2], cue[3])
 		&"spawn":
 			_add_zombie(cue[1], cue[2], cue[3], cue[4], cue[5], cue[6], cue[7], cue[8], cue[9],
 					cue[10] if cue.size() > 10 else [])
@@ -324,17 +324,13 @@ func _on_cue(cue: Array) -> void:
 			_sign()
 			if not Net.is_client:
 				_check_clear()
-		&"fence":
-			fence = cue[1]
-			_sign()
 
 
-func _set_phase(w: int, ph: Phase, p_left: int, p_fence: int) -> void:
+func _set_phase(w: int, ph: Phase, p_left: int) -> void:
 	var was := phase
 	wave = w
 	phase = ph
 	left = p_left
-	fence = p_fence
 	_seq += 1
 	_sign()
 	match ph:
@@ -359,10 +355,9 @@ func _set_phase(w: int, ph: Phase, p_left: int, p_fence: int) -> void:
 			if was == Phase.READY:
 				_set_lever(true, true)
 				_open_gates(true)
-			for z: Dictionary in _zombies.values():
+			for z: Dictionary in _zombies.values():  # the railing is down: they turn back for the pens
 				if not z.dead:
-					z.path = []
-					z.body.idle()
+					_retreat(z)
 			_light(false)
 		Phase.READY:
 			_set_lever(false, was == Phase.READY)
@@ -387,8 +382,6 @@ func _reset() -> void:
 	_hp.clear()
 	phase = Phase.READY
 	left = 0
-	fence = FENCE_HP
-	_fence_news = false
 	_set_lever(false, true)
 	_light(false)
 	_close_gates(true)
@@ -582,8 +575,9 @@ func _claw(z: Dictionary) -> void:
 		await get_tree().create_timer(t * 0.5).timeout
 		if z.dead or phase != Phase.FIGHT:
 			return
+		_fence.struck(z.node.global_position.z, z.kind)  # every peer: the sparks, the clang
 		if not Net.is_client:
-			_bite(z.kind)
+			_bite(z)
 		await get_tree().create_timer(t * (0.5 + ARM_SLOW * z.body.arms_hurt()) + 0.4).timeout
 
 
@@ -625,6 +619,20 @@ func _limb_hit(z: Dictionary, part: StringName) -> void:
 	if hits[limb] >= need:
 		hits[limb] = 0  # what is left of it (an arm that lost the forearm) can go too
 		GameState.cue_wave([&"limb", z.id, part])
+
+
+## Every peer, the wave lost: off back the way it came, to the bay's mouth and its gate.
+func _retreat(z: Dictionary) -> void:
+	z.released = true
+	var at: Vector3 = (z.node as Node3D).global_position
+	var path := []
+	if at.x < DOOR_X:
+		path.append(Vector3(DOOR_X, 0.0, clampf(at.z, -DOOR_Z, DOOR_Z)))
+	path.append(z.mouth)
+	z.path = path
+	z.moving = true
+	if z.down <= 0.0:
+		z.body.move(z.speed)
 
 
 ## Every peer: `part` comes off (zombie_body.gd cut()). A leg lost drops a standing one to its belly:
@@ -709,7 +717,7 @@ func _sign() -> void:
 	if _status:
 		var text: String = STATUS.get(phase, "")
 		if phase == Phase.FIGHT:
-			text = "KALAN %d   ÇİT %d" % [left, fence]
+			text = "KALAN %d   ÇİT %d" % [left, GameState.fence]
 		_status.text = text
 	if _number and wave != _shown_wave:
 		var first := _shown_wave < 0

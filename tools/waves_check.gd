@@ -3,8 +3,8 @@ extends SceneTree
 ##   Godot.exe --headless --path . -s res://tools/waves_check.gd --quit-after 600
 ## Alone first, at TIME_SCALE: the lever starts wave 1 (lever down, alarms lit, gates open, the dead
 ## walk out), we shoot every one of them through GameState and the wave clears: gates shut, lever
-## up, wave 2 waits. Wave 2 is left alone: the dead claw the railing down and the wave is lost (the
-## temporary rule), wave 2 waits again with nobody left. Wave 2 once more, every zombie put down in
+## up, wave 2 waits. Wave 2 is left alone: the dead claw the railing down and the wave is lost
+## (GameState.fence), wave 2 waits again with nobody left and the railing patched up a little. Wave 2 once more, every zombie put down in
 ## the pens before the gates are wide (it must still clear). Then dogs and blobs (_new_kinds). Then online: the host pulls wave 3;
 ## the client, in a solo wave of its own, joins mid-wave, drops its own dead and gets the host's
 ## phase and zombies under the same paths, shoots them down through the host, sees the next wave
@@ -88,14 +88,13 @@ func _host() -> void:
 	var size: int = waves.BASE_COUNT + waves.COUNT_GROW
 	if not _ok(waves.left == size, "wave 2 is %d strong (%d)" % [size, waves.left]): return
 	var bites := [0]
-	gs.wave_cue.connect(func(cue: Array) -> void:
-		if cue[0] == &"fence":
-			bites[0] += 1)
+	gs.fence_changed.connect(func(_hp: int, _wear: Array) -> void: bites[0] += 1)
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FAILED, "the railing to fall", 120.0): return
 	if not _ok(bites[0] > 0 and waves.fence == 0 and waves._status.text == "ÇİT YIKILDI", "it fell bite by bite and the sign says so"): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the lost wave to wait again"): return
 	await process_frame
-	if not _ok(waves.wave == 2 and waves.fence == waves.FENCE_HP and waves._zombies.is_empty(), "wave 2 again, the railing whole, nobody left"): return
+	if not _ok(waves.wave == 2 and gs.fence == gs.FENCE_PATCH and waves._zombies.is_empty(), "wave 2 again, the railing patched up, nobody left"): return
+	gs.mend_fence(gs.FENCE_MAX)  # the rest of the check wants a whole railing
 	# Wave 2 again, all of it shot in the pens before the fight is called: it clears anyway.
 	gs.request_pull_lever()
 	for id: int in waves._zombies.keys():
@@ -166,7 +165,7 @@ func _new_kinds() -> bool:
 			break
 		seed += 1
 	waves._rng.seed = seed
-	gs.cue_wave([&"phase", waves.BLOB_FROM, waves.Phase.READY, 0, waves.FENCE_HP])
+	gs.cue_wave([&"phase", waves.BLOB_FROM, waves.Phase.READY, 0])
 	var gibs := {}  # kind -> how they went down
 	var spawned := {}
 	var cue_seen := func(cue: Array) -> void:
@@ -188,7 +187,7 @@ func _new_kinds() -> bool:
 	if not _ok(gibs.has(&"dog") and (gibs.get(&"blob", []) as Array).all(func(g: StringName) -> bool: return g == &"body") and gibs.has(&"blob"),
 			"the dogs went down, every blob burst (%s)" % gibs): return false
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the next wave to wait"): return false
-	gs.cue_wave([&"phase", 3, waves.Phase.READY, 0, waves.FENCE_HP])  # back to where the online part starts
+	gs.cue_wave([&"phase", 3, waves.Phase.READY, 0])  # back to where the online part starts
 	print("waves_check new kinds OK: ", gibs)
 	return true
 
