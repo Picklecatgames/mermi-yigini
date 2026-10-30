@@ -1,21 +1,19 @@
-# Devam promptu (2026-10-30, hesap değişimi)
+# Devam promptu (2026-10-30, ikinci hesap değişimi)
 
-Aşağıdakini yeni hesapta, bu projede (`C:\Users\vedat\projeler\mermi-yigini`) açılan oturuma yapıştır:
+Aşağıdakini yeni cihazda/hesapta, projeyi klonlayıp açtığın oturuma yapıştır:
 
 ---
 
-Mermi Yığını'na devam ediyoruz (Godot 4.7, co-op FPS, zombi dalgaları). Önce `CLAUDE.md`, `docs/ayrintilar.md` → "Yeni yön: zombi dalgaları" bölümü ve `git log -5` oku. Son commit'te her şey kayıtlı. Durum:
+Mermi Yığını'na devam ediyoruz (Godot 4.7, co-op FPS, zombi dalgaları). Önce `CLAUDE.md`, `docs/ayrintilar.md` → "Yeni yön: zombi dalgaları" bölümü ve bu dosyayı oku. İş dört dalda, hepsi GitHub'da (`origin`), hiçbiri `main`'e birleşmedi. İlk iş: `git fetch` ve dalları sırayla `main`'e birleştir, çakışmaları çöz, kontrolleri koş, push'la.
 
-**Bitti (commit'te):**
-- Atış alanı zombi kıyım yeri olarak baştan üretildi (`tools/zombie_bay.gd`, `tools/build_arena.gd`): arka duvarda ortadan iki yana kayan çift kanatlı kapı (`MainGateN/S`), yan duvarlarda kalkan kepenkler; kanatlar `wave_gate` grubunda, meta `slide_dir`/`slide_dist`/`mouth`; ağıllarda 24 `wave_spawn`; 12 sönük `wave_alarm` (yakmak: Light3D'leri görünür yap, `lit_material` metasını tak, beacon'ın `Spin`'ini döndür). Talim alanı izleri (metre çizgileri, kontrplak, kauçuk zemin, perdeler) kaldırıldı, kanlı beton, kemik, et, çöp, yanan lastikler. Ayrıntı: `docs/ayrintilar.md` → "Zombi girişi".
-- Mixamo zombileri: `tools/build_zombies.gd` (ham dosyalar `assets/characters/zombies/raw/`, git'te yok, `C:\Users\vedat\Downloads\mixamo_zombie\` altında da duruyor), `scripts/zombie_body.gd` (tohumla giydirip oynatır), `scenes/zombie_demo.tscn` (alarmlar + kapı + yürüyen zombiler demosu), `tools/zombie_body_check.gd`. 13 model, ~44 klip.
-- Yeni tabanca (silah oturumu): `viewmodel.gd` SETS "pistol", `add_pistol`/`pistol_grip`, `remote_players.gd`'de çağrısı.
+**Dallar (önerilen birleştirme sırası):**
+1. `claude/dalga-kodu-704193` — BİTTİ (son commit yarım, kontrolü koşulmadı): `scripts/waves.gd`, `tools/waves_check.gd`; holün kuzey duvarında şalter kolu + flip plakalı tabela (`tools/zombie_bay.gd`, arena yeniden üretildi), E ile kol → alarmlar, dönen lambalar, kapı açılır, zombiler korkuluğa yürür; host planlar, ortadan katılan dalgayı alır. Korkuluğun canı geçici (oyuncu ölümü yok). `zombie_killed` sinyali (öldüren, tür, kafa, yer, silah). Demo sahnesi silindi. Siren/kapı/kol ses yuvaları boş.
+2. `claude/sketchfab-zombi-00090b` — BİTTİ: hazmat, flesh blob (`blob`), bloater, melty zombie, köpek (`dog`). Kullanıcı üçünü satın aldığını söyledi. `zombie_body.gd` `_roll` değişti (PCG): aynı tohum artık farklı model seçer. Tür/hız seçimleri "geçici" işaretli. Çekim aracı `tools/zombie_shots.gd`. Dalga koduna `dog`/`blob` türleri henüz bağlanmadı.
+3. `claude/stil-sirasi-db59e8` — BİTTİ: solda D→SSS stil sıralaması (`zombie_killed`'e bağlı), Rubik Wet Paint yazı tipi, OpenGameArt CC0 grunge, Kenney parıltılar. Kalan: birleşince HUD kontrolünü yeniden koş; ses kayıtları `assets/sounds/style`'a gelecek. Kökteki `DURUM.md` birleşmeden önce silinebilir.
+4. `claude/oyuncu-karakter-d964f1` — YARIM, kontrol edilmedi: `scripts/character_pick.gd` (seçim ekranı), `remote_players.gd` (seçilen Mixamo bedeni), `tools/build_player_arms.gd` + `tools/paint_player_arms.py` (karakter başına kol dokuları, `assets/characters/players/*/arms_*.png`, `arms.json`), `net_check`/`remote_anim_check` yarım. Kullanıcı kararı: 5 karakter (The Boss, Ch16 maskeli, Ch32 turuncu tulumlu, Brute, Chupacabra), girişte her oyuncu seçer, FPS kol modeli aynı, doku karaktere göre. Ham dosyalar `Downloads\player_characters\` (eski cihazda; yeni cihazda yoksa kullanıcıdan iste). Animasyon paketleri (Pistol/Handgun, Rifle 8-Way, Male Locomotion) kullanıcıdan gelecek.
 
-**Yarım / sıradaki:**
-1. **Dalga kodu yok:** zombileri doğurup yürüten, şalter kolu + siren + kapı sekansını oynatan kod ("şalter iner, siren ve kırmızı ışıklarla beraber ikili kapı ortadan yanlara doğru slide ile açılır"). `zombie_demo.gd` örnek; `GameState`'te host otoriter, yeni istemci komutu `REQUESTS`'e, yeni dünya sinyali `EVENTS`'e.
-2. **Oyuncu karakterleri (kullanıcı kararı):** 5 karakter, oyuna girerken her oyuncu SEÇER: The Boss, Ch16 (maskeli), Ch32 (turuncu tulumlu), Brute, Chupacabra (Ch43). Dosyalar `C:\Users\vedat\Downloads\player_characters\`. Diğer oyuncular seçilen Mixamo bedenini görür (`remote_players.gd`, şimdi operator + `tools/retarget_ual.gd`). FPS kolları: mevcut kol modeli/rig (`tools/build_arms.py`, `tools/paint_arms.py`) aynı kalır, her karakter için deri/kıyafet/eldiven dokusu o karakterden türetilir. Animasyon paketleri (kullanıcı indiriyor, Downloads'a düşer): Pistol/Handgun Locomotion Pack, Rifle 8-Way Locomotion Pack, Male Locomotion Pack. `build_zombies.gd` düzenini kullan.
-3. Sketchfab zombileri (`Downloads\mixamo_zombie\sketchfab\`: hazmat, bloater, zombie dog, flesh blob, animation-zombie x2) eklenmedi: farklı iskelet; köpek ve blob kendi animasyonlarıyla. animation-zombie zip'lerinin kaynak/lisansı kullanıcıdan sorulacak.
-4. Sesler kullanıcıdan gelecek: zombi inleme/saldırı/ölüm, canavar kükremesi, siren, kapı kayma, kepenk.
-5. Görsel kontrol yapılmadı: ekran dışı çekim (`tools/shot.gd -- bay range`) için kullanıcıdan izin al.
+**Sonra:** dalga koduna yeni zombi türlerini bağla; sesler kullanıcıdan (zombi, canavar, siren, kapı, kol, stil); oyuncu ölümü gelince korkuluğun geçici canı ve başarısızlık kuralı yeniden düşünülecek.
 
-Kurallar: Türkçe konuş; Godot penceresi açma (headless; `-s` ile çalıştırırken `--quit-after 600` ekle); Godot'u isimle öldürme; commit mesajı Türkçe birinci tekil şahıs, AI imzası yok; aset kuralları CLAUDE.md'de (Mixamo kullanıcı kararıyla alındı: Adobe şartları, ham dosya dağıtılmaz).
+**Yeni cihaz notu:** ham Mixamo/Sketchfab dosyaları git'te yok (`assets/characters/zombies/raw/` vb.); üretilmiş `.scn`/dokular git'te, oyun onlarla çalışır. Ham dosya gerekiyorsa kullanıcıdan iste. İlk açılışta `godot --headless --import`.
+
+Kurallar: Türkçe konuş; Godot penceresi açma (headless; `-s` ile `--quit-after 600`), ekran dışı çekim serbest; Godot'u isimle öldürme; commit mesajı Türkçe birinci tekil şahıs, AI imzası yok; ham Mixamo dosyaları git'e girmez.
