@@ -11,7 +11,7 @@ extends Node3D
 ## shot_landed names it everywhere; each peer walks and animates its own copy from the cue.
 ## A joiner gets the phase and the living zombies where they stand (join_cues).
 ##
-## Cues (wave_cue): [&"phase", wave, phase, left, fence] · [&"spawn", id, kind, seed, gate, pos, yaw,
+## Cues (wave_cue): [&"reset"] (a joiner drops what it had alone) · [&"phase", wave, phase, left, fence] · [&"spawn", id, kind, seed, gate, pos, yaw,
 ## speed, rail_z, walking] · [&"die", id, left, killer, weak, at, gun] · [&"fence", fence].
 ##
 ## TEMPORARY until players can die: the railing has FENCE_HP, every claw takes a bite, and at 0 the
@@ -128,6 +128,8 @@ func _ready() -> void:
 	GameState.wave_cue.connect(_on_cue)
 	GameState.lever_pulled.connect(_on_lever)
 	GameState.shot_landed.connect(_on_shot)
+	# The host is gone: its timers and hit points went with it, so the wave starts over here.
+	multiplayer.server_disconnected.connect(func() -> void: _reset())
 	_sign()
 
 
@@ -139,13 +141,13 @@ func can_pull(at: Vector3) -> bool:
 
 ## Host: what a joiner needs, in order: the phase, then every zombie still standing where it is now.
 func join_cues() -> Array:
-	var cues := [[&"phase", wave, phase, left, fence]]
+	var cues := [[&"reset"], [&"phase", wave, phase, left, fence]]
 	for id: int in _zombies:
 		var z: Dictionary = _zombies[id]
 		if not z.dead:
 			var node: Node3D = z.node
 			cues.append([&"spawn", id, z.kind, z.seed, z.gate, node.global_position, node.global_rotation.y,
-					z.speed, z.rail.z, z.released])
+					z.speed, z.rail.z, z.moving])
 	return cues
 
 
@@ -185,6 +187,7 @@ func _on_lever(_peer: int) -> void:
 	await get_tree().create_timer(FIGHT_AT).timeout
 	if seq == _seq:
 		GameState.cue_wave([&"phase", wave, Phase.FIGHT, left, fence])
+		_check_clear()  # shot down in the pens before the gates were wide enough
 
 
 ## What wave `w` sends, in order.
@@ -258,6 +261,8 @@ func _check_clear() -> void:
 
 func _on_cue(cue: Array) -> void:
 	match cue[0]:
+		&"reset":
+			_reset()
 		&"phase":
 			_set_phase(cue[1], cue[2], cue[3], cue[4])
 		&"spawn":
@@ -289,7 +294,8 @@ func _set_phase(w: int, ph: Phase, p_left: int, p_fence: int) -> void:
 			_sequence(_seq)
 		Phase.FIGHT:
 			var skipped := was != Phase.STARTING  # joined mid-wave: no show, it is already so
-			_set_lever(true, skipped)
+			if skipped:
+				_set_lever(true, true)
 			_light(true)
 			if not _gates_open:
 				_open_gates(skipped)
@@ -297,9 +303,14 @@ func _set_phase(w: int, ph: Phase, p_left: int, p_fence: int) -> void:
 				if not z.released:
 					_release(z, true)
 		Phase.CLEARED:
+			if was == Phase.READY:  # joined in the pause: as it stands on the host
+				_set_lever(true, true)
 			_light(false)
-			_close_gates(false)
+			_close_gates(was == Phase.READY)
 		Phase.FAILED:
+			if was == Phase.READY:
+				_set_lever(true, true)
+				_open_gates(true)
 			for z: Dictionary in _zombies.values():
 				if not z.dead:
 					z.path = []
@@ -314,6 +325,26 @@ func _set_phase(w: int, ph: Phase, p_left: int, p_fence: int) -> void:
 				if not _zombies[id].dead:
 					_zombies[id].node.queue_free()
 					_zombies.erase(id)
+
+
+## Back to a quiet bay with the lever up, keeping the wave number: a joiner before the host's
+## world comes in, or everyone left behind when the host goes.
+func _reset() -> void:
+	_seq += 1
+	for z: Dictionary in _zombies.values():
+		if is_instance_valid(z.node):
+			z.node.queue_free()
+	_zombies.clear()
+	_queue.clear()
+	_hp.clear()
+	phase = Phase.READY
+	left = 0
+	fence = FENCE_HP
+	_fence_news = false
+	_set_lever(false, true)
+	_light(false)
+	_close_gates(true)
+	_sign()
 
 
 ## The pull, the siren and the lights, the gates.
@@ -427,11 +458,12 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 	var z := {"id": id, "node": node, "body": body, "kind": kind, "seed": seed, "gate": gate,
 			"mouth": mouth, "rail": Vector3(RAIL_X, 0.0, rail_z), "head": body.attach("Head"),
 			"head_shape": head, "trunk": trunk, "speed": speed, "dead": false, "path": [],
-			"stagger": 0.0, "released": false}
+			"stagger": 0.0, "released": false, "moving": false}
 	_zombies[id] = z
+	_next_id = maxi(_next_id, id + 1)  # should this machine ever be the one handing them out
 	body.idle()
-	if walking:
-		_release(z, false)
+	if phase == Phase.FIGHT:  # one still waiting to set off on the host waits a little here too
+		_release(z, not walking)
 
 
 ## Sets it walking from where it stands: the gate's mouth (if still in the pen), the bay's mouth,
@@ -455,6 +487,7 @@ func _release(z: Dictionary, stagger: bool) -> void:
 		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
 			return
 	z.path = path
+	z.moving = true
 	z.body.move(z.speed)
 
 
@@ -471,6 +504,7 @@ func _walk(z: Dictionary, delta: float) -> void:
 		z.path.pop_front()
 		if z.path.is_empty():
 			node.look_at(node.global_position + Vector3.LEFT, Vector3.UP)
+			z.body.idle()  # what it stands in between swings
 			_claw(z)
 		return
 	node.global_position += to.normalized() * step
@@ -522,7 +556,7 @@ func _kill(id: int) -> void:
 	await get_tree().create_timer(DEAD_STAY).timeout
 	if is_instance_valid(node):
 		node.queue_free()
-	if _zombies.get(id) == z:
+	if is_same(_zombies.get(id), z):
 		_zombies.erase(id)
 
 

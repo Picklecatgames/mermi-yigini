@@ -4,9 +4,11 @@ extends SceneTree
 ## Alone first, at TIME_SCALE: the lever starts wave 1 (lever down, alarms lit, gates open, the dead
 ## walk out), we shoot every one of them through GameState and the wave clears: gates shut, lever
 ## up, wave 2 waits. Wave 2 is left alone: the dead claw the railing down and the wave is lost (the
-## temporary rule), wave 2 waits again with nobody left. Then online: the host pulls wave 2, the
-## client joins mid-wave and gets the phase and the same zombies under the same paths, shoots them
-## down through the host, sees wave 3 waiting and pulls the lever itself from beside it.
+## temporary rule), wave 2 waits again with nobody left. Wave 2 once more, every zombie put down in
+## the pens before the gates are wide (it must still clear). Then online: the host pulls wave 3;
+## the client, in a solo wave of its own, joins mid-wave, drops its own dead and gets the host's
+## phase and zombies under the same paths, shoots them down through the host, sees the next wave
+## waiting and pulls the lever itself. Last, the client loses the host: the wave starts over there.
 
 const PORT := 24693
 const LOG := "user://waves_check_client.log"
@@ -38,6 +40,9 @@ func _host() -> void:
 	if not _ok(waves.wave == 1 and waves.phase == waves.Phase.READY and waves._number.text == "01", "wave 1 waits, the sign says 01"): return
 	if not _ok(waves._spawns.size() == 24 and waves._gates.size() == 4 and waves._alarms.size() == 12, "spawns, gate leaves and alarms found"): return
 	if not _ok(waves._lever_clip != &"", "the lever has its clip"): return
+	var kills := []
+	waves.zombie_killed.connect(func(peer: int, _kind: StringName, _weak: bool, at: Vector3, gun: String) -> void:
+		kills.append([peer, at, gun]))
 	var me: Node3D = main.get_node("Player")
 	if not _ok(not waves.can_pull(me.global_position), "out of the lever's reach from the spawn"): return
 	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)  # stays there: the rounds below start at the railing
@@ -59,6 +64,8 @@ func _host() -> void:
 	if not await _until(func() -> bool: return gate.position.distance_to(shut + gate.get_meta("open_offset")) < 0.01, "the gates to open"): return
 	if not await _shoot_all("wave 1"): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.CLEARED, "wave 1 cleared"): return
+	if not _ok(kills.size() == waves.BASE_COUNT and kills.all(func(k: Array) -> bool: return k[0] == gs.local_peer() and k[2] == "scorpion" and k[1].x > 14.0),
+			"zombie_killed told each kill: ours, with the Scorpion, past the railing"): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY and waves.wave == 2, "wave 2 to wait"): return
 	if not _ok(not waves._lit and waves._status.text == "HAZIR", "lights off, the sign says HAZIR"): return
 	if not await _until(func() -> bool: return waves._number.text == "02", "the sign to flip to 02"): return
@@ -76,6 +83,12 @@ func _host() -> void:
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the lost wave to wait again"): return
 	await process_frame
 	if not _ok(waves.wave == 2 and waves.fence == waves.FENCE_HP and waves._zombies.is_empty(), "wave 2 again, the railing whole, nobody left"): return
+	# Wave 2 again, all of it shot in the pens before the fight is called: it clears anyway.
+	gs.request_pull_lever()
+	for id: int in waves._zombies.keys():
+		gs.cue_wave([&"die", id, waves.left - 1, gs.local_peer(), false, waves._zombies[id].node.global_position, "scorpion"])
+	if not _ok(waves.phase == waves.Phase.STARTING and waves.left == 0, "all of wave 2 down before the gates"): return
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY and waves.wave == 3, "wave 2 to clear all the same"): return
 	Engine.time_scale = 1.0
 	if not await _until(func() -> bool: return gate.position.distance_to(shut) < 0.01, "the gates to shut"): return
 	print("waves_check solo OK")
@@ -85,8 +98,8 @@ func _host() -> void:
 func _online() -> void:
 	if net.host(PORT) != OK:
 		return _fail("could not host on %d" % PORT)
-	gs.request_pull_lever()  # wave 2 is on when the client comes
-	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "wave 2's fight"): return
+	gs.request_pull_lever()  # wave 3 is on when the client comes
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "wave 3's fight"): return
 	var client_id := [0]
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void: client_id[0] = id)
 	var pulled_by := [0]
@@ -104,35 +117,52 @@ func _online() -> void:
 	if OS.get_process_exit_code(pid) != 0:
 		return _fail("client side failed")
 	if not _ok(client_id[0] != 0 and pulled_by[0] == client_id[0], "the client's pull reached the host"): return
-	if not _ok(waves.wave == 3 and waves.phase in [waves.Phase.STARTING, waves.Phase.FIGHT], "and started wave 3"): return
+	if not _ok(waves.wave == 4 and waves.phase in [waves.Phase.STARTING, waves.Phase.FIGHT], "and started wave 4"): return
 	print("waves_check OK")
 	quit()
 
 
 func _client() -> void:
+	# A wave of our own first, solo: joining must drop it (the host's ids are past ours by now).
+	var me: Node3D = main.get_node("Player")
+	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
+	me.reset_physics_interpolation()
+	await create_timer(0.3).timeout
+	gs.request_pull_lever()
+	if not _ok(waves.phase == waves.Phase.STARTING and waves._zombies.size() == waves.BASE_COUNT, "a solo wave of our own"): return
+	var own: Array = waves._zombies.keys()
 	net.join("127.0.0.1", PORT)
 	if not await _until(func() -> bool: return net.is_client, "connect"): return
-	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT and waves.wave == 2, "the host's wave 2 on joining"): return
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT and waves.wave == 3, "the host's wave 3 on joining"): return
 	if not await _until(func() -> bool: return waves._zombies.size() > 0, "its zombies"): return
+	if not _ok(own.all(func(id: int) -> bool: return not waves._zombies.has(id)), "our own dead are gone"): return
+	await process_frame
+	var standing := waves.get_children().filter(func(n: Node) -> bool: return not n.is_queued_for_deletion())
+	if not _ok(standing.size() == waves._zombies.size(), "nothing else stands under Waves"): return
 	var gate: Node3D = waves._gates[0]
 	if not _ok(waves._lit and gate.position.distance_to(waves._gate_home[gate] + gate.get_meta("open_offset")) < 0.01, "lights on and gates open at once"): return
 	for z: Dictionary in waves._zombies.values():
 		if not _ok(z.node.get_path() == NodePath("/root/Main/Waves/Z%d" % z.id) and z.released, "zombie %d under the host's path, walking" % z.id): return
 	# Shoot from the railing: the host traces every round from our synced eye.
-	var me: Node3D = main.get_node("Player")
 	gs.request_toggle_infinite_ammo()
 	gs.request_select_gun(4)  # the Scorpion: test mode opens it
 	if not await _until(gs.synced, "the host's answer"): return
-	if not await _shoot_all("wave 2", me): return
-	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY and waves.wave == 3, "wave 3 to wait", 40.0): return
-	if not await _until(func() -> bool: return waves._number.text == "03", "the sign to flip to 03"): return
+	if not await _shoot_all("wave 3", me): return
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY and waves.wave == 4, "wave 4 to wait", 40.0): return
+	if not await _until(func() -> bool: return waves._number.text == "04", "the sign to flip to 04"): return
 	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout  # our pose reaches the host
 	if not _ok(waves.can_pull(me.global_position), "the lever is in reach"): return
 	gs.request_pull_lever()
-	if not await _until(func() -> bool: return waves.phase == waves.Phase.STARTING and waves.wave == 3, "our pull to start wave 3"): return
-	if not await _until(func() -> bool: return waves._zombies.size() > 0, "wave 3's dead"): return
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.STARTING and waves.wave == 4, "our pull to start wave 4"): return
+	if not await _until(func() -> bool: return waves._zombies.size() > 0, "wave 4's dead"): return
+	# The host is gone (as net.gd hears it): the wave starts over here and the lever works again.
+	gs.multiplayer.server_disconnected.emit()
+	if not _ok(waves.phase == waves.Phase.READY and waves.wave == 4 and waves._zombies.is_empty() and not waves._lit, "host gone: quiet bay, wave 4 waiting"): return
+	if not await _until(func() -> bool: return not net.online, "net.gd to drop the connection"): return
+	gs.request_pull_lever()
+	if not _ok(waves.phase == waves.Phase.STARTING and waves._zombies.size() > 0, "and we can pull it ourselves"): return
 	_log.append("waves_check client OK")
 	_write_log()
 	quit()
