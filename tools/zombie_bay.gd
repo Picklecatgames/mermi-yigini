@@ -368,7 +368,7 @@ func _alarms() -> void:
 	var n := 0
 	# Rotating beacons by every gate and either side of the bay's mouth, on the hall's wall.
 	for at_out in [[Vector3(x0 - 0.02, 3.25, -b.MAIN_GATE_HALF - 0.7), Vector3.LEFT], [Vector3(x0 - 0.02, 3.25, b.MAIN_GATE_HALF + 0.7), Vector3.LEFT],
-			[Vector3(gx - b.SIDE_GATE_HALF - 0.7, 3.25, -b.BAY_HALF + 0.02), Vector3.BACK], [Vector3(gx + b.SIDE_GATE_HALF + 0.7, 3.25, b.BAY_HALF - 0.02), Vector3.FORWARD],
+			[Vector3(gx - b.SIDE_GATE_HALF - 0.7, 3.25, -b.BAY_HALF + 0.02), Vector3.BACK], [Vector3(gx - b.SIDE_GATE_HALF - 0.7, 3.25, b.BAY_HALF - 0.02), Vector3.FORWARD],
 			[Vector3(27.83, 4.4, -13.4), Vector3.LEFT], [Vector3(27.83, 4.4, 13.4), Vector3.LEFT]]:
 		n += 1
 		_beacon(holder, "WaveBeacon%d" % n, at_out[0], at_out[1])
@@ -615,7 +615,7 @@ func _lever_mat(part: String) -> StandardMaterial3D:
 func _fires() -> void:
 	var tyre := MODELS + "old_tyre/old_tyre_1k.gltf"
 	var soot: Texture2D = _blood.scorch
-	for spot in [[Vector3(18.6, 0, -25.9), 3], [Vector3(25.3, 0, 25.0), 2], [Vector3(42.9, 0, -10.2), 3], [Vector3(29.4, 0, 11.0), 2]]:
+	for spot in [[Vector3(18.6, 0, -25.9), 3], [Vector3(25.3, 0, 25.0), 2], [Vector3(35.6, 0, 8.4), 3], [Vector3(29.4, 0, 11.0), 2]]:
 		var at: Vector3 = spot[0]
 		var stack := StaticBody3D.new()
 		stack.name = "BurningTyres"
@@ -645,7 +645,7 @@ func _fires() -> void:
 		var d: Decal = b._decal(root, soot, at, rng.randf() * TAU, Vector3(2.6, 0.6, 2.6))
 		d.modulate = Color(1, 1, 1, 0.9)
 	# Two dead fires: a charred stack gone cold, ash round it.
-	for at in [Vector3(16.2, 0, 24.8), Vector3(43.0, 0, 9.6)]:
+	for at in [Vector3(16.2, 0, 24.8)]:
 		for k in 2:
 			var t := _deco(tyre, at + Vector3(rng.randf_range(-0.3, 0.3), 0.085 + k * 0.16, rng.randf_range(-0.3, 0.3)), rng.randf() * TAU, 1.0, Basis(Vector3.RIGHT, PI / 2 + rng.randf_range(-0.2, 0.2)))
 			t.scale = Vector3(1.0, 1.0, 0.85)
@@ -709,7 +709,8 @@ func _gore() -> void:
 	var faces := []
 	for s in [-1.0, 1.0]:
 		faces.append([28.6, gx - b.SIDE_GATE_HALF - 0.3, s * (b.BAY_HALF - 0.04), true, Vector3(0, 0, -s), 6])
-		faces.append([gx + b.SIDE_GATE_HALF + 0.3, x0 - 0.3, s * (b.BAY_HALF - 0.04), true, Vector3(0, 0, -s), 3])
+		if gx + b.SIDE_GATE_HALF + 0.6 < x0:
+			faces.append([gx + b.SIDE_GATE_HALF + 0.3, x0 - 0.3, s * (b.BAY_HALF - 0.04), true, Vector3(0, 0, -s), 3])
 		faces.append([s * (b.MAIN_GATE_HALF + 0.3), s * (b.BAY_HALF - 0.3), x0 - 0.02, false, Vector3.LEFT, 4])
 		faces.append([fl + 1.0, 27.4, s * 27.95, true, Vector3(0, 0, -s), 7])
 		faces.append([s * (b.BAY_HALF + 0.5), s * 27.4, 27.95, false, Vector3.LEFT, 4])
@@ -958,8 +959,8 @@ func _debris() -> void:
 	var bin := _rusty_bin()
 	# Bag heaps along the walls: [centre, along x, bags].
 	for heap in [[Vector3(21.5, 0, -27.3), true, 7], [Vector3(26.4, 0, -27.2), true, 4], [Vector3(19.0, 0, 27.3), true, 6],
-			[Vector3(27.3, 0, -17.0), false, 5], [Vector3(27.3, 0, 20.0), false, 4], [Vector3(31.0, 0, -11.4), true, 5],
-			[Vector3(42.6, 0, 11.4), true, 4], [Vector3(43.7, 0, -6.6), false, 3]]:
+			[Vector3(27.3, 0, -17.0), false, 5], [Vector3(27.3, 0, 20.0), false, 4], [Vector3(30.3, 0, -11.4), true, 5],
+			[Vector3(35.8, 0, -7.0), false, 3]]:
 		var c: Vector3 = heap[0]
 		for k in heap[2]:
 			var along := Vector3(rng.randf_range(-1.3, 1.3), 0, rng.randf_range(-0.25, 0.25)) if heap[1] else Vector3(rng.randf_range(-0.25, 0.25), 0, rng.randf_range(-1.3, 1.3))
@@ -971,8 +972,8 @@ func _debris() -> void:
 	# Bins and drums, some knocked over and spilling.
 	var side := Basis(Vector3.BACK, PI / 2)
 	for p in [[bin, Vector3(16.4, 0, -27.3), 0.2, false], [bin, Vector3(27.2, 0, 23.3), 1.4, true], [drum, Vector3(23.6, 0, 27.3), 0.0, false],
-			[drum, Vector3(24.4, 0, 27.2), 0.0, false], [drum2, Vector3(29.4, 0, -11.4), 0.0, false], [drum, Vector3(41.3, 0, -11.3), 0.3, true],
-			[drum2, Vector3(35.0, 0, 11.5), 0.0, false], [bin, Vector3(44.0, 0, 5.4), -0.4, true]]:
+			[drum, Vector3(24.4, 0, 27.2), 0.0, false], [drum2, Vector3(29.4, 0, -11.4), 0.0, false],
+			[drum2, Vector3(31.6, 0, 11.5), 0.0, false], [bin, Vector3(35.9, 0, 5.4), -0.4, true]]:
 		var n: Node3D
 		if p[0] is String:
 			n = _prop_body(p[0], p[1], p[2], p[3])
@@ -994,9 +995,9 @@ func _debris() -> void:
 	for i in 4:
 		_deco(jerry, _wall_spot(), rng.randf() * TAU, 1.0, side if i % 2 == 0 else Basis())
 	# Loose tyres and rims.
-	for p in [Vector3(17.6, 0, -26.8), Vector3(26.9, 0, -24.5), Vector3(42.4, 0, -11.0), Vector3(15.8, 0, 26.9)]:
+	for p in [Vector3(17.6, 0, -26.8), Vector3(26.9, 0, -24.5), Vector3(35.9, 0, -9.4), Vector3(15.8, 0, 26.9)]:
 		_deco(tyre, p + Vector3(0, 0.085, 0), rng.randf() * TAU, 1.0, Basis(Vector3.RIGHT, PI / 2))
-	for p in [Vector3(27.3, 0, -25.6), Vector3(30.2, 0, 11.4), Vector3(43.8, 0, -3.6)]:
+	for p in [Vector3(27.3, 0, -25.6), Vector3(30.2, 0, 11.4), Vector3(35.9, 0, -4.7)]:
 		_deco(tyre, p + Vector3(0, 0.3, 0), rng.randf_range(-0.2, 0.2) + PI / 2, 1.0, Basis(Vector3.RIGHT, rng.randf_range(-0.2, 0.2)))
 	for i in 5:
 		_deco(rims[i % 2], _wall_spot() + Vector3(0, 0.07, 0), rng.randf() * TAU, 1.0, Basis(Vector3.RIGHT, PI / 2))
@@ -1010,10 +1011,10 @@ func _debris() -> void:
 			b.block(Vector3(0.025, 0.16, rng.randf_range(1.6, 2.2)), Vector3(27.93, 1.0 + k * 0.45, s * (b.BAY_HALF + 1.1)), wood, root, Basis(Vector3.RIGHT, rng.randf_range(-0.5, 0.5)))
 	_deco(MODELS + "sledgehammer_01/sledgehammer_01_1k.gltf", Vector3(23.4, 0.04, 3.9), 0.7, 1.0, Basis(Vector3.BACK, PI / 2))
 	_deco(MODELS + "baseball_bat/baseball_bat_1k.gltf", Vector3(18.6, 0.032, 10.0), 2.1, 1.0, Basis(Vector3.BACK, PI / 2))
-	_deco(MODELS + "baseball_bat/baseball_bat_1k.gltf", Vector3(35.2, 0.032, -6.9), -0.6, 1.0, Basis(Vector3.BACK, PI / 2))
+	_deco(MODELS + "baseball_bat/baseball_bat_1k.gltf", Vector3(33.6, 0.032, -6.0), -0.6, 1.0, Basis(Vector3.BACK, PI / 2))
 	# Broken concrete: chunks off the walls' feet and a few loose on the floor.
 	for i in 40:
-		var at := _wall_spot(1.2) if i < 28 else Vector3(rng.randf_range(16.0, 43.0), 0, rng.randf_range(-11.0, 11.0))
+		var at := _wall_spot(1.2) if i < 28 else Vector3(rng.randf_range(16.0, b.BAY_END - 1.3), 0, rng.randf_range(-11.0, 11.0))
 		var sz := Vector3(rng.randf_range(0.08, 0.3), rng.randf_range(0.05, 0.16), rng.randf_range(0.08, 0.26))
 		var m := MeshInstance3D.new()
 		m.mesh = b._stone_block(sz, 900 + i, 0.03, 0.01)
@@ -1023,7 +1024,7 @@ func _debris() -> void:
 	# Rags: torn clothes, dark with old blood.
 	var rag: Material = load("res://materials/env/cloth_olive.tres")
 	for i in 16:
-		var x := rng.randf_range(16.0, 43.5)
+		var x := rng.randf_range(16.0, b.BAY_END - 0.8)
 		var half: float = b.BAY_HALF - 0.6 if x > 28.3 else 26.5
 		var at := Vector3(x, 0.004, rng.randf_range(-half, half))
 		var m: MeshInstance3D = b.block(Vector3(rng.randf_range(0.25, 0.6), 0.006, rng.randf_range(0.2, 0.45)), at, rag, root, Basis(Vector3.UP, rng.randf() * TAU))
@@ -1115,8 +1116,7 @@ func _chains() -> void:
 	link.rings = 8
 	link.ring_segments = 6
 	var xfs: Array[Transform3D] = []
-	for c in [[Vector3(30.2, 0, -10.6), 2.1, true], [Vector3(33.4, 0, -10.9), 1.5, false], [Vector3(31.6, 0, 10.7), 1.8, true],
-			[Vector3(42.0, 0, 10.6), 2.4, false], [Vector3(42.6, 0, -10.8), 1.9, true]]:
+	for c in [[Vector3(30.2, 0, -10.6), 2.1, true], [Vector3(33.4, 0, -10.9), 1.5, false], [Vector3(31.6, 0, 10.7), 1.8, true]]:
 		var top: Vector3 = c[0] + Vector3(0, b.BAY_H, 0)
 		var length: float = c[1]
 		var count := int(length / 0.05)

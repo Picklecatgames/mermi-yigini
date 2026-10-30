@@ -14,7 +14,7 @@ const SHOTS := {
 	"floor": [Vector3(0, 1.6, 22), Vector3(10, 0, 12)],
 	"dig": [Vector3(9.5, 4.0, 4.0), Vector3(4.0, 1.5, 0.0)],
 	"range": [Vector3(9.0, 1.6, 7.0), Vector3(26.0, 1.2, -1.0)],
-	"bay": [Vector3(25.0, 1.6, 2.0), Vector3(44.0, 1.0, 0.0)],
+	"bay": [Vector3(25.0, 1.6, 2.0), Vector3(36.0, 1.0, 0.0)],
 	"place": [Vector3(12.0, 4.6, 9.0), Vector3(26.0, 0.0, 0.0)],
 	"wall": [Vector3(16.0, 1.6, 10.0), Vector3(22.0, 1.5, 27.9)],
 	"north": [Vector3(17.0, 1.7, -18.0), Vector3(22.0, 1.2, -27.9)],

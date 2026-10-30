@@ -130,11 +130,11 @@ func _events(delta: float) -> void:
 
 
 ## [distance to the nearest outside wall, a point 3 m out past it]: the hall is +-28 m, the range
-## bay runs out east to x 44 between z +-12.
+## bay runs out east to x 36 between z +-12.
 func _nearest_wall(at: Vector3) -> Array:
 	var walls: Array = []  # [distance, point outside]
 	if at.x > 28.0:  # in the bay
-		walls = [[12.0 - absf(at.z), Vector3(at.x, 3.0, signf(at.z) * 15.0)], [44.3 - at.x, Vector3(47.0, 3.0, at.z)]]
+		walls = [[12.0 - absf(at.z), Vector3(at.x, 3.0, signf(at.z) * 15.0)], [36.3 - at.x, Vector3(39.0, 3.0, at.z)]]
 	else:
 		walls = [[28.0 - at.z, Vector3(at.x, 3.0, 31.0)], [28.0 + at.z, Vector3(at.x, 3.0, -31.0)],
 			[28.0 + at.x, Vector3(-31.0, 3.0, at.z)]]

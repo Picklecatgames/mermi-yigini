@@ -343,7 +343,7 @@ const REQUESTS := {
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
 ## PLACE_GAP from any target's origin and with nothing solid in the way.
-const PLACE_ZONES: Array[Rect2] = [Rect2(20.0, -25.0, 6.5, 45.0), Rect2(26.5, -11.2, 13.0, 22.4)]
+const PLACE_ZONES: Array[Rect2] = [Rect2(20.0, -25.0, 6.5, 45.0), Rect2(26.5, -11.2, 9.0, 22.4)]
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
 const PLACE_ROOM := 0.35  # m: a piece's footing needs this much clear of walls, columns, props

@@ -864,8 +864,8 @@ func _range_wear() -> void:
 	var prints := _prints_tex()
 	for path in [[Vector2(fl + 0.5, -19.0), Vector2(22.5, -17.5)], [Vector2(fl + 0.5, -9.0), Vector2(24.0, -7.0)],
 			[Vector2(fl + 0.5, 2.0), Vector2(23.0, 1.0)], [Vector2(fl + 0.5, 11.0), Vector2(21.5, 13.5)],
-			[Vector2(fl + 0.5, 20.0), Vector2(24.5, 19.0)], [Vector2(23.0, 1.0), Vector2(39.0, -1.5)],
-			[Vector2(24.0, -7.0), Vector2(38.5, 4.0)]]:
+			[Vector2(fl + 0.5, 20.0), Vector2(24.5, 19.0)], [Vector2(23.0, 1.0), Vector2(34.5, -1.5)],
+			[Vector2(24.0, -7.0), Vector2(34.0, 4.0)]]:
 		for back in [0.0, 1.0]:
 			var a: Vector2 = path[0]
 			var c: Vector2 = path[1]

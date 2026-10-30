@@ -50,13 +50,16 @@ const GS := preload("res://scripts/game_state.gd")
 ## covered bay out through the east wall with a low ceiling. The dead come in through the bay:
 ## three gates (the big sliding one in the back wall, a lifting one in each side wall) open onto
 ## holding pens; tools/zombie_bay.gd builds the gates, pens, spawns, alarms and the gore.
-const BAY_END := 44.3     # inner face of the bay's back wall (30 m from the railing)
+## 2026-10-30 (the user: the dead started so far back they died before they got anywhere; "arka
+## bölmeyi kapatıp zombilerin geldiği alanı küçült"): the bay is 8 m deep, not 16; its back half
+## is walled off with the gates and pens moved up behind the new back wall.
+const BAY_END := 36.3     # inner face of the bay's back wall (22 m from the railing)
 const BAY_HALF := 12.0    # the east wall is open over |z| < BAY_HALF
 const BAY_H := 4.0        # the bay's ceiling, level with the hall's concrete
 ## The gates' openings in the bay walls (tools/zombie_bay.gd hangs the leaves in them): the back
 ## wall is open over |z| < MAIN_GATE_HALF, each side wall over x SIDE_GATE_X +- SIDE_GATE_HALF.
 const MAIN_GATE_HALF := 4.0
-const SIDE_GATE_X := 38.3
+const SIDE_GATE_X := 34.3  # one wall panel in from the back corner
 const SIDE_GATE_HALF := 2.0
 const BRIDGE_Y := 5.0     # the light bridge over the firing line
 const RANGE_LIGHT := Color(0.74, 0.88, 0.78)  # old fluorescent gone green, against the hall's warm 4000 K
@@ -1095,11 +1098,14 @@ func _bay(parent: Node, steel: Material, dark: Material) -> void:
 		var side := Node3D.new()
 		side.transform = Transform3D(Basis(Vector3.UP, 0.0 if s < 0 else PI), Vector3(cx, 0, s * (BAY_HALF + 0.15)))
 		add(side, body)
-		for i in 4:
-			if absf(cx - 6.0 + 4.0 * i - SIDE_GATE_X) > 0.1:  # the side gate's panel is left out
-				mesh_at("wall_panel", Transform3D(Basis(), Vector3(-6.0 + 4.0 * i, 0, 0)), concrete, side)
+		var panels := roundi((BAY_END - 28.3) / 4.0)  # 4 m concrete panels end to end
+		for i in panels:
+			var along := -2.0 * (panels - 1) + 4.0 * i
+			if absf(cx + along - SIDE_GATE_X) > 0.1:  # the side gate's panel is left out
+				mesh_at("wall_panel", Transform3D(Basis(), Vector3(along, 0, 0)), concrete, side)
 		for run in [[28.0, SIDE_GATE_X - SIDE_GATE_HALF], [SIDE_GATE_X + SIDE_GATE_HALF, BAY_END]]:
-			collide(Vector3(run[1] - run[0], 4.0, 0.3), Vector3((run[0] + run[1]) / 2.0, 2.0, s * (BAY_HALF + 0.15)), body)
+			if run[1] - run[0] > 0.05:
+				collide(Vector3(run[1] - run[0], 4.0, 0.3), Vector3((run[0] + run[1]) / 2.0, 2.0, s * (BAY_HALF + 0.15)), body)
 	var back := Node3D.new()
 	back.transform = Transform3D(Basis(Vector3.UP, -PI / 2), Vector3(BAY_END + 0.15, 0, 0))
 	add(back, body)
@@ -1120,7 +1126,7 @@ func _bay(parent: Node, steel: Material, dark: Material) -> void:
 	var lid_mat := worn("corrugated_iron_02", "bay_ceiling", {"tint": Color(0.16, 0.16, 0.17), "tex_size": 1.5,
 		"cell_size": 2.5, "cell_tone": 0.15, "odd_cells": 0.1, "grime": 0.4, "rust": 0.25})
 	block(lid, lid_at, lid_mat, ceiling)
-	for k in 5:  # transverse steel ribs every ~3.2 m hide where the sheets meet
+	for k in int((BAY_END - 28.3) / 3.25) + 1:  # transverse steel ribs every ~3.2 m hide where the sheets meet
 		block(Vector3(0.12, 0.16, 2.0 * BAY_HALF), Vector3(28.9 + k * 3.25, BAY_H - 0.08, 0), dark, ceiling)
 	collide(lid, lid_at, ceiling)
 	# A steel lintel across the mouth, under the hall's ledger, and a deep girder up under the truss
@@ -1142,8 +1148,8 @@ func _bay(parent: Node, steel: Material, dark: Material) -> void:
 			gm.emission_enabled = false
 			gm.albedo_color = gm.albedo_color.darkened(0.6)
 			dead_tube.surface_set_material(si, gm)
-	var edges: Array[float] = [28.3, 31.6, 34.9, 38.2, 41.5, BAY_END]
-	const LIT := {"0,-3": 1.0, "0,9": 1.0, "1,3": 2.0, "2,-9": 1.0, "2,3": 1.0, "3,-3": 2.0}  # strip -> 1 lit, 2 failing
+	var edges: Array[float] = [28.3, 32.3, BAY_END]
+	const LIT := {"0,-3": 1.0, "0,9": 1.0, "1,3": 2.0, "1,-9": 1.0}  # strip -> 1 lit, 2 failing
 	for r in edges.size() - 1:
 		var x := (edges[r] + edges[r + 1]) / 2.0
 		for z: float in [-9.0, -3.0, 3.0, 9.0]:
@@ -1187,7 +1193,7 @@ func _bay(parent: Node, steel: Material, dark: Material) -> void:
 				light.set_script(FLICKER)
 			add(light, strip)
 	# One flood just inside the mouth, the lane's only shadowed light, aimed on the back gate.
-	_flood(parent, Vector3(28.7, BAY_H - 0.25, -2.0), Vector3(43.5, 1.2, 0.0), dark, 4.5, true)
+	_flood(parent, Vector3(28.7, BAY_H - 0.25, -2.0), Vector3(BAY_END - 0.8, 1.2, 0.0), dark, 4.5, true)
 
 	var probe := ReflectionProbe.new()
 	probe.name = "BayReflections"
