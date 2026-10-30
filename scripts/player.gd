@@ -51,6 +51,7 @@ const BALLOON_TIME := 4.0  # s
 const BALLOON_RISE := 1.0  # m/s
 const BALLOON_FALL := 1.0  # m/s at most on the way down
 const SPECIAL_DEMO := preload("res://scripts/special_demo.gd")  # N, debug builds, solo
+const CHARACTER_DEMO := preload("res://scripts/character_demo.gd")  # K, debug builds, solo
 ## Scream: the clown's face rushes at the view, holds, shakes, is gone. Its sound is the user's
 ## recording, played if it is there (no sound is made in code).
 const SCREAM_FACE := preload("res://assets/bullet/tips/scream_face.glb")
@@ -520,6 +521,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:
 		_toggle_demo(not event.shift_pressed)
+	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
+		_toggle_mirror(not event.shift_pressed)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
 		# 1 draws the first gun; the key of the one in hand puts it away (bare fists).
 		GameState.request_select_gun(event.physical_keycode - KEY_1 + 1)
@@ -556,6 +559,22 @@ func _toggle_demo(on: bool) -> void:
 		return
 	demo = SPECIAL_DEMO.new()
 	demo.name = "SpecialDemo"
+	get_parent().add_child(demo)
+
+
+## K: the character test (scripts/character_demo.gd) opens, or puts on the next character;
+## Shift+K closes it.
+func _toggle_mirror(on: bool) -> void:
+	var demo := get_parent().get_node_or_null("CharacterDemo")
+	if not on:
+		if demo:
+			demo.queue_free()
+		return
+	if demo:
+		demo.next_character()
+		return
+	demo = CHARACTER_DEMO.new()
+	demo.name = "CharacterDemo"
 	get_parent().add_child(demo)
 
 
