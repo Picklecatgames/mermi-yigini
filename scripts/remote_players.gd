@@ -137,6 +137,9 @@ class Character extends Node3D:
 	var _skel: Skeleton3D
 	var _tree: AnimationTree
 	var _hip := 1.0  # m, the body's hip height: the clips' strides and hips are per hip height
+	## The body's size here: its eyes at the player's (player.gd EYE), where its own camera is, or a
+	## Brute stood a head taller than the player wearing it sees himself.
+	var _size := 1.0
 	var _paces := {}  # stance -> [[direction, m/s]] of its moving clips, for the stride's pace
 	var _air_arms := 0.0  # 0..1, the stance's arms over the jump
 	var _gun: Node3D  # holds the first-person rig, in the body's frame
@@ -274,6 +277,10 @@ class Character extends Node3D:
 		_skel = _model.get_node("Skeleton3D")
 		_hip = _skel.get_bone_global_rest(0).origin.y
 		_skel.motion_scale = _hip
+		var crown := _skel.get_bone_global_rest(_skel.find_bone("mixamorig_HeadTop_End")).origin.y
+		var eyes := (crown + _skel.get_bone_global_rest(_skel.find_bone("mixamorig_Head")).origin.y) * 0.5
+		_size = PLAYER.EYE / eyes
+		_model.scale = Vector3.ONE * _size
 		_spine = _skel.find_bone("mixamorig_Spine")
 		_chest = _skel.find_bone("mixamorig_Spine1")
 		_wrist = _skel.find_bone("mixamorig_RightHand")
@@ -284,7 +291,7 @@ class Character extends Node3D:
 			for h: String in HAND:
 				_hand[side + "_" + h] = _skel.find_bone(_mixamo(side + "_" + h))
 		var top := _skel.find_bone("mixamorig_HeadTop_End")
-		var tag_y := _skel.get_bone_global_rest(top).origin.y + LABEL_OVER
+		var tag_y := _skel.get_bone_global_rest(top).origin.y * _size + LABEL_OVER
 		_tag_label.position.y = tag_y
 		_tag_box.position.y = tag_y
 		_paces.clear()
@@ -394,7 +401,7 @@ class Character extends Node3D:
 	## The clip's way and pace of travel on this body: [direction, m/s] in the model's frame.
 	func _clip_velocity(clip: String) -> Array:
 		var back := clip.begins_with("<")
-		var v: Vector2 = ANIMS.get_animation(clip.trim_prefix("<")).get_meta("velocity") * _hip
+		var v: Vector2 = ANIMS.get_animation(clip.trim_prefix("<")).get_meta("velocity") * _hip * _size
 		return [-v if back else v]
 
 	## "Oyuncu N" in a box of the player's colour, the same size on screen at any distance, seen
