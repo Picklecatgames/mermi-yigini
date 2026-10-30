@@ -48,13 +48,19 @@ const FENCE_HP := 100
 const FENCE_SEND := 0.25  # s between the host's fence updates
 ## How it comes apart (the host decides, the die cue carries it): a head shot kill takes the head
 ## off, SHRED rounds inside SHRED_TIME (a burst from the UZI or the minigun) burst the body, a brute
-## always bursts.
+## and a blob always burst (a blob has no head to lose).
 const SHRED := 4
 const SHRED_TIME := 0.5
 ## kind -> walk speed (m/s), hit points (a head shot takes 3), bite out of the fence per claw
-const STATS := {&"walker": [0.9, 5, 1], &"runner": [3.0, 3, 1], &"crawler": [0.6, 4, 1], &"brute": [1.4, 25, 4]}
+const STATS := {&"walker": [0.9, 5, 1], &"runner": [3.0, 3, 1], &"crawler": [0.6, 4, 1], &"brute": [1.4, 25, 4],
+		&"blob": [0.7, 12, 2], &"dog": [4.5, 2, 1]}
+## The ones that keep low, lying along their way: kind -> trunk radius, trunk length, trunk height,
+## head radius (m, ×the body's size; the crawler's is the same at every size).
+const LOW := {&"crawler": [0.3, 0.9, 0.35, 0.13], &"blob": [0.42, 1.0, 0.4, 0.2], &"dog": [0.2, 0.9, 0.45, 0.13]}
 ## Wave n: BASE_COUNT + COUNT_GROW·(n-1) zombies; hit points ×(1 + HP_GROW·(n-1)), speed likewise
-## up to SPEED_MAX; crawlers from wave CRAWLER_FROM, runners from RUNNER_FROM, a brute every BRUTE_EVERY.
+## up to SPEED_MAX; crawlers from wave CRAWLER_FROM, runners from RUNNER_FROM, blobs from BLOB_FROM,
+## a brute every BRUTE_EVERY. From DOG_FROM a pack of dogs comes on top, all together: DOG_PACK
+## of them, one more every DOG_PACK_GROW waves, up to DOG_PACK_MAX.
 const BASE_COUNT := 8
 const COUNT_GROW := 4
 const HP_GROW := 0.2
@@ -65,6 +71,12 @@ const CRAWLER_SHARE := 0.15
 const RUNNER_FROM := 3
 const RUNNER_SHARE := 0.2
 const BRUTE_EVERY := 5
+const BLOB_FROM := 6
+const BLOB_SHARE := 0.08
+const DOG_FROM := 4
+const DOG_PACK := 2
+const DOG_PACK_GROW := 2
+const DOG_PACK_MAX := 8
 const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "ÇİT YIKILDI"}
 
 var wave := 1
@@ -206,10 +218,16 @@ func _plan(w: int) -> Array[StringName]:
 			out.append(&"runner")
 		elif w >= CRAWLER_FROM and r < RUNNER_SHARE + CRAWLER_SHARE:
 			out.append(&"crawler")
+		elif w >= BLOB_FROM and r < RUNNER_SHARE + CRAWLER_SHARE + BLOB_SHARE:
+			out.append(&"blob")
 		else:
 			out.append(&"walker")
 	for i in w / BRUTE_EVERY:  # not first out of the gate
 		out.insert(_rng.randi_range(out.size() / 3, out.size()), &"brute")
+	if w >= DOG_FROM:  # a while in, so they come at a railing that is already busy
+		var at := _rng.randi_range(out.size() / 4, out.size())
+		for i in mini(DOG_PACK + (w - DOG_FROM) / DOG_PACK_GROW, DOG_PACK_MAX):
+			out.insert(at, &"dog")
 	return out
 
 
@@ -440,21 +458,23 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 	body.setup(kind, seed)
 	node.add_child(body)
 	var tall: float = body.height
+	var low: Array = LOW.get(kind, [])
+	var k: float = 1.0 if kind == &"crawler" else body.size
 	node.tall = 0.9 if kind == &"crawler" else tall
 	var trunk := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.3 * tall / 1.8
-	cap.height = (0.9 if kind == &"crawler" else tall - 0.25)
+	cap.radius = low[0] * k if low else 0.3 * tall / 1.8
+	cap.height = low[1] * k if low else tall - 0.25
 	trunk.shape = cap
-	if kind == &"crawler":
+	if low:
 		trunk.rotation.x = PI / 2
-		trunk.position = Vector3(0, 0.35, 0)
+		trunk.position = Vector3(0, low[2] * k, 0)
 	else:
 		trunk.position = Vector3(0, cap.height / 2.0, 0)
 	node.add_child(trunk)
 	var head := CollisionShape3D.new()
 	var ball := SphereShape3D.new()
-	ball.radius = 0.13 * tall / 1.8
+	ball.radius = low[3] * k if low else 0.13 * tall / 1.8
 	head.shape = ball
 	head.add_to_group("weak_spot")
 	node.add_child(head)
@@ -489,7 +509,7 @@ func _release(z: Dictionary, stagger: bool) -> void:
 		await get_tree().create_timer(float(r % 400) / 100.0).timeout
 		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
 			return
-	if z.kind == &"brute" and r % 7 < 3:
+	if (z.kind == &"brute" and r % 7 < 3) or (z.kind == &"dog" and r % 4 == 0):  # a roar, a howl
 		await get_tree().create_timer(z.body.scream()).timeout
 		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
 			return
@@ -548,9 +568,9 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 		_hp.erase(z.id)
 		var gun: String = GameState.GUNS[GameState.player(peer).gun].id
 		var gib := &""
-		if weak:
+		if weak and z.kind != &"blob":
 			gib = &"head"
-		elif z.kind == &"brute" or (z.hits as Array).size() >= SHRED:
+		elif z.kind in [&"brute", &"blob"] or (z.hits as Array).size() >= SHRED:
 			gib = &"body"
 		GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1, peer, weak,
 				(z.node as Node3D).global_position, gun, gib])

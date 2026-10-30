@@ -71,8 +71,7 @@ func _run() -> void:
 	bodies[3].die(&"body")
 	var gibs := world.find_children("*", "", false, false).filter(func(n: Node) -> bool: return n.get_script() == GIBS)
 	_expect(gibs.size() == 2, "%d gib bursts, wanted 2" % gibs.size())
-	for f in 180:
-		await process_frame
+	await create_timer(3.0).timeout  # by the clock: headless frames go by faster than 60 a second
 	for g in gibs:
 		var down := 0
 		for l in g._lumps:

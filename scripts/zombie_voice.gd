@@ -26,6 +26,8 @@ const KIND_VOICE := {
 	&"runner": {"banks": [&"growl", &"groan"], "gap": [2.5, 6.0], "pitch": [1.0, 1.12]},
 	&"crawler": {"banks": [&"groan", &"wet"], "gap": [5.0, 12.0], "pitch": [0.95, 1.1]},
 	&"brute": {"banks": [&"wet", &"growl"], "gap": [5.0, 10.0], "pitch": [0.72, 0.84]},
+	&"blob": {"banks": [&"wet"], "gap": [3.0, 8.0], "pitch": [0.6, 0.75]},
+	&"dog": {"banks": [&"growl"], "gap": [2.0, 5.0], "pitch": [1.25, 1.45]},
 }
 const MOANS_AT_ONCE := 5  # ambient voices over the whole room; the rest wait for their next turn
 const MOAN_RANGE := 45.0  # m from the listener; farther ones keep quiet
@@ -61,7 +63,7 @@ static var _tick_count := 0
 
 
 func setup(p_kind: StringName, seed: int) -> void:
-	kind = p_kind
+	kind = p_kind if KIND_VOICE.has(p_kind) else &"walker"
 	var range_: Array = KIND_VOICE[kind].pitch
 	_pitch = lerpf(range_[0], range_[1], float(absi(hash("%d:voice" % seed)) % 1000) / 999.0)
 

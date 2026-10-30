@@ -1,6 +1,7 @@
 extends Node3D
 ## One zombie's look and animation: a Mixamo model and clips from the shared library
-## (assets/characters/zombies/zombie_anims.res, built by tools/build_zombies.gd). Visual only: the
+## (assets/characters/zombies/zombie_anims.res, built by tools/build_zombies.gd), or a creature off
+## another rig (CREATURES) with clips of its own. Visual only: the
 ## wave code moves this node and calls idle / move / attack / hit / die / scream. Faces -Z.
 ##
 ## Everything is picked from `seed`, which the host hands out with the zombie, so every peer dresses
@@ -32,21 +33,42 @@ const MODELS := {
 	&"maw": preload("res://assets/characters/zombies/maw/maw.scn"),
 	&"demon": preload("res://assets/characters/zombies/demon/demon.scn"),
 	&"fleshzombie": preload("res://assets/characters/zombies/fleshzombie/fleshzombie.scn"),
+	&"hazmat": preload("res://assets/characters/zombies/hazmat/hazmat.scn"),
+	&"bloater": preload("res://assets/characters/zombies/bloater/bloater.scn"),
+}
+## Not Mixamo: its scene, the skeleton and the node the squash moves (paths in the scene), which bone
+## stands in for "Head" / "Hips" in attach(), its height in m at size 1 (0: as modelled), whether it
+## faces +Z as modelled (turned like the Mixamo ones), and its own clips (_creature_library).
+const CREATURES := {
+	&"blob": {"scene": preload("res://assets/characters/zombies/blob/blob.glb"),
+			"skeleton": "Armature/Skeleton3D", "squash": "Armature", "height": 0.0, "turn": false,
+			"bones": {"Head": "Bone.003", "Hips": "Bone.001"}},
+	&"melty": {"scene": preload("res://assets/characters/zombies/melty/melty.glb"),
+			"skeleton": "Sketchfab_model/melty zombie_fbx/Object_2/RootNode/Object_4/Skeleton3D",
+			"squash": "Sketchfab_model", "height": 1.8, "turn": true,
+			"bones": {"Head": "head_014", "Hips": "hip_016"}},
+	&"dog": {"scene": preload("res://assets/characters/zombies/dog/dog.glb"),
+			"skeleton": "Armature/Skeleton3D", "squash": "Armature", "height": 0.85, "turn": true,
+			"bones": {"Head": "Bone_WH_Head", "Hips": "Bone_WH_Pelvis"}},
 }
 ## kind -> models it wears, clip family ("" zombie, "mutant_" the creature set), its move loop,
 ## and its size range.
 const KINDS := {
 	&"walker": {"models": [&"prisoner", &"copzombie", &"warzombie", &"zombiegirl", &"parasite",
-			&"yaku", &"romero", &"skeletonzombie", &"whiteclown", &"fleshzombie"],
+			&"yaku", &"romero", &"skeletonzombie", &"whiteclown", &"fleshzombie", &"hazmat", &"bloater",
+			&"melty"],
 			"set": "", "move": "walk", "size": [0.95, 1.06]},
 	&"runner": {"models": [&"prisoner", &"copzombie", &"zombiegirl", &"parasite", &"yaku",
-			&"skeletonzombie", &"whiteclown", &"fleshzombie"],
+			&"skeletonzombie", &"whiteclown", &"fleshzombie", &"hazmat", &"melty"],
 			"set": "", "move": "run", "size": [0.95, 1.04]},
 	&"crawler": {"models": [&"prisoner", &"warzombie", &"zombiegirl", &"romero", &"skeletonzombie",
-			&"fleshzombie"],
+			&"fleshzombie", &"hazmat"],
 			"set": "", "move": "crawl", "size": [0.95, 1.05]},
 	&"brute": {"models": [&"warrok", &"maw", &"demon"],  # already ~2.4 m
 			"set": "mutant_", "move": "walk", "size": [1.0, 1.12]},
+	&"blob": {"models": [&"blob"],  # 0.79 m as modelled
+			"set": "", "move": "crawl", "size": [1.3, 1.6]},
+	&"dog": {"models": [&"dog"], "set": "", "move": "run", "size": [0.9, 1.1]},
 }
 const BLEND := 0.25  # s of crossfade between clips
 ## Every shot bends the upper body away from it at once, whatever clip is playing: a spring on the
@@ -65,6 +87,7 @@ var height := 1.8  # m, top of the head at this size (for hit shapes)
 
 var _seed := 0
 var _set := ""
+var _lib: AnimationLibrary  # this model's clips
 var _move := "walk"
 var _ap: AnimationPlayer
 var _skel: Skeleton3D
@@ -82,6 +105,7 @@ var _nod_v := Vector3.ZERO
 var _rng := RandomNumberGenerator.new()
 var _wounds := 0  # hits taken: with `_seed` it seeds each hit's blood
 var _voice: Node3D
+var _chest := -1  # the bone a body burst comes out of
 var _last_dir := Vector3.FORWARD  # the way the last round went, for where the pieces fly
 
 
@@ -124,6 +148,9 @@ func setup(p_kind: StringName, p_seed: int) -> void:
 func _ready() -> void:
 	if model == &"":
 		setup(kind, _seed)
+	if CREATURES.has(model):
+		_ready_creature()
+		return
 	var body: Node3D = MODELS[model].instantiate()
 	body.rotation.y = PI  # Mixamo faces +Z
 	body.scale = Vector3.ONE * size
@@ -136,15 +163,49 @@ func _ready() -> void:
 	_ap = AnimationPlayer.new()
 	body.add_child(_ap)
 	_ap.root_node = ^".."
-	_ap.add_animation_library("", _library(model, _skel))
+	_lib = _library(model, _skel)
+	_ap.add_animation_library("", _lib)
 	_ap.animation_finished.connect(_on_finished)
 	for b in ["Spine", "Spine1", "Spine2", "Neck"]:
 		_flinch.spine.append(_skel.find_bone("mixamorig_" + b))
 	_flinch.head = _skel.find_bone("mixamorig_Head")
+	_chest = _flinch.spine[1]
 	_skel.add_child(_flinch)
+	_add_voice()
+	idle()
+
+
+func _add_voice() -> void:
 	_voice = VOICE.new()
 	_voice.setup(kind, _seed)
 	attach("Head").add_child(_voice)
+
+
+## A creature has no spine to bend; a shot squashes it instead (hit()).
+func _ready_creature() -> void:
+	var c: Dictionary = CREATURES[model]
+	var body: Node3D = c.scene.instantiate()
+	add_child(body)
+	for old in body.find_children("*", "AnimationPlayer", true, false):
+		old.free()
+	_skel = body.get_node(c.skeleton)
+	var top := rest_box(body).end.y
+	var fit: float = c.height / top if c.height > 0.0 else 1.0
+	body.scale = Vector3.ONE * size * fit
+	if c.turn:
+		body.rotation.y = PI
+	height = top * fit * size
+	_hip = size  # creature clips keep their speed in m/s at size 1
+	_ap = AnimationPlayer.new()
+	body.add_child(_ap)
+	_ap.root_node = ^".."
+	_lib = _creature_library(model)
+	_ap.add_animation_library("", _lib)
+	_ap.animation_finished.connect(_on_finished)
+	_flinch.head = _skel.find_bone(c.bones.Head)
+	_chest = _skel.find_bone(c.bones.Hips)
+	_skel.add_child(_flinch)
+	_add_voice()
 	idle()
 
 
@@ -193,7 +254,7 @@ func idle() -> void:
 func move(speed: float) -> void:
 	_voice.wake()
 	var clip := _pick(_move)
-	var natural: float = LIB.get_animation(clip).get_meta("speed", 0.0) * _hip
+	var natural: float = _lib.get_animation(clip).get_meta("speed", 0.0) * _hip
 	_play_loop(clip, clampf(speed / natural, 0.6, 1.8) if natural > 0.05 else 1.0)
 
 
@@ -224,7 +285,7 @@ func die(gib := &"") -> float:
 	var clip := _pick("death")
 	_dead = true
 	var head := _skel.to_global(_skel.get_bone_global_pose(_flinch.head).origin)
-	var chest := _skel.to_global(_skel.get_bone_global_pose(_flinch.spine[1]).origin)
+	var chest := _skel.to_global(_skel.get_bone_global_pose(_chest).origin)
 	_voice.die(head if gib == &"head" else chest, gib != &"", gib == &"head")
 	_reseed("die")
 	if gib != &"":
@@ -247,7 +308,7 @@ func die(gib := &"") -> float:
 			_stump(&"Spine1", 0.3)
 	_ap.speed_scale = 1.0
 	_ap.play(clip, BLEND)
-	var length := LIB.get_animation(clip).length
+	var length := _lib.get_animation(clip).length
 	_bleed_out(length * 0.7)
 	return length
 
@@ -330,7 +391,7 @@ func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
 ## Node that follows a bone, for hit shapes (the head's weak spot) or effects.
 func attach(bone: String) -> BoneAttachment3D:
 	var a := BoneAttachment3D.new()
-	a.bone_name = "mixamorig_" + bone
+	a.bone_name = CREATURES[model].bones.get(bone, bone) if CREATURES.has(model) else "mixamorig_" + bone
 	_skel.add_child(a)
 	return a
 
@@ -353,7 +414,7 @@ func _one_shot(action: String) -> float:
 	_busy = true
 	_ap.speed_scale = 1.0
 	_ap.play(clip, BLEND)
-	return LIB.get_animation(clip).length
+	return _lib.get_animation(clip).length
 
 
 func _on_finished(_clip: StringName) -> void:
@@ -367,9 +428,9 @@ func _on_finished(_clip: StringName) -> void:
 ## The family's clips named <set><action>_*, one picked per play. Zombie actions with no mutant
 ## clip fall back to the zombie set and the other way round.
 func _pick(action: String) -> String:
-	var clips := _clips(_set + action)
+	var clips := _clips(_lib, _set + action)
 	if clips.is_empty():
-		clips = _clips(("" if _set != "" else "mutant_") + action)
+		clips = _clips(_lib, ("" if _set != "" else "mutant_") + action)
 	var n: int = _count.get(action, 0)
 	_count[action] = n + 1
 	return clips[_roll("%s%d" % [action, n]) % clips.size()]
@@ -378,18 +439,25 @@ func _pick(action: String) -> String:
 static var _by_prefix := {}
 
 
-static func _clips(prefix: String) -> Array:
-	if not _by_prefix.has(prefix):
+static func _clips(lib: AnimationLibrary, prefix: String) -> Array:
+	var key := "%d:%s" % [lib.get_instance_id(), prefix]
+	if not _by_prefix.has(key):
 		var out := []
-		for a in LIB.get_animation_list():
+		for a in lib.get_animation_list():
 			if a.begins_with(prefix + "_") and a.trim_prefix(prefix + "_").length() == 1:
 				out.append(String(a))
-		_by_prefix[prefix] = out
-	return _by_prefix[prefix]
+		_by_prefix[key] = out
+	return _by_prefix[key]
 
 
+static var _rng := RandomNumberGenerator.new()
+
+
+## The string hash alone leaves gaps modulo some sizes (with 11 models four were never picked), so
+## it seeds a PCG draw instead. Same on every peer.
 func _roll(salt: String) -> int:
-	return absi(hash("%d:%s" % [_seed, salt]))
+	_rng.seed = hash("%d:%s" % [_seed, salt])
+	return _rng.randi() & 0x7fffffff
 
 
 static var _libs := {}
@@ -414,4 +482,202 @@ static func _library(name: StringName, skel: Skeleton3D) -> AnimationLibrary:
 				anim.remove_track(t)
 		lib.add_animation(a, anim)
 	_libs[name] = lib
+	return lib
+
+
+## The meshes' box in `body`'s space as they stand at rest. A skinned mesh is drawn through its binds,
+## which may scale it (the melty zombie's do, 2.6 times), so its own box is no guide.
+static func rest_box(body: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	var to_body := body.global_transform.affine_inverse()
+	for mi: MeshInstance3D in body.find_children("*", "MeshInstance3D", true, false):
+		var xf := mi.global_transform
+		var sk := mi.get_node_or_null(mi.skeleton) as Skeleton3D
+		if mi.skin and sk and mi.skin.get_bind_count() > 0:
+			var bone := mi.skin.get_bind_bone(0)
+			if mi.skin.get_bind_name(0) != &"":
+				bone = sk.find_bone(mi.skin.get_bind_name(0))
+			xf = sk.global_transform * sk.get_bone_global_rest(bone) * mi.skin.get_bind_pose(0)
+		var b := to_body * xf * mi.get_aabb()
+		box = b if first else box.merge(b)
+		first = false
+	return box
+
+
+## A creature's clips, built once: the blob's from its pulse, the melty zombie's renamed from its own,
+## the dog's made on its bones around its howl.
+static func _creature_library(name: StringName) -> AnimationLibrary:
+	if _libs.has(name):
+		return _libs[name]
+	var c: Dictionary = CREATURES[name]
+	var src: Node3D = c.scene.instantiate()
+	var src_ap: AnimationPlayer = src.find_children("*", "AnimationPlayer", true, false)[0]
+	var lib: AnimationLibrary
+	match name:
+		&"blob":
+			lib = _blob_library(src_ap.get_animation(&"pulse"), c.squash)
+		&"melty":
+			lib = AnimationLibrary.new()
+			for clip: String in MELTY_CLIPS:
+				var anim: Animation = src_ap.get_animation(MELTY_CLIPS[clip][0]).duplicate()
+				var kind := clip.get_slice("_", 0)
+				anim.loop_mode = Animation.LOOP_LINEAR if kind in ["idle", "walk", "run"] else Animation.LOOP_NONE
+				if MELTY_CLIPS[clip][1] > 0.0:
+					anim.set_meta("speed", MELTY_CLIPS[clip][1])
+				# Its hips are keyed under a root turned a quarter about Z, a turn the glb lost.
+				var root := anim.add_track(Animation.TYPE_ROTATION_3D)
+				anim.track_set_path(root, "%s:root_061" % c.skeleton)
+				anim.rotation_track_insert_key(root, 0.0, Quaternion(Vector3.BACK, PI / 2.0))
+				lib.add_animation(clip, anim)
+		&"dog":
+			lib = _dog_library(src, src_ap.get_animation(&"howl"), c)
+	src.free()
+	_libs[name] = lib
+	return lib
+
+
+## The melty zombie's clips: library name -> its own clip and its natural speed (m/s at 1.8 m; its
+## clips are in place). It has no crawl, so it never crawls. It dies with "down", the fall ("death" is
+## it twitching once down); "caution", a crouched snarl, is its scream.
+const MELTY_CLIPS := {
+	"idle_a": ["idle01", 0.0], "idle_b": ["idle02", 0.0],
+	"walk_a": ["walk01", 0.55], "walk_b": ["walk02", 0.4], "run_a": ["run", 3.2],
+	"attack_a": ["attack01", 0.0], "attack_b": ["attack02", 0.0], "hit_a": ["damage", 0.0],
+	"death_a": ["down", 0.0], "scream_a": ["caution", 0.0],
+}
+
+
+## The blob comes with one clip, a 3 s pulse. Its moves are that pulse, sped up or slowed, under a
+## squash and stretch of the whole body (the "squash" node): crawl_a heaves forward in place,
+## attack_a rears back and lunges, hit_a flattens, scream_a swells and shakes, death_a bursts up then
+## slumps flat.
+static func _blob_library(pulse: Animation, squash: String) -> AnimationLibrary:
+	var one := Vector3.ONE
+	var zero := Vector3.ZERO
+	# clip: [length s, pulse rate, loops, squash keys [time, scale, position]]
+	var moves := {
+		"idle_a": [3.0, 1.0, true, [[0.0, one, zero]]],
+		"crawl_a": [1.0, 3.0, true, [[0.0, one, zero], [0.3, Vector3(0.94, 1.1, 1.12), Vector3(0, 0.03, -0.06)],
+				[0.65, Vector3(1.1, 0.88, 0.92), Vector3(0, 0, 0.04)], [1.0, one, zero]]],
+		"attack_a": [1.1, 2.5, false, [[0.0, one, zero], [0.4, Vector3(1.08, 0.86, 1.1), Vector3(0, 0, 0.18)],
+				[0.6, Vector3(0.85, 1.15, 1.35), Vector3(0, 0.06, -0.55)],
+				[0.8, Vector3(1.1, 0.9, 1.05), Vector3(0, 0, -0.35)], [1.1, one, zero]]],
+		"hit_a": [0.4, 2.0, false, [[0.0, one, zero], [0.08, Vector3(1.16, 0.78, 1.16), zero],
+				[0.22, Vector3(0.95, 1.06, 0.95), zero], [0.4, one, zero]]],
+		"scream_a": [1.6, 4.0, false, [[0.0, one, zero], [0.3, Vector3(1.22, 1.3, 1.22), zero],
+				[0.38, Vector3(1.28, 1.24, 1.28), zero], [0.46, Vector3(1.2, 1.32, 1.2), zero],
+				[0.54, Vector3(1.28, 1.24, 1.28), zero], [0.62, Vector3(1.2, 1.32, 1.2), zero],
+				[0.7, Vector3(1.28, 1.24, 1.28), zero], [1.6, one, zero]]],
+		"death_a": [1.6, 3.0, false, [[0.0, one, zero], [0.25, Vector3(1.2, 1.25, 1.2), zero],
+				[0.6, Vector3(1.45, 0.5, 1.45), zero], [1.6, Vector3(1.7, 0.14, 1.7), zero]]],
+	}
+	var lib := AnimationLibrary.new()
+	for clip: String in moves:
+		var m: Array = moves[clip]
+		var length: float = m[0]
+		var rate: float = m[1]
+		var anim := Animation.new()
+		anim.length = length
+		anim.loop_mode = Animation.LOOP_LINEAR if m[2] else Animation.LOOP_NONE
+		if m[2]:  # a whole number of beats, so the loop closes
+			rate = maxf(1.0, roundf(length * rate / pulse.length)) * pulse.length / length
+		for t in pulse.get_track_count():
+			var type := pulse.track_get_type(t)
+			var nt := anim.add_track(type)
+			anim.track_set_path(nt, pulse.track_get_path(t))
+			for f in int(roundf(length * 30.0)) + 1:
+				var k := minf(f / 30.0, length)
+				var at := fmod(k * rate, pulse.length)
+				if clip == "death_a":  # the pulse dies away with it
+					at *= 1.0 - k / length
+				match type:
+					Animation.TYPE_ROTATION_3D:
+						anim.rotation_track_insert_key(nt, k, pulse.rotation_track_interpolate(t, at))
+					Animation.TYPE_SCALE_3D:
+						anim.scale_track_insert_key(nt, k, pulse.scale_track_interpolate(t, at))
+					Animation.TYPE_POSITION_3D:
+						anim.position_track_insert_key(nt, k, pulse.position_track_interpolate(t, at))
+		var st := anim.add_track(Animation.TYPE_SCALE_3D)
+		anim.track_set_path(st, squash)
+		var pt := anim.add_track(Animation.TYPE_POSITION_3D)
+		anim.track_set_path(pt, squash)
+		for key: Array in m[3]:
+			anim.scale_track_insert_key(st, key[0], key[1])
+			anim.position_track_insert_key(pt, key[0], key[2])
+		if clip == "crawl_a":
+			anim.set_meta("speed", 0.6)  # m/s at size 1
+		lib.add_animation(clip, anim)
+	return lib
+
+
+## The dog comes with a howl, its scream. The rest is made on its bones, each turned about the side
+## axis (it faces +Z as modelled, so X) by a wave: [bone, amplitude rad, phase in cycles, offset rad].
+## Hind legs swing together and the front pair against them, a gallop; the spine flexes with them.
+## A positive turn drops the head.
+const DOG_GAITS := {
+	# clip: [length s, waves, squash keys [time, position in heights, rotation about Z deg]]
+	"idle_a": [2.4, [["Spine3", 0.03, 0.0, 0.0], ["Neck", 0.05, 0.25, 0.0], ["Head", 0.06, 0.4, 0.0],
+			["Face_Jaw", 0.08, 0.0, 0.1], ["Tail_1", 0.15, 0.0, 0.0], ["Tail_2", 0.2, 0.15, 0.0]], []],
+	"run_a": [0.5, [["Thigh_L", 0.55, 0.0, 0.0], ["Thigh_R", 0.55, 0.08, 0.0], ["Calf_L", 0.45, 0.2, 0.25],
+			["Calf_R", 0.45, 0.28, 0.25], ["UpperArm_L", 0.6, 0.5, 0.0], ["UpperArm_R", 0.6, 0.58, 0.0],
+			["ForeArm_L", 0.5, 0.7, -0.3], ["ForeArm_R", 0.5, 0.78, -0.3], ["Spine1", 0.12, 0.25, 0.0],
+			["Spine2", 0.12, 0.25, 0.0], ["Neck", 0.1, 0.75, 0.0], ["Head", 0.12, 0.85, 0.0],
+			["Face_Jaw", 0.15, 0.0, 0.25], ["Tail_1", 0.25, 0.5, 0.0], ["Tail_2", 0.3, 0.6, 0.0]],
+			[[0.0, Vector3(0, 0.0, 0), 0.0], [0.25, Vector3(0, 0.05, 0), 0.0], [0.5, Vector3(0, 0.0, 0), 0.0]]],
+	"attack_a": [0.9, [["Neck", -0.4, 0.0, 0.0], ["Head", -0.3, 0.05, 0.0], ["Face_Jaw", 0.35, 0.0, 0.35],
+			["Thigh_L", 0.5, 0.0, 0.0], ["Thigh_R", 0.5, 0.0, 0.0], ["UpperArm_L", 0.6, 0.5, 0.0],
+			["UpperArm_R", 0.6, 0.5, 0.0]],
+			[[0.0, Vector3.ZERO, 0.0], [0.3, Vector3(0, -0.05, -0.1), 0.0], [0.5, Vector3(0, 0.08, 0.45), 0.0],
+			[0.9, Vector3.ZERO, 0.0]]],
+	"hit_a": [0.35, [["Spine2", -0.2, 0.0, 0.0], ["Neck", -0.35, 0.1, 0.0], ["Face_Jaw", 0.2, 0.0, 0.2]],
+			[[0.0, Vector3.ZERO, 0.0], [0.08, Vector3(0, -0.06, -0.06), 0.0], [0.35, Vector3.ZERO, 0.0]]],
+	"death_a": [1.2, [["Neck", 0.4, 0.0, 0.0], ["Face_Jaw", 0.4, 0.0, 0.4], ["Thigh_L", 0.3, 0.0, 0.3],
+			["Thigh_R", 0.3, 0.0, 0.3], ["UpperArm_L", 0.4, 0.0, -0.4], ["UpperArm_R", 0.4, 0.0, -0.4]],
+			[[0.0, Vector3.ZERO, 0.0], [0.3, Vector3(0, 0.05, 0), 15.0], [0.8, Vector3(0.45, 0.2, 0), 90.0],
+			[1.2, Vector3(0.5, 0.18, 0), 88.0]]],
+}
+
+
+static func _dog_library(src: Node3D, howl: Animation, c: Dictionary) -> AnimationLibrary:
+	var sk: Skeleton3D = src.get_node(c.skeleton)
+	var top: float = sk.get_bone_global_rest(sk.find_bone("Bone_WH_Spine2")).origin.y  # the back
+	var lib := AnimationLibrary.new()
+	var scream := howl.duplicate()
+	scream.loop_mode = Animation.LOOP_NONE
+	lib.add_animation("scream_a", scream)
+	for clip: String in DOG_GAITS:
+		var g: Array = DOG_GAITS[clip]
+		var length: float = g[0]
+		var once := clip in ["attack_a", "hit_a", "death_a"]
+		var anim := Animation.new()
+		anim.length = length
+		anim.loop_mode = Animation.LOOP_NONE if once else Animation.LOOP_LINEAR
+		for w: Array in g[1]:
+			var b := sk.find_bone("Bone_WH_" + w[0])
+			var axis := sk.get_bone_global_rest(b).basis.orthonormalized().inverse() * Vector3.RIGHT
+			var rest := sk.get_bone_rest(b).basis.get_rotation_quaternion()
+			var t := anim.add_track(Animation.TYPE_ROTATION_3D)
+			anim.track_set_path(t, "%s:%s" % [c.skeleton, sk.get_bone_name(b)])
+			for f in int(roundf(length * 30.0)) + 1:
+				var k := minf(f / 30.0, length)
+				var p := k / length
+				# a loop is a full wave around the offset, a one-shot one swell and back; death stays
+				var angle: float = w[1] * sin(TAU * (p + w[2])) + w[3]
+				if clip == "death_a":
+					angle = (w[1] + w[3]) * smoothstep(0.0, 0.7, p)
+				elif once:
+					angle = (w[1] + w[3]) * sin(PI * p)
+				anim.rotation_track_insert_key(t, k, rest * Quaternion(axis.normalized(), angle))
+		if not g[2].is_empty():
+			var pt := anim.add_track(Animation.TYPE_POSITION_3D)
+			anim.track_set_path(pt, c.squash)
+			var rt := anim.add_track(Animation.TYPE_ROTATION_3D)
+			anim.track_set_path(rt, c.squash)
+			for key: Array in g[2]:
+				anim.position_track_insert_key(pt, key[0], key[1] * top)
+				anim.rotation_track_insert_key(rt, key[0], Quaternion(Vector3.FORWARD, deg_to_rad(key[2])))
+		if clip == "run_a":
+			anim.set_meta("speed", 4.0)  # m/s at 0.85 m
+		lib.add_animation(clip, anim)
 	return lib

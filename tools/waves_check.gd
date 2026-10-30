@@ -5,7 +5,7 @@ extends SceneTree
 ## walk out), we shoot every one of them through GameState and the wave clears: gates shut, lever
 ## up, wave 2 waits. Wave 2 is left alone: the dead claw the railing down and the wave is lost (the
 ## temporary rule), wave 2 waits again with nobody left. Wave 2 once more, every zombie put down in
-## the pens before the gates are wide (it must still clear). Then online: the host pulls wave 3;
+## the pens before the gates are wide (it must still clear). Then dogs and blobs (_new_kinds). Then online: the host pulls wave 3;
 ## the client, in a solo wave of its own, joins mid-wave, drops its own dead and gets the host's
 ## phase and zombies under the same paths, shoots them down through the host, sees the next wave
 ## waiting and pulls the lever itself. Last, the client loses the host: the wave starts over there.
@@ -89,6 +89,7 @@ func _host() -> void:
 		gs.cue_wave([&"die", id, waves.left - 1, gs.local_peer(), false, waves._zombies[id].node.global_position, "scorpion"])
 	if not _ok(waves.phase == waves.Phase.STARTING and waves.left == 0, "all of wave 2 down before the gates"): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY and waves.wave == 3, "wave 2 to clear all the same"): return
+	if not await _new_kinds(): return
 	Engine.time_scale = 1.0
 	if not await _until(func() -> bool: return gate.position.distance_to(shut) < 0.01, "the gates to shut"): return
 	print("waves_check solo OK")
@@ -120,6 +121,52 @@ func _online() -> void:
 	if not _ok(waves.wave == 4 and waves.phase in [waves.Phase.STARTING, waves.Phase.FIGHT], "and started wave 4"): return
 	print("waves_check OK")
 	quit()
+
+
+## Dogs and blobs: none before their waves, the dogs in one pack; then a wave of them for real, from
+## the pens to the railing, shot down, a blob always bursting. Leaves wave 3 waiting.
+func _new_kinds() -> bool:
+	for w in [1, 3, waves.DOG_FROM, waves.BLOB_FROM, 12, 30]:
+		var plan: Array = waves._plan(w)
+		var dogs := plan.count(&"dog")
+		var want := 0 if w < waves.DOG_FROM else mini(waves.DOG_PACK + (w - waves.DOG_FROM) / waves.DOG_PACK_GROW, waves.DOG_PACK_MAX)
+		var first := plan.find(&"dog")
+		if not _ok(dogs == want and plan.slice(first, first + dogs).all(func(k: StringName) -> bool: return k == &"dog"),
+				"wave %d: %d dogs, in one pack" % [w, want]): return false
+		if not _ok(w >= waves.BLOB_FROM or not plan.has(&"blob"), "wave %d: no blobs before wave %d" % [w, waves.BLOB_FROM]): return false
+	if not _ok(waves._plan(30).has(&"blob"), "blobs in wave 30"): return false
+	var seed := 0
+	while true:  # a roll of wave BLOB_FROM that has a blob in it
+		waves._rng.seed = seed
+		if waves._plan(waves.BLOB_FROM).has(&"blob"):
+			break
+		seed += 1
+	waves._rng.seed = seed
+	gs.cue_wave([&"phase", waves.BLOB_FROM, waves.Phase.READY, 0, waves.FENCE_HP])
+	var gibs := {}  # kind -> how they went down
+	var spawned := {}
+	var cue_seen := func(cue: Array) -> void:
+		if cue[0] == &"spawn":
+			spawned[cue[1]] = cue[2]
+		elif cue[0] == &"die" and spawned.has(cue[1]):
+			gibs[spawned[cue[1]]] = gibs.get(spawned[cue[1]], []) + [cue[7]]
+	gs.wave_cue.connect(cue_seen)
+	gs.request_pull_lever()
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "wave %d's fight" % waves.BLOB_FROM): return false
+	if not await _until(func() -> bool: return spawned.values().has(&"dog") and spawned.values().has(&"blob"), "a dog and a blob out of the pens"): return false
+	for z: Dictionary in waves._zombies.values():
+		if z.kind in [&"dog", &"blob"]:
+			if not _ok(z.body.model == z.kind and absf(z.trunk.rotation.x - PI / 2) < 0.01 and z.body.height < 1.4,
+					"%s %d wears its own model and lies low (%.2f m)" % [z.kind, z.id, z.body.height]): return false
+	if not await _shoot_all("wave %d" % waves.BLOB_FROM): return false
+	gs.wave_cue.disconnect(cue_seen)
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.CLEARED, "wave %d cleared" % waves.BLOB_FROM): return false
+	if not _ok(gibs.has(&"dog") and (gibs.get(&"blob", []) as Array).all(func(g: StringName) -> bool: return g == &"body") and gibs.has(&"blob"),
+			"the dogs went down, every blob burst (%s)" % gibs): return false
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the next wave to wait"): return false
+	gs.cue_wave([&"phase", 3, waves.Phase.READY, 0, waves.FENCE_HP])  # back to where the online part starts
+	print("waves_check new kinds OK: ", gibs)
+	return true
 
 
 func _client() -> void:
@@ -180,7 +227,7 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 		for z: Dictionary in waves._zombies.values():
 			var at: Vector3 = (z.node as Node3D).global_position
 			if not z.dead and at.x < 27.0:
-				aim = at + Vector3.UP * (0.35 if z.kind == &"crawler" else 1.1)
+				aim = at + Vector3.UP * (z.trunk.position.y if waves.LOW.has(z.kind) else 1.1)
 				break
 		if aim != Vector3.INF:
 			var from := Vector3(SHOOT_FROM_X, gs.EYE, aim.z)
