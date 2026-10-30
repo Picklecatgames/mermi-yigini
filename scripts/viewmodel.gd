@@ -93,9 +93,7 @@ const SETS := {
 		"clip_fire": false, "move": 1.4, "kick": 0.12, "climb": 0.0028, "yaw": 0.0035, "bloom": 0.0009, "jiggle": 0.15, "flash": 0.8},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
-## The arms' materials a player character repaints (dress): material -> arms_<part>.png.
-const ARMS_PAINT := {"Gloves": "gloves", "Cloths": "sleeves", "Body": "body"}
-const BARE_ROUGHNESS := 0.6  # skin's sheen on a bare hand, in place of the glove's leather
+const FP_ARMS := preload("res://scripts/fp_arms.gd")  # the player character's own arms (dress)
 const Attachments := preload("res://scripts/gun_attachments.gd")
 ## A spinning gun is one sound, not one per round: barrels coming up, a firing loop while rounds
 ## leave, the run-down when they stop (all cut from one recording).
@@ -385,30 +383,17 @@ func gild() -> void:
 	Wishlist.gild(_skel.get_node(NodePath(SETS.deagle.mesh)))
 
 
-## The arms in GameState.CHARACTERS `id`'s colours (assets/characters/players/<id>/arms_*.png,
-## tools/paint_player_arms.py: the hands as the character's are, sleeves its forearms'); "" or an
-## id without them, the arms' own. A character with bare hands (arms.tres) has the glove's pads and
-## stitching taken off its bumps and its shine made skin's.
+## The arms of GameState.CHARACTERS `id` in place of the rig's own (scripts/fp_arms.gd): its own
+## arms and hands, moved by the rig. "" or an id without them, the rig's gloved arms.
 static func dress(skel: Skeleton3D, id: String) -> void:
-	var mi := skel.get_node("Mesh") as MeshInstance3D
-	var info := "res://assets/characters/players/%s/arms.tres" % id
-	var bare: bool = id != "" and ResourceLoader.exists(info) and load(info).get_meta("bare_hands", false)
-	for i in mi.mesh.get_surface_count():
-		var own := mi.mesh.surface_get_material(i) as StandardMaterial3D
-		var part: String = ARMS_PAINT.get(own.resource_name if own else "", "")
-		var path := "res://assets/characters/players/%s/arms_%s.png" % [id, part]
-		if part == "" or id == "" or not ResourceLoader.exists(path):
-			mi.set_surface_override_material(i, null)
-			continue
-		var worn := own.duplicate() as StandardMaterial3D
-		worn.albedo_texture = load(path)
-		if part == "gloves" and bare:
-			worn.normal_enabled = false
-			worn.metallic = 0.0
-			worn.metallic_texture = null
-			worn.roughness_texture = null
-			worn.roughness = BARE_ROUGHNESS
-		mi.set_surface_override_material(i, worn)
+	var old := skel.get_node_or_null("CharacterArms")
+	if old:
+		old.free()
+	var path := "res://assets/characters/players/%s/fp_arms.scn" % id
+	var own := skel.get_node("Mesh") as MeshInstance3D
+	own.visible = id == "" or not ResourceLoader.exists(path)
+	if not own.visible:
+		skel.add_child(FP_ARMS.new(skel, load(path), own))
 
 
 ## The starting pistol's parts on `skel`'s Deagle bones (PISTOL_PARTS), under one node named
