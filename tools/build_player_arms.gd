@@ -12,7 +12,7 @@ extends SceneTree
 
 const DIR := "res://assets/characters/players/"
 const OUT := DIR + "arms.json"
-const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra", "vegas"]
+const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra"]
 ## What each part is made of, by the bone names its vertices hang on (Mixamo, both sides).
 const PARTS := {"hand": ["LeftHand", "RightHand"], "forearm": ["LeftForeArm", "RightForeArm"]}
 const HOLD := 0.6  # a vertex counts for a bone only when that bone carries this much of it
@@ -111,7 +111,7 @@ func _colours(id: String) -> Dictionary:
 		res[part] = [snappedf(c.r, 0.001), snappedf(c.g, 0.001), snappedf(c.b, 0.001)]
 	for part: String in PARTS:
 		res[part + "_skin"] = _skin(Color(res[part][0], res[part][1], res[part][2]))
-	# A bare hand's bands are its skin alone: Big Vegas's gold rings are not a glove. A band no
+	# A bare hand's bands are its skin alone: rings are not a glove. A band no
 	# vertex fell in takes its neighbour's colour (the hand's, with none at all).
 	var bare: bool = res.hand_skin
 	if bare:

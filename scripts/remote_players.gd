@@ -23,7 +23,6 @@ const BODIES := {
 	"worker": preload("res://assets/characters/players/worker/worker.scn"),
 	"brute": preload("res://assets/characters/players/brute/brute.scn"),
 	"chupacabra": preload("res://assets/characters/players/chupacabra/chupacabra.scn"),
-	"vegas": preload("res://assets/characters/players/vegas/vegas.scn"),
 }
 const ANIMS := preload("res://assets/characters/players/player_anims.res")
 const ARMS := preload("res://assets/weapons/arms/arms.gltf")
@@ -359,7 +358,7 @@ class Character extends Node3D:
 		# Aimed straight ahead (the model's +Z), the right wrist where the first-person one is.
 		_gun_in_hand = _hand_hold.affine_inverse() * Transform3D(Basis(), _hand_hold.origin - on_gun["R_wrist"])
 		# Back toward the body only as far as the left hand needs to reach its place (m), and no
-		# further than it brings the place nearer: Big Vegas's short arms never get there, and the
+		# further than it brings the place nearer: a short-armed, wide body never gets there, and the
 		# gun went on into his face.
 		_pull = 0.0
 		var far := INF
