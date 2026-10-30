@@ -6,10 +6,10 @@ extends SceneTree
 
 ## [shot, s after the pull, camera from, to]
 const STEPS := [
-	["bay", 9.0, Vector3(13.0, 2.4, -9.0), Vector3(26.0, 0.6, 2.0)],
-	["bay", 12.0, Vector3(13.0, 2.4, -9.0), Vector3(26.0, 0.6, 2.0)],
-	["close", 15.0, Vector3(13.2, 1.9, 0.0), Vector3(22.0, 1.0, 0.0)],
-	["rail", 22.0, Vector3(11.0, 2.0, -7.0), Vector3(16.0, 0.8, 2.0)],
+	["bay", 6.0, Vector3(13.0, 2.4, -9.0), Vector3(26.0, 0.6, 2.0)],
+	["bay", 8.0, Vector3(13.0, 2.4, -9.0), Vector3(26.0, 0.6, 2.0)],
+	["close", 9.5, Vector3(13.2, 1.9, 0.0), Vector3(22.0, 1.0, 0.0)],
+	["rail", 14.0, Vector3(11.0, 2.0, -7.0), Vector3(16.0, 0.8, 2.0)],
 ]
 
 

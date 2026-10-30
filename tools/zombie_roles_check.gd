@@ -25,6 +25,7 @@ func _initialize() -> void:
 		await physics_frame
 	_numbers()
 	await _strides()
+	await _arrival()
 	gs.request_toggle_infinite_ammo()  # test mode: every gun opens
 	gs.cue_wave([&"phase", 1, waves.Phase.FIGHT, 99, waves.FENCE_HP])
 	_anchor = _spawn(&"walker", Vector3(42, 0, 0))  # never shot: the wave is not cleared under us
@@ -33,6 +34,7 @@ func _initialize() -> void:
 	await _screamer()
 	await _bloater()
 	await _dog()
+	await _no_slide()
 	print("zombie_roles_check %s" % ("OK" if _fails == 0 else "FAILED (%d)" % _fails))
 	quit(1 if _fails else 0)
 
@@ -52,7 +54,10 @@ func _numbers() -> void:
 		_expect(waves.hp_of(big, 1) > walker, "%s tougher than a walker" % big)
 	_expect(waves.hp_of(&"brute", 1) / deagle >= 15, "a brute takes %d Deagle rounds" % ceili(waves.hp_of(&"brute", 1) / deagle))
 	for fast in [&"runner", &"dog"]:
-		_expect(waves.STATS[fast][0] > waves.STATS[&"walker"][0] * 2 and waves.STATS[fast][1] < walker, "%s fast and frail" % fast)
+		_expect(waves.STATS[fast][0] > waves.STATS[&"walker"][0] * 1.2 and waves.STATS[fast][1] < walker, "%s fast and frail" % fast)
+	_expect(waves.STATS[&"dog"][0] > waves.STATS[&"runner"][0], "the dog the quickest")
+	for kind: StringName in waves.STATS:
+		_expect(kind == &"blob" or waves.STATS[kind][0] >= 2.0, "%s runs (%.1f m/s)" % [kind, waves.STATS[kind][0]])
 	_expect(waves.STATS[&"brute"][2] > waves.STATS[&"walker"][2] * 3, "a brute claws the railing hard")
 	var rows := []
 	var last := {}
@@ -99,7 +104,7 @@ func _strides() -> void:
 				b.queue_free()
 				continue
 			b._go_down(false)  # a leg gone: the crawl at LEGLESS of it
-			var legless: float = waves.STATS[kind][0] * waves.LEGLESS.get(kind, 0.6)
+			var legless: float = waves.STATS[kind][0] * waves.LEGLESS.get(kind, waves.LEGLESS_ELSE)
 			for v: float in [legless * lo, legless * hi]:
 				b.move(v)
 				var natural: float = b._lib.get_animation(b._ap.current_animation).get_meta("speed", 0.0) * b._hip
@@ -193,16 +198,20 @@ func _screamer() -> void:
 	var s := _spawn(&"screamer", Vector3(24, 0, 0))
 	var near := _spawn(&"walker", Vector3(24, 0, 3))
 	var far := _spawn(&"walker", Vector3(24, 0, -16))
+	s.cry = 0.5  # its first cry a moment from now
 	var cries := []
 	var watch := func(cue: Array) -> void:
 		if cue[0] == &"scream":
 			cries.append(cue)
 	gs.wave_cue.connect(watch)
+	await process_frame
+	var slow: float = near.body._ap.speed_scale
 	await _wait(func() -> bool: return not cries.is_empty(), "the screamer to cry", 8.0)
+	await process_frame
 	gs.wave_cue.disconnect(watch)
 	_expect(cries.size() == 1 and cries[0][1] == s.id and near.id in cries[0][2] and not far.id in cries[0][2], "it cried, for the one near it only (%s)" % [cries])
-	_expect(near.rush > 0.0 and far.rush <= 0.0 and waves._pace(near) > near.speed * 1.4, "the near one runs")
-	_expect(near.body.quick() and not far.body.quick(), "it breaks into a run (%s)" % near.body._ap.current_animation)
+	_expect(near.rush > 0.0 and far.rush <= 0.0 and waves._pace(near) > near.speed * 1.1, "the near one runs faster")
+	_expect(near.body._ap.speed_scale > slow * 1.1, "its stride quickens with it (%.2f -> %.2f, %s, rush %.1f, busy %s)" % [slow, near.body._ap.speed_scale, near.body._ap.current_animation, near.rush, near.body.busy()])
 	_expect(s.hold > 0.0, "the screamer stands while it cries")
 	var x0: float = (near.node as Node3D).global_position.x
 	var t := 1.0
@@ -257,6 +266,65 @@ func _dog() -> void:
 	_expect(most > 0.4, "the dog zigzags (%.2f m off its line)" % most)
 	await _wait(func() -> bool: return d.path.is_empty(), "the dog at the railing", 4.0)
 	_expect(absf((d.node as Node3D).global_position.z) < 0.3, "and still gets to its spot")
+	_clear()
+
+
+## Wave 1 from the lever: the first of them is at the railing within ARRIVE s.
+const ARRIVE := 15.0
+
+
+func _arrival() -> void:
+	var t0 := Time.get_ticks_msec()
+	waves._on_lever(gs.local_peer())
+	var first := [0.0]
+	await _wait(func() -> bool:
+		for z: Dictionary in waves._zombies.values():
+			if z.released and (z.node as Node3D).global_position.x < waves.RAIL_X + 0.3:
+				first[0] = (Time.get_ticks_msec() - t0) / 1000.0
+				return true
+		return false, "the first at the railing", ARRIVE + 10.0)
+	_expect(first[0] > 0.0 and first[0] <= ARRIVE, "wave 1's first at the railing %.1f s after the lever" % first[0])
+	gs.cue_wave([&"phase", 1, waves.Phase.READY, 0, waves.FENCE_HP])  # the lost-wave reset: everyone gone
+	await process_frame
+
+
+## Its feet stay on the floor through the changes: the stride matches the ground it covers while it
+## runs, is hit and brakes; once a swing starts it does not move.
+func _no_slide() -> void:
+	var z := _spawn(&"walker", Vector3(waves.RAIL_X + 5.0, 0, 2.0))
+	var worst := 0.0
+	var hit := false
+	var braked := INF
+	var prev := (z.node as Node3D).global_position
+	var t_prev := Time.get_ticks_usec()
+	var strides := []
+	while not z.path.is_empty():
+		await process_frame
+		var ap: AnimationPlayer = z.body._ap
+		if not z.path.is_empty() and not z.body.busy() and ap.current_animation.contains("run"):
+			strides.append(ap.speed_scale * z.body._natural(ap.current_animation))
+		var now := (z.node as Node3D).global_position
+		var secs := (Time.get_ticks_usec() - t_prev) / 1e6
+		if secs < 0.2 and not z.path.is_empty():
+			continue
+		var v := now.distance_to(prev) / secs  # over a fifth of a second: frames come unevenly
+		if not strides.is_empty() and v > 0.3:
+			var stride: float = strides.reduce(func(a: float, b: float) -> float: return a + b, 0.0) / strides.size()
+			worst = maxf(worst, absf(stride - v) / v)
+		if now.x < waves.RAIL_X + 0.8:
+			braked = minf(braked, v)
+		prev = now
+		t_prev = Time.get_ticks_usec()
+		strides.clear()
+		if not hit and now.x < waves.RAIL_X + 3.5:
+			hit = true
+			await _shoot(z, now + Vector3.UP * 1.1, Vector3(1, 0, 0))
+	_expect(worst < 0.2, "the stride keeps up with the floor, hit and braking too (off by %d%% at worst)" % roundi(worst * 100.0))
+	_expect(braked < z.speed * 0.7, "it brakes into its spot (%.2f m/s near it)" % braked)
+	await _wait(func() -> bool: return z.body.busy(), "the first swing", 3.0)
+	var at := (z.node as Node3D).global_position
+	await create_timer(0.5).timeout
+	_expect((z.node as Node3D).global_position.distance_to(at) < 0.02, "still while it swings (%.3f m)" % (z.node as Node3D).global_position.distance_to(at))
 	_clear()
 
 

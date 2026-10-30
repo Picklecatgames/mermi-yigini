@@ -125,6 +125,7 @@ func _online() -> void:
 		ProjectSettings.globalize_path("res://"), "-s", "res://tools/waves_check.gd", "--", "--client"])
 	var t0 := Time.get_ticks_msec()
 	while OS.is_process_running(pid):
+		waves.fence = waves.FENCE_HP  # wave 3 must not be lost under the client's slow fire
 		if Time.get_ticks_msec() - t0 > 240_000:
 			OS.kill(pid)
 			return _fail("client timed out")
@@ -252,7 +253,7 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 			var still := []
 			for z: Dictionary in waves._zombies.values():
 				if not z.dead:
-					still.append("%s %s at %s path %d down %.1f low %s" % [z.id, z.kind, (z.node as Node3D).global_position, z.path.size(), z.down, z.body.crawling])
+					still.append("%s %s at %s path %d down %.1f low %s bar %.2f" % [z.id, z.kind, (z.node as Node3D).global_position, z.path.size(), z.down, z.body.crawling, z.bar.left])
 			_fail("%s: %d left standing: %s" % [what, waves.left, still])
 			return false
 		var aim := Vector3.INF
@@ -260,7 +261,8 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 			var at: Vector3 = (z.node as Node3D).global_position
 			if not z.dead and at.x < 27.0:
 				aim = at + Vector3.UP * (z.trunk.position.y if waves.LOW.has(z.kind) or z.body.crawling else 1.1)  # (a leg torn off: low too)
-				if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
+				# (at the railing its swings take the arms out of the body's shape: the trunk there)
+				if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute" and not z.path.is_empty():
 					match z.id % 3:  # some into the legs, some into an arm
 						1: aim = at + Vector3(0, 0.45, 0.1)
 						2: aim = z.body.call("_bone_at", "LeftForeArm")

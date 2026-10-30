@@ -139,7 +139,8 @@ func _run() -> void:
 			ap.advance(swing + 0.1)
 			_expect(ap.current_animation.contains(BODY.KINDS[kind].move), "%s back to %s after attacking" % [kind, ap.current_animation])
 			a.hit()
-			_expect(ap.current_animation.contains(BODY.KINDS[kind].move if low else "hit"), "%s flinches with %s" % [kind, ap.current_animation])
+			# On its belly or running the clip would stop it where it slides on: the spring alone jerks it.
+			_expect(ap.current_animation.contains(BODY.KINDS[kind].move if low or a.quick() else "hit"), "%s flinches with %s" % [kind, ap.current_animation])
 			var fall: float = a.die()
 			_expect(fall > 0.5 and ap.current_animation.contains("death"), "%s dies with %s" % [kind, ap.current_animation])
 			a.move(1.0)

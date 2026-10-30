@@ -38,7 +38,7 @@ const BLOOD := preload("res://scripts/blood_fx.gd")
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const SOUNDS := "res://assets/sounds/waves/"
 const LEVER_TIME := 0.6  # s from the pull to the siren and the lights
-const GATES_AT := 1.8  # s after the pull the gates start to slide
+const GATES_AT := 1.2  # s after the pull the gates start to slide
 const GATE_TIME := 2.5  # s to slide open (or shut)
 const FIGHT_AT := GATES_AT + GATE_TIME * 0.6  # the dead may walk once the gap is wide enough
 const CLEAR_PAUSE := 4.0  # s from the last kill to the lever coming back up
@@ -73,26 +73,34 @@ const HEAD := 2.5
 const LIMB_HP := {"arm": 0.35, "leg": 0.5}
 const LIMB_BODY := 0.5
 const ARM_SLOW := 0.6
-const LEGLESS := {&"walker": 0.65, &"runner": 0.8}
+const LEGLESS := {&"runner": 0.65}
+const LEGLESS_ELSE := 0.8
 ## The crowd keeps apart: two closer than SPREAD m (×size; the low ones more) push each other off.
 const SPREAD := 0.6
 const SPREAD_PUSH := 4.0  # 1/s
+## Out of a gate that has just opened they set off within RELEASE_SPREAD s of each other. A hit
+## slows one to STAGGER_SLOW for a moment; the last BRAKE m to its spot it slows down to BRAKE_MIN.
+const RELEASE_SPREAD := 1.5
+const STAGGER_SLOW := 0.5
+const BRAKE := 1.5
+const BRAKE_MIN := 0.5
 const WAYPOINT_SLACK := 0.8  # m: near enough to a gate's mouth on the way (only the railing spot is exact)
 ## kind -> walk speed (m/s), hit points at wave 1 (DAMAGE units), bite out of the fence per claw.
 ## Each one's speed is rolled within SPEED_ROLL of it, so a crowd never walks in step. Speeds keep
 ## the clips' strides on the floor (zombie_body.gd move(), tools/zombie_roles_check.gd).
-const STATS := {&"walker": [0.68, 100, 1], &"runner": [2.8, 55, 1], &"crawler": [0.55, 80, 1],
-		&"brute": [1.3, 700, 5], &"blob": [0.7, 300, 2], &"dog": [4.5, 40, 1], &"bloater": [0.75, 150, 2],
-		&"screamer": [0.82, 90, 1]}
+## Every one runs at you (the user's call, 2026-10-30); they differ in how and how fast.
+const STATS := {&"walker": [2.7, 100, 1], &"runner": [3.4, 55, 1], &"crawler": [2.4, 80, 1],
+		&"brute": [2.6, 700, 5], &"blob": [1.0, 300, 2], &"dog": [4.6, 40, 1], &"bloater": [2.7, 150, 2],
+		&"screamer": [2.9, 90, 1]}
 const SPEED_ROLL := [0.85, 1.15]
 ## Screamer: on its way (inside the bay, x under SCREAM_X) it stops every SCREAM_EVERY s and cries;
-## every other one walking within SCREAM_REACH m runs at RUSH × its speed for RUSH_TIME s.
+## for RUSH_TIME s every other one on its way within SCREAM_REACH m goes RUSH × its speed. Not dogs
+## and blobs (NO_RUSH): already as quick as their clips go.
 const SCREAM_X := 28.0
 const SCREAM_FIRST := [1.5, 3.5]  # s after it is let out
 const SCREAM_EVERY := 9.0
 const SCREAM_REACH := 9.0
 const RUSH := 1.15
-const RUSH_PACE := 2.4  # m/s a walker or crawler driven to a run goes
 const NO_RUSH: Array[StringName] = [&"dog", &"blob", &"screamer"]
 const RUSH_TIME := 5.0
 ## Bloater: bursts when it dies, BLAST damage (×the wave's growth) to every one within BLAST_REACH m,
@@ -342,7 +350,22 @@ func _spawn_next() -> void:
 	_hp_full[id] = _hp[id]
 	var speed: float = st[0] * minf(1.0 + SPEED_GROW * (wave - 1), SPEED_MAX) * _rng.randf_range(SPEED_ROLL[0], SPEED_ROLL[1])
 	GameState.cue_wave([&"spawn", id, kind, _rng.randi(), at.get_meta("gate"), pos, at.global_rotation.y,
-			speed, _rng.randf_range(-RAIL_Z, RAIL_Z), phase == Phase.FIGHT])
+			speed, _rail_spot(), phase == Phase.FIGHT])
+
+
+## Host: a spot along the railing nobody living has (a few tries; with a full railing, any).
+func _rail_spot() -> float:
+	var z := 0.0
+	for i in 6:
+		z = _rng.randf_range(-RAIL_Z, RAIL_Z)
+		var free := true
+		for o: Dictionary in _zombies.values():
+			if not o.dead and absf(o.rail.z - z) < SPREAD * 1.2:
+				free = false
+				break
+		if free:
+			break
+	return z
 
 
 func _alive() -> int:
@@ -626,7 +649,7 @@ func _release(z: Dictionary, stagger: bool) -> void:
 	path.append(z.rail)
 	var r := absi(hash(z.seed))
 	if stagger:
-		await get_tree().create_timer(float(r % 400) / 100.0).timeout
+		await get_tree().create_timer(float(r % 100) / 100.0 * RELEASE_SPREAD).timeout
 		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
 			return
 	if (z.kind == &"brute" and r % 7 < 3) or (z.kind == &"dog" and r % 4 == 0):  # a roar, a howl
@@ -661,9 +684,15 @@ func _walk(z: Dictionary, delta: float) -> void:
 		if z.hold <= 0.0:
 			z.body.move(_pace(z))
 		return
+	if z.body.busy():  # a one-shot plays in place: it stands for it, never slides through it
+		return
 	z.stagger = maxf(0.0, z.stagger - delta)
-	var step: float = _pace(z) * delta * (0.2 if z.stagger > 0.0 else 1.0)
 	var last: bool = z.path.size() == 1
+	var v: float = _pace(z) * (STAGGER_SLOW if z.stagger > 0.0 else 1.0)
+	if last:  # brakes into its spot instead of stopping dead from a run
+		v *= clampf(to.length() / BRAKE, BRAKE_MIN, 1.0)
+	z.body.pace(v)  # the stride keeps up with the floor
+	var step := v * delta
 	if to.length() <= (step if last else maxf(step, WAYPOINT_SLACK)):  # a crowd at a gate can't all stand on its spot
 		if last:
 			node.global_position += to
@@ -684,9 +713,7 @@ func _walk(z: Dictionary, delta: float) -> void:
 
 ## How fast it goes now: its own speed, more while a screamer's cry drives it.
 func _pace(z: Dictionary) -> float:
-	if z.rush <= 0.0:
-		return z.speed
-	return z.speed * RUSH if z.kind == &"runner" else maxf(z.speed, RUSH_PACE)
+	return z.speed * (RUSH if z.rush > 0.0 else 1.0)
 
 
 func _claw(z: Dictionary) -> void:
@@ -779,7 +806,7 @@ func _cut(z: Dictionary, part: StringName, fly: bool) -> void:
 	z.down = maxf(z.down, z.body.cut(part, fly))
 	if was_low or not z.body.crawling:
 		return
-	z.speed *= LEGLESS.get(z.kind, 0.6)
+	z.speed *= LEGLESS.get(z.kind, LEGLESS_ELSE)
 	(z.node as Zombie).tall = 0.9
 	var trunk: CollisionShape3D = z.trunk
 	var low: Array = LOW[&"crawler"]
@@ -842,7 +869,9 @@ func _blast_fx(at: Vector3) -> void:
 
 
 ## Keeps the crowd from walking into each other: every pair of the living standing too close is
-## pushed apart along the floor, those already at the railing only along it. Each peer its own.
+## pushed apart along the floor, each peer its own. One at the railing stays on its spot (the host
+## rolled it, the same everywhere): pushed along it, its copies would drift apart on each peer and a
+## client's rounds go where the host has nobody.
 func _spread(delta: float) -> void:
 	var live: Array[Dictionary] = []
 	var reach: Array[float] = []
@@ -866,8 +895,8 @@ func _spread(delta: float) -> void:
 
 
 func _nudge(z: Dictionary, by: Vector3) -> void:
-	if z.path.is_empty():  # clawing at the railing: slides along it, never through
-		by = Vector3(0.0, 0.0, by.z)
+	if z.path.is_empty():  # clawing at the railing
+		return
 	(z.node as Node3D).global_position += by
 
 

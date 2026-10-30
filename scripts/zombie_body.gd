@@ -56,18 +56,18 @@ const CREATURES := {
 const KINDS := {
 	&"walker": {"models": [&"prisoner", &"copzombie", &"warzombie", &"zombiegirl", &"parasite",
 			&"yaku", &"romero", &"skeletonzombie", &"fleshzombie", &"hazmat", &"melty"],
-			"set": "", "move": "walk", "size": [0.95, 1.06]},
+			"set": "", "move": "run", "size": [0.95, 1.06]},
 	&"runner": {"models": [&"prisoner", &"copzombie", &"zombiegirl", &"parasite", &"yaku",
 			&"skeletonzombie", &"fleshzombie", &"hazmat", &"melty"],
 			"set": "", "move": "run", "size": [0.95, 1.04]},
 	# Roles of their own (waves.gd): each in one look only, so it is known across the hall.
-	&"bloater": {"models": [&"bloater"], "set": "", "move": "walk", "size": [1.02, 1.1]},
-	&"screamer": {"models": [&"whiteclown"], "set": "", "move": "walk", "size": [0.97, 1.03]},
+	&"bloater": {"models": [&"bloater"], "set": "", "move": "run", "size": [1.02, 1.1]},
+	&"screamer": {"models": [&"whiteclown"], "set": "", "move": "run", "size": [0.97, 1.03]},
 	&"crawler": {"models": [&"prisoner", &"warzombie", &"zombiegirl", &"romero", &"skeletonzombie",
 			&"fleshzombie", &"hazmat"],
-			"set": "", "move": "crawl", "size": [0.95, 1.05]},
+			"set": "", "move": "crawl_run", "size": [0.95, 1.05]},
 	&"brute": {"models": [&"warrok", &"maw", &"demon"],  # already ~2.4 m
-			"set": "mutant_", "move": "walk", "size": [1.0, 1.12]},
+			"set": "mutant_", "move": "run", "size": [1.0, 1.12]},
 	&"blob": {"models": [&"blob"],  # 0.79 m as modelled
 			"set": "", "move": "crawl", "size": [1.3, 1.6]},
 	&"dog": {"models": [&"dog"], "set": "", "move": "run", "size": [0.9, 1.1]},
@@ -209,7 +209,7 @@ func _ready() -> void:
 	_flinch.arm_kick = _arm_kick
 	_chest = _flinch.spine[1]
 	_skel.add_child(_flinch)
-	crawling = _move == "crawl"  # (a creature never: it has no belly clips)
+	crawling = _move.begins_with("crawl")  # (a creature never: it has no belly clips)
 	_add_voice()
 	idle()
 
@@ -416,6 +416,22 @@ func move(speed: float) -> void:
 	_play_loop(clip, clampf(speed / natural, STRIDE[0], STRIDE[1]) if natural > 0.05 else 1.0)
 
 
+## Keeps the loop playing as it moves: its stride stretched to `speed` m/s, down to a third of the
+## clip's (a braking or staggered one shuffles), without changing clips. Nothing in a one-shot.
+func pace(speed: float) -> void:
+	if _busy or _dead or _loop == "":
+		return
+	var natural := _natural(_loop)
+	if natural > 0.05:
+		_loop_speed = clampf(speed / natural, 0.3, STRIDE[1])
+		_ap.speed_scale = _loop_speed
+
+
+## Whether it is in a one-shot now (a swing, a flinch, a scream, the fall).
+func busy() -> bool:
+	return _busy
+
+
 ## Whether it goes in the quick gait now (run, running crawl).
 func quick() -> bool:
 	return _loop.contains("run")
@@ -460,7 +476,7 @@ func attack() -> float:
 ## Flinch from a shot; back to the loop after. Ignored mid-attack, and on its belly (the hit clips
 ## stand it up): there the spring alone (wound()) jerks it.
 func hit() -> void:
-	if not _busy and not crawling:
+	if not _busy and not crawling and not quick():  # running, the clip would stand it still while it slides on
 		_one_shot("hit")
 
 
