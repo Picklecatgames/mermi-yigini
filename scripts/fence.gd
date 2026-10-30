@@ -17,6 +17,7 @@ const SAG := 0.22  # m
 const EASE := 2.5  # 1/s, the shown wear following the real one
 const RAIL := 0.05  # m, the rails' square section
 const MAX_SPARKS := 10  # bursts alive at once
+const FLASHES := 4  # their lights, taken in turn
 
 var _x := 0.0
 var _heights: Array[float] = []  # the rails, top first
@@ -28,11 +29,25 @@ var _goal: Array[float] = []
 var _sparks := 0
 var _streams := {}  # slot -> AudioStream or null
 
+## The sparks' flashes are made once and only dimmed: a light added mid-fight had every surface
+## near it compile its pipelines again, a claw at a time (tools/spike_probe.gd).
+var _flashes: Array[OmniLight3D] = []
+var _next_flash := 0
+
+static var _spark_mesh: BoxMesh
+
 
 func _ready() -> void:
 	var line := get_tree().root.find_child("FiringLine", true, false)
 	if line == null:
 		return
+	for i in FLASHES:
+		var flash := OmniLight3D.new()
+		flash.light_color = Color(1.0, 0.65, 0.3)
+		flash.omni_range = 2.0
+		flash.light_energy = 0.0
+		add_child(flash)
+		_flashes.append(flash)
 	var paint: Material = null
 	for c in line.get_children():
 		if not (c is MeshInstance3D and c.mesh is BoxMesh):
@@ -184,29 +199,30 @@ func _burst(at: Vector3, amount: int, force: float) -> void:
 	sparks.gravity = Vector3(0, -9.8, 0)
 	sparks.scale_amount_min = 0.5
 	sparks.scale_amount_max = 1.2
-	var mesh := BoxMesh.new()  # a streak, stretched along its flight
-	mesh.size = Vector3(0.006, 0.006, 0.05)
-	var hot := StandardMaterial3D.new()
-	hot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	hot.albedo_color = Color(1.0, 0.72, 0.32)
-	hot.emission_enabled = true
-	hot.emission = Color(1.0, 0.6, 0.2)
-	hot.emission_energy_multiplier = 4.0
-	mesh.material = hot
-	sparks.mesh = mesh
+	if _spark_mesh == null:
+		_spark_mesh = BoxMesh.new()  # a streak, stretched along its flight
+		_spark_mesh.size = Vector3(0.006, 0.006, 0.05)
+		var hot := StandardMaterial3D.new()
+		hot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		hot.albedo_color = Color(1.0, 0.72, 0.32)
+		hot.emission_enabled = true
+		hot.emission = Color(1.0, 0.6, 0.2)
+		hot.emission_energy_multiplier = 4.0
+		_spark_mesh.material = hot
+	sparks.mesh = _spark_mesh
 	sparks.particle_flag_align_y = false
 	sparks.particle_flag_rotate_y = false
 	add_child(sparks)
 	sparks.global_position = at
 	sparks.emitting = true
-	var flash := OmniLight3D.new()
-	flash.light_color = Color(1.0, 0.65, 0.3)
-	flash.omni_range = 2.0
-	add_child(flash)
+	var flash := _flashes[_next_flash]
+	_next_flash = (_next_flash + 1) % _flashes.size()
 	flash.global_position = at
+	if flash.has_meta(&"tween"):
+		(flash.get_meta(&"tween") as Tween).kill()
 	var tw := flash.create_tween()
 	tw.tween_property(flash, "light_energy", 0.0, 0.2).from(1.5 * force)
-	tw.tween_callback(flash.queue_free)
+	flash.set_meta(&"tween", tw)
 	sparks.finished.connect(func() -> void:
 		_sparks -= 1
 		sparks.queue_free())

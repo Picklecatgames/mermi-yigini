@@ -34,6 +34,7 @@ const WALL_MASK := 1  # GameState.SHOT_MASK: walls, floor, pillars
 static var _textures := {}  # name -> [albedo, normal, orm]
 static var _materials := {}  # mist name -> ShaderMaterial
 static var _quad: QuadMesh
+static var _warming := {}  # path -> asked of the loader thread (warm())
 
 var _decals: Array[Decal] = []
 var _next_decal := 0
@@ -80,6 +81,22 @@ static func ground(world: Node, at: Vector3, floor_y: float, kinds: Array, rng: 
 		t.tween_property(d, "size", full, grow).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
 		fx._grow[d] = t
 	return d
+
+
+## Starts reading every decal set and mist off the disk on a thread, so none is loaded in the middle
+## of a fight: each took 15-70 ms the first time it came up (tools/spike_probe.gd). waves.gd calls it
+## with the hall; whatever is asked for before it is in waits for it then.
+static func warm() -> void:
+	var paths: Array[String] = []
+	for kind: StringName in SETS:
+		for i in SETS[kind]:
+			for part in ["_albedo.png", "_normal.png", "_orm.png"]:
+				paths.append(DIR + "decals/%s_%d%s" % [kind, i, part])
+	for name: StringName in MISTS:
+		paths.append(DIR + "mist_%s.png" % name)
+	for path in paths:
+		if not _warming.has(path):
+			_warming[path] = ResourceLoader.load_threaded_request(path) == OK
 
 
 static func decal_count(world: Node) -> int:
@@ -131,7 +148,32 @@ func _place(at: Vector3, n: Vector3, along: Vector3, kind: StringName, rng: Rand
 	return d
 
 
-func _mist(at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size: float, life: float) -> void:
+## Every mist drawn once at `at` (a speck in front of the camera), so its shader and atlases are in
+## before the first hit (zombie_body.gd prewarm()). Then, once warm() has read them all, every decal
+## set is held in the renderer's decal atlas by a hidden decal of its own: a texture new to the atlas
+## had it built over again, ~10 ms, at the first splash of each kind and whenever the pool let one go.
+static func prewarm(world: Node, at: Vector3) -> void:
+	var fx := _of(world)
+	var rng := RandomNumberGenerator.new()
+	for name: StringName in MISTS:
+		fx._mist(at, Vector3.UP, rng, 0.001, 0.1, name)
+	while fx.is_inside_tree() and _warming.keys().any(func(path: String) -> bool:
+			return _warming[path] and ResourceLoader.load_threaded_get_status(path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS):
+		await fx.get_tree().process_frame
+	if not fx.is_inside_tree():
+		return
+	for kind: StringName in SETS:
+		for i in SETS[kind]:
+			var tex := _tex(kind, i)
+			var d := Decal.new()
+			d.texture_albedo = tex[0]
+			d.texture_normal = tex[1]
+			d.texture_orm = tex[2]
+			d.visible = false
+			fx.add_child(d)
+
+
+func _mist(at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size: float, life: float, name := &"") -> void:
 	var m: MeshInstance3D
 	if _mists.size() < MAX_MISTS:
 		if _quad == null:
@@ -144,7 +186,8 @@ func _mist(at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size: float, l
 	else:
 		m = _mists[_next_mist]
 		_next_mist = (_next_mist + 1) % MAX_MISTS
-	var name: StringName = MISTS[rng.randi() % MISTS.size()]
+	if name == &"":
+		name = MISTS[rng.randi() % MISTS.size()]
 	m.material_override = _mist_material(name)
 	size *= rng.randf_range(0.85, 1.2)
 	m.custom_aabb = AABB(Vector3.ONE * -size, Vector3.ONE * size * 2.0)  # the shader moves the corners
@@ -177,7 +220,7 @@ static func _mist_material(name: StringName) -> ShaderMaterial:
 	if not _materials.has(name):
 		var mat := ShaderMaterial.new()
 		mat.shader = preload("res://materials/blood_mist.gdshader")
-		mat.set_shader_parameter(&"atlas", load(DIR + "mist_%s.png" % name))
+		mat.set_shader_parameter(&"atlas", _load(DIR + "mist_%s.png" % name))
 		_materials[name] = mat
 	return _materials[name]
 
@@ -186,5 +229,12 @@ static func _tex(kind: StringName, i: int) -> Array:
 	var key := "%s_%d" % [kind, i]
 	if not _textures.has(key):
 		var base := DIR + "decals/" + key
-		_textures[key] = [load(base + "_albedo.png"), load(base + "_normal.png"), load(base + "_orm.png")]
+		_textures[key] = [_load(base + "_albedo.png"), _load(base + "_normal.png"), _load(base + "_orm.png")]
 	return _textures[key]
+
+
+static func _load(path: String) -> Resource:
+	if _warming.get(path, false):
+		_warming[path] = false
+		return ResourceLoader.load_threaded_get(path)
+	return load(path)
