@@ -1,0 +1,550 @@
+extends Node3D
+## Zombie waves (docs/ayrintilar.md "Yeni yön: zombi dalgaları"). A player pulls the wall lever
+## when the team is ready; in the user's words "şalter iner, siren ve kırmızı ışıklarla beraber
+## ikili kapı ortadan yanlara doğru slide ile açılır", and the dead walk out of the pens, through the
+## gates and up to the railing, where they claw at it. When the last one is down the gates close and
+## the next wave waits on the lever; every wave is bigger, tougher and a little quicker.
+##
+## Host-authoritative like GameState: the lever is a request (GameState.request_pull_lever), the
+## host plans the wave, rolls every zombie and keeps their hit points, and tells everyone through
+## GameState.cue_wave. Every peer builds the same zombie under the same path (Waves/Z<id>), so
+## shot_landed names it everywhere; each peer walks and animates its own copy from the cue.
+## A joiner gets the phase and the living zombies where they stand (join_cues).
+##
+## Cues (wave_cue): [&"phase", wave, phase, left, fence] · [&"spawn", id, kind, seed, gate, pos, yaw,
+## speed, rail_z, walking] · [&"die", id, left] · [&"fence", fence].
+##
+## TEMPORARY until players can die: the railing has FENCE_HP, every claw takes a bite, and at 0 the
+## wave is lost (the dead go, the same wave waits again). The numbers below are first guesses.
+##
+## Sounds come from the user (assets/sounds/waves/<slot>.ogg|wav): lever, siren, gate. A missing
+## file stays silent.
+
+enum Phase { READY, STARTING, FIGHT, CLEARED, FAILED }
+
+const BODY := preload("res://scripts/zombie_body.gd")
+const SOUNDS := "res://assets/sounds/waves/"
+const LEVER_TIME := 0.6  # s from the pull to the siren and the lights
+const GATES_AT := 1.8  # s after the pull the gates start to slide
+const GATE_TIME := 2.5  # s to slide open (or shut)
+const FIGHT_AT := GATES_AT + GATE_TIME * 0.6  # the dead may walk once the gap is wide enough
+const CLEAR_PAUSE := 4.0  # s from the last kill to the lever coming back up
+const FAIL_PAUSE := 5.0
+const DEAD_STAY := 8.0  # s a body lies before it goes
+const RAIL_X := 14.8  # where they stop, just past the railing (x 14)
+const RAIL_Z := 18.0  # ± along it
+const DOOR_X := 29.5  # just inside the bay's mouth in the hall's east wall
+const DOOR_Z := 9.0  # ± (the opening is ±12)
+const BAY_HALF := 12.0  # tools/build_arena.gd
+const BAY_END := 44.3
+const MAX_ALIVE := 40  # on the floor at once, the rest wait their turn (network load stays flat)
+const SPAWN_EVERY := 0.5  # s between the waiting ones once the gates are open
+const FENCE_HP := 100
+const FENCE_SEND := 0.25  # s between the host's fence updates
+## kind -> walk speed (m/s), hit points (a head shot takes 3), bite out of the fence per claw
+const STATS := {&"walker": [0.9, 5, 1], &"runner": [3.0, 3, 1], &"crawler": [0.6, 4, 1], &"brute": [1.4, 25, 4]}
+## Wave n: BASE_COUNT + COUNT_GROW·(n-1) zombies; hit points ×(1 + HP_GROW·(n-1)), speed likewise
+## up to SPEED_MAX; crawlers from wave CRAWLER_FROM, runners from RUNNER_FROM, a brute every BRUTE_EVERY.
+const BASE_COUNT := 8
+const COUNT_GROW := 4
+const HP_GROW := 0.2
+const SPEED_GROW := 0.02
+const SPEED_MAX := 1.4
+const CRAWLER_FROM := 2
+const CRAWLER_SHARE := 0.15
+const RUNNER_FROM := 3
+const RUNNER_SHARE := 0.2
+const BRUTE_EVERY := 5
+const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "ÇİT YIKILDI"}
+
+var wave := 1
+var phase := Phase.READY
+var left := 0  # zombies of this wave not yet down (waiting ones too)
+var fence := FENCE_HP
+
+var _zombies := {}  # id -> record (see _add_zombie)
+var _spawns: Array[Node3D] = []
+var _gates: Array[Node3D] = []
+var _gate_home := {}  # leaf -> closed position
+var _gate_tween: Tween
+var _gates_open := false
+var _alarms: Array[Node3D] = []
+var _spins: Array[Node3D] = []  # turning now
+var _spins_paused: Array[Node3D] = []  # the beacons' mirrors while dark
+var _lit := false
+var _lever: Node3D
+var _lever_anim: AnimationPlayer
+var _lever_clip := &""
+var _number: Label3D
+var _status: Label3D
+var _shown_wave := -1
+var _seq := 0  # bumped by every phase, so a sequence left waiting stops when the next comes
+# Host only.
+var _rng := RandomNumberGenerator.new()
+var _queue: Array[StringName] = []
+var _hp := {}  # id -> hit points left
+var _next_id := 1
+var _next_spawn := 0
+var _spawn_wait := 0.0
+var _fence_wait := 0.0
+var _fence_news := false
+
+
+## A zombie's body: what the shot code and the HUD ask of a target.
+class Zombie extends StaticBody3D:
+	var tall := 1.8
+
+	func above_head() -> Vector3:
+		return global_position + Vector3.UP * (tall + 0.15)
+
+
+func _ready() -> void:
+	add_to_group("waves")
+	_rng.randomize()
+	for s: Node3D in get_tree().get_nodes_in_group("wave_spawn"):
+		_spawns.append(s)
+	for g: Node3D in get_tree().get_nodes_in_group("wave_gate"):
+		_gates.append(g)
+		_gate_home[g] = g.position
+	for a: Node3D in get_tree().get_nodes_in_group("wave_alarm"):
+		_alarms.append(a)
+		var spin := a.find_child("Spin", true, false)
+		if spin:
+			_spins_paused.append(spin)
+	_lever = get_tree().get_first_node_in_group("wave_lever")
+	if _lever:
+		_lever_anim = _lever.find_child("AnimationPlayer", true, false)
+		if _lever_anim and not _lever_anim.get_animation_list().is_empty():
+			_lever_clip = _lever_anim.get_animation_list()[0]
+			_lever_anim.play(_lever_clip)  # rest on its first frame: up
+			_lever_anim.seek(0.0, true)
+			_lever_anim.pause()
+		_number = _lever.find_child("Number", true, false)
+		_status = _lever.find_child("Status", true, false)
+	GameState.wave_cue.connect(_on_cue)
+	GameState.lever_pulled.connect(_on_lever)
+	GameState.shot_landed.connect(_on_shot)
+	_sign()
+
+
+## The local player at `at` may pull the lever now (player.gd shows the hint, E pulls it).
+func can_pull(at: Vector3) -> bool:
+	var to := Vector2(at.x - GameState.LEVER_POS.x, at.z - GameState.LEVER_POS.z)
+	return phase == Phase.READY and to.length() <= GameState.STATION_REACH
+
+
+## Host: what a joiner needs, in order: the phase, then every zombie still standing where it is now.
+func join_cues() -> Array:
+	var cues := [[&"phase", wave, phase, left, fence]]
+	for id: int in _zombies:
+		var z: Dictionary = _zombies[id]
+		if not z.dead:
+			var node: Node3D = z.node
+			cues.append([&"spawn", id, z.kind, z.seed, z.gate, node.global_position, node.global_rotation.y,
+					z.speed, z.rail.z, z.released])
+	return cues
+
+
+func _process(delta: float) -> void:
+	for s in _spins:
+		s.rotate_object_local(Vector3.UP, TAU * 0.8 * delta)
+	for z: Dictionary in _zombies.values():
+		if not z.dead:
+			_walk(z, delta)
+			(z.head_shape as Node3D).global_position = (z.head as Node3D).global_position
+	if Net.is_client:
+		return
+	if phase == Phase.FIGHT and not _queue.is_empty():
+		_spawn_wait -= delta
+		if _spawn_wait <= 0.0 and _alive() < MAX_ALIVE:
+			_spawn_wait = SPAWN_EVERY
+			_spawn_next()
+	_fence_wait -= delta
+	if _fence_news and _fence_wait <= 0.0:
+		_fence_news = false
+		_fence_wait = FENCE_SEND
+		GameState.cue_wave([&"fence", fence])
+
+
+# --- host -----------------------------------------------------------------------------------------
+
+func _on_lever(_peer: int) -> void:
+	if phase != Phase.READY or Net.is_client:
+		return
+	_queue = _plan(wave)
+	_hp.clear()
+	_next_spawn = 0
+	GameState.cue_wave([&"phase", wave, Phase.STARTING, _queue.size(), FENCE_HP])
+	for i in mini(_spawns.size(), _queue.size()):  # a pen-full waits behind the gates
+		_spawn_next()
+	var seq := _seq
+	await get_tree().create_timer(FIGHT_AT).timeout
+	if seq == _seq:
+		GameState.cue_wave([&"phase", wave, Phase.FIGHT, left, fence])
+
+
+## What wave `w` sends, in order.
+func _plan(w: int) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for i in BASE_COUNT + COUNT_GROW * (w - 1):
+		var r := _rng.randf()
+		if w >= RUNNER_FROM and r < RUNNER_SHARE:
+			out.append(&"runner")
+		elif w >= CRAWLER_FROM and r < RUNNER_SHARE + CRAWLER_SHARE:
+			out.append(&"crawler")
+		else:
+			out.append(&"walker")
+	for i in w / BRUTE_EVERY:  # not first out of the gate
+		out.insert(_rng.randi_range(out.size() / 3, out.size()), &"brute")
+	return out
+
+
+func _spawn_next() -> void:
+	var kind: StringName = _queue.pop_front()
+	var at: Node3D = _spawns[_next_spawn % _spawns.size()]
+	var pos := at.global_position
+	if _next_spawn >= _spawns.size():  # a marker used before: not quite on the same spot
+		pos += Vector3(_rng.randf_range(-0.4, 0.4), 0.0, _rng.randf_range(-0.4, 0.4))
+	_next_spawn += 1
+	var id := _next_id
+	_next_id += 1
+	var st: Array = STATS[kind]
+	var grow := float(wave - 1)
+	_hp[id] = ceili(st[1] * (1.0 + HP_GROW * grow))
+	var speed: float = st[0] * minf(1.0 + SPEED_GROW * grow, SPEED_MAX)
+	GameState.cue_wave([&"spawn", id, kind, _rng.randi(), at.get_meta("gate"), pos, at.global_rotation.y,
+			speed, _rng.randf_range(-RAIL_Z, RAIL_Z), phase == Phase.FIGHT])
+
+
+func _alive() -> int:
+	var n := 0
+	for z: Dictionary in _zombies.values():
+		if not z.dead:
+			n += 1
+	return n
+
+
+## Host: a claw landed on the railing.
+func _bite(kind: StringName) -> void:
+	if phase != Phase.FIGHT:
+		return
+	fence = maxi(fence - STATS[kind][2], 0)
+	_sign()
+	_fence_news = true
+	if fence > 0:
+		return
+	GameState.cue_wave([&"phase", wave, Phase.FAILED, left, 0])
+	var seq := _seq
+	await get_tree().create_timer(FAIL_PAUSE).timeout
+	if seq == _seq:
+		GameState.cue_wave([&"phase", wave, Phase.READY, 0, FENCE_HP])
+
+
+func _check_clear() -> void:
+	if phase != Phase.FIGHT or not _queue.is_empty() or _alive() > 0:
+		return
+	GameState.cue_wave([&"phase", wave, Phase.CLEARED, 0, fence])
+	var seq := _seq
+	await get_tree().create_timer(CLEAR_PAUSE).timeout
+	if seq == _seq:
+		GameState.cue_wave([&"phase", wave + 1, Phase.READY, 0, FENCE_HP])
+
+
+# --- every peer -----------------------------------------------------------------------------------
+
+func _on_cue(cue: Array) -> void:
+	match cue[0]:
+		&"phase":
+			_set_phase(cue[1], cue[2], cue[3], cue[4])
+		&"spawn":
+			_add_zombie(cue[1], cue[2], cue[3], cue[4], cue[5], cue[6], cue[7], cue[8], cue[9])
+		&"die":
+			left = cue[2]
+			_kill(cue[1])
+			_sign()
+			if not Net.is_client:
+				_check_clear()
+		&"fence":
+			fence = cue[1]
+			_sign()
+
+
+func _set_phase(w: int, ph: Phase, p_left: int, p_fence: int) -> void:
+	var was := phase
+	wave = w
+	phase = ph
+	left = p_left
+	fence = p_fence
+	_seq += 1
+	_sign()
+	match ph:
+		Phase.STARTING:
+			_sequence(_seq)
+		Phase.FIGHT:
+			var skipped := was != Phase.STARTING  # joined mid-wave: no show, it is already so
+			_set_lever(true, skipped)
+			_light(true)
+			if not _gates_open:
+				_open_gates(skipped)
+			for z: Dictionary in _zombies.values():
+				if not z.released:
+					_release(z, true)
+		Phase.CLEARED:
+			_light(false)
+			_close_gates(false)
+		Phase.FAILED:
+			for z: Dictionary in _zombies.values():
+				if not z.dead:
+					z.path = []
+					z.body.idle()
+			_light(false)
+		Phase.READY:
+			_set_lever(false, was == Phase.READY)
+			_light(false)
+			if _gates_open:
+				_close_gates(was == Phase.READY)
+			for id: int in _zombies.keys():  # the ones a lost wave left standing
+				if not _zombies[id].dead:
+					_zombies[id].node.queue_free()
+					_zombies.erase(id)
+
+
+## The pull, the siren and the lights, the gates.
+func _sequence(seq: int) -> void:
+	_set_lever(true, false)
+	_sound(&"lever", _lever)
+	await get_tree().create_timer(LEVER_TIME).timeout
+	if seq != _seq:
+		return
+	_light(true)
+	for a in _alarms:
+		if a.get_meta("kind", "") == "beacon":
+			_sound(&"siren", a)
+	await get_tree().create_timer(GATES_AT - LEVER_TIME).timeout
+	if seq == _seq:
+		_open_gates(false)
+
+
+func _set_lever(down: bool, instant: bool) -> void:
+	if not _lever_anim or _lever_clip == &"":
+		return
+	if instant:
+		_lever_anim.play(_lever_clip)
+		_lever_anim.seek(_lever_anim.current_animation_length if down else 0.0, true)
+		_lever_anim.pause()
+	elif down:
+		_lever_anim.play(_lever_clip)
+	else:
+		_lever_anim.play_backwards(_lever_clip)
+
+
+func _light(on: bool) -> void:
+	if on == _lit:
+		return
+	_lit = on
+	for a in _alarms:
+		for n in a.find_children("*", "", true, false) + [a]:
+			if n is Light3D:
+				n.visible = on
+			if n is GeometryInstance3D and n.has_meta("lit_material"):
+				if not n.has_meta("dark_material"):
+					n.set_meta("dark_material", n.material_override)
+				n.material_override = n.get_meta("lit_material" if on else "dark_material")
+	if not on:  # the mirrors stop where they are
+		_spins_paused = _spins.duplicate()
+		_spins.clear()
+	elif not _spins_paused.is_empty():
+		_spins = _spins_paused.duplicate()
+		_spins_paused.clear()
+
+
+func _open_gates(instant: bool) -> void:
+	_gates_open = true
+	_slide(true, instant)
+
+
+func _close_gates(instant: bool) -> void:
+	_gates_open = false
+	_slide(false, instant)
+
+
+func _slide(open: bool, instant: bool) -> void:
+	if _gate_tween:
+		_gate_tween.kill()
+	if instant:
+		for g in _gates:
+			g.position = _gate_home[g] + (g.get_meta("open_offset") if open else Vector3.ZERO)
+		return
+	_gate_tween = create_tween().set_parallel().set_trans(Tween.TRANS_SINE)
+	for g in _gates:
+		_gate_tween.tween_property(g, "position", _gate_home[g] + (g.get_meta("open_offset") if open else Vector3.ZERO), GATE_TIME)
+		_sound(&"gate", g)
+
+
+func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector3, yaw: float, speed: float, rail_z: float, walking: bool) -> void:
+	if _zombies.has(id):
+		return
+	var node := Zombie.new()
+	node.name = "Z%d" % id
+	node.add_to_group("target")
+	node.add_to_group("flesh")  # impacts.gd leaves the wound to zombie_body.gd
+	node.set_meta("zombie", id)
+	add_child(node)
+	node.global_transform = Transform3D(Basis(Vector3.UP, yaw), pos)
+	var body: Node3D = BODY.new()
+	body.setup(kind, seed)
+	node.add_child(body)
+	var tall: float = body.height
+	node.tall = 0.9 if kind == &"crawler" else tall
+	var trunk := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.3 * tall / 1.8
+	cap.height = (0.9 if kind == &"crawler" else tall - 0.25)
+	trunk.shape = cap
+	if kind == &"crawler":
+		trunk.rotation.x = PI / 2
+		trunk.position = Vector3(0, 0.35, 0)
+	else:
+		trunk.position = Vector3(0, cap.height / 2.0, 0)
+	node.add_child(trunk)
+	var head := CollisionShape3D.new()
+	var ball := SphereShape3D.new()
+	ball.radius = 0.13 * tall / 1.8
+	head.shape = ball
+	head.add_to_group("weak_spot")
+	node.add_child(head)
+	var mouth := Vector3.ZERO
+	for g in _gates:
+		if g.get_meta("gate") == gate:
+			mouth = g.get_meta("mouth")
+	var z := {"id": id, "node": node, "body": body, "kind": kind, "seed": seed, "gate": gate,
+			"mouth": mouth, "rail": Vector3(RAIL_X, 0.0, rail_z), "head": body.attach("Head"),
+			"head_shape": head, "trunk": trunk, "speed": speed, "dead": false, "path": [],
+			"stagger": 0.0, "released": false}
+	_zombies[id] = z
+	body.idle()
+	if walking:
+		_release(z, false)
+
+
+## Sets it walking from where it stands: the gate's mouth (if still in the pen), the bay's mouth,
+## its spot on the railing. Out of a gate that has just opened, they don't all set off at once.
+func _release(z: Dictionary, stagger: bool) -> void:
+	z.released = true
+	var at: Vector3 = (z.node as Node3D).global_position
+	var path := []
+	if absf(at.z) > BAY_HALF - 0.5 or at.x > BAY_END:
+		path.append(z.mouth)
+	if at.x > DOOR_X:
+		path.append(Vector3(DOOR_X, 0.0, clampf(z.rail.z, -DOOR_Z, DOOR_Z)))
+	path.append(z.rail)
+	var r := absi(hash(z.seed))
+	if stagger:
+		await get_tree().create_timer(float(r % 400) / 100.0).timeout
+		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
+			return
+	if z.kind == &"brute" and r % 7 < 3:
+		await get_tree().create_timer(z.body.scream()).timeout
+		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
+			return
+	z.path = path
+	z.body.move(z.speed)
+
+
+func _walk(z: Dictionary, delta: float) -> void:
+	if z.path.is_empty():
+		return
+	var node: StaticBody3D = z.node
+	var to: Vector3 = z.path[0] - node.global_position
+	to.y = 0.0
+	z.stagger = maxf(0.0, z.stagger - delta)
+	var step: float = z.speed * delta * (0.2 if z.stagger > 0.0 else 1.0)
+	if to.length() <= step:
+		node.global_position += to
+		z.path.pop_front()
+		if z.path.is_empty():
+			node.look_at(node.global_position + Vector3.LEFT, Vector3.UP)
+			_claw(z)
+		return
+	node.global_position += to.normalized() * step
+	node.global_transform = node.global_transform.interpolate_with(
+			node.global_transform.looking_at(node.global_position + to, Vector3.UP), minf(1.0, 6.0 * delta))
+
+
+func _claw(z: Dictionary) -> void:
+	while not z.dead and is_instance_valid(z.node) and phase == Phase.FIGHT:
+		var t: float = z.body.attack()
+		await get_tree().create_timer(t * 0.5).timeout
+		if z.dead or phase != Phase.FIGHT:
+			return
+		if not Net.is_client:
+			_bite(z.kind)
+		await get_tree().create_timer(t * 0.5 + 0.4).timeout
+
+
+func _on_shot(_peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _gold: int, weak: bool, combo: int) -> void:
+	if target == null or not target.has_meta("zombie"):
+		return
+	var z: Dictionary = _zombies.get(target.get_meta("zombie"), {})
+	if z.is_empty() or z.dead:
+		return
+	z.body.wound(at, dir, weak)
+	z.stagger = 0.35  # held back a moment by the hit
+	z.body.hit()
+	if Net.is_client or combo == 0 or not _hp.has(z.id):  # combo 0: not a paying hit (wrong side of the line)
+		return
+	_hp[z.id] -= 3 if weak else 1
+	if _hp[z.id] <= 0:
+		_hp.erase(z.id)
+		GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1])
+
+
+func _kill(id: int) -> void:
+	var z: Dictionary = _zombies.get(id, {})
+	if z.is_empty() or z.dead:
+		return
+	z.dead = true
+	z.path = []
+	var node: Node3D = z.node
+	node.remove_from_group("target")
+	(z.trunk as CollisionShape3D).disabled = true
+	(z.head_shape as CollisionShape3D).disabled = true
+	z.body.die()
+	await get_tree().create_timer(DEAD_STAY).timeout
+	if is_instance_valid(node):
+		node.queue_free()
+	if _zombies.get(id) == z:
+		_zombies.erase(id)
+
+
+## The mechanical sign over the lever: the wave's number on flip plates, the state under it.
+func _sign() -> void:
+	if _status:
+		var text: String = STATUS.get(phase, "")
+		if phase == Phase.FIGHT:
+			text = "KALAN %d   ÇİT %d" % [left, fence]
+		_status.text = text
+	if _number and wave != _shown_wave:
+		var first := _shown_wave < 0
+		_shown_wave = wave
+		if first:
+			_number.text = "%02d" % wave
+			return
+		var tw := create_tween()  # the plate flips over to the new number
+		tw.tween_property(_number, "scale:y", 0.0, 0.12)
+		tw.tween_callback(func() -> void: _number.text = "%02d" % wave)
+		tw.tween_property(_number, "scale:y", 1.0, 0.12)
+
+
+func _sound(slot: StringName, at: Node3D) -> void:
+	var stream: AudioStream = null
+	for ext in [".ogg", ".wav"]:
+		if ResourceLoader.exists(SOUNDS + String(slot) + ext):
+			stream = load(SOUNDS + String(slot) + ext)
+	if stream == null or at == null:
+		return
+	var p := AudioStreamPlayer3D.new()
+	p.stream = stream
+	at.add_child(p)
+	p.play()
+	p.finished.connect(p.queue_free)
