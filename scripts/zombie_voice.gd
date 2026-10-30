@@ -126,6 +126,15 @@ func shot(at: Vector3, head: bool) -> void:
 		_next_moan = t + 2.5
 
 
+## A limb torn off: it howls whatever the gap since the last grunt.
+func pain() -> void:
+	if dead:
+		return
+	_last_hurt = _now()
+	_say(&"hurt", 3.0)
+	_next_moan = _last_hurt + 3.0
+
+
 ## Down for good. `headless`: the head is gone, so no death rattle, just the burst.
 func die(at: Vector3, burst: bool, headless: bool) -> void:
 	if dead:

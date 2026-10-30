@@ -9,9 +9,12 @@ extends SceneTree
 ## the client, in a solo wave of its own, joins mid-wave, drops its own dead and gets the host's
 ## phase and zombies under the same paths, shoots them down through the host, sees the next wave
 ## waiting and pulls the lever itself. Last, the client loses the host: the wave starts over there.
+## The client aims some rounds at legs and arms; the limbs torn off each zombie by the time it dies
+## must be the same on both machines (CUTS: the client's, read back by the host).
 
 const PORT := 24693
 const LOG := "user://waves_check_client.log"
+const CUTS := "user://waves_check_cuts.json"
 const TIME_SCALE := 4.0  # the solo part: walkers take half a minute to reach the railing
 const SHOOT_FROM_X := 12.5
 
@@ -20,6 +23,16 @@ var net: Node
 var main: Node
 var waves: Node
 var _log: Array[String] = []
+var _cuts := {}  # zombie id -> the limbs it had lost when the die cue came (wave 3, online)
+
+
+## Notes what each zombie has lost as it goes down (the die cue comes after its limb cues).
+func _watch_cuts() -> void:
+	gs.wave_cue.connect(func(cue: Array) -> void:
+		if cue[0] == &"die" and waves._zombies.has(cue[1]) and waves.wave == 3:
+			var cut: Array = waves._zombies[cue[1]].body.cuts.map(func(c: StringName) -> String: return String(c))
+			cut.sort()
+			_cuts[str(cue[1])] = cut)
 
 
 func _initialize() -> void:
@@ -99,6 +112,8 @@ func _host() -> void:
 func _online() -> void:
 	if net.host(PORT) != OK:
 		return _fail("could not host on %d" % PORT)
+	_watch_cuts()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(CUTS))
 	gs.request_pull_lever()  # wave 3 is on when the client comes
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "wave 3's fight"): return
 	var client_id := [0]
@@ -117,6 +132,15 @@ func _online() -> void:
 	print(FileAccess.get_file_as_string(LOG))
 	if OS.get_process_exit_code(pid) != 0:
 		return _fail("client side failed")
+	var theirs = JSON.parse_string(FileAccess.get_file_as_string(CUTS))
+	var torn := 0
+	for id: String in _cuts:
+		torn += (_cuts[id] as Array).size()
+	print("limbs torn in wave 3, host: ", _cuts)
+	if not _ok(theirs is Dictionary and (theirs as Dictionary).size() >= _cuts.size() - 1, "the client saw the kills (%s)" % [theirs]): return
+	if not _ok(torn > 0, "limbs came off in wave 3"): return
+	for id: String in _cuts:
+		if theirs.has(id) and not _ok(theirs[id] == _cuts[id], "zombie %s lost %s here and %s there" % [id, _cuts[id], theirs[id]]): return
 	if not _ok(client_id[0] != 0 and pulled_by[0] == client_id[0], "the client's pull reached the host"): return
 	if not _ok(waves.wave == 4 and waves.phase in [waves.Phase.STARTING, waves.Phase.FIGHT], "and started wave 4"): return
 	print("waves_check OK")
@@ -178,6 +202,7 @@ func _client() -> void:
 	gs.request_pull_lever()
 	if not _ok(waves.phase == waves.Phase.STARTING and waves._zombies.size() == waves.BASE_COUNT, "a solo wave of our own"): return
 	var own: Array = waves._zombies.keys()
+	_watch_cuts()
 	net.join("127.0.0.1", PORT)
 	if not await _until(func() -> bool: return net.is_client, "connect"): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT and waves.wave == 3, "the host's wave 3 on joining"): return
@@ -195,6 +220,9 @@ func _client() -> void:
 	gs.request_select_gun(4)  # the Scorpion: test mode opens it
 	if not await _until(gs.synced, "the host's answer"): return
 	if not await _shoot_all("wave 3", me): return
+	var f := FileAccess.open(CUTS, FileAccess.WRITE)
+	f.store_string(JSON.stringify(_cuts))
+	f.close()
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY and waves.wave == 4, "wave 4 to wait", 40.0): return
 	if not await _until(func() -> bool: return waves._number.text == "04", "the sign to flip to 04"): return
 	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
@@ -221,13 +249,21 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 	var t0 := Time.get_ticks_msec()
 	while waves.left > 0:
 		if Time.get_ticks_msec() - t0 > 120_000:
-			_fail("%s: %d left standing" % [what, waves.left])
+			var still := []
+			for z: Dictionary in waves._zombies.values():
+				if not z.dead:
+					still.append("%s %s at %s path %d down %.1f low %s" % [z.id, z.kind, (z.node as Node3D).global_position, z.path.size(), z.down, z.body.crawling])
+			_fail("%s: %d left standing: %s" % [what, waves.left, still])
 			return false
 		var aim := Vector3.INF
 		for z: Dictionary in waves._zombies.values():
 			var at: Vector3 = (z.node as Node3D).global_position
 			if not z.dead and at.x < 27.0:
-				aim = at + Vector3.UP * (z.trunk.position.y if waves.LOW.has(z.kind) else 1.1)
+				aim = at + Vector3.UP * (z.trunk.position.y if waves.LOW.has(z.kind) or z.body.crawling else 1.1)  # (a leg torn off: low too)
+				if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
+					match z.id % 3:  # some into the legs, some into an arm
+						1: aim = at + Vector3(0, 0.45, 0.1)
+						2: aim = z.body.call("_bone_at", "LeftForeArm")
 				break
 		if aim != Vector3.INF:
 			var from := Vector3(SHOOT_FROM_X, gs.EYE, aim.z)

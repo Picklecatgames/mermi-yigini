@@ -35,6 +35,7 @@ const PLAYER_MODELS := ["boss", "masked", "worker", "brute", "chupacabra"]
 const DROP := ["BattleAxe_GEO"]
 ## Raw clip -> library name. What a clip is comes from the first word of its name that is a KIND;
 ## LOOPS loop (and anything ending _loop), IN_PLACE lose their travel (the body moves itself).
+## "zombie biting" (stands, then goes down to bite the floor) is left out: at the railing it knelt.
 const ZOMBIE_CLIPS := {
 	"scary_zombie_pack/zombie idle.fbx": "idle_a",
 	"scary_zombie_pack/zombie walk.fbx": "walk_a",
@@ -42,8 +43,8 @@ const ZOMBIE_CLIPS := {
 	"scary_zombie_pack/zombie crawl.fbx": "crawl_a",
 	"scary_zombie_pack/running crawl.fbx": "crawl_run_a",
 	"scary_zombie_pack/zombie attack.fbx": "attack_a",
-	"scary_zombie_pack/zombie biting.fbx": "attack_b",
-	"scary_zombie_pack/zombie biting (2).fbx": "attack_c",
+	"scary_zombie_pack/zombie neck bite.fbx": "attack_b",
+	"scary_zombie_pack/zombie biting (2).fbx": "floor_bite_a",  # on its belly: a crawler's swing
 	"scary_zombie_pack/zombie death.fbx": "death_a",
 	"scary_zombie_pack/zombie dying.fbx": "death_b",
 	"scary_zombie_pack/zombie scream.fbx": "scream_a",
@@ -67,6 +68,7 @@ const ZOMBIE_CLIPS := {
 	"not_so_scary_zombie_pack/zombie stand up.fbx": "stand_up_a",
 	"not_so_scary_zombie_pack/zombie stand up (2).fbx": "stand_up_b",
 	"not_so_scary_zombie_pack/zombie stand up (3).fbx": "stand_up_c",
+	"not_so_scary_zombie_pack/zombie stumbling.fbx": "fall_a",  # stumbles and goes down flat: a leg torn off
 	"creature_pack/mutant idle.fbx": "mutant_idle_a",
 	"creature_pack/mutant idle (2).fbx": "mutant_idle_b",
 	"creature_pack/mutant breathing idle.fbx": "mutant_idle_c",
@@ -129,9 +131,9 @@ const PLAYER_CLIPS := {
 	"male_pack/jump.fbx": "jump",
 }
 const KINDS := ["idle", "walk", "run", "sprint", "strafe", "crawl", "jump", "attack", "hit", "death",
-	"scream", "stand", "roar", "flex"]
+	"scream", "stand", "roar", "flex", "fall", "bite"]
 const LOOPS := ["idle", "walk", "run", "sprint", "strafe", "crawl"]
-const IN_PLACE := ["walk", "run", "sprint", "strafe", "crawl"]
+const IN_PLACE := ["walk", "run", "sprint", "strafe", "crawl", "fall"]  # fall: waves.gd carries it on
 var CLIPS := ZOMBIE_CLIPS
 ## Clips checked joint by joint against the raw file, on the character the pack was made on.
 var CHECK := {"model": "prisoner", "slack": 0.03, "clips": [["scary_zombie_pack/zombie walk.fbx", "walk_a"],

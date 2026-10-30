@@ -17,6 +17,9 @@ const GRAVITY := 9.8
 const HEARD := 5  # lumps per burst that make a sound on landing
 const LINGER := 10.0  # s on the floor before they sink away
 const SINK := 1.5  # s to shrink out
+const LIMBS_MAX := 12  # torn limbs lying about at once (each a whole skinned model)
+
+static var _limbs: Array[Node] = []
 
 var _lumps: Array[Dictionary] = []
 var _floor := 0.0
@@ -50,12 +53,48 @@ static func burst(world: Node, at: Vector3, dir: Vector3, floor_y: float, count:
 				"bounced": false, "rest": false, "r": s * 0.3, "seed": rng.randi()})
 
 
+## A torn-off limb (zombie_body.gd _piece(): a copy of the model showing only that limb, placed where
+## it was) thrown off the body: out along `dir` and up, tumbling end over end, landing in a splash
+## and settling flat. `joint` and `tip`: its two ends in the world. The oldest goes past LIMBS_MAX.
+static func limb(world: Node, piece: Node3D, joint: Vector3, tip: Vector3, dir: Vector3, floor_y: float, size := 1.0, seed := 0) -> void:
+	var g = load("res://scripts/zombie_gibs.gd").new()
+	world.add_child(g)
+	var live: Array[Node] = []
+	for o in _limbs:  # (the ones gone already are freed objects: untyped)
+		if is_instance_valid(o):
+			live.append(o)
+	_limbs = live
+	_limbs.append(g)
+	if _limbs.size() > LIMBS_MAX:
+		_limbs.pop_front().queue_free()
+	var rng: RandomNumberGenerator = g._rng
+	rng.seed = seed
+	rng.state = 0
+	g._floor = floor_y
+	g._pitch = 1.0 / sqrt(size)
+	var pivot := Node3D.new()  # the limb turns about its middle
+	g.add_child(pivot)
+	pivot.global_position = (joint + tip) / 2.0
+	var at := piece.transform
+	pivot.add_child(piece)
+	piece.global_transform = at
+	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
+	var side := flat.cross(Vector3.UP) * rng.randf_range(-1.0, 1.0)
+	var v := (flat * rng.randf_range(1.2, 2.6) + side * 1.2 + (joint - tip).normalized() * -0.6 + Vector3.UP * rng.randf_range(1.8, 3.2))
+	var spin := (flat.cross(Vector3.UP) * rng.randf_range(-1.0, 1.0) + Vector3(rng.randf_range(-0.4, 0.4), rng.randf_range(-1, 1), 0.0))
+	g._lumps.append({"node": pivot, "v": v, "spin": spin.normalized() * rng.randf_range(7.0, 13.0), "bounced": false,
+			"rest": false, "r": 0.05 * size, "seed": rng.randi(), "axis": pivot.global_basis.inverse() * (tip - joint),
+			"big": true})
+
+
 func _process(delta: float) -> void:
 	_age += delta
 	for l in _lumps:
 		if l.rest:
+			if l.has("axis"):
+				_lie_flat(l, delta)
 			continue
-		var m: MeshInstance3D = l.node
+		var m: Node3D = l.node
 		l.v.y -= GRAVITY * delta
 		m.global_position += l.v * delta
 		if l.spin.length() > 0.01:
@@ -76,6 +115,18 @@ func _process(delta: float) -> void:
 			(l.node as Node3D).scale *= lerpf(1.0, k, 0.2)
 		if k <= 0.0:
 			queue_free()
+
+
+## A limb at rest rolls over until it lies along the floor.
+func _lie_flat(l: Dictionary, delta: float) -> void:
+	var m: Node3D = l.node
+	var along: Vector3 = m.global_basis * l.axis
+	var flat := Vector3(along.x, 0.0, along.z)
+	if flat.length() < 0.01 or along.normalized().dot(flat.normalized()) > 0.999:
+		return
+	var turn := Quaternion(along.normalized(), flat.normalized())
+	var step := Quaternion.IDENTITY.slerp(turn, minf(1.0, 10.0 * delta))
+	m.global_basis = Basis(step) * m.global_basis
 
 
 func _landed(at: Vector3, r: float, seed: int) -> void:
