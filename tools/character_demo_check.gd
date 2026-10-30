@@ -62,7 +62,14 @@ func _initialize() -> void:
 	await process_frame
 	await process_frame
 	assert(not pick.is_open and c.look == "chupacabra", "picked: screen closes, the stand-in dressed")
-	# Shift+K: gone.
+	# Shift+K: gone, even while we look right at it (the reach ray held on to its freed body and
+	# player.gd _looking_at_table crashed on it).
+	var to: Vector3 = c.global_position + Vector3.UP * 1.2 - me._reach.global_position
+	me._yaw = atan2(-to.x, -to.z)
+	me._pitch = atan2(to.y, Vector2(to.x, to.z).length())
+	for i in 3:
+		await physics_frame
+	print("reach on the stand-in: %s" % (me._reach.is_colliding() and me._reach.get_collider() == c.body))
 	me._toggle_mirror(false)
 	for i in 3:
 		await physics_frame

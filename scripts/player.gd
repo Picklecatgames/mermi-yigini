@@ -776,7 +776,12 @@ func _head_bob(delta: float) -> void:
 
 
 func _looking_at_table() -> bool:
-	return _reach.is_colliding() and not _hands_busy() and (_reach.get_collider() as Node).is_in_group("gun_table")
+	if not _reach.is_colliding() or _hands_busy():
+		return false
+	# What the ray touched can be gone already this frame (a teammate's body when they leave, or
+	# the character test's stand-in when it closes).
+	var hit := _reach.get_collider()
+	return is_instance_valid(hit) and hit is Node and (hit as Node).is_in_group("gun_table")
 
 
 func _looking_at_pile() -> bool:
