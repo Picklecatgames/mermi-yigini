@@ -1,6 +1,6 @@
 extends SceneTree
 ## Headless check of what a round hits at the railing (scripts/waves.gd hit shapes, GameState's trace):
-##   Godot.exe --headless --path . -s res://tools/hitbox_check.gd --quit-after 2000
+##   Godot.exe --headless --path . -s res://tools/hitbox_check.gd --quit-after 3000
 ## Zombies of every kind stand at the railing, idle, clawing and walking up; from behind the railing
 ## (x 12.5, eye height and crouched) rounds go through the gaps between its rails and posts at the
 ## head, the chest, the hips, every limb's middle and the shins of each. Each must hit the zombie past
@@ -49,16 +49,16 @@ func _railing() -> void:
 				continue
 			var from := Vector3(SHOOT_X, 0.8, at.z)
 			var hit := _trace(from, Vector3(x, 0.8, at.z))
-			_ok(not hit.is_empty() and hit.position.x < x + 0.05 and hit.position.x > x - 0.1,
+			_ok(not hit.is_empty() and hit.collider.name == "FiringLineBars" and absf(hit.position.x - x) < 0.1,
 					"a round at the post at z %.1f stops on it (%s)" % [at.z, _what(hit)])
 			bars += 1
 	for y in [1.075, 0.55]:
 		var hit := _trace(Vector3(SHOOT_X, y, 0.37), Vector3(x, y, 0.37))
-		_ok(not hit.is_empty() and absf(hit.position.x - x) < 0.1, "a round at the rail at %.2f m stops on it (%s)" % [y, _what(hit)])
+		_ok(not hit.is_empty() and hit.collider.name == "FiringLineBars" and absf(hit.position.x - x) < 0.1, "a round at the rail at %.2f m stops on it (%s)" % [y, _what(hit)])
 	_ok(bars > 10, "%d posts tried" % bars)
 	# Between them nothing: a round at the gap flies past the line.
 	for y in [0.3, 0.8, 1.4]:
-		var hit := _trace(Vector3(SHOOT_X, y, 0.0), Vector3(x + 3.0, y, 0.0))
+		var hit := _trace(Vector3(SHOOT_X, y, 1.37), Vector3(x + 3.0, y, 1.37))  # halfway between two posts
 		_ok(hit.is_empty() or hit.position.x > x + 0.2, "a round through the gap at %.1f m flies on (%s)" % [y, _what(hit)])
 
 
@@ -100,10 +100,12 @@ func _zombie(id: int, kind: StringName, pose: String) -> void:
 			var from := Vector3(SHOOT_X, eye, at.z + 0.6)
 			var dir := (at - from).normalized()
 			var hit := _trace(from, from + dir * 40.0)
-			if not hit.is_empty() and hit.collider.get_parent() and hit.collider.name == "FiringLine":
+			if not hit.is_empty() and hit.collider.name == "FiringLineBars":
 				continue  # a post or rail in the way: the railing test above covers those
 			_shots += 1
 			var ok: bool = not hit.is_empty() and hit.collider == z.node and hit.position.x > gs.FIRING_LINE_X
+			if ok and name == "head" and pose == "idle" and kind in [&"walker", &"runner"]:  # the weak spot, named for whoever counts regions (arms out or a blob's bulk may come first otherwise)
+				ok = waves.region_at(z.node, hit.shape) == &"head"
 			_ok(ok, "%s %s %s, eye %.1f: %s at %s" % [kind, pose, name, eye, _what(hit), at])
 	waves._zombies.erase(id)
 	(z.node as Node).free()
@@ -115,6 +117,9 @@ func _legless() -> void:
 	waves._add_zombie(id, &"walker", 3, "", Vector3(waves.RAIL_X, 0, 0.5), PI / 2, 1.0, 0.5, false)
 	var z: Dictionary = waves._zombies[id]
 	waves._cut(z, &"leg_l", false)
+	var gone := (z.bones as Array).filter(func(b: Dictionary) -> bool: return (b.node as CollisionShape3D).disabled)
+	_ok(gone.size() == 3 and gone.all(func(b: Dictionary) -> bool: return b.node.get_meta("region") == &"leg_l"),
+			"the torn leg's three shapes take no more rounds (%d off)" % gone.size())
 	z.down = 0.0
 	z.body.move(0.5)
 	for i in 60:
@@ -127,7 +132,7 @@ func _legless() -> void:
 			continue
 		var from := Vector3(SHOOT_X, gs.EYE, at.z + 0.6)
 		var hit := _trace(from, from + (at - from).normalized() * 40.0)
-		if not hit.is_empty() and hit.collider.name == "FiringLine":
+		if not hit.is_empty() and hit.collider.name == "FiringLineBars":
 			continue
 		_shots += 1
 		_ok(not hit.is_empty() and hit.collider == z.node and hit.position.x > gs.FIRING_LINE_X,

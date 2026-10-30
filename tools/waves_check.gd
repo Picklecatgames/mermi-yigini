@@ -259,10 +259,11 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 		for z: Dictionary in waves._zombies.values():
 			var at: Vector3 = (z.node as Node3D).global_position
 			if not z.dead and at.x < 27.0:
-				aim = at + Vector3.UP * (z.trunk.position.y if waves.LOW.has(z.kind) or z.body.crawling else 1.1)  # (a leg torn off: low too)
+				# The trunk's shape where it is (on the bones, or low); a creature standing at chest height.
+				aim = (z.trunk as Node3D).global_position if waves.LOW.has(z.kind) or z.body.crawling or not z.bones.is_empty() else at + Vector3.UP * 1.1
 				if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
 					match z.id % 3:  # some into the legs, some into an arm
-						1: aim = at + Vector3(0, 0.45, 0.1)
+						1: aim = z.body.call("_bone_at", "RightLeg")  # the knee
 						2: aim = z.body.call("_bone_at", "LeftForeArm")
 				break
 		if aim != Vector3.INF:

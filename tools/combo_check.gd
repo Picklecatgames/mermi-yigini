@@ -29,17 +29,17 @@ func _initialize() -> void:
 		var to: Vector3 = dummy.global_position + Vector3(0, height, 0)
 		gs.request_fire(from + Vector3(0, height, 0), (to - from - Vector3(0, height, 0)).normalized())
 		return gs.player().gold - before
-	assert(shot.call(1.1) == 1, "first hit pays 1")
-	assert(shot.call(1.1) == 2, "2nd body hit: chain x2")
+	assert(shot.call(1.2) == 1, "first hit pays 1")
+	assert(shot.call(1.2) == 2, "2nd body hit: chain x2")
 	assert(shot.call(1.64) == 2, "a head starts its own chain: 1 x2 weak x1")
-	assert(shot.call(1.1) == 3, "3rd body hit: chain x3, the head did not add to it")
+	assert(shot.call(1.2) == 3, "3rd body hit: chain x3, the head did not add to it")
 	assert(shot.call(1.64) == 4, "2nd head: 1 x2 weak x2")
 	assert(gs.player().combo == 3 and gs.player().weak_combo == 2, "two chains")
 	gs._process(gs.COMBO_WINDOW + 0.1)  # let the window run out
 	assert(gs.player().combo == 0, "a gap breaks the chain")
-	assert(shot.call(1.1) == 1, "chain starts over")
+	assert(shot.call(1.2) == 1, "chain starts over")
 	gs._process(gs.COMBO_WINDOW - 0.1)  # just inside the window
-	assert(shot.call(1.1) == 2, "a hit just in time keeps it")
+	assert(shot.call(1.2) == 2, "a hit just in time keeps it")
 	shot.call(8.0)  # over the top: a miss
 	assert(gs.player().combo == 0, "a miss breaks the chain")
 	# Past the firing line a hit pays nothing and builds no chain.
@@ -101,15 +101,15 @@ func _initialize() -> void:
 		gs.player().cooldown = 0.0
 		gs.request_fire(start, (point - start).normalized())
 		return gs.player().gold - before
-	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 1, "chain 1")
-	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 2, "chain 2")
-	assert(chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0)) == 3, "chain 3")
+	assert(chain.call(dummy.global_position + Vector3(0, 1.2, 0), Vector3(-1, 0, 0)) == 1, "chain 1")
+	assert(chain.call(dummy.global_position + Vector3(0, 1.2, 0), Vector3(-1, 0, 0)) == 2, "chain 2")
+	assert(chain.call(dummy.global_position + Vector3(0, 1.2, 0), Vector3(-1, 0, 0)) == 3, "chain 3")
 	assert(chain.call(star.plate_center(1), Vector3(-1, 0, 0)) == 12 * 4, "chain 4 pays x4 on the star too")
 	# The chain is the multiplier all the way to COMBO_MAX, then holds there.
 	gs._process(gs.COMBO_WINDOW + 0.1)
 	var got := 0
 	for i in gs.COMBO_MAX + 3:
-		got = chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0))
+		got = chain.call(dummy.global_position + Vector3(0, 1.2, 0), Vector3(-1, 0, 0))
 		if i < gs.COMBO_MAX:
 			assert(got == i + 1, "hit %d pays x%d" % [i + 1, i + 1])
 	assert(got == gs.COMBO_MAX, "capped at x%d" % gs.COMBO_MAX)
@@ -120,16 +120,17 @@ func _initialize() -> void:
 	gs._process(gs.COMBO_WINDOW + 0.1)
 	var total := 0
 	for i in 10:
-		total += chain.call(dummy.global_position + Vector3(0, 1.1, 0), Vector3(-1, 0, 0))
+		total += chain.call(dummy.global_position + Vector3(0, 1.2, 0), Vector3(-1, 0, 0))
 	assert(gs.player().combo == 2, "combo capped at x2 before the upgrade")
 	assert(total == 20, "1.1 + 9 x 2.2 = 20.9: whole dollars paid, the 0.9 carried")
-	assert(chain.call(star.plate_center(2), Vector3(-1, 0, 0)) == 27, "the star too: 12 x2 x1.1 + 0.9 carried = 27.3")
+	# (from a little above: level with the plate the railing's top rail is in the way)
+	assert(chain.call(star.plate_center(2), Vector3(-1, 0.05, 0)) == 27, "the star too: 12 x2 x1.1 + 0.9 carried = 27.3")
 	gs.player().levels["gold_bonus"] = 0
 	# Range: +4%/m from 5 m behind the railing (clear of the heap) is +20%.
 	gs.player().levels["range_bonus"] = 4
 	gs.player().gold_rest = 0.0
 	gs._process(gs.COMBO_WINDOW + 0.1)
-	var body: Vector3 = dummy.global_position + Vector3(0, 1.1, 0)
+	var body: Vector3 = dummy.global_position + Vector3(0, 1.2, 0)
 	var back := Vector3(gs.FIRING_LINE_X - 5.0, body.y, body.z)
 	total = 0
 	for i in 5:

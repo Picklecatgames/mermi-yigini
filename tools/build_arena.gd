@@ -991,7 +991,8 @@ func _dust() -> void:
 
 
 ## The firing line: a yellow steel railing wall to wall at GameState.FIRING_LINE_X, every target
-## past it. Its collision is on the fence layer only: it stops players, rounds fly through.
+## past it. A tall wall on the fence layer stops players; rounds fly through it and stop only on the
+## posts and rails themselves (FiringLineBars, on the rail layer the shot trace sees).
 func _firing_line() -> void:
 	const RUN := 55.4  # m, between the inner wall faces
 	const HEIGHT := 1.1
@@ -1010,6 +1011,11 @@ func _firing_line() -> void:
 	# Rusted bare steel (2026-10-29): the range's safety yellow went with the range.
 	var paint := pbr_box("rust_coarse_01", 1.0, Color(0.62, 0.56, 0.52), true, "railing_rust")
 	var steel := pbr("metal_plate_02", Color(0.45, 0.46, 0.48))
+	var bars := StaticBody3D.new()
+	bars.name = "FiringLineBars"
+	bars.collision_layer = 1 << (GS.RAIL_LAYER - 1)
+	bars.collision_mask = 0
+	add(bars)
 	var box := func(size: Vector3, at: Vector3, mat: Material) -> void:
 		var m := MeshInstance3D.new()
 		var b := BoxMesh.new()
@@ -1018,6 +1024,8 @@ func _firing_line() -> void:
 		m.material_override = mat
 		m.position = at
 		add(m, body)
+		if mat == paint:  # the posts and rails take rounds; their feet sit flat on the floor
+			collide(size, at, bars)
 	for rail_y in [HEIGHT - 0.025, 0.55]:
 		box.call(Vector3(0.05, 0.05, RUN), Vector3(x, rail_y, 0), paint)
 	var posts := 21

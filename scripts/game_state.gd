@@ -156,13 +156,15 @@ const LASER_WEAK_MULT := 3  # the same with the laser on the Deagle in hand: it 
 const COMBO_WINDOW := 1.5  # s
 const COMBO_MAX := 20  # combo_cap's last level; the combo meter's full size and colour
 const SHOT_RANGE := 300.0  # m
-const SHOT_MASK := 1  # world layer: walls, floor, heap, dummies
+const SHOT_MASK := 1 | 1 << 5  # world layer (walls, floor, heap, dummies) and the railing's bars (RAIL_LAYER)
 ## The firing line: a railing across the shed at this x, with every target past it. Players
 ## never cross it (targets go up from behind it), and rounds fired from past it pay nothing and build no combo,
 ## so walking up to a target to shoot it point blank gets you nothing.
 const FIRING_LINE_X := 14.0
-## Physics layer of the railing: it stops players (mask), never rounds (SHOT_MASK).
+## Physics layer of the railing's wall: it stops players (mask), never rounds (SHOT_MASK).
 const FENCE_LAYER := 4
+## Physics layer of the railing's posts and rails as drawn: rounds stop on them, players never meet them.
+const RAIL_LAYER := 6
 ## A client's shots reach the host up to this much closer together than its gun's interval
 ## (network jitter); the host lets them through rather than eat a round the client already fired.
 const NET_JITTER := 0.15  # s
