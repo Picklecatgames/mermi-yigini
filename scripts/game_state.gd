@@ -40,7 +40,7 @@ signal key_taken(rank: int, peer: int)
 ## Another player's body moved: feet `pos`, look `yaw`/`pitch`, what they are doing (Act),
 ## whether they are off the ground (`air`, a jump or a fall), whether they crouch. `time` is on
 ## that player's own clock (seconds), so the receiver can space snapshots evenly.
-signal pose_received(peer: int, time: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool)
+signal pose_received(peer: int, time: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool, aim: bool)
 ## The host gave this machine's player its own spawn point (index into group "spawn").
 signal spawn_assigned(index: int)
 ## Where the keys are buried: the host rolls the seed, a client lays its keys out again from it
@@ -1536,7 +1536,7 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 ## The local player's body, ~20 times a second (player.gd). Online it goes to the host, which
 ## keeps it (request_fire checks `from` against it) and passes it on to everyone else. Poses are
 ## unreliable on a channel of their own: a lost one is replaced 50 ms later anyway.
-func send_pose(pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool) -> void:
+func send_pose(pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool, aim: bool) -> void:
 	var p := player()
 	p.pos = pos
 	p.has_pose = true
@@ -1545,14 +1545,14 @@ func send_pose(pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crou
 		return  # a joiner stands on the host's spot until its own comes: bodies would collide
 	var t := Time.get_ticks_msec() / 1000.0
 	if multiplayer.is_server():
-		_pose_of.rpc(local_peer(), t, pos, yaw, pitch, act, air, crouch)
+		_pose_of.rpc(local_peer(), t, pos, yaw, pitch, act, air, crouch, aim)
 	else:
-		_pose.rpc_id(1, t, pos, yaw, pitch, act, air, crouch)
+		_pose.rpc_id(1, t, pos, yaw, pitch, act, air, crouch, aim)
 
 
 ## Host: a client's pose.
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
-func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool) -> void:
+func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool, aim: bool) -> void:
 	if not multiplayer.is_server():
 		return
 	var peer := multiplayer.get_remote_sender_id()
@@ -1560,17 +1560,17 @@ func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool
 	p.pos = pos
 	p.has_pose = true
 	p.crouch = crouch
-	pose_received.emit(peer, t, pos, yaw, pitch, act, air, crouch)
+	pose_received.emit(peer, t, pos, yaw, pitch, act, air, crouch, aim)
 	for id in multiplayer.get_peers():
 		if id != peer:
-			_pose_of.rpc_id(id, peer, t, pos, yaw, pitch, act, air, crouch)
+			_pose_of.rpc_id(id, peer, t, pos, yaw, pitch, act, air, crouch, aim)
 
 
 ## Client: someone else's pose, from the host.
 @rpc("authority", "call_remote", "unreliable_ordered", 1)
-func _pose_of(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool) -> void:
+func _pose_of(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool, aim: bool) -> void:
 	if peer != local_peer():
-		pose_received.emit(peer, t, pos, yaw, pitch, act, air, crouch)
+		pose_received.emit(peer, t, pos, yaw, pitch, act, air, crouch, aim)
 
 
 ## Client: the host's pick of our spawn point.

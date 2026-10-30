@@ -12,7 +12,9 @@ extends Node3D
 ## stance's arms; touching down standing still, its landing. The packs have no shot or reload: a
 ## shot kicks the chest up, a reload takes the left hand off the gun to the belt and tips the gun
 ## up. The look pitch bends spine and chest on top of that, so arms, gun and head aim where the
-## player looks; the gun rides the right wrist, and both hands close round it as the first-person
+## player looks. Not aiming, the gun is held low and relaxed (LOWER); the sights up, a spinning
+## gun's barrels turning or a shot from the hip bring it up to the shoulder. A shot flips the gun
+## about the grip and shoves it back, the hands with it, and throws a shell; the gun rides the right wrist, and both hands close round it as the first-person
 ## hands do (_grip). The gun is the first-person one: the same arms rig (assets/weapons/arms) posed
 ## at the gun's Idle with the arms hidden, so every gun the player can draw is there and the grip
 ## comes from where its first-person hands are. Before they have picked, only the name tag shows.
@@ -77,6 +79,27 @@ const BODY_CATCH := 2.5
 const BODY_CATCH_SHOOTING := 18.0
 const NECK_SHARE := 0.35  # of the head's turn the neck takes, the head the rest
 const FLASH_TIME := 0.05  # s
+## Not aiming, the gun swings down this far about the right shoulder (rad, per stance): held low
+## and relaxed. It comes up to the shoulder while the sights are up (player.gd aiming(): the right
+## mouse button, or a spinning gun's barrels turning) and for HIP_HOLD after a shot from the hip.
+const LOWER := {"fists": 0.0, "pistol": 0.75, "rifle": 0.3}
+const RAISE_TIME := 0.2  # s up to the shoulder and back down (the first-person sights take 0.18)
+const RAISE_TIME_SHOT := 0.08  # s a shot from low brings it up in
+const HIP_HOLD := 0.6  # s it stays up after the last shot
+## The gun's own kick on top of the chest's, scaled by its SETS kick (the Deagle's 0.35 is 1): it
+## flips up about the grip, the wrist with it, is shoved back and thrown a random way sideways each
+## round. The SMGs (no Fire clip, SETS clip_fire) flip less per round and buzz; the Deagle snaps.
+## A spring, as the first-person recoil: rounds faster than it settles pile up into a shake.
+const RECOIL_FLIP := 0.4  # rad
+const RECOIL_BACK := 0.06  # m
+const RECOIL_SIDE := 0.06  # rad of yaw and of roll at most
+const RECOIL_SMG := 0.45  # share of the flip without a Fire clip
+const RECOIL_OMEGA := 30.0  # rad/s
+const RECOIL_DAMPING := 0.55  # one small dip past rest
+const RECOIL_PUSH := 57.0  # spring speed per round: peaks at about 1
+const RUMBLE := 0.012  # rad of a spinning gun's shake at full speed
+const SPIN_GAP := 0.4  # s after the last round a spinning gun's barrels start running down (unaimed)
+const SHELL_SEEN := 30.0  # m; farther off its shells are not thrown, ours keep the shared pool
 const LABEL_OVER := 0.25  # m over the top of the head
 ## Of the way from the head bone to the crown, where the eyes are on the bodies with an eye bone
 ## (The Boss 0.42, the Brute 0.44; the masked one's eye meshes too).
@@ -122,17 +145,18 @@ func _physics_process(_delta: float) -> void:
 		add_child(_own_shadow)
 	_own_shadow.peer = GameState.local_peer()  # a new id on joining someone
 	_own_shadow.push(Time.get_ticks_msec() / 1000.0, me.global_position, me._yaw, me._pitch, me._act(),
-			me._air_time > me.AIR_SHOWN, me.crouched)
+			me._air_time > me.AIR_SHOWN, me.crouched, me.aiming())
 
 
-func _on_pose(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crouch: bool) -> void:
+func _on_pose(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool,
+		crouch := false, aim := false) -> void:
 	if peer == GameState.local_peer():
 		return
 	if not _chars.has(peer):
 		var c := Character.new(peer)
 		add_child(c)
 		_chars[peer] = c
-	(_chars[peer] as Character).push(t, pos, yaw, pitch, act, air, crouch)
+	(_chars[peer] as Character).push(t, pos, yaw, pitch, act, air, crouch, aim)
 
 
 func _drop(peer: int) -> void:
@@ -149,13 +173,16 @@ class Character extends Node3D:
 	var act := GameState.Act.IDLE
 	var air := false
 	var crouch := false
+	var aim := false  # the gun up at the shoulder (player.gd aiming())
+	var _raise := 0.0  # 0 held low .. 1 up at the shoulder
+	var _since_shot := INF  # s
 	var _crouch_drop := 0.0  # 0..1, the capsule and the tag on their way down to crouching
 	var _ground := ""  # the ground clips playing: the stance's, or "crouch"
 	var speed := 0.0  # m/s along the ground, as drawn
 	var look := ""  # CHARACTERS id worn; "" until they pick
 	var stance := "fists"
 	var _vel := Vector2.ZERO  # m/s in the model's frame (x its left, y its forward), smoothed
-	var _snaps: Array = []  # [local time, pos, yaw, pitch, act, air, crouch], oldest first
+	var _snaps: Array = []  # [local time, pos, yaw, pitch, act, air, crouch, aim], oldest first
 	var _clock := 0.0  # the sender's clock minus ours, smoothed
 	var _pitch := 0.0  # rad the body leans to look, after the head (HEAD_FREE)
 	var _look_pitch := 0.0  # rad the player looks, smoothed
@@ -176,7 +203,19 @@ class Character extends Node3D:
 	var _rig: Node3D  # the first-person arms under _gun, sized to this body's hand (_show_gun)
 	var _fp_anim: AnimationPlayer
 	var _muzzle: Node3D
+	var _port: Node3D  # the ejection port
 	var gun := 0  # GameState.GUNS index shown; 0 is bare fists
+	var _kit := {}  # its VIEWMODEL.SETS entry; {} bare-handed
+	var _recoil := 0.0  # the gun's kick spring: 1 about the peak of one round
+	var _recoil_vel := 0.0
+	var _recoil_flip := 0.0  # rad and m of the last round's kick at 1
+	var _recoil_back := 0.0
+	var _recoil_side := Vector2.ZERO  # rad of yaw and roll at 1
+	var _barrel := -1  # a spinning gun's barrel bone on the first-person rig, -1 for the others
+	var _barrel_rest: Quaternion  # its pose at Idle
+	var _spin := 0.0  # 0 stopped .. 1 up to speed
+	var _barrel_turn := 0.0  # rad
+	var _step := Vector3.ZERO  # m/s the character moves, as drawn
 	var _hand_hold: Transform3D  # the right wrist in the stance, before the pitch bend
 	var _spine_hold: Basis  # the spine standing in the stance; the upper body keeps to it
 	var _gun_in_hand: Transform3D  # the gun relative to the right wrist bone, as the clips move it
@@ -249,6 +288,8 @@ class Character extends Node3D:
 		VIEWMODEL.add_pistol(_fp_skel)
 		_muzzle = Node3D.new()
 		_gun.add_child(_muzzle)
+		_port = Node3D.new()
+		_gun.add_child(_port)
 		add_child(_gun)
 		_gun.visible = false
 		for v: VisualInstance3D in _gun.find_children("*", "VisualInstance3D", true, false):
@@ -364,11 +405,16 @@ class Character extends Node3D:
 		_tree.set("parameters/arms/transition_request", stance)
 		_hold_pose()
 		_gun.visible = g != 0
+		_kit = {}
+		_barrel = -1
+		_recoil = 0.0
+		_recoil_vel = 0.0
 		if g == 0:
 			for side in ["L", "R"]:  # the grip resized them to the first-person hand's
 				_skel.set_bone_pose_scale(_hand[side + "_wrist"], Vector3.ONE)
 			return
 		var set: Dictionary = VIEWMODEL.SETS[GameState.GUNS[g].id]
+		_kit = set
 		for each: Dictionary in VIEWMODEL.SETS.values():
 			if each.mesh != "":
 				(_fp_skel.get_node(NodePath(each.mesh)) as Node3D).visible = each == set
@@ -377,6 +423,9 @@ class Character extends Node3D:
 		_fp_anim.seek(0.0, true)
 		_fp_anim.advance(0.0)
 		_fp_anim.pause()  # held still: the body's own clips move the hands
+		if set.has("spin"):  # turned here, as viewmodel.gd turns ours
+			_barrel = _fp_skel.find_bone(set.spin.bone)
+			_barrel_rest = _fp_skel.get_bone_pose_rotation(_barrel)
 		_gun.transform = Transform3D()
 		# The gun grows with the hand holding it: a Brute's fist round the first-person pistol made
 		# it look a toy. The rig is scaled so its hand is this body's, and the body's hand stays as is.
@@ -391,6 +440,7 @@ class Character extends Node3D:
 			on_gun[key] = to_gun * _fp_skel.get_bone_global_pose(_fp_skel.find_bone(_fp_name(key))).origin
 		var bone := _fp_skel.find_bone(set.bone)
 		_muzzle.position = to_gun * (_fp_skel.get_bone_global_pose(bone) * (set.muzzle as Vector3))
+		_port.position = to_gun * (_fp_skel.get_bone_global_pose(bone) * (set.port as Vector3))
 		# Hand bones turned in gun space as the first-person hands are: line each one's own frame
 		# (along the bone, rolled by the palm's width) up with the first-person bone's.
 		var rest := {}
@@ -628,14 +678,14 @@ class Character extends Node3D:
 		_tag_box.position.y = y
 
 	## One snapshot from the network, on the sender's clock.
-	func push(t: float, pos: Vector3, yaw: float, pitch: float, a: int, in_air: bool, crouched := false) -> void:
+	func push(t: float, pos: Vector3, yaw: float, pitch: float, a: int, in_air: bool, crouched := false, aimed := false) -> void:
 		var now := Time.get_ticks_msec() / 1000.0
 		var gap := now - t
 		_clock = gap if _snaps.is_empty() else lerpf(_clock, gap, 0.05)  # evens out network jitter
 		var at := t + _clock
 		if not _snaps.is_empty() and at <= _snaps[-1][0]:
 			return  # late or repeated
-		_snaps.append([at, pos, yaw, pitch, a, in_air, crouched])
+		_snaps.append([at, pos, yaw, pitch, a, in_air, crouched, aimed])
 		while _snaps.size() > 2 and _snaps[1][0] < now - KEEP:
 			_snaps.pop_front()
 
@@ -653,7 +703,10 @@ class Character extends Node3D:
 		var f := 0.0 if b[0] <= a[0] else clampf((t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
 		global_position = (a[1] as Vector3).lerp(b[1], f)
 		_look_yaw = lerp_angle(a[2], b[2], f)
-		var catch := BODY_CATCH_SHOOTING if b[4] == GameState.Act.SHOOTING else BODY_CATCH
+		_since_shot += delta
+		# The SMGs and the minigun play no Fire clip (act stays put): their rounds tell.
+		var shooting: bool = b[4] == GameState.Act.SHOOTING or _since_shot < HIP_HOLD
+		var catch := BODY_CATCH_SHOOTING if shooting else BODY_CATCH
 		if _body_yaw == INF:
 			_body_yaw = _look_yaw
 		_body_yaw = lerp_angle(_body_yaw, _look_yaw, 1.0 - exp(-delta * catch))
@@ -662,6 +715,7 @@ class Character extends Node3D:
 		rotation.y = _body_yaw
 		if _last_pos != Vector3.INF and delta > 0.0:
 			var step := (global_position - _last_pos) * Vector3(1, 0, 1) / delta
+			_step = step
 			var local := global_basis.inverse() * step  # forward is -Z here, +Z on the model
 			_vel = _vel.lerp(Vector2(-local.x, -local.z), 1.0 - exp(-delta * 10.0))
 			speed = _vel.length()
@@ -670,6 +724,7 @@ class Character extends Node3D:
 		act = b[4]
 		air = b[5]
 		crouch = b[6]
+		aim = b[7]
 		visible = true
 		_crouch_drop = move_toward(_crouch_drop, 1.0 if crouch else 0.0, delta * CROUCH_RATE)
 		if _shape:  # others bump into and shoot at the lower body
@@ -695,9 +750,13 @@ class Character extends Node3D:
 		_pitch = _look_pitch - clampf(_look_pitch - _pitch, -HEAD_FREE.y, HEAD_FREE.y)
 		_bend(_pitch + _kick)
 		_left_hold = move_toward(_left_hold, 0.0 if act == GameState.Act.RELOADING else 1.0, delta / LEFT_LET_GO)
+		var hip := _since_shot < HIP_HOLD
+		_raise = move_toward(_raise, 1.0 if aim or hip else 0.0, delta / (RAISE_TIME_SHOT if hip else RAISE_TIME))
+		_spring(delta)
 		if gun != 0:
 			var tip := Transform3D(Basis(Vector3.RIGHT, -RELOAD_TIP * (1.0 - _left_hold)), Vector3.ZERO)
-			_gun.transform = _skel.get_bone_global_pose(_wrist) * _gun_in_hand * Transform3D(Basis(), Vector3(0.0, 0.0, -_pull)) * tip
+			var held := _skel.get_bone_global_pose(_wrist) * _gun_in_hand * Transform3D(Basis(), Vector3(0.0, 0.0, -_pull)) * tip
+			_gun.transform = _kicked(_lowered(held), delta)
 			_grip()
 		_turn_head(wrapf(_look_yaw - _body_yaw, -PI, PI), _look_pitch - _pitch)
 		if _flash:
@@ -725,14 +784,64 @@ class Character extends Node3D:
 			return _model.global_transform * _skel.get_bone_global_pose(_wrist).origin
 		return _muzzle.global_position
 
-	## A round left this player's gun: the chest kicks, the flash and the powder jet at the muzzle.
+	## A round left this player's gun: the chest and the gun kick, the flash and the powder jet at
+	## the muzzle, a shell out of the port. Held low, the gun comes up first (HIP_HOLD).
 	func shoot() -> void:
-		_kick = KICK
+		var k := float(_kit.get("kick", 0.35)) / 0.35
+		_kick = KICK * k
+		_since_shot = 0.0
 		_flash_left = FLASH_TIME
 		_fx.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 		for p in _fx.get_children():
 			if p is GPUParticles3D:
 				(p as GPUParticles3D).restart()
+		if _kit.is_empty() or _model == null:
+			return
+		_recoil_flip = RECOIL_FLIP * k * (1.0 if _kit.get("clip_fire", false) else RECOIL_SMG)
+		_recoil_back = RECOIL_BACK * k
+		_recoil_side = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * RECOIL_SIDE * k
+		_recoil_vel += RECOIL_PUSH
+		var fp := get_tree().get_first_node_in_group("first_person_gun")
+		var cam := get_viewport().get_camera_3d()
+		if fp and fp.has_method("eject_from") and cam and not shadow_only \
+				and cam.global_position.distance_to(_port.global_position) < SHELL_SEEN:
+			var g := _gun.global_basis.orthonormalized()  # as a camera behind the gun: x right, z back
+			fp.eject_from(Basis(g.y.cross(-g.z), g.y, -g.z), _port.global_position, _step, body)
+
+	## The gun's kick spring, in small steps: a slow frame would throw it off.
+	func _spring(delta: float) -> void:
+		var left := delta
+		while left > 0.0:
+			var dt := minf(left, 1.0 / 120.0)
+			left -= dt
+			_recoil_vel -= (RECOIL_OMEGA * RECOIL_OMEGA * _recoil + 2.0 * RECOIL_DAMPING * RECOIL_OMEGA * _recoil_vel) * dt
+			_recoil += _recoil_vel * dt
+
+	## The gun as held (the model's space) swung down about the right shoulder, as far as it is not raised.
+	func _lowered(held: Transform3D) -> Transform3D:
+		var down := float(LOWER[stance]) * (1.0 - smoothstep(0.0, 1.0, _raise))
+		if down == 0.0:
+			return held
+		var shoulder := _skel.get_bone_global_pose(_skel.get_bone_parent(_skel.get_bone_parent(_wrist))).origin
+		var turn := Basis(Vector3.RIGHT, down)  # the model faces +Z: down
+		return Transform3D(turn, shoulder - turn * shoulder) * held
+
+	## The gun with the last rounds' kick on it, about the grip (the right wrist's place on it); a
+	## spinning gun's barrels turned and its shake.
+	func _kicked(held: Transform3D, delta: float) -> Transform3D:
+		var yaw := _recoil_side.x * _recoil
+		var roll := _recoil_side.y * _recoil
+		if _barrel >= 0:
+			var s: Dictionary = _kit.spin
+			var turning := aim or _since_shot < SPIN_GAP
+			_spin = move_toward(_spin, 1.0 if turning else 0.0, delta / float(s.up if turning else s.down))
+			_barrel_turn = fmod(_barrel_turn + _spin * float(s.speed) * delta, TAU)
+			_fp_skel.set_bone_pose_rotation(_barrel, _barrel_rest * Quaternion(s.axis, _barrel_turn))
+			yaw += randf_range(-1.0, 1.0) * RUMBLE * _spin
+			roll += randf_range(-1.0, 1.0) * RUMBLE * _spin
+		var turn := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, -_recoil_flip * _recoil) * Basis(Vector3.BACK, roll)
+		var grip := _right_wrist_on_gun
+		return held * Transform3D(turn, grip + Vector3(0.0, 0.0, -_recoil_back * _recoil) - turn * grip)
 
 	## Looking up or down, on top of the clips: the spine turns a share, the chest the rest (arms,
 	## gun and head ride on it), both about the body's own side axis. With a gun the spine first
@@ -763,8 +872,7 @@ class Character extends Node3D:
 	## arm reaches for its place with two-bone IK; for a reload it goes to the belt and back.
 	func _grip() -> void:
 		var gun_at := _gun.transform
-		if _pull > 0.0:
-			_reach(_wrist, gun_at * _right_wrist_on_gun)
+		_reach(_wrist, gun_at * _right_wrist_on_gun)  # lowered, kicked or pulled in: off the clip's place
 		_hold("R", gun_at, 1.0)
 		var w := _hand["L_wrist"] as int
 		var hips := _skel.get_bone_global_pose(0)

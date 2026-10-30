@@ -101,4 +101,4 @@ func _physics_process(_delta: float) -> void:
 	var ahead := Vector3(-sin(yaw), 0.0, -cos(yaw))
 	ahead -= _n * ahead.dot(_n) * 2.0
 	var air: bool = _p._air_time > _p.AIR_SHOWN
-	GameState.pose_received.emit(PEER, Time.get_ticks_msec() / 1000.0, at, atan2(-ahead.x, -ahead.z), _p._pitch, _p._act(), air, _p.crouched)
+	GameState.pose_received.emit(PEER, Time.get_ticks_msec() / 1000.0, at, atan2(-ahead.x, -ahead.z), _p._pitch, _p._act(), air, _p.crouched, _p.aiming())

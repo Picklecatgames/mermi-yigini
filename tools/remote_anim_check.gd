@@ -4,7 +4,9 @@ extends SceneTree
 ## Feeds it poses like the network would and checks, in every body (GameState.CHARACTERS), that it
 ## stands, holds every gun with both hands and aims it where the player looks, runs forward,
 ## sideways and backwards in the right clips, jumps, lands with a crouch, reloads and fires, crouches
-## (Ctrl) still and walking with the gun held and stands up again; that bare-handed it holds nothing;
+## (Ctrl) still and walking with the gun held and stands up again; that every gun is held low until
+## aimed (right mouse), comes up to the shoulder and down again smoothly, kicks up on a round and
+## settles back, comes up for a shot from the hip, and the minigun's barrels turn while aimed; that bare-handed it holds nothing;
 ## and that before picking there is no body.
 
 var mgr: Node3D
@@ -32,12 +34,46 @@ func _initialize() -> void:
 				continue
 			var gun: String = gs.GUNS[g].id
 			gs.gun_changed.emit(7, g)
-			await _hold(p, 0.0, 0, false, 0.3)
-			_ok(_left_off_gun(c) < 0.01, "%s %s: both hands on the gun (%.1f cm off)" % [id, gun, _left_off_gun(c) * 100.0])
-			_ok(_aim(c, 0.0) > 0.995, "%s %s: aims ahead (%.3f)" % [id, gun, _aim(c, 0.0)])
-			await _hold(p, 0.7, 0, false, 1.6)  # the head looks up at once, the body and gun after it
+			await _hold(p, 0.0, 0, false, 0.4)
+			# Not aiming: held low and relaxed, both hands still on it.
+			var low_y: float = c.muzzle_position().y
+			_ok(_left_off_gun(c) < 0.01 and c._gun.global_basis.z.normalized().y < (-0.25 if gun != "minigun" else -0.1),
+					"%s %s: relaxed, held low (%.1f cm off, points %.2f down)" % [id, gun, _left_off_gun(c) * 100.0, -c._gun.global_basis.z.normalized().y])
+			await _hold(p, 0.0, 0, false, 0.4, false, true)
+			_ok(_left_off_gun(c) < 0.01, "%s %s: aimed, both hands on the gun (%.1f cm off)" % [id, gun, _left_off_gun(c) * 100.0])
+			_ok(_aim(c, 0.0) > 0.995 and c.muzzle_position().y > low_y + 0.1,
+					"%s %s: aims ahead, up at the shoulder (%.3f, %.0f cm up)" % [id, gun, _aim(c, 0.0), (c.muzzle_position().y - low_y) * 100.0])
+			# A round: the gun flips up about the grip and comes back.
+			var before: float = c._gun.global_basis.z.normalized().y
+			c.shoot()
+			var flip := 0.0
+			var off := 0.0
+			var t0 := Time.get_ticks_msec()
+			while Time.get_ticks_msec() - t0 < 120:  # the peak comes ~40 ms after the round
+				mgr._on_pose(7, Time.get_ticks_msec() / 1000.0, p, 0.0, 0.0, 0, false, false, true)
+				await process_frame
+				flip = maxf(flip, c._gun.global_basis.z.normalized().y - before)
+				off = maxf(off, _left_off_gun(c))
+			var want := sin(c._recoil_flip) * 0.5
+			_ok(flip > want and off < 0.02, "%s %s: fires, the gun kicks up (%.2f of %.2f, %.1f cm off)" % [id, gun, flip, want * 2.0, off * 100.0])
+			await _hold(p, 0.0, 0, false, 0.6, false, true)
+			_ok(_aim(c, 0.0) > 0.995, "%s %s: settles back on aim (%.3f)" % [id, gun, _aim(c, 0.0)])
+			if c._barrel >= 0:
+				_ok(c._spin > 0.9, "%s %s: barrels turn while aimed (%.2f)" % [id, gun, c._spin])
+			await _hold(p, 0.7, 0, false, 1.6, false, true)  # the head looks up at once, the body and gun after it
 			_ok(_aim(c, 0.7) > 0.995 and c.muzzle_position().y > 1.5, "%s %s: aims up with the look (%.3f)" % [id, gun, _aim(c, 0.7)])
-			await _hold(p, 0.0, 0, false, 1.6)
+			await _hold(p, 0.0, 0, false, 1.6, false, true)  # the body comes back down from the look
+			# Let go: down again, smoothly (half way after a moment, not at once).
+			await _hold(p, 0.0, 0, false, 0.1)
+			_ok(c._raise > 0.2 and c._raise < 0.8, "%s %s: lowers smoothly (%.2f up)" % [id, gun, c._raise])
+			await _hold(p, 0.0, 0, false, 0.5)
+			_ok(c._raise == 0.0 and absf(c.muzzle_position().y - low_y) < 0.02,
+					"%s %s: down again (%.1f cm from before)" % [id, gun, (c.muzzle_position().y - low_y) * 100.0])
+			# A shot from the hip brings it up at once.
+			c.shoot()
+			await _hold(p, 0.0, 0, false, 0.15)
+			_ok(c._raise > 0.9, "%s %s: a shot from low brings it up (%.2f)" % [id, gun, c._raise])
+			await _hold(p, 0.0, 0, false, 1.2)
 		# Running: forward, to the right (+X with the player facing -Z), backwards, in the pistol stance.
 		gs.gun_changed.emit(7, 1)
 		# A big body (the Brute) takes 5 m/s nearer its walk than its run.
@@ -58,7 +94,7 @@ func _initialize() -> void:
 		c.shoot()
 		await process_frame
 		_ok(c._kick > 0.0 and c._flash_left > 0.0, "%s: fires: kick and flash" % id)
-		await _hold(p, 0.0, 0, false, 0.6, true)
+		await _hold(p, 0.0, 0, false, 0.6, true, true)
 		var low: float = c._skel.get_bone_global_pose(0).origin.y
 		var eye := _eye(c)
 		_ok(c._ground == "crouch" and low < c._hip * 0.8 and _foot(c) < 0.15 and absf(c._shape.height - 1.3) < 0.01,
@@ -80,10 +116,10 @@ func _ok(good: bool, what: String) -> void:
 	ok = ok and good
 
 
-func _hold(pos: Vector3, pitch: float, act: int, air: bool, secs: float, crouch := false) -> void:
+func _hold(pos: Vector3, pitch: float, act: int, air: bool, secs: float, crouch := false, aim := false) -> void:
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < secs * 1000.0:
-		mgr._on_pose(7, Time.get_ticks_msec() / 1000.0, pos, 0.0, pitch, act, air, crouch)
+		mgr._on_pose(7, Time.get_ticks_msec() / 1000.0, pos, 0.0, pitch, act, air, crouch, aim)
 		await create_timer(0.05).timeout
 
 

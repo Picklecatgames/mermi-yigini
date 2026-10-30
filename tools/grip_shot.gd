@@ -63,5 +63,5 @@ func _initialize() -> void:
 func _hold(secs: float) -> void:
 	var t0 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < secs * 1000.0:
-		mgr._on_pose(7, Time.get_ticks_msec() / 1000.0, Vector3.ZERO, 0.0, 0.0, 0, false)
+		mgr._on_pose(7, Time.get_ticks_msec() / 1000.0, Vector3.ZERO, 0.0, 0.0, 0, false, false, true)
 		await process_frame

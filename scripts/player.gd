@@ -335,6 +335,12 @@ func _act() -> int:
 	return GameState.Act.WALKING if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.1 else GameState.Act.IDLE
 
 
+## What other machines show as the gun up at the shoulder: the sights up, or a spinning gun's
+## barrels turning (its aim button), as opposed to held low and relaxed.
+func aiming() -> bool:
+	return _viewmodel.aim > 0.5 or _viewmodel.spin > 0.0
+
+
 ## The gun shares the hall's world, drawn by its own camera (its layer only, at its own fov) over
 ## the player's view: the hall's lamps and the heap's spots light it, so steel glints under a lamp.
 ## Its viewport draws no shadows
@@ -709,7 +715,7 @@ func _physics_process(delta: float) -> void:
 	_pose_timer -= delta
 	if _pose_timer <= 0.0:
 		_pose_timer += POSE_INTERVAL
-		GameState.send_pose(global_position, _yaw, _pitch, _act(), _air_time > AIR_SHOWN, crouched)
+		GameState.send_pose(global_position, _yaw, _pitch, _act(), _air_time > AIR_SHOWN, crouched, aiming())
 	if is_on_floor():
 		if _air_time > LAND_AIR_TIME:
 			_step_sound.play()

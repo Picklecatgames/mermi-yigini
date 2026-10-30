@@ -900,22 +900,39 @@ func _effects() -> void:
 
 ## Throws the oldest pooled shell out of the port: right, up and a little back, spinning.
 func _eject() -> void:
+	var s := _throw_shell(get_viewport().get_camera_3d().global_basis, in_view(_port.global_position),
+			body.velocity if body else Vector3.ZERO)
+	s.set_meta("audible", _shell_audible())
+	s.set_meta("shot", _shot_no)
+
+
+## Another player's shell, out of their gun's port in this world (scripts/remote_players.gd):
+## `side` is the gun's frame as a camera behind it would see it (x right, y up, z back). Ours are
+## the ones that clink. They fly through the shooter's own capsule (`shooter`), as ours through ours.
+func eject_from(side: Basis, at: Vector3, inherit: Vector3, shooter: PhysicsBody3D) -> void:
+	if _shells.is_empty():
+		return  # before setup
+	var s := _throw_shell(side, at, inherit)
+	if shooter and shooter not in s.get_collision_exceptions():
+		s.add_collision_exception_with(shooter)
+	s.set_meta("audible", false)
+	s.set_meta("shot", -1)
+
+
+func _throw_shell(cam: Basis, at: Vector3, inherit: Vector3) -> RigidBody3D:
 	var s := _shells[_next_shell]
 	_next_shell = (_next_shell + 1) % SHELL_POOL
 	s.freeze = false  # first: Jolt drops velocities set on a frozen (static) body
 	s.sleeping = false
-	var cam := get_viewport().get_camera_3d().global_basis
-	s.global_transform = Transform3D(Basis(cam.x, PI / 2.0) * cam, in_view(_port.global_position))
+	s.global_transform = Transform3D(Basis(cam.x, PI / 2.0) * cam, at)
 	s.reset_physics_interpolation()  # a teleport, not a move: don't draw it sliding from the floor
-	var inherit := body.velocity if body else Vector3.ZERO
 	s.linear_velocity = inherit + cam.x * randf_range(1.0, 1.5) + cam.y * randf_range(1.2, 1.7) + cam.z * randf_range(0.0, 0.6)
 	s.angular_velocity = Vector3(randf_range(-30, 30), randf_range(-30, 30), randf_range(-30, 30))
 	s.set_meta("landed", false)
-	s.set_meta("audible", _shell_audible())
-	s.set_meta("shot", _shot_no)
 	s.angular_damp = 3.0
 	s.linear_damp = 0.0
 	s.visible = true
+	return s
 
 
 ## Shell drops, the way shooters thin them out: a lone shot always clinks, inside a burst only
