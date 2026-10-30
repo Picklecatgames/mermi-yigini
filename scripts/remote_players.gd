@@ -85,6 +85,9 @@ const TAG_FONT := 24
 const TAG_PAD := Vector2(8, 2)  # px around the name
 
 var _chars := {}  # peer -> Character
+## Our own body, drawn only into the lights' shadows: the camera never sees it, the floor gets our
+## shadow (the first-person view has no body of its own). Fed our pose straight from player.gd.
+var _own_shadow: Character
 
 
 func _ready() -> void:
@@ -102,6 +105,18 @@ func _ready() -> void:
 ## The character standing in for `peer`, or null if there is none (yet).
 func character(peer: int) -> Character:
 	return _chars.get(peer)
+
+
+func _physics_process(_delta: float) -> void:
+	var me := get_tree().get_first_node_in_group("walker") as CharacterBody3D
+	if me == null:
+		return
+	if _own_shadow == null:
+		_own_shadow = Character.new(GameState.local_peer(), true)
+		add_child(_own_shadow)
+	_own_shadow.peer = GameState.local_peer()  # a new id on joining someone
+	_own_shadow.push(Time.get_ticks_msec() / 1000.0, me.global_position, me._yaw, me._pitch, me._act(),
+			me._air_time > me.AIR_SHOWN)
 
 
 func _on_pose(peer: int, t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool) -> void:
@@ -123,6 +138,8 @@ func _drop(peer: int) -> void:
 class Character extends Node3D:
 	# Sounds (Faz 6, step 25): steps and reloads play from this node, shots from muzzle_position().
 	var peer: int
+	var shadow_only := false  # our own body (_own_shadow): no tag, nothing to bump, not seen
+	var _delay := DELAY
 	var act := GameState.Act.IDLE
 	var air := false
 	var speed := 0.0  # m/s along the ground, as drawn
@@ -200,9 +217,11 @@ class Character extends Node3D:
 		t.tween_interval(PLAYER.BALLOON_TIME * 2.0)
 		t.tween_callback(b.queue_free)
 
-	func _init(id: int) -> void:
+	func _init(id: int, shadow := false) -> void:
 		peer = id
-		name = "Player%d" % id
+		shadow_only = shadow
+		_delay = 0.0 if shadow else DELAY  # our pose is here already, no network to wait for
+		name = "Player%d" % id if not shadow else "OwnShadow"
 		physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # placed per frame
 		visible = false  # until the first pose places it
 
@@ -225,7 +244,7 @@ class Character extends Node3D:
 			v.layers = BODY_LAYER
 		# The first-person gun's flash, copied into this world (its layer there is the gun's own).
 		var fp := get_tree().get_first_node_in_group("first_person_gun")
-		if fp:
+		if fp and not shadow_only:
 			_flash = fp.get_node("Flash").duplicate()
 			for v: VisualInstance3D in _flash.find_children("*", "VisualInstance3D", true, false):
 				v.layers = 1
@@ -235,17 +254,21 @@ class Character extends Node3D:
 		_fx = MUZZLE_FX.instantiate()
 		_fx.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 		add_child(_fx)
-		body = AnimatableBody3D.new()
-		body.sync_to_physics = false  # placed with the character every frame
-		body.set_meta("peer", peer)
-		var shape := CollisionShape3D.new()
-		shape.shape = CapsuleShape3D.new()
-		shape.shape.radius = BODY_RADIUS
-		shape.shape.height = BODY_HEIGHT
-		shape.position.y = BODY_HEIGHT * 0.5
-		body.add_child(shape)
-		add_child(body)
+		if not shadow_only:
+			body = AnimatableBody3D.new()
+			body.sync_to_physics = false  # placed with the character every frame
+			body.set_meta("peer", peer)
+			var shape := CollisionShape3D.new()
+			shape.shape = CapsuleShape3D.new()
+			shape.shape.radius = BODY_RADIUS
+			shape.shape.height = BODY_HEIGHT
+			shape.position.y = BODY_HEIGHT * 0.5
+			body.add_child(shape)
+			add_child(body)
 		_name_tag()
+		if shadow_only:
+			_tag_label.visible = false
+			_tag_box.visible = false
 		gun = GameState.player(peer).gun
 		_dress(GameState.player(peer).character)
 		GameState.character_changed.connect(func(who: int, id: String) -> void:
@@ -257,6 +280,7 @@ class Character extends Node3D:
 		GameState.pistol_grip.connect(func(who: int, level: int) -> void:
 			if who == peer:
 				VIEWMODEL.pistol_grip(_fp_skel, level > 0))
+		_shadow_only()
 
 	## Puts on CHARACTERS `id`'s body (none for ""), its animation and its hands' place on the gun.
 	func _dress(id: String) -> void:
@@ -307,6 +331,14 @@ class Character extends Node3D:
 		for v: VisualInstance3D in _model.find_children("*", "VisualInstance3D", true, false):
 			v.layers = BODY_LAYER
 		_show_gun(gun)
+		_shadow_only()
+
+	## Our own body (shadow_only): every part of it cast into the lights' shadows, none drawn.
+	func _shadow_only() -> void:
+		if not shadow_only:
+			return
+		for g: GeometryInstance3D in find_children("*", "GeometryInstance3D", true, false):
+			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 
 	## Shows GameState.GUNS[`g`] in the hands and fits the hands to it: the first-person rig posed at
 	## the gun's Idle, its hands' joints on the gun are where the body's go (_grip). Bare fists
@@ -578,7 +610,7 @@ class Character extends Node3D:
 	func _process(delta: float) -> void:
 		if _snaps.is_empty():
 			return
-		var t := Time.get_ticks_msec() / 1000.0 - DELAY
+		var t := Time.get_ticks_msec() / 1000.0 - _delay
 		var a: Array = _snaps[0]
 		var b: Array = a
 		for s: Array in _snaps:
