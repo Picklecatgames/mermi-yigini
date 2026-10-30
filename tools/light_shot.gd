@@ -1,0 +1,110 @@
+extends SceneTree
+## The hall's lighting on the players: the five characters standing round the hall as other
+## players (scripts/remote_players.gd), each from up close, the hall with them in it, and our own
+## arms and gun in first person, for checking the light without playing:
+##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/light_shot.gd
+## Add `-- --tag=NAME` to save user://light_NAME_<shot>.png (before/after); the folder is printed.
+
+## peer -> [character, feet, the point it faces]. Under the glass, at the spawns, round the heap's
+## foot, under the hall lamps and out in the dark west side.
+const CREW := {
+	2: ["boss", Vector3(5.0, 0, -2.0), Vector3(12.0, 0, 3.0)],
+	3: ["worker", Vector3(8.7, 0, 2.4), Vector3(14.0, 0, 6.0)],
+	4: ["brute", Vector3(-1.0, 0, 8.5), Vector3(8.0, 0, 10.0)],
+	5: ["chupacabra", Vector3(4.0, 0, 18.0), Vector3(10.0, 0, 12.0)],
+	6: ["masked", Vector3(-18.0, 0, 10.0), Vector3(-10.0, 0, 14.0)],
+}
+## Wide shots: [camera, look-at].
+const WIDE := {
+	"hall": [Vector3(12.5, 1.7, 9.0), Vector3(-2.0, 1.0, 2.0)],
+	"heapside": [Vector3(10.0, 1.7, -8.0), Vector3(-2.0, 1.0, 8.0)],
+}
+## First person: [feet, yaw, pitch].
+const FP := {
+	"fp_heap": [Vector3(8.7, 0, -0.8), PI / 2.0, -0.1],
+	"fp_range": [Vector3(10.0, 0, 6.0), -PI / 2.0, 0.0],
+	"fp_lamps": [Vector3(4.0, 0, 20.0), PI, -0.2],
+}
+
+var mgr: Node3D
+var gs: Node
+
+
+func _initialize() -> void:
+	var tag := "shot"
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--tag="):
+			tag = a.trim_prefix("--tag=")
+	gs = root.get_node("GameState")
+	gs.player().character = "worker"
+	gs.player().gun = 1
+	for peer: int in CREW:
+		gs.player(peer).character = CREW[peer][0]
+		gs.player(peer).gun = 1
+	var main: Node = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	mgr = main.get_node("RemotePlayers")
+	var player: Node3D = main.get_node("Player")
+	var cam := Camera3D.new()
+	cam.fov = 60.0
+	cam.cull_mask &= ~(1 << 1)  # not our own arms, which only the gun's camera draws
+	main.add_child(cam)
+	await _hold(0.5)
+	gs.player().character = "worker"  # before the tree, the local peer was not known yet
+	gs.character_changed.emit(gs.local_peer(), "worker")
+	await _hold(1.0)
+	var pick := root.find_child("CharacterPick", true, false)
+	if pick:  # the pick screen: everyone has already picked
+		pick.visible = false
+		pick.process_mode = Node.PROCESS_MODE_DISABLED
+	var hud_nodes: Array = []
+	for n in player.get_children():
+		if n != pick and (n is CanvasItem or n is CanvasLayer):
+			hud_nodes.append(n)
+	for n in main.get_children():
+		if n is CanvasLayer:
+			hud_nodes.append(n)
+	print("pictures in ", OS.get_user_data_dir())
+
+	# Third person: our own body and the gun's view off, a plain camera.
+	for n in hud_nodes:
+		n.visible = false
+	cam.make_current()
+	for shot: String in WIDE:
+		cam.look_at_from_position(WIDE[shot][0], WIDE[shot][1])
+		await _save(tag, shot)
+	cam.fov = 40.0
+	for peer: int in CREW:
+		var feet: Vector3 = CREW[peer][1]
+		var dir: Vector3 = (CREW[peer][2] - feet).normalized()
+		cam.look_at_from_position(feet + dir * 2.6 + Vector3(0.5, 1.55, 0.0), feet + Vector3(0, 1.2, 0))
+		await _save(tag, "close_" + CREW[peer][0])
+
+	# First person: the player's own camera and the gun's viewport over it, no menus.
+	player.get_node("ViewmodelView").visible = true
+	player.get_node("Head/Camera3D").make_current()
+	for shot: String in FP:
+		player.global_position = FP[shot][0]
+		player.velocity = Vector3.ZERO
+		player._yaw = FP[shot][1]
+		player._pitch = FP[shot][2]
+		await _save(tag, shot)
+	quit()
+
+
+func _save(tag: String, shot: String) -> void:
+	await _hold(0.6)
+	await RenderingServer.frame_post_draw
+	var path := "user://light_%s_%s.png" % [tag, shot]
+	root.get_texture().get_image().save_png(path)
+	print("saved ", ProjectSettings.globalize_path(path))
+
+
+## Keeps the crew standing where they are, facing their points, for `secs`.
+func _hold(secs: float) -> void:
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < secs * 1000.0:
+		for peer: int in CREW:
+			var d: Vector3 = CREW[peer][2] - CREW[peer][1]
+			mgr._on_pose(peer, Time.get_ticks_msec() / 1000.0, CREW[peer][1], atan2(-d.x, -d.z), 0.0, 0, false)
+		await process_frame

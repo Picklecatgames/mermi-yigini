@@ -22,7 +22,7 @@ const COLUMN_H := 8.95
 const BAYS: Array[float] = [-27.85, -21.0, -14.0, -7.0, 0.0, 7.0, 14.0, 21.0, 27.85]
 const LAMP_SPAN := 24.0  # ceiling battens from -LAMP_SPAN to +LAMP_SPAN along each truss
 const LAMP_STEP := 6.0
-const LAMP_ENERGY := 1.0  # night: dim, old bulbs; working light pools under each bulb; the heap's own spots stay the brightest thing
+const LAMP_ENERGY := 1.25  # night: dim, old bulbs; working light pools under each bulb; the heap's own spots stay the brightest thing
 const LAMP_HEAP_CLEAR := 9.0  # m round the heap with no battens, so it stands in its own light
 const DECALS := "res://materials/env/decals/"
 # 2026-10-24: a greenhouse glass roof over the middle of the hall (x0, z0, x1, z1), about 30% of
@@ -214,14 +214,16 @@ func _environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color.BLACK
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR  # faint fill: the roof and corners never go pitch black
-	env.ambient_light_color = Color(0.5, 0.52, 0.58)  # night: a touch cold
-	env.ambient_light_energy = 0.18
+	env.ambient_light_color = Color(0.56, 0.55, 0.56)  # night: lamps and moon mixed, neither warm nor cold
+	env.ambient_light_energy = 0.4  # 0.18 left the players' bodies black between lamps (2026-10-30)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED  # the probe below covers it
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
 	env.ssao_enabled = true
 	env.ssao_radius = 1.2
-	env.ssao_intensity = 1.6
+	env.ssao_intensity = 1.1  # 1.6 blotched faces and folds of clothes dark
+	env.ssao_power = 1.2
+	env.ssao_detail = 0.3  # small creases lighter: cloth stops looking dirty
 	env.ssil_enabled = true
 	env.sdfgi_enabled = false  # 2026-10-22: its camera-centred cascades made dark corners pop lighter/darker as you walked; bounce is faked by ambient and the heap fill
 	env.sdfgi_use_occlusion = true
@@ -250,7 +252,8 @@ func _environment() -> void:
 	add(we)
 
 	# One probe for the whole shed, captured once: metal and paint reflect the roof and walls
-	# instead of the open sky they cannot see. Ambient stays with SDFGI.
+	# instead of the open sky they cannot see. Not its ambient: the night it captures is darker
+	# than the fill below and left the players dim (2026-10-30).
 	var probe := ReflectionProbe.new()
 	probe.name = "ShedReflections"
 	probe.size = Vector3(56.0, 9.6, 56.0)
@@ -481,10 +484,13 @@ func _sun(roof: Node3D) -> void:
 	sun.light_color = Color(0.6, 0.72, 1.0)  # cold night light: the abandonment, against the crew's warm lamps
 	sun.light_energy = 0.4  # the only light under the glass: the heap and the floor round it stay cold and readable
 	sun.light_volumetric_fog_energy = 0.0  # the fog ignores the roof's shadow: it would light the whole hall
-	sun.light_cull_mask = 1  # not the gun's layer
+	# Not the gun's layer; the players' bodies (remote_players.gd, on the overhead layer) too, or
+	# under the glass, where the moon is the only light, they stood black on a lit floor.
+	sun.light_cull_mask = 1 | 1 << (GS.OVERHEAD_LAYER - 1)
 	sun.shadow_enabled = true
 	sun.shadow_bias = 0.03
 	sun.shadow_normal_bias = 1.2
+	sun.shadow_blur = 1.6  # the glazing bars' lines soft at the edges, as moonlight through dirty glass
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 90.0
 	sun.directional_shadow_blend_splits = true
@@ -502,6 +508,20 @@ func _sun(roof: Node3D) -> void:
 	bounce.light_specular = 0.0
 	bounce.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	add(bounce)
+	# The players' bodies share that layer (remote_players.gd). A soft key from high over one
+	# shoulder keeps a face and its clothes readable between the lamps' pools and in the dark
+	# corners, where the bounce alone lit them from under the chin. From above, so the roof's
+	# underside, facing down, never catches it.
+	var fill := DirectionalLight3D.new()
+	fill.name = "BodyFill"
+	fill.transform = Transform3D(Basis.looking_at(Vector3(-0.45, -0.75, -0.5).normalized(), Vector3.UP), Vector3(0, 3, 0))
+	fill.light_color = Color(1.0, 0.94, 0.86)  # the lamps' warm white
+	fill.light_energy = 0.45
+	fill.light_cull_mask = 1 << (GS.OVERHEAD_LAYER - 1)
+	fill.light_volumetric_fog_energy = 0.0
+	fill.light_specular = 0.3
+	fill.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
+	add(fill)
 
 
 ## Enamel pendants (ceiling_lamp()) hung under every truss's bottom chord, LAMP_STEP apart: a bulb
@@ -568,7 +588,7 @@ func _lamps() -> void:
 				spot.spot_range = 14.0
 				spot.spot_attenuation = 0.6
 				spot.spot_angle = 58.0  # the shade's rim seen from the bulb
-				spot.spot_angle_attenuation = 1.6  # pools of light on the floor, dark between
+				spot.spot_angle_attenuation = 1.1  # pools of light on the floor fading softly into the dark between (1.6 left hard spots on whoever stood at the edge)
 				spot.light_volumetric_fog_energy = 1.2  # a soft cone in the dust under each bulb: the light visibly leaves the lamp
 				spot.shadow_enabled = false
 				add(spot, lamp)
