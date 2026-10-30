@@ -72,6 +72,9 @@ const BODY_CATCH_SHOOTING := 18.0
 const NECK_SHARE := 0.35  # of the head's turn the neck takes, the head the rest
 const FLASH_TIME := 0.05  # s
 const LABEL_OVER := 0.25  # m over the top of the head
+## Of the way from the head bone to the crown, where the eyes are on the bodies with an eye bone
+## (The Boss 0.42, the Brute 0.44; the masked one's eye meshes too).
+const EYE_UP := 0.43
 const LABEL_HEIGHT := 2.0  # m above the feet before there is a body
 ## Render layer 3: the world camera sees it, floor decals and bullet holes don't land on it.
 const BODY_LAYER := 4
@@ -277,9 +280,7 @@ class Character extends Node3D:
 		_skel = _model.get_node("Skeleton3D")
 		_hip = _skel.get_bone_global_rest(0).origin.y
 		_skel.motion_scale = _hip
-		var crown := _skel.get_bone_global_rest(_skel.find_bone("mixamorig_HeadTop_End")).origin.y
-		var eyes := (crown + _skel.get_bone_global_rest(_skel.find_bone("mixamorig_Head")).origin.y) * 0.5
-		_size = PLAYER.EYE / eyes
+		_size = PLAYER.EYE / _eye_height()
 		_model.scale = Vector3.ONE * _size
 		_spine = _skel.find_bone("mixamorig_Spine")
 		_chest = _skel.find_bone("mixamorig_Spine1")
@@ -378,6 +379,30 @@ class Character extends Node3D:
 				break
 			far = d
 			_pull += 0.005
+
+	## How high this body's eyes are standing with a pistol (m, its own size): its eye bone, or as
+	## far up the head as the ones that have one (EYE_UP), carried through the pose; the stance's
+	## bent knees take a few centimetres off the rest pose.
+	func _eye_height() -> float:
+		var head := _skel.find_bone("mixamorig_Head")
+		var head_rest := _skel.get_bone_global_rest(head)
+		var eye := _skel.find_bone("mixamorig_LeftEye")
+		var at: Vector3
+		if eye >= 0:
+			at = _skel.get_bone_global_rest(eye).origin
+		else:
+			var crown := _skel.get_bone_global_rest(_skel.find_bone("mixamorig_HeadTop_End")).origin
+			at = head_rest.origin.lerp(crown, EYE_UP)
+		var in_head := head_rest.affine_inverse() * at
+		var ap := AnimationPlayer.new()
+		_model.add_child(ap)
+		ap.root_node = ^".."
+		ap.add_animation_library("", ANIMS)
+		ap.play(STANCES.pistol[0])
+		ap.seek(0.0, true)
+		var y := (_skel.get_bone_global_pose(head) * in_head).y
+		ap.free()
+		return y
 
 	## The body standing in the stance's first frame, measured: where the right wrist holds the gun,
 	## how the spine stands, where the left arm starts and how far it reaches. The tree poses it
