@@ -94,7 +94,7 @@ func _initialize() -> void:
 func _shot(point: Vector3, fresh := true) -> int:
 	if fresh:
 		gs._process(gs.COMBO_WINDOW + 0.1)
-	var start := point + Vector3(-11, 0, 0)
+	var start := point + Vector3(-11, 0.4, 0)  # a little above: level at 1.1 m the railing's top rail is in the way
 	var before: int = gs.player().gold
 	gs.player().cooldown = 0.0
 	gs.request_fire(start, (point - start).normalized())

@@ -39,6 +39,7 @@ const BODY := preload("res://scripts/zombie_body.gd")
 const BAR := preload("res://scripts/zombie_hp_bar.gd")
 const BLOOD := preload("res://scripts/blood_fx.gd")
 const FENCE := preload("res://scripts/fence.gd")
+const REACT := preload("res://scripts/zombie_hit_react.gd")
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const SOUNDS := "res://assets/sounds/waves/"
 const LEVER_TIME := 0.6  # s from the pull to the siren and the lights
@@ -120,6 +121,24 @@ const HP_SEND := 0.1  # s between the host's hit point updates
 ## The ones that keep low, lying along their way: kind -> trunk radius, trunk length, trunk height,
 ## head radius (m, ×the body's size; the crawler's is the same at every size).
 const LOW := {&"crawler": [0.3, 0.9, 0.35, 0.13], &"blob": [0.42, 1.0, 0.4, 0.2], &"dog": [0.2, 0.9, 0.45, 0.13]}
+## A Mixamo body's hit shapes, each a capsule laid along two bones and moved with them every frame,
+## so a round meets the body where it is drawn, standing, clawing or on its belly: [from bone, to
+## bone, radius (m at size 1), m on past the second bone (the hand, the toes), region (meta "region"
+## on the shape: head, torso, arm_l/_r, leg_l/_r), the limb it comes off with (zombie_body.gd LIMBS)].
+## The head is the weak spot's ball. Creatures (and the melty) keep one capsule for the trunk.
+const BONE_SHAPES := [
+	["Hips", "Neck", 0.17, 0.0, &"torso", &""],
+	["LeftArm", "LeftForeArm", 0.075, 0.0, &"arm_l", &"arm_l"],
+	["LeftForeArm", "LeftHand", 0.065, 0.12, &"arm_l", &"forearm_l"],
+	["RightArm", "RightForeArm", 0.075, 0.0, &"arm_r", &"arm_r"],
+	["RightForeArm", "RightHand", 0.065, 0.12, &"arm_r", &"forearm_r"],
+	["LeftUpLeg", "LeftLeg", 0.1, 0.0, &"leg_l", &"leg_l"],
+	["LeftLeg", "LeftFoot", 0.08, 0.0, &"leg_l", &"shin_l"],
+	["LeftFoot", "LeftToeBase", 0.06, 0.06, &"leg_l", &"shin_l"],
+	["RightUpLeg", "RightLeg", 0.1, 0.0, &"leg_r", &"leg_r"],
+	["RightLeg", "RightFoot", 0.08, 0.0, &"leg_r", &"shin_r"],
+	["RightFoot", "RightToeBase", 0.06, 0.06, &"leg_r", &"shin_r"],
+]
 ## Wave n: BASE_COUNT + COUNT_GROW·(n-1) zombies; hit points ×(1 + HP_GROW·(n-1)), speed
 ## ×(1 + SPEED_GROW·(n-1)) up to SPEED_MAX. MIX: kind -> the wave it comes from, its share then,
 ## how much the share grows each wave after, the most it gets; the rest are walkers. Screamers
@@ -258,6 +277,7 @@ func _process(delta: float) -> void:
 	for z: Dictionary in _zombies.values():
 		if not z.dead:
 			(z.head_shape as Node3D).global_position = (z.head as Node3D).global_position
+			_fit(z)
 	if Net.is_client:
 		return
 	if phase == Phase.FIGHT and not _queue.is_empty():
@@ -592,22 +612,29 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 	var low: Array = LOW.get(kind, [])
 	var k: float = 1.0 if kind == &"crawler" else body.size
 	node.tall = 0.9 if kind == &"crawler" else tall
-	var trunk := CollisionShape3D.new()
-	var cap := CapsuleShape3D.new()
-	cap.radius = low[0] * k if low else 0.3 * tall / 1.8
-	cap.height = low[1] * k if low else tall - 0.25
-	trunk.shape = cap
-	if low:
-		trunk.rotation.x = PI / 2
-		trunk.position = Vector3(0, low[2] * k, 0)
-	else:
-		trunk.position = Vector3(0, cap.height / 2.0, 0)
-	node.add_child(trunk)
+	var bones: Array = [] if BODY.CREATURES.has(body.model) else _bone_shapes(node, body)
+	var trunk: CollisionShape3D = bones[0].node if bones else null
+	if not trunk:
+		trunk = CollisionShape3D.new()
+		var cap := CapsuleShape3D.new()
+		cap.radius = low[0] * k if low else 0.3 * tall / 1.8
+		cap.height = low[1] * k if low else tall - 0.25
+		trunk.shape = cap
+		if low:
+			trunk.rotation.x = PI / 2
+			trunk.position = Vector3(0, low[2] * k, 0)
+		else:
+			trunk.position = Vector3(0, cap.height / 2.0, 0)
+		trunk.set_meta("region", &"torso")
+		node.add_child(trunk)
+	var react: Node = REACT.new()
+	react.setup(body.get("_skel"))
 	var head := CollisionShape3D.new()
 	var ball := SphereShape3D.new()
-	ball.radius = low[3] * k if low else 0.13 * tall / 1.8
+	ball.radius = low[3] * k if low and not bones else 0.13 * tall / 1.8
 	head.shape = ball
 	head.add_to_group("weak_spot")
+	head.set_meta("region", &"head")
 	node.add_child(head)
 	var mouth := Vector3.ZERO
 	for g in _gates:
@@ -615,7 +642,7 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			mouth = g.get_meta("mouth")
 	var z := {"id": id, "node": node, "body": body, "kind": kind, "seed": seed, "gate": gate,
 			"mouth": mouth, "rail": Vector3(RAIL_X, 0.0, rail_z), "head": body.attach("Head"),
-			"head_shape": head, "trunk": trunk, "speed": speed, "dead": false, "path": [],
+			"head_shape": head, "trunk": trunk, "bones": bones, "react": react, "speed": speed, "dead": false, "path": [],
 			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [],
 			"bar": BAR.new(), "rush": 0.0, "hold": 0.0, "zig": float(absi(seed) % 1000) / 1000.0 * TAU,
 			"cry": 0.0}
@@ -624,6 +651,7 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 	(z.bar as Node3D).position = Vector3.UP * (node.tall + 0.25)
 	_next_id = maxi(_next_id, id + 1)  # should this machine ever be the one handing them out
 	body.idle()
+	_fit(z)
 	for part: StringName in cuts:  # a joiner: what was torn off before it came, already off
 		_cut(z, part, false)
 	if phase == Phase.FIGHT:  # one still waiting to set off on the host waits a little here too
@@ -733,6 +761,7 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 	if z.is_empty() or z.dead:
 		return
 	var part: StringName = z.body.wound(at, dir, weak)
+	z.react.hit(at, dir, GameState.GUNS[GameState.player(peer).gun].id, weak)  # where it went in gives
 	z.stagger = 0.7 if BODY.is_leg(part) else 0.35  # held back a moment by the hit, a leg longer
 	z.body.hit()
 	if Net.is_client or combo == 0 or not _hp.has(z.id):  # combo 0: not a paying hit (wrong side of the line)
@@ -813,10 +842,17 @@ func _retreat(z: Dictionary) -> void:
 func _cut(z: Dictionary, part: StringName, fly: bool) -> void:
 	var was_low: bool = z.body.crawling
 	z.down = maxf(z.down, z.body.cut(part, fly))
+	for s: Dictionary in z.bones:  # what came off takes no more rounds
+		if s.limb != &"" and (s.limb == part or BODY.LOWER.get(s.limb, &"") == part) and part in z.body.cuts:
+			(s.node as CollisionShape3D).disabled = true
 	if was_low or not z.body.crawling:
 		return
 	z.speed *= LEGLESS.get(z.kind, LEGLESS_ELSE)
 	(z.node as Zombie).tall = 0.9
+	if not z.bones.is_empty():  # its shapes lie down with its bones
+		if z.down <= 0.0 and not z.path.is_empty():
+			z.body.move(z.speed)
+		return
 	var trunk: CollisionShape3D = z.trunk
 	var low: Array = LOW[&"crawler"]
 	var cap := trunk.shape as CapsuleShape3D
@@ -877,6 +913,59 @@ func _blast_fx(at: Vector3) -> void:
 	VOICE.gore(&"burst", at + Vector3.UP, 4.0, 0.7)
 
 
+## A Mixamo body's hit shapes (BONE_SHAPES) under `node`, sized to its bones as they stand now (a
+## bone's length never changes). Each: {node, from, to, past (m), limb}; the torso's first.
+func _bone_shapes(node: Node3D, body: Node3D) -> Array:
+	var sk: Skeleton3D = body.get("_skel")
+	var out := []
+	for e: Array in BONE_SHAPES:
+		var a := sk.find_bone("mixamorig_" + e[0])
+		var b := sk.find_bone("mixamorig_" + e[1])
+		if a < 0 or b < 0:
+			continue
+		var r: float = e[2] * body.size
+		var past: float = e[3] * body.size
+		var length := sk.to_global(sk.get_bone_global_pose(a).origin).distance_to(sk.to_global(sk.get_bone_global_pose(b).origin))
+		var cs := CollisionShape3D.new()
+		var cap := CapsuleShape3D.new()
+		cap.radius = r
+		cap.height = length + past + 2.0 * r
+		cs.shape = cap
+		cs.set_meta("region", e[4])
+		if e[5] != &"":
+			cs.set_meta("limb", e[5])
+		node.add_child(cs)
+		out.append({"node": cs, "from": a, "to": b, "past": past, "limb": e[5]})
+	return out
+
+
+## Lays each of `z`'s bone shapes along its bones as they are posed now.
+func _fit(z: Dictionary) -> void:
+	if z.bones.is_empty():
+		return
+	var sk: Skeleton3D = z.body.get("_skel")
+	for s: Dictionary in z.bones:
+		var cs: CollisionShape3D = s.node
+		if cs.disabled:
+			continue
+		var a := sk.to_global(sk.get_bone_global_pose(s.from).origin)
+		var b := sk.to_global(sk.get_bone_global_pose(s.to).origin)
+		var y := b - a
+		if y.length() < 0.001:
+			continue
+		y = y.normalized()
+		b += y * s.past
+		var x := y.cross(Vector3.FORWARD if absf(y.z) < 0.9 else Vector3.RIGHT).normalized()
+		cs.global_transform = Transform3D(Basis(x, y, x.cross(y)), (a + b) * 0.5)
+
+
+## The region a round went into on a zombie: "head", "torso", "arm_l", "arm_r", "leg_l" or
+## "leg_r" (meta on the shape, see BONE_SHAPES). `shape` is hit.shape from the trace.
+static func region_at(zombie: CollisionObject3D, shape: int) -> StringName:
+	var cs := zombie.shape_owner_get_owner(zombie.shape_find_owner(shape)) as Node
+	return cs.get_meta("region", &"torso") if cs else &"torso"
+
+
 ## Keeps the crowd from walking into each other: every pair of the living standing too close is
 ## pushed apart along the floor, each peer its own. One at the railing stays on its spot (the host
 ## rolled it, the same everywhere): pushed along it, its copies would drift apart on each peer and a
@@ -920,6 +1009,8 @@ func _kill(id: int, gib: StringName) -> void:
 	(z.trunk as CollisionShape3D).disabled = true
 	(z.head_shape as CollisionShape3D).disabled = true
 	(z.bar as Node).hide_now()
+	for s: Dictionary in z.bones:
+		(s.node as CollisionShape3D).disabled = true
 	z.body.die(gib)
 	await get_tree().create_timer(DEAD_STAY).timeout
 	if is_instance_valid(node):
