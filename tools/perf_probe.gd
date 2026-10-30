@@ -4,7 +4,8 @@ extends SceneTree
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1920x1080 -s res://tools/perf_probe.gd
 ## A window is needed (headless renders nothing); it opens off screen. To price a feature, run again
 ## with it off from the start (toggling mid-run left the GPU timer stuck):
-##   ... -s res://tools/perf_probe.gd -- off=ssr,ssil,ssao,fog,glow,shadows,decals
+##   ... -s res://tools/perf_probe.gd -- off=ssr,ssil,ssao,fog,glow,shadows,lamp_shadows,decals
+## (lamp_shadows: only the hall lamps', the ones that fade with distance, as Settings' low does not)
 
 const VIEWS := {
 	"spawn": [Vector3(8.7, 1.7, 0.0), Vector3(-9.0, 2.5, 0.0)],
@@ -49,6 +50,10 @@ func _switch_off(main: Node) -> void:
 				"shadows":
 					for l: Light3D in main.find_children("*", "Light3D", true, false):
 						if not l is DirectionalLight3D:
+							l.shadow_enabled = false
+				"lamp_shadows":
+					for l: SpotLight3D in main.find_children("*", "SpotLight3D", true, false):
+						if l.distance_fade_enabled:
 							l.shadow_enabled = false
 				"decals":
 					for d: Decal in main.find_children("*", "Decal", true, false):
