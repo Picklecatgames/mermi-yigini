@@ -2,7 +2,8 @@ shader_type spatial;
 // One puff of filmed blood mist (tools/build_blood.py: an 8x8 flipbook of a real shot, blood blown
 // left to right). The quad turns to the camera but keeps the film's left-to-right along `dir`, the way
 // the round went, and sits on the hit at `emit`, the point in the square the puff came out of.
-// blood_fx.gd steps `frame`; two frames are blended so 30 fps footage plays smooth.
+// blood_fx.gd steps `frame`; two frames are blended so the footage plays smooth. Lit like any
+// surface it went near-black in the hall's dark between lamps, so it also glows a little of its own red.
 render_mode blend_mix, depth_draw_never, cull_disabled, skip_vertex_transform, specular_disabled, diffuse_lambert_wrap;
 
 uniform sampler2D atlas : source_color, filter_linear_mipmap, repeat_disable;
@@ -15,7 +16,7 @@ instance uniform float flip = 1.0;  // mirrors the film across its flight, for v
 instance uniform float fade = 1.0;
 
 const float GRID = 8.0;
-const float SOFT = 0.12;  // m: fades out where it meets a wall or the floor instead of cutting
+const float SOFT = 0.06;  // m: fades out where it meets a wall or the floor instead of cutting
 
 varying vec2 cell_a;
 varying vec2 cell_b;
@@ -47,7 +48,8 @@ void fragment() {
 	vec4 behind = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
 	float gap = VERTEX.z - behind.z / behind.w;
 	ALBEDO = c.rgb;
+	EMISSION = c.rgb * 0.35;
 	ALPHA = c.a * fade * clamp(gap / SOFT, 0.0, 1.0);
 	ROUGHNESS = 1.0;
-	BACKLIGHT = c.rgb * 0.6;  // thin blood glows red with a light behind it
+	BACKLIGHT = c.rgb * 0.8;  // thin blood glows red with a light behind it
 }

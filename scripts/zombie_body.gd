@@ -56,7 +56,6 @@ const KICK_HEAD := 2.5  # times that on the head
 const KICK_STIFF := 160.0  # 1/s², ~2 Hz
 const KICK_DAMP := 15.0  # 1/s: one swing back and it has settled
 const KICK_MAX := 0.6  # rad, so a burst can't fold it in two
-const DROP := preload("res://materials/env/decals/blood_splat_0.res")  # the flying drops' look
 
 var kind := &"walker"
 var model := &""
@@ -173,11 +172,15 @@ func wound(at: Vector3, dir: Vector3, head: bool) -> void:
 				_nod_v += axis * KICK * KICK_HEAD
 			else:
 				_bend_v += axis * KICK
-	_spray(at, dir, 22 if head else 14, 1.0)
-	_spray(at, -dir, 6, 0.5)
+	_spray(at, dir, 12 if head else 7, 1.0)
+	_spray(at, -dir, 4, 0.5)
 	var world := _world()
-	BLOOD.mist(world, at, dir, _rng, (0.75 if head else 0.55) * size)
-	BLOOD.wall(world, at, dir, _rng, 2.5, (0.9 if head else 0.6) * size)
+	# The puff the shooter sees comes back out of the entry and off to the side; blown on along the
+	# round it would point straight away from the camera and read as a smudge. A step toward the
+	# shooter, so the body it came out of doesn't swallow it.
+	BLOOD.mist(world, at - dir * 0.1, _aside(dir, 0.5), _rng, (0.9 if head else 0.7) * size, 0.5)
+	BLOOD.mist(world, at + dir * 0.15, dir, _rng, (0.6 if head else 0.45) * size, 0.35)  # the exit
+	BLOOD.wall(world, at, dir, _rng, 2.5 if head else 1.6, (0.9 if head else 0.55) * size)
 	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
 	BLOOD.ground(world, at + flat * _rng.randf_range(0.4, 1.6), global_position.y, [&"drop", &"spray"], _rng,
 			_rng.randf_range(0.35, 0.7) * (1.4 if head else 1.0), flat)
@@ -232,10 +235,11 @@ func die(gib := &"") -> float:
 		var world := _world()
 		GIBS.burst(world, from, _last_dir, global_position.y,
 				(9 if gib == &"head" else 14) + (8 if kind == &"brute" else 0), size, _rng.randi())
-		_spray(from, Vector3.UP, 40, 1.3)
-		_spray(from, _last_dir, 30, 1.2)
-		BLOOD.mist(world, from, _last_dir, _rng, 1.3 * size)
-		BLOOD.mist(world, from, (Vector3.UP + _last_dir).normalized(), _rng, 1.0 * size)
+		_spray(from, Vector3.UP, 22, 1.3)
+		_spray(from, _last_dir, 16, 1.2)
+		BLOOD.mist(world, from - _last_dir * 0.1, _aside(_last_dir, 0.3), _rng, 1.2 * size, 0.7)
+		BLOOD.mist(world, from - _last_dir * 0.1, _aside(_last_dir, 0.3), _rng, 1.0 * size, 0.6)
+		BLOOD.mist(world, from, (Vector3.UP + _last_dir).normalized(), _rng, 0.9 * size, 0.6)
 		BLOOD.wall(world, from, _last_dir, _rng, 3.5, 1.4 * size)
 		var flat := Vector3(_last_dir.x, 0.0, _last_dir.z).normalized()
 		BLOOD.ground(world, from + flat * _rng.randf_range(0.6, 1.4), global_position.y, [&"spray", &"mist"], _rng,
@@ -273,6 +277,14 @@ func _stump(bone: StringName, width: float) -> void:
 	attach(bone).add_child(m)
 
 
+## A way out of a hit going along `dir`: back toward the shooter by `back`, mostly to one side, a little up.
+func _aside(dir: Vector3, back: float) -> Vector3:
+	var side := dir.cross(Vector3.UP)
+	side = side.normalized() if side.length() > 0.05 else Vector3.RIGHT
+	return (-dir * back + side * (1.0 if _rng.randf() < 0.5 else -1.0) * _rng.randf_range(0.6, 1.0)
+			+ Vector3.UP * _rng.randf_range(0.1, 0.5)).normalized()
+
+
 ## Blood and pieces are decals and nodes in the wave's world, so they stay put while the body moves.
 func _world() -> Node:
 	return get_parent().get_parent()
@@ -291,14 +303,27 @@ func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
 	if _drop_mesh == null:
 		var m := StandardMaterial3D.new()
 		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-		m.albedo_texture = DROP
-		m.albedo_color = Color(0.42, 0.02, 0.02)
-		m.metallic_specular = 0.25  # a lamp turned the drops into a brown-gold cloud
+		# A round drop, red through: the old splat texture times dark red came out as black ink.
+		var dot := GradientTexture2D.new()
+		dot.fill = GradientTexture2D.FILL_RADIAL
+		dot.fill_from = Vector2(0.5, 0.5)
+		dot.fill_to = Vector2(0.5, 0.0)
+		dot.width = 32
+		dot.height = 32
+		dot.gradient = Gradient.new()
+		dot.gradient.set_color(0, Color(1, 1, 1, 1))
+		dot.gradient.set_color(1, Color(1, 1, 1, 0))
+		m.albedo_texture = dot
+		m.albedo_color = Color(0.55, 0.035, 0.03)
+		m.emission_enabled = true  # still red in the dark between lamps
+		m.emission = Color(0.55, 0.035, 0.03)
+		m.emission_energy_multiplier = 0.25
+		m.metallic_specular = 0.6
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
-		m.alpha_scissor_threshold = 0.3
-		m.roughness = 0.25
+		m.alpha_scissor_threshold = 0.5
+		m.roughness = 0.15
 		_drop_mesh = QuadMesh.new()
-		_drop_mesh.size = Vector2(0.09, 0.09)  # billboarded particles drew at the quad's size, scale or not
+		_drop_mesh.size = Vector2(0.035, 0.035)  # billboarded particles drew at the quad's size, scale or not
 		_drop_mesh.material = m
 		_drop_mat = ParticleProcessMaterial.new()
 		_drop_mat.direction = Vector3(0, 0, -1)
@@ -313,7 +338,7 @@ func _spray(at: Vector3, dir: Vector3, amount: int, force: float) -> void:
 	var p := GPUParticles3D.new()
 	p.one_shot = true
 	p.amount = amount
-	p.lifetime = 0.9
+	p.lifetime = 0.7
 	p.explosiveness = 0.95
 	p.speed_scale = force
 	p.process_material = _drop_mat

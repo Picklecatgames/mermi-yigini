@@ -7,14 +7,16 @@ extends Node3D
 ## Visual only. Every call takes a RandomNumberGenerator the caller seeded from the zombie and the hit
 ## (zombie_body.gd), and the walls are found with a ray against the static world, so every peer draws
 ## the same blood in the same places.
-##   BloodFx.mist(world, at, dir, rng, size)
+##   BloodFx.mist(world, at, dir, rng, size, life)
 ##   BloodFx.wall(world, at, dir, rng, reach, width)  # the round flew on: a spray where it lands
 ##   BloodFx.ground(world, at, floor_y, kinds, rng, width, along, grow)
 
 const MAX_DECALS := 64
 const MAX_MISTS := 16
-const MIST_SPEED := 1.4  # the film plays a bit faster than shot: a hit puff, not a slow-motion cloud
-const MIST_FADE := 0.35  # of the flipbook's length, fading out at the end
+## A hit is a short red puff that thins out in under half a second, not the film's two-second cloud:
+## the puff's first MIST_FRAMES frames squeezed into `life` s, fading over the last MIST_FADE of it.
+const MIST_FRAMES := 44.0
+const MIST_FADE := 0.6
 const DIR := "res://assets/vfx/blood/"
 const MISTS := [&"curl", &"puff", &"small", &"streak", &"burst"]
 ## Where in each square the puff comes out (mist.json, written by build_blood.py).
@@ -22,8 +24,6 @@ const EMIT := {
 	&"curl": Vector2(0.296, 0.295), &"puff": Vector2(0.089, 0.414), &"small": Vector2(0.154, 0.361),
 	&"streak": Vector2(0.35, 0.376), &"burst": Vector2(0.284, 0.264),
 }
-const FRAMES := 64.0
-const FPS := 30.0
 ## Decal sets (assets/vfx/blood/decals/<name>_albedo/_normal/_orm.png). Sprays lie along +u with the
 ## dense end at u = 0, so they can point the way the blood flew.
 const SETS := {
@@ -40,12 +40,12 @@ var _next_decal := 0
 var _grow := {}  # decal -> its tween, killed when the decal is taken back
 var _mists: Array[MeshInstance3D] = []
 var _next_mist := 0
-var _age := {}  # mist -> frame
+var _age := {}  # mist -> [s so far, life s]
 
 
-## A puff of mist at `at`, blown on along `dir`. `size`: the square's side (m).
-static func mist(world: Node, at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size := 0.6) -> void:
-	_of(world)._mist(at, dir, rng, size)
+## A puff of mist at `at`, blown on along `dir`. `size`: the square's side (m); `life`: s it lasts.
+static func mist(world: Node, at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size := 0.6, life := 0.45) -> void:
+	_of(world)._mist(at, dir, rng, size, life)
 
 
 ## A spray on whatever wall or pillar is within `reach` m behind `at` along `dir`, pointing the way the
@@ -131,7 +131,7 @@ func _place(at: Vector3, n: Vector3, along: Vector3, kind: StringName, rng: Rand
 	return d
 
 
-func _mist(at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size: float) -> void:
+func _mist(at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size: float, life: float) -> void:
 	var m: MeshInstance3D
 	if _mists.size() < MAX_MISTS:
 		if _quad == null:
@@ -156,19 +156,21 @@ func _mist(at: Vector3, dir: Vector3, rng: RandomNumberGenerator, size: float) -
 	m.set_instance_shader_parameter(&"frame", 0.0)
 	m.set_instance_shader_parameter(&"fade", 1.0)
 	m.visible = true
-	_age[m] = 0.0
+	_age[m] = [0.0, life * rng.randf_range(0.85, 1.15)]
 
 
 func _process(delta: float) -> void:
 	for m: MeshInstance3D in _age.keys():
-		var f: float = _age[m] + delta * FPS * MIST_SPEED
-		if f >= FRAMES - 1.0:
+		var a: Array = _age[m]
+		a[0] += delta
+		var k: float = a[0] / a[1]
+		if k >= 1.0:
 			m.visible = false
 			_age.erase(m)
 			continue
-		_age[m] = f
-		m.set_instance_shader_parameter(&"frame", f)
-		m.set_instance_shader_parameter(&"fade", clampf((FRAMES - 1.0 - f) / (FRAMES * MIST_FADE), 0.0, 1.0))
+		# fast at first, the way a puff bursts out and then hangs
+		m.set_instance_shader_parameter(&"frame", (1.0 - pow(1.0 - k, 1.6)) * MIST_FRAMES)
+		m.set_instance_shader_parameter(&"fade", clampf((1.0 - k) / MIST_FADE, 0.0, 1.0))
 
 
 static func _mist_material(name: StringName) -> ShaderMaterial:
