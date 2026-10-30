@@ -13,7 +13,7 @@ const FADE := 0.4
 const LAG_WAIT := 0.3  # s the pale strip waits before running out to the red
 const LAG_SPEED := 1.2  # of the bar per second
 const RED := Color(0.62, 0.05, 0.03)
-const PALE := Color(1.0, 0.86, 0.62)
+const PALE := Color(0.95, 0.42, 0.3, 0.6)  # the fresh wound: a lighter, thinner red
 
 var left := 1.0  # 0..1
 var _lag := 1.0
@@ -88,7 +88,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var a := clampf(_shown / FADE, 0.0, 1.0)
 	_back.modulate.a = 0.55 * a
-	_cut(_trail, _lag, a)
+	_cut(_trail, _lag, a * PALE.a)
 	_cut(_front, left, a)
 
 

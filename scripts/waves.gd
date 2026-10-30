@@ -55,9 +55,9 @@ const SPAWN_EVERY := 0.5  # s between the waiting ones once the gates are open
 const FENCE_HP := 100
 const FENCE_SEND := 0.25  # s between the host's fence updates
 ## How it comes apart (the host decides, the die cue carries it): a head shot kill takes the head
-## off, SHRED rounds inside SHRED_TIME (a burst from the UZI or the minigun) burst the body, a brute
-## and a blob always burst (a blob has no head to lose).
-const SHRED := 4
+## off, SHRED of its hit points taken inside SHRED_TIME (a burst from the minigun) bursts the body,
+## a brute, a blob and a bloater always burst (a blob has no head to lose).
+const SHRED := 0.85  # of its full hit points
 const SHRED_TIME := 0.5
 ## What a paying hit takes off, by the gun it came from (GameState.GUNS id); a head shot HEAD times
 ## that. Hit points (STATS) are in the same units: a walker of wave 1 takes 3 Deagle rounds in the
@@ -81,9 +81,9 @@ const WAYPOINT_SLACK := 0.8  # m: near enough to a gate's mouth on the way (only
 ## kind -> walk speed (m/s), hit points at wave 1 (DAMAGE units), bite out of the fence per claw.
 ## Each one's speed is rolled within SPEED_ROLL of it, so a crowd never walks in step. Speeds keep
 ## the clips' strides on the floor (zombie_body.gd move(), tools/zombie_roles_check.gd).
-const STATS := {&"walker": [0.72, 100, 1], &"runner": [2.8, 55, 1], &"crawler": [0.55, 80, 1],
+const STATS := {&"walker": [0.68, 100, 1], &"runner": [2.8, 55, 1], &"crawler": [0.55, 80, 1],
 		&"brute": [1.3, 700, 5], &"blob": [0.7, 300, 2], &"dog": [4.5, 40, 1], &"bloater": [0.75, 150, 2],
-		&"screamer": [0.85, 90, 1]}
+		&"screamer": [0.82, 90, 1]}
 const SPEED_ROLL := [0.85, 1.15]
 ## Screamer: on its way (inside the bay, x under SCREAM_X) it stops every SCREAM_EVERY s and cries;
 ## every other one walking within SCREAM_REACH m runs at RUSH × its speed for RUSH_TIME s.
@@ -721,7 +721,7 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 		_limb_hit(z, part, dmg)
 		dmg *= LIMB_BODY
 	var now := Time.get_ticks_msec() / 1000.0
-	z.hits = (z.hits as Array).filter(func(t: float) -> bool: return now - t < SHRED_TIME) + [now]
+	z.hits = (z.hits as Array).filter(func(h: Vector2) -> bool: return now - h.x < SHRED_TIME) + [Vector2(now, dmg)]
 	_hurt(z, dmg, peer, weak, gun)
 
 
@@ -740,7 +740,7 @@ func _hurt(z: Dictionary, dmg: float, peer: int, weak: bool, gun: String) -> voi
 	var gib := &""
 	if weak and z.kind != &"blob":
 		gib = &"head"
-	elif z.kind in [&"brute", &"blob", &"bloater"] or (z.hits as Array).size() >= SHRED:
+	elif z.kind in [&"brute", &"blob", &"bloater"] or (z.hits as Array).reduce(func(sum: float, h: Vector2) -> float: return sum + h.y, 0.0) >= SHRED * _hp_full[z.id]:
 		gib = &"body"
 	var at := (z.node as Node3D).global_position
 	GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1, peer, weak, at, gun, gib])

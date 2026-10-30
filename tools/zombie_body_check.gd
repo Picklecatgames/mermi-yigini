@@ -165,7 +165,9 @@ func _limbs() -> void:
 	a.setup(&"walker", 3)
 	a.model = &"prisoner"
 	parent.add_child(a)
-	a.move(0.9)
+	# The pose these rounds were aimed at: the walk this seed played before move() picked clips by
+	# speed, stretched as far as it goes.
+	a._play_loop("walk_a", 1.8)
 	var sk: Skeleton3D = a.find_children("*", "Skeleton3D", true, false)[0]
 	var ap: AnimationPlayer = a.find_children("*", "AnimationPlayer", true, false)[0]
 	ap.advance(0.5)

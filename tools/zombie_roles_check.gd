@@ -77,7 +77,7 @@ func _numbers() -> void:
 ## screamer's rush, a torn leg's crawl): the stride is stretched to it inside what move() allows.
 func _strides() -> void:
 	var lo: float = waves.SPEED_ROLL[0]
-	var hi: float = waves.SPEED_ROLL[1] * waves.SPEED_MAX * waves.RUSH
+	var hi: float = waves.SPEED_ROLL[1] * waves.SPEED_MAX
 	for kind: StringName in BODY.KINDS:
 		for m: StringName in BODY.KINDS[kind].models:
 			var b: Node3D = BODY.new()
@@ -85,6 +85,9 @@ func _strides() -> void:
 			b.model = m
 			root.add_child(b)
 			var speeds := [waves.STATS[kind][0] * lo, waves.STATS[kind][0] * hi]
+			if not kind in waves.NO_RUSH:  # and driven by a screamer
+				for v: float in speeds.duplicate():
+					speeds.append(waves._pace({"rush": 1.0, "speed": v, "kind": kind}))
 			for v: float in speeds:
 				b.move(v)
 				var ap: AnimationPlayer = b._ap
@@ -134,6 +137,9 @@ func _shoot(z: Dictionary, at: Vector3, dir: Vector3, weak := false) -> void:
 func _limbs() -> void:
 	gs.request_select_gun(DEAGLE)
 	var z := _spawn(&"walker", Vector3(22, 0, -6))
+	while BODY.CREATURES.has(z.body.model):  # limbs come off Mixamo bodies only
+		waves._kill(z.id, &"")
+		z = _spawn(&"walker", Vector3(22, 0, -6))
 	z.path = []  # stands still, so the bones stay where we aim
 	z.body.idle()
 	await create_timer(0.3).timeout
@@ -192,12 +198,11 @@ func _screamer() -> void:
 		if cue[0] == &"scream":
 			cries.append(cue)
 	gs.wave_cue.connect(watch)
-	var slow: float = near.body._ap.speed_scale
 	await _wait(func() -> bool: return not cries.is_empty(), "the screamer to cry", 8.0)
 	gs.wave_cue.disconnect(watch)
 	_expect(cries.size() == 1 and cries[0][1] == s.id and near.id in cries[0][2] and not far.id in cries[0][2], "it cried, for the one near it only (%s)" % [cries])
 	_expect(near.rush > 0.0 and far.rush <= 0.0 and waves._pace(near) > near.speed * 1.4, "the near one runs")
-	_expect(near.body._ap.speed_scale > slow * 1.3, "its stride quickens with it (%.2f -> %.2f)" % [slow, near.body._ap.speed_scale])
+	_expect(near.body.quick() and not far.body.quick(), "it breaks into a run (%s)" % near.body._ap.current_animation)
 	_expect(s.hold > 0.0, "the screamer stands while it cries")
 	var x0: float = (near.node as Node3D).global_position.x
 	var t := 1.0
