@@ -24,6 +24,8 @@ func _initialize() -> void:
 	for i in 3:
 		await physics_frame
 	await _railing()
+	gs.request_toggle_infinite_ammo()
+	gs.request_select_gun(4)  # the Scorpion: test mode opens it
 	var id := 900
 	for kind: StringName in KINDS:
 		for pose in ["idle", "claw", "walk"]:
@@ -94,8 +96,8 @@ func _zombie(id: int, kind: StringName, pose: String) -> void:
 		aims["foot_r"] = body.call("_bone_at", "RightLeg").lerp(body.call("_bone_at", "RightFoot"), 0.85)
 	for name: String in aims:
 		var at: Vector3 = aims[name]
-		if at.x < gs.FIRING_LINE_X + 0.05:  # reached over the railing: on our side, no pay is right
-			continue
+		# (reached over the railing, it is hit on our side: it still pays, GameState counts a zombie
+		# by where it stands)
 		for eye in [gs.EYE, gs.CROUCH_EYE]:
 			var from := Vector3(SHOOT_X, eye, at.z + 0.6)
 			var dir := (at - from).normalized()
@@ -103,7 +105,7 @@ func _zombie(id: int, kind: StringName, pose: String) -> void:
 			if not hit.is_empty() and hit.collider.name == "FiringLineBars":
 				continue  # a post or rail in the way: the railing test above covers those
 			_shots += 1
-			var ok: bool = not hit.is_empty() and hit.collider == z.node and hit.position.x > gs.FIRING_LINE_X
+			var ok: bool = not hit.is_empty() and hit.collider == z.node
 			if ok and name == "head" and pose == "idle" and kind in [&"walker", &"runner"]:  # the weak spot, named for whoever counts regions (arms out or a blob's bulk may come first otherwise)
 				ok = waves.region_at(z.node, hit.shape) == &"head"
 			_ok(ok, "%s %s %s, eye %.1f: %s at %s" % [kind, pose, name, eye, _what(hit), at])
@@ -128,15 +130,18 @@ func _legless() -> void:
 	var body: Node3D = z.body
 	for name in ["Head", "Spine2", "Hips", "RightLeg", "RightForeArm", "LeftForeArm"]:
 		var at: Vector3 = body.call("_bone_at", name)
-		if at.x < gs.FIRING_LINE_X + 0.05:
-			continue
 		var from := Vector3(SHOOT_X, gs.EYE, at.z + 0.6)
 		var hit := _trace(from, from + (at - from).normalized() * 40.0)
 		if not hit.is_empty() and hit.collider.name == "FiringLineBars":
 			continue
 		_shots += 1
-		_ok(not hit.is_empty() and hit.collider == z.node and hit.position.x > gs.FIRING_LINE_X,
+		_ok(not hit.is_empty() and hit.collider == z.node,
 				"legless walker %s: %s at %s" % [name, _what(hit), at])
+		if name == "Head" and hit.collider == z.node:  # its head over the railing: still a paying hit
+			var before: int = gs.player().gold
+			gs.player().cooldown = 0.0
+			gs.request_fire(from, (at - from).normalized())
+			_ok(gs.player().gold > before, "a head reaching over the railing (hit at x %.2f) pays" % hit.position.x)
 	waves._zombies.erase(id)
 	(z.node as Node).free()
 

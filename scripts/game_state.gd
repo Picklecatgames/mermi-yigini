@@ -1204,7 +1204,9 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var weak := false
 	var chain := 0
 	# Pays only from the shooter's side of the firing line, at a target on the far side.
-	if target.is_in_group("target") and from.x <= FIRING_LINE_X and hit.position.x > FIRING_LINE_X:
+	# A zombie counts by where it stands: one leaning over the railing still pays where its head reaches.
+	var past: float = (target as Node3D).global_position.x if target.has_meta("zombie") else hit.position.x
+	if target.is_in_group("target") and from.x <= FIRING_LINE_X and past > FIRING_LINE_X:
 		var shape: Node = target.shape_owner_get_owner(target.shape_find_owner(hit.shape))
 		weak = shape.is_in_group("weak_spot") or (target.has_method("is_weak") and target.is_weak(hit.position))
 		var cap := upgrade_value("combo_cap", peer)

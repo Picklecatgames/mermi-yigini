@@ -26,6 +26,7 @@ var net: Node
 var main: Node
 var waves: Node
 var _log: Array[String] = []
+var _turn := 0  # _shoot_all: whose turn it is among the nearest
 var _cuts := {}  # zombie id -> the limbs it had lost when the die cue came (wave 3, online)
 var _down := {}  # zombie id -> its die cue came
 var _wipe_ok := false  # the railing fell, or a reset: the living may be cleared away
@@ -280,17 +281,24 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 			_fail("%s: %d left standing: %s" % [what, waves.left, still])
 			return false
 		var aim := Vector3.INF
-		for z: Dictionary in waves._zombies.values():
+		# The nearest three to the railing in turn: one the aim keeps missing (a post, the floor
+		# past a limb) doesn't hold up the rest while they claw the railing down.
+		var near: Array = waves._zombies.values().filter(func(z: Dictionary) -> bool:
+			return not z.dead and (z.node as Node3D).global_position.x < 27.0)
+		near.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return (a.node as Node3D).global_position.x < (b.node as Node3D).global_position.x)
+		if not me:  # (a client walks to each target: it stays on one)
+			_turn += 1
+		if not near.is_empty():
+			var z: Dictionary = near[_turn % mini(near.size(), 3)]
 			var at: Vector3 = (z.node as Node3D).global_position
-			if not z.dead and at.x < 27.0:
-				# The trunk's shape where it is (on the bones, or low); a creature standing at chest height.
-				aim = (z.trunk as Node3D).global_position if waves.LOW.has(z.kind) or z.body.crawling or not z.bones.is_empty() else at + Vector3.UP * 1.1
-				if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
-					match z.id % 3:  # some into the legs, some into an arm
-						1: aim = z.body.call("_bone_at", "RightLeg")  # the knee
-						2: if z.body.can_lose(&"forearm_l"):  # (once it is off, the trunk)
-							aim = z.body.call("_bone_at", "LeftForeArm")
-				break
+			# The trunk's shape where it is (on the bones, or low); a creature standing at chest height.
+			aim = (z.trunk as Node3D).global_position if waves.LOW.has(z.kind) or z.body.crawling or not z.bones.is_empty() else at + Vector3.UP * 1.1
+			if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
+				match z.id % 3:  # some into the legs, some into an arm
+					1: aim = z.body.call("_bone_at", "RightLeg")  # the knee
+					2: if z.body.can_lose(&"forearm_l"):  # (once it is off, the trunk)
+						aim = z.body.call("_bone_at", "LeftForeArm")
 		if aim != Vector3.INF:
 			# Level with it, or a step aside when a railing post stands right in the way.
 			var post := -27.5 + roundf((aim.z + 27.5) / 2.75) * 2.75  # build_arena.gd _firing_line
