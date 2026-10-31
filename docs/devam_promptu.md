@@ -1,31 +1,22 @@
-# Devam promptu (2026-10-30, üçüncü hesap değişimi)
+# Devam promptu (2026-10-31, kota %92'de durdu)
 
-Aşağıdakini yeni hesapta, projeyi açtığın oturuma yapıştır:
+Aşağıdakini yeni oturuma yapıştır:
 
 ---
 
-Mermi Yığını'na devam ediyoruz (Godot 4.7, co-op FPS, zombi dalgaları). Önce `CLAUDE.md`, `docs/ayrintilar.md` → "Yeni yön: zombi dalgaları" bölümü ve bu dosyayı oku. Önceki hesap kota yüzünden her şeyi aniden durdurdu: son commit (`main`, "Kota dolmadan önce...") içinde **üç yarım iş denenmeden commit'lendi**. İlk iş: `git pull`, `godot --headless --import`, sonra aşağıdaki kontrolleri koş, kırılanı düzelt, push'la.
+Mermi Yığını'na devam ediyoruz (Godot 4.7, co-op FPS, zombi dalgaları). Önce `CLAUDE.md`, `docs/ayrintilar.md` → "Yeni yön: zombi dalgaları" bölümü ve bu dosyayı oku. Önceki oturum 5 saatlik kota %92'deyken durdu.
 
-**İlk koşulacak kontroller** (headless, `-s res://tools/X.gd`): `character_demo_check`, `remote_anim_check`, `specials_check`, `waves_check`, `hud_check`, `ambience_check`. Hepsi yarım işlerden önce geçiyordu. `net_check` zaten istemci tarafında takılıyor (eski sorun, sebebi bulunmadı).
+**İlk iş:** `git pull`, `godot --headless --import` (Godot: `C:/Users/vedat/projeler/Godot_v4.7.2-stable_win64.exe`), sonra bütün kontrolleri koş (`-s res://tools/X.gd --quit-after 100000`): hitbox, hit_react, fence, waves, zombie_roles, zombie_body, blood, zombie_sound, hud, table, specials, ambience, character_demo, remote_anim, pistol, minigun, ads, hit_sound, shell_tink, feel, net (hepsi `_check`). Son birleşim (kafa patlaması dalı, `claude/kafasiz-sac-74b406`) main'e alındı ama birleşik hâlde kontroller **koşulmadı**; kırılan varsa düzelt, push'la.
 
-**Yarım kalan üç iş (denenmeden commit'lendi):**
-1. **Çömelme (Ctrl), co-op'ta görünen hâliyle:** `scripts/player.gd` (`crouched`, `CROUCH_*`, kapsül 1,3 m, göz `GameState.CROUCH_EYE` 1,1 m), `scripts/game_state.gd` (pozda `crouch`, ateş kaynağı kontrolü), `scripts/settings.gd`, `project.godot` (tuş), `scripts/special_demo.gd` / `scripts/character_demo.gd`, `tools/build_zombies.gd` (tüfek paketinin çömelik yürüme klipleri) → `assets/characters/players/player_anims.res`. Uzak bedende çömelme duruşunun `remote_players.gd`'ye bağlanıp bağlanmadığı belli değil; kontrol et ve `remote_anim_check`'e çömelme ekle.
-2. **Kan, et dokusu, uzuv kopması:** `tools/build_blood.py` → `assets/vfx/blood/` (decal'lar, dokular), `materials/blood_mist.gdshader`, `materials/env/gore/flesh_*`. Ham ActionVFX/TextureCan dosyaları `assets/vfx/blood/raw/`'da, git'te yok (dağıtılamaz; yeni cihazda yoksa kullanıcıdan iste). Oyun koduna ne kadar bağlandığı belli değil; `docs/ayrintilar.md` "Kullanılan asetler"e kaynak ve lisansları yazılmalı.
-3. **Gerçekçi gölgeler:** kullanıcı "gölge klonumun yerdeki siyah yansıması gibi, ışığa göre yönü değişmiyor, ayağa yapışık değil" dedi. Sebep: salonda gölgeyi yalnız ay atıyordu, tavan lambalarında gölge kapalıydı, ayın `shadow_normal_bias` 1,2 idi. `tools/build_arena.gd` içinde ay bias'ı düşürüldü, tavan spotlarına gölge ve mesafe solması eklendi, **ama arena yeniden üretilip görsel olarak denenmedi**. `tools/build_arena.gd`'yi çalıştırıp `scenes/arena.tscn`'yi yeniden üret, `tools/light_shot.gd` ile lamba altında / arasında / ay ışığında ayak dibi çekimlerine bak; performansı ölç (`tools/perf_probe.gd`); `scripts/settings.gd` düşük ayarda gölgeleri kapatıyor mu kontrol et.
+**Yarım kalan iki dal (main'e birleşmedi):**
+1. `claude/perf-ilk-acilis-*`: ilk açılış (boş shader önbelleği) takılmaları ve 40 zombide kalan ~6 ms CPU yükü. Oturum "YARIM:" commit'iyle durdu; son commit mesajında ne bittiği yazıyor. Minigun'u ilk kullanma anında kararsız bir takılma var (çekme ile ateş üst üste gelince). Ölçüm aracı `tools/spike_probe.gd`, ilk açılış için `tools/first_probe.gd`. Makinede başka Godot çalışırken ölçme.
+2. `claude/minigun-uzi-el-*`: kullanıcı "Minigun'daki parmak hatası ve UZI'deki kolun saçma duruşu" dedi, ayrıntı vermedi. Oturum yeni başlamıştı; dalda bir şey varsa oradan, yoksa baştan: birinci şahıs (`scripts/fp_arms.gd`, `viewmodel.gd` `SETS`) ve uzak beden (`scripts/remote_players.gd`) ekran dışı çekimle bul, düzelt.
+Dalların adını `git branch -r | grep claude/` ile bul. Bitince main'e al, kontrolleri koş, push'la.
 
-**Bu hesapta biten (main'de):**
-- Oyuncu karakterleri: 5 Mixamo bedeni (Patron, Maskeli, İşçi, Brute, Chupacabra), girişte "KİMSİN?" seçim ekranı. Uzak oyuncu seçtiği bedenle çiziliyor; gözleri tabanca duruşunda kameranın hizasına (1,6 m) ölçekleniyor. Silah bedenin el boyuna göre büyüyor. Kafa bakışı gövdeden önce gidiyor (fareyi hızlı sallamak co-op'ta kafayla evet/hayır).
-- Birinci şahıs kolları karakterin kendi kolları: `tools/build_fp_arms.gd` → `assets/characters/players/<id>/fp_arms.scn`, `scripts/fp_arms.gd` eski rig'in eklemlerine oturtuyor (kullanıcı kararı).
-- Oyuncunun kendi gölgesi: `remote_players.gd` `_own_shadow`, kamerada görünmeyen, yalnız gölge atan beden.
-- Karakter denemesi (debug, tek oyunculu): **K** aynayı açar (karşıda seni co-op'taki gibi taklit eden beden), açıkken K sonraki karakter, **L** seçim ekranı, **Shift K** kapatır. `scripts/character_demo.gd`, kontrolü `tools/character_demo_check.gd`.
-- Salon aydınlatması: ay artık bedenlerin katmanını da aydınlatıyor, ortam dolgusu ve SSAO yumuşadı.
-- Dalga dalı (`claude/dalga-kodu-704193`) main'e birleşti: holün kuzey duvarında şalter, E ile dalga başlar. Kullanıcı şalteri oyunda henüz görmedi; oyunda dene.
-- Ayna kapanırken ona bakılıyorsa çöken `player.gd` `_looking_at_table` düzeltildi.
+**Bu oturumda biten (main'de):** çömelme co-op'ta; tavan lambası gölgeleri; kan (mürekkep görüntüsü düzeldi); yeni zombi türleri ve stil sırası dalları; co-op'ta uzak oyuncunun nişan/rahat duruşu, tepmesi, kovanı; uzuv kopması ve sürünme; türe göre can, can barı, hepsi koşuyor, kayma yok, çığlıkçı/şişko/köpek rolleri; doğma alanı yarıya indi; çit canı, yıkılınca tur kaybı, **tamir atölyedeki tezgâh menüsünden** (kullanıcı kararı, ortadaki masa tabancadan sonra kaybolur); kemiklere oturan isabet kapsülleri ve vurulan yerden tepki; silah hissi (sarsıntı, tırmanma, isabet işaretleri); dalga takılmaları (40 zombide 11 → 54 FPS); net_check takılması (kontrol eskimişti); karakter dokümanı; kafa patlaması nadir (kullanıcı kararı: "sürekli patlarsa oyuncu iyi vuruş yaptığını düşünmez"), her seferinde farklı, daha sulu, kafasız boyunda saç/saçak kalmıyor.
 
-**Hâlâ birleşmemiş dallar:** `claude/sketchfab-zombi-00090b` (hazmat, blob, bloater, melty, köpek; dalga koduna bağlanmadı) ve `claude/stil-sirasi-db59e8` (D→SSS stil sıralaması; birleşince `hud_check`, kökteki `DURUM.md` silinebilir). İkisini sırayla main'e birleştir.
+**Kullanıcıdan beklenenler:** ses kayıtları (silah atış/yankı, şarjör/sürgü, Minigun motoru, boş tetik, kovan; et/kafa/beton/metal isabet, isabet işareti; siren, kapı, şalter; çite pençe/yıkılma/onarım; kafa patlama; stil sırası; listeler `docs/ayrintilar.md`'de ve oturum notlarında); ActionVFX lisans türü (Individual mı Startup mı; 2 kişilik ekip için Startup); dalga dengesi (tür karışımı, can, hız şimdilik oturumların önerisi).
 
-**Sonra:** dalga koduna yeni zombi türlerini bağla; sesler kullanıcıdan (siren, kapı, kol, stil); oyuncu ölümü gelince korkuluğun geçici canı ve başarısızlık kuralı yeniden düşünülecek; `docs/ayrintilar.md`'deki 3. şahıs karakter bölümleri hâlâ eski operator'ü anlatıyor, güncelle; Mixamo jeneriğine The Boss, Ch16, Ch32, Brute, Ch43 eklenecek.
+**Kodda kalanlar:** yukarıdaki iki dal; dalga dengesinin kullanıcıyla ayarlanması.
 
-**Yeni cihaz notu:** ham Mixamo/Sketchfab/ActionVFX dosyaları git'te yok (`assets/characters/*/raw/`, `assets/vfx/blood/raw/`); üretilmiş `.scn`/dokular git'te, oyun onlarla çalışır. Ham dosya gerekiyorsa kullanıcıdan iste.
-
-Kurallar: Türkçe konuş; Godot penceresi açma (headless; `-s` ile `--quit-after 600`), ekran dışı çekim serbest; Godot'u isimle öldürme (editör de kapanır, timeout + PID kullan); commit mesajı Türkçe birinci tekil şahıs, AI imzası yok; ham dosyalar git'e girmez; çoklu agent ya da uzun iş öncesi maliyeti söyle.
+Kurallar: Türkçe konuş; Godot penceresi açma (headless, ekran dışı çekim serbest); kullanıcı oyundayken Godot çalıştırma ve oturumlara da çalıştırtma; Godot'u isimle öldürme (PID ile); commit mesajı Türkçe birinci tekil şahıs, AI imzası yok; ham dosyalar git'e girmez; kullanıcı her görevi ayrı oturumda istiyor, bitenleri main'e sen birleştir; kota %95'e gelince dur, commit'le, devam promptu ver; çoklu agent ya da uzun iş öncesi maliyeti söyle.
