@@ -28,6 +28,9 @@ func _run() -> void:
 		sk.reset_bone_poses()
 		var toe := body.to_local(sk.to_global(sk.get_bone_global_pose(sk.find_bone("mixamorig_LeftToeBase")).origin))
 		var heel := body.to_local(sk.to_global(sk.get_bone_global_pose(sk.find_bone("mixamorig_LeftFoot")).origin))
+		if name == &"leaper":  # no feet: its "toes" are its tail's tip, curled back
+			toe.z = -toe.z
+			heel.z = -heel.z
 		_expect(toe.z < heel.z - 0.05, "%s faces backwards (toes %.2f, heel %.2f)" % [name, toe.z, heel.z])
 		for t in BODY.LIB.get_animation("walk_a").get_track_count():
 			var bone := String(BODY.LIB.get_animation("walk_a").track_get_path(t).get_subname(0))
@@ -147,7 +150,13 @@ func _run() -> void:
 			_expect(ap.current_animation.contains("death"), "%s got up after dying" % kind)
 			_expect(a.attach("Head").get_parent() is Skeleton3D, "%s head attachment" % kind)
 			a.free()
-	_expect(seen.size() == BODY.MODELS.size() + BODY.CREATURES.size(), "only %s ever picked" % [seen.keys()])
+	var only_type := {}  # worn only as a wave type's look (waves.gd TYPES), never picked for a kind
+	var types: Dictionary = load("res://scripts/waves.gd").TYPES  # (not preloaded: it needs GameState)
+	for t: StringName in types:
+		for l: Array in types[t].looks:
+			if not seen.has(l[0]):
+				only_type[l[0]] = true
+	_expect(seen.size() + only_type.size() == BODY.MODELS.size() + BODY.CREATURES.size(), "only %s ever picked (and %s by a type)" % [seen.keys(), only_type.keys()])
 	await _limbs()
 
 	print("zombie_body_check ", "ok" if _fails == 0 else "FAILED (%d)" % _fails)
