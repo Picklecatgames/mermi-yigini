@@ -92,10 +92,13 @@ const LIMBS := {
 	&"leg_r": ["RightUpLeg", "RightLeg"], &"shin_r": ["RightLeg", "RightFoot"],
 }
 const LOWER := {&"forearm_l": &"arm_l", &"forearm_r": &"arm_r", &"shin_l": &"leg_l", &"shin_r": &"leg_r"}
-## Far from the camera the clips are stepped every LOD_STEP frames (each zombie on its own beat), not
-## every frame: a crowd at the gates costs a third.
+## Far from the camera, or out of its view, the clips are stepped every LOD_STEP frames (each zombie
+## on its own beat), not every frame: a crowd at the gates costs a third, and so do the ones along
+## the railing off to the sides. A round about to pass near one brings its pose up to date first
+## (catch_up(), waves.gd fit_along), so the hit shapes are where the body is.
 const LOD_FAR := 22.0  # m
 const LOD_STEP := 3
+const LOD_RADIUS := 1.5  # m around the middle of a body that still counts as in view
 ## How far a loop's playback may be sped up or slowed to match the ground it covers (move()).
 const STRIDE := [0.6, 1.8]
 const FALL_SPEED := 1.5  # the stumble-and-fall clip is slow for a leg torn off
@@ -266,17 +269,50 @@ func _process(delta: float) -> void:
 
 func _step_clips(delta: float) -> void:
 	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
-	var far := cam != null and not _dead and cam.global_position.distance_squared_to(global_position) > LOD_FAR * LOD_FAR
+	var far := cam != null and not _dead and (cam.global_position.distance_squared_to(global_position) > LOD_FAR * LOD_FAR
+			or not _in_view(cam, global_position + Vector3.UP * height * 0.5))
 	if not far:
 		if _ap.callback_mode_process == AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL:
 			_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_IDLE
+			_skel.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_IDLE
 			_ap.advance(_lod_wait)
 			_lod_wait = 0.0
 		return
-	_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	# The skeleton's springs (Flinch, zombie_hit_react.gd) are laid on with the clips' steps: with
+	# them every frame it updated every bone every frame, still or not.
+	if _ap.callback_mode_process != AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL:
+		_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		_skel.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL
 	_lod_wait += delta
 	_lod_beat += 1
 	if (_lod_beat + _seed) % LOD_STEP == 0:
+		_ap.advance(_lod_wait)
+		_skel.advance(_lod_wait)
+		_lod_wait = 0.0
+
+
+## The camera's view as a cone round its corners, worked out once a frame for every body: its eye,
+## its forward and the cone's half angle (cos, sin).
+static var _view := [Vector3.ZERO, Vector3.FORWARD, 0.0, 1.0]
+static var _view_frame := -1
+
+
+static func _in_view(cam: Camera3D, at: Vector3) -> bool:
+	var frame := Engine.get_process_frames()
+	if frame != _view_frame:
+		_view_frame = frame
+		var screen := cam.get_viewport().get_visible_rect().size
+		var half := atan(tan(deg_to_rad(cam.fov) * 0.5) * Vector2(screen.x / maxf(screen.y, 1.0), 1.0).length())
+		_view = [cam.global_position, -cam.global_basis.z, cos(half), sin(half)]
+	var to: Vector3 = at - _view[0]
+	var along: float = to.dot(_view[1])
+	var across := sqrt(maxf(to.length_squared() - along * along, 0.0))
+	return across * _view[2] - along * _view[3] <= LOD_RADIUS
+
+
+## The clips held back while out of view or far, played now (a round is about to be traced past it).
+func catch_up() -> void:
+	if _lod_wait > 0.0:
 		_ap.advance(_lod_wait)
 		_lod_wait = 0.0
 

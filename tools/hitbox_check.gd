@@ -80,8 +80,12 @@ func _zombie(id: int, kind: StringName, pose: String) -> void:
 		await process_frame
 	await physics_frame
 	await physics_frame
+	# Out of the camera's view its clips are stepped every few frames; a trace brings them up to date
+	# first (fit_along), so the aims are taken from that pose.
+	body.catch_up()
 	var aims := {}  # name -> world point
-	aims["head"] = (z.head as Node3D).global_position
+	var sk: Skeleton3D = body.get("_skel")
+	aims["head"] = sk.global_transform * sk.get_bone_global_pose((z.head as BoneAttachment3D).bone_idx).origin
 	if body.CREATURES.has(body.model):
 		var tr: Node3D = z.trunk
 		aims["trunk"] = tr.global_position
@@ -128,6 +132,7 @@ func _legless() -> void:
 		await process_frame
 	await physics_frame
 	var body: Node3D = z.body
+	body.catch_up()
 	for name in ["Head", "Spine2", "Hips", "RightLeg", "RightForeArm", "LeftForeArm"]:
 		var at: Vector3 = body.call("_bone_at", name)
 		var from := Vector3(SHOOT_X, gs.EYE, at.z + 0.6)
