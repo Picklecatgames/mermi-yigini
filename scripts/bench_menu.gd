@@ -83,6 +83,7 @@ var _guns_box: VBoxContainer
 var _parts_box: VBoxContainer
 var _pick_hint: Label
 var _cards := {}  # id -> {card, state, button, style}
+var _repair: Button  # mends the railing (GameState.request_repair_fence), its price on it
 
 
 func _ready() -> void:
@@ -115,6 +116,8 @@ func _ready() -> void:
 		_sfx.append(p)
 	_build_ui()
 	GameState.gold_changed.connect(_refresh.unbind(1))
+	GameState.fence_changed.connect(_refresh.unbind(2))
+	GameState.vault_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
 
 
@@ -470,6 +473,13 @@ func _build_ui() -> void:
 		b.disabled = false
 		b.pressed.connect(func() -> void: get_parent().get_node("UpgradeMenu").open_tab(t[0]))
 		left.add_child(b)
+	# The railing is mended here (2026-10-31, the user's call: at the workshop bench, not the desk).
+	_repair = _gun_row("", "ÇİTİ ONAR")
+	_repair.disabled = false
+	_repair.pressed.connect(func() -> void:
+		if GameState.request_repair_fence() > 0:
+			_banner("Çit onarıldı"))
+	left.add_child(_repair)
 	# Right: gold, then the parts for the gun on the bench.
 	var right := VBoxContainer.new()
 	right.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
@@ -585,6 +595,10 @@ func _refresh() -> void:
 	if not visible:
 		return
 	_gold.text = "$" + UiStyle.dotted(GameState.gold)
+	var price := GameState.fence_repair_price()
+	var money := GameState.vault if GameState.team_vault() else float(GameState.gold)
+	_repair.text = "  ÇİT SAĞLAM" if price == 0 else "  ÇİTİ ONAR   $" + UiStyle.dotted(price)
+	_repair.disabled = price == 0 or money < GameState.FENCE_REPAIR_COST  # short of it all: as much as the money covers
 	for b: Button in _guns_box.get_children():
 		var on: bool = b.get_meta("id") == _on_bench
 		(b.get_theme_stylebox("normal") as StyleBoxTexture).modulate_color = ROW_ON if on else UiStyle.PLATE_GREY

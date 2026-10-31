@@ -1,13 +1,14 @@
 extends StaticBody3D
 ## The desk in front of the spawns (tools/build_arena.gd _spawns) with the pistol on it: E while
 ## looking at it takes the pistol (player.gd, GameState.request_take_pistol), drawn at once with an
-## empty magazine; on this machine only, everyone takes their own. The desk stays: from then on E at
-## it mends the railing (GameState.request_repair_fence, 2026-10-30, the user's call).
+## empty magazine. Its job done, the desk fades away; on this machine only, everyone takes their own.
 ## No GameState in here: the builder runs without autoloads and wouldn't attach this script.
 
 ## The starting pistol, taped (scripts/viewmodel.gd PISTOL): its parts, all in one space.
 const PISTOL := preload("res://assets/weapons/service_pistol/service_pistol.glb")
 const PARTS := ["frame_tape", "trigger_tape", "slide", "hammer", "magazine"]
+const FADE := 1.5  # s
+const FADE_DELAY := 0.6  # s: the draw starts first
 const GLOW := Color(0.55, 0.4, 0.15)
 
 var _gun := Node3D.new()
@@ -44,9 +45,14 @@ func _ready() -> void:
 	tw.tween_property(glow, "albedo_color", Color.BLACK, 0.7)
 
 
-## The pistol is ours (player.gd calls it): the gun goes, the desk stays for the railing.
+## The pistol is ours (player.gd calls it): the gun goes, the desk fades out and is gone.
 func fade() -> void:
 	if _fading:
 		return
 	_fading = true
-	_gun.queue_free()
+	_gun.visible = false
+	collision_layer = 0
+	var tw := create_tween().set_parallel()
+	for g: GeometryInstance3D in find_children("*", "GeometryInstance3D", true, false):
+		tw.tween_property(g, "transparency", 1.0, FADE).set_delay(FADE_DELAY)
+	tw.chain().tween_callback(queue_free)

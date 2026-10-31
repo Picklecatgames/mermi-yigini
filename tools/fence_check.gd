@@ -3,11 +3,11 @@ extends SceneTree
 ## and client in two processes on 127.0.0.1:
 ##   Godot.exe --headless --path . -s res://tools/fence_check.gd --quit-after 100000
 ## Alone: claws wear the bay they land on, the posts there lean and the rails bow, clawed through
-## the bay comes down; the desk mends it for gold, as far as the gold goes, and only within reach
-## (E at the desk, its hint and price). A wave with the railing nearly gone: the next claw loses it,
+## the bay comes down; the workshop bench mends it for gold, as far as the gold goes, and only within reach
+## (its row in the bench menu, the price on it). A wave with the railing nearly gone: the next claw loses it,
 ## the dead turn back, the screen goes dark with "ÇİT YIKILDI", then the same wave waits with the
 ## railing patched up and nobody left. Online: a joiner gets the railing as it is, every claw reaches
-## it bay by bay, its repair at the desk is paid from the vault on the host, and a wave lost on the
+## it bay by bay, its repair at the bench is paid from the vault on the host, and a wave lost on the
 ## host is lost on the client at the same moment, patched the same.
 
 const PORT := 24711
@@ -62,40 +62,37 @@ func _host() -> void:
 	await create_timer(1.0).timeout
 	var lying: Vector3 = fence._halves[12][0][1].transform.origin
 	if not _ok(fence._shown[12] == 1.0 and lying.y < 0.1 and lying.x < fence._x - 0.3, "bay 12 torn down, half its top rail on the floor"): return
-	# The desk: out of reach nothing, then as far as the gold goes.
+	# The bench: out of reach nothing, then as far as the gold goes.
 	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
 	me.reset_physics_interpolation()
 	await create_timer(0.3).timeout
 	gs.player().gold = 1000
 	if not _ok(gs.request_repair_fence() == 0 and gs.fence == 75, "no mending from across the hall"): return
-	me.global_position = gs.REPAIR_POS + Vector3(1.4, 0, 0)
+	me.global_position = gs.REPAIR_POS + Vector3(0, 0, -0.9)
 	me.reset_physics_interpolation()
 	await create_timer(0.3).timeout
 	gs.player().gold = 30
 	var got: int = gs.request_repair_fence()
 	if not _ok(got == 10 and gs.fence == 85 and gs.gold == 0, "$30 mends 10 points (%d, %d, $%d)" % [got, gs.fence, gs.gold]): return
 	if not _ok(gs.fence_wear[12] == 15 and _wear_sum() == 15, "off the worst bay first"): return
-	# E at the desk with the pistol taken: the hint and its price, then the mend.
-	gs.request_take_pistol()
-	var table: Node3D = get_first_node_in_group("gun_table")
-	var d: Vector3 = table.global_position + Vector3.UP * 0.8 - me._camera.global_position
-	me._yaw = atan2(-d.x, -d.z)
-	me._pitch = atan2(d.y, Vector2(d.x, d.z).length())
-	for i in 3:
-		await physics_frame
+	# At the workshop bench (2026-10-31, the user's call: not the desk): its row says the price,
+	# a press mends it all.
+	gs.request_take_pistol()  # the warmup opens the bench
 	gs.player().gold = 1000
 	var price: int = gs.fence_repair_price()
-	if not await _until(func() -> bool: return me._repair_hint.visible, "the repair hint (the draw first)", 5.0): return
+	var bench: Node = me._bench
+	if not _ok(bench.can_open(), "the bench opens from in front of it"): return
+	bench.open()
 	await process_frame
-	if not _ok(me._repair_hint.visible and not me._table_hint.visible and (me._repair_hint.get_child(1) as Label).text.ends_with("$%d" % price),
-			"looking at the desk: \"%s\"" % (me._repair_hint.get_child(1) as Label).text): return
-	var e := InputEventAction.new()
-	e.action = "pick_up"
-	e.pressed = true
-	me._unhandled_input(e)
-	if not _ok(gs.fence == gs.FENCE_MAX and gs.gold == 1000 - price and _wear_sum() == 0, "E mends it all for $%d" % price): return
+	var row: Button = bench._repair
+	if not _ok(not row.disabled and row.text.ends_with("$%d" % price), "the bench's row: \"%s\"" % row.text.strip_edges()): return
+	row.pressed.emit()
+	if not _ok(gs.fence == gs.FENCE_MAX and gs.gold == 1000 - price and _wear_sum() == 0, "it mends it all for $%d" % price): return
 	await process_frame
-	if not _ok(not me._repair_hint.visible and gs.request_repair_fence() == 0, "whole: no hint, nothing to pay"): return
+	if not _ok(row.disabled and gs.request_repair_fence() == 0, "whole: \"%s\", nothing to pay" % row.text.strip_edges()): return
+	bench.close()
+	await create_timer(2.5).timeout  # gun_table.gd FADE_DELAY + FADE
+	if not _ok(not is_instance_valid(get_first_node_in_group("gun_table")), "the desk at the spawns is gone once its pistol is"): return
 	await create_timer(1.5).timeout
 	if not _ok(fence._posts[12].transform.basis.y.is_equal_approx(Vector3.UP) and fence._shown[12] == 0.0, "the bay stands straight again"): return
 	# A wave with the railing all but gone: the next claw loses it.
@@ -135,7 +132,7 @@ func _online() -> void:
 	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
 		ProjectSettings.globalize_path("res://"), "-s", "res://tools/fence_check.gd", "--", "--client"])
 	if not await _until(func() -> bool: return gs.multiplayer.get_peers().size() == 1, "the client", 60.0): return
-	# Claws while it's here, then it mends the railing at its desk.
+	# Claws while it's here, then it mends the railing at the bench.
 	await create_timer(1.5).timeout
 	for i in 5:
 		gs.hurt_fence(1, _bay_z(9))
@@ -178,7 +175,7 @@ func _client() -> void:
 	await create_timer(0.5).timeout
 	if not _ok(fence._shown[3] > 0.5 and fence._shown[9] == 0.0 and hud._fence_hp.text == str(gs.fence), "shown worn here too, HUD %s" % hud._fence_hp.text): return
 	if not await _until(func() -> bool: return gs.fence == gs.FENCE_MAX - 16 and gs.fence_wear[9] == 5, "the claws on bay 9"): return
-	me.global_position = gs.REPAIR_POS + Vector3(1.4, 0, 0)
+	me.global_position = gs.REPAIR_POS + Vector3(0, 0, -0.9)
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout  # our pose reaches the host
 	if not _ok(gs.request_repair_fence() == 16, "we ask to mend 16 points"): return

@@ -20,7 +20,7 @@ extends Node3D
 ## The railing (2026-10-30, the user's call): its hit points are GameState's (GameState.fence), every
 ## claw takes a bite (STATS), and at 0 the wave is lost, in co-op too: the dead turn back, the screen
 ## says so (hud.gd), the railing is patched up a little and the same wave waits again. It is mended
-## at the desk (GameState.request_repair_fence), never on its own between waves. scripts/fence.gd
+## at the workshop bench (GameState.request_repair_fence, bench_menu.gd), never on its own between waves. scripts/fence.gd
 ## shows the wear and the sparks. The numbers below are first guesses.
 ##
 ## Sounds come from the user (assets/sounds/waves/<slot>.ogg|wav): lever, siren, gate. A missing

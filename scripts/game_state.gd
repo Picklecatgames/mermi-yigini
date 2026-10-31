@@ -320,8 +320,8 @@ const PRESS_POS := Vector3(11.34, 0.0, 27.53)  # on the bench's low stand
 const LEVER_POS := Vector3(8.2, 0.0, -27.6)  # the wave lever on the north wall (tools/zombie_bay.gd _lever)
 const STATION_REACH := 2.0  # m from its middle, feet
 ## The railing's life (docs/ayrintilar.md "Çit", 2026-10-30, the user's call: the fence has hit
-## points, at 0 the wave is lost, in co-op too, and it is mended at the desk). The dead claw it down
-## (scripts/waves.gd STATS: per claw, by kind); it is mended at the desk at the spawns for gold.
+## points, at 0 the wave is lost, in co-op too, and it is mended at the workshop bench). The dead claw it down
+## (scripts/waves.gd STATS: per claw, by kind); it is mended at the workshop bench for gold (bench_menu.gd).
 ## It doesn't heal between waves; a lost wave leaves it patched up to FENCE_PATCH for free.
 ## Numbers are mine, not the user's.
 const FENCE_MAX := 100
@@ -330,8 +330,8 @@ const FENCE_SPAN := 27.5  # ± along z, its end posts
 const FENCE_PATCH := 25
 const FENCE_REPAIR_COST := 3  # gold a point
 const FENCE_SEND := 0.25  # s between the host's updates of the clawing to clients
-const REPAIR_POS := Vector3(7.3, 0.0, 0.0)  # the desk at the spawns (tools/build_arena.gd GUN_TABLE)
-const REPAIR_REACH := 3.0  # m from its middle, feet: the desk is 2 m long
+const REPAIR_POS := Vector3(12.2, 0.0, 26.85)  # in front of the workshop bench (tools/range_dressing.gd _workshop)
+const REPAIR_REACH := 2.5  # m, feet: bench_menu.gd opens within REACH of its front edge
 const MELT_RATES := [2.0, 4.0, 8.0, 16.0, 32.0, 64.0]  # rounds a second, per level
 const MELT_COSTS := [120, 500, 2000, 8000, 30000]  # to the next level
 const PRESS_COSTS := [1500, 9000]
@@ -646,7 +646,7 @@ func mend_fence(amount: int) -> void:
 	_fence_now(true)
 
 
-## Mends the railing at the desk at the spawns, as much of it as the money covers
+## Mends the railing from the workshop bench (bench_menu.gd), as much of it as the money covers
 ## (FENCE_REPAIR_COST a point), during a wave too: from the vault in co-op, alone from one's own
 ## gold. Returns the points mended (a client's guess; fence_changed says what came of it).
 func request_repair_fence(peer := 0) -> int:
