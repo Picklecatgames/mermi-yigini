@@ -202,14 +202,24 @@ func _new_kinds() -> bool:
 			gibs[spawned[cue[1]]] = gibs.get(spawned[cue[1]], []) + [cue[7]]
 	gs.wave_cue.connect(cue_seen)
 	gs.mend_fence(gs.FENCE_MAX)  # the railing doesn't heal between waves; this part is about the new kinds
+	var hold := func() -> void: gs.mend_fence(gs.FENCE_MAX)  # a wave that big would have it down before the blob is out
+	process_frame.connect(hold)
 	gs.request_pull_lever()
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "wave %d's fight" % waves.BLOB_FROM): return false
-	if not await _until(func() -> bool: return spawned.values().has(&"dog") and spawned.values().has(&"blob"), "a dog and a blob out of the pens"): return false
+	var make_room := func() -> bool:  # a full floor holds the rest back: the ones in front go (the host's way)
+		if waves._alive() >= waves.MAX_ALIVE:
+			for z: Dictionary in waves._zombies.values():
+				if not z.dead and not z.kind in [&"dog", &"blob"]:
+					waves._hurt(z, 1e6, gs.local_peer(), false, "deagle")
+					break
+		return spawned.values().has(&"dog") and spawned.values().has(&"blob")
+	if not await _until(make_room, "a dog and a blob out of the pens"): return false
 	for z: Dictionary in waves._zombies.values():
 		if z.kind in [&"dog", &"blob"]:
 			if not _ok(z.body.model == z.kind and absf(z.trunk.rotation.x - PI / 2) < 0.01 and z.body.height < 1.4,
 					"%s %d wears its own model and lies low (%.2f m)" % [z.kind, z.id, z.body.height]): return false
 	if not await _shoot_all("wave %d" % waves.BLOB_FROM): return false
+	process_frame.disconnect(hold)
 	gs.wave_cue.disconnect(cue_seen)
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.CLEARED, "wave %d cleared" % waves.BLOB_FROM): return false
 	if not _ok(gibs.has(&"dog") and (gibs.get(&"blob", []) as Array).all(func(g: StringName) -> bool: return g == &"body") and gibs.has(&"blob"),
