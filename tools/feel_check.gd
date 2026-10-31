@@ -70,7 +70,8 @@ func _initialize() -> void:
 	vm.aim = 0.0
 	check.call(shakes.size() == 1 and shakes[0] < float(VM.SETS.deagle.shake), "aimed it jolts less")
 
-	# A held UZI: later rounds climb more than the first (random ±20% per round, so averages).
+	# A held UZI: later rounds climb more than the first (random ±20% per round, so a fixed seed).
+	seed(7)
 	draw.call("uzi")
 	climbs.clear()
 	for i in 14:
