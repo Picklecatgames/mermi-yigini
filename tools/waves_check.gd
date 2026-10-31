@@ -150,6 +150,7 @@ func _online() -> void:
 		gs.mend_fence(gs.FENCE_MAX)  # wave 3 must not be lost under the client's slow fire
 		if Time.get_ticks_msec() - t0 > 240_000:
 			OS.kill(pid)
+			print(FileAccess.get_file_as_string(LOG))  # its last line is the last check it passed
 			return _fail("client timed out")
 		await process_frame
 	print(FileAccess.get_file_as_string(LOG))
@@ -336,6 +337,7 @@ func _ok(cond: bool, what: String) -> bool:
 		_fail(what)
 	else:
 		_log.append("ok: " + what)
+		_write_log()  # a script error stops the client without quitting: the host shows how far it got
 	return cond
 
 

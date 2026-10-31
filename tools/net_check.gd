@@ -29,11 +29,18 @@ const DIGS := [[HEAP + Vector3(1.0, 0, 0.5), 3000], [HEAP + Vector3(-0.8, 0, -1.
 const DUG := 10_000
 const CROW_AT := Vector3(18, 0, -20)  # a scarecrow the client lights; the host pays it while it burns
 const STAR_EVERY := 0.1  # s between Texas Star samples
+## The client fires at the dummy from here (off the dummy), at its chest 1.1 m up: over the
+## railing's top rail (1.1 m, it takes rounds), not level along it.
+const FIRE_FROM := Vector3(-11, 1.5, 0)
+const CHEST := Vector3(0, 1.1, 0)
 
 var gs: Node
 var net: Node
 var main: Node
 var _log: Array[String] = []
+## Client: the step it is waiting on or the last check it passed. A script error ends the client's
+## coroutine without quitting, so the host kills it after a while: this line then says where it was.
+var _at := ""
 ## Wall clock samples: plate rack [t, plate up] and popper [t, down] when they change, star [t, angle].
 var seen := {"rack": [], "popper": [], "star": []}
 var _star_t := 0.0
@@ -123,6 +130,7 @@ func _host() -> void:
 	while OS.is_process_running(pid):
 		if Time.get_ticks_msec() - t0 > 120_000:
 			OS.kill(pid)
+			print(FileAccess.get_file_as_string(LOG))  # its last line says where it stopped
 			return _fail("client timed out")
 		# The client is in and watching: knock the popper over, from our side of the line.
 		if not knocked and client_id[0] != 0 and gs.player(client_id[0]).has_pose:
@@ -147,7 +155,7 @@ func _host() -> void:
 	if not _ok(shots[0][1] == main.get_node("Dummy") and shots[0][2] == 1, "it hit the dummy for $1"): return
 	if not _ok(not shots[0][3], "the client's +$ shows on the client only"): return
 	var muzzle: Vector3 = shots[0][4]
-	if not _ok(muzzle.distance_to(main.get_node("Dummy").global_position + Vector3(-11, 1.1, 0)) < 1.0,
+	if not _ok(muzzle.distance_to(main.get_node("Dummy").global_position + FIRE_FROM) < 1.0,
 			"the client's character stood where it fired from"): return
 	if not _ok(shots[0][5].distance_to(muzzle) < 0.001, "the shot rang out at that character's muzzle"): return
 	if not _ok(shots[0][6].distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
@@ -232,7 +240,7 @@ func _client() -> void:
 	if not _ok(gs.loaded == 1 and gs.carried == 0, "round in the gun"): return
 	# A shot from five metres off our body: predicted, then the host says it never happened.
 	var dummy0: Node3D = main.get_node("Dummy")
-	var fake := dummy0.global_position + Vector3(-11, 1.1, 5)
+	var fake := dummy0.global_position + FIRE_FROM + Vector3(0, 0, 5)
 	var any_shot := [false]
 	gs.shot_landed.connect(func(_p: int, _a: Vector3, _n: Vector3, _d: Vector3, _t: Node, _g: int, _w: bool, _c: int) -> void: any_shot[0] = true)
 	if not _ok(gs.request_fire(fake, Vector3(1, 0, 0)) and gs.loaded == 0, "forged shot predicted"): return
@@ -241,11 +249,11 @@ func _client() -> void:
 	gs.player().cooldown = 0.0
 	# One shot at the dummy's body. The client traces the same ray itself to compare.
 	var dummy: Node3D = main.get_node("Dummy")
-	var from := dummy.global_position + Vector3(-11, 1.1, 0)
-	var dir := Vector3(1, 0, 0)
+	var from := dummy.global_position + FIRE_FROM
+	var dir := (dummy.global_position + CHEST - from).normalized()
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * gs.SHOT_RANGE, gs.SHOT_MASK)
 	var mine: Dictionary = root.world_3d.direct_space_state.intersect_ray(q)
-	if not _ok(not mine.is_empty() and mine.collider == dummy, "local trace hits the dummy"): return
+	if not _ok(not mine.is_empty() and mine.collider == dummy, "local trace hits the dummy (%s)" % (mine.collider.get_path() if mine else "nothing")): return
 	var shots := []
 	gs.shot_landed.connect(func(peer: int, at: Vector3, _n: Vector3, _d: Vector3, t: Node, gold: int, _w: bool, combo: int) -> void:
 		shots.append([peer, at, t, gold, combo]))
@@ -261,7 +269,7 @@ func _client() -> void:
 	if not _ok(not gs.request_fire(from, dir), "empty gun stays quiet"): return
 	# Friendly fire: up close to the host on its spawn, shoot it, then walk into it.
 	var host_char: Node3D = rp.character(1)
-	if not _ok((host_char.get("_tag_box") as StandardMaterial3D).albedo_color.is_equal_approx(Color(gs.PLAYER_COLORS[0], 0.8)), "the host's tag is slot 0's colour"): return
+	if not _ok((host_char.get("_tag_mat") as StandardMaterial3D).albedo_color.is_equal_approx(Color(gs.PLAYER_COLORS[0], 0.8)), "the host's tag is slot 0's colour"): return
 	gs.request_toggle_infinite_ammo()
 	if not await _until(gs.synced, "test mode"): return
 	var host_at := host_char.global_position
@@ -326,6 +334,7 @@ func _client() -> void:
 	f.store_string(JSON.stringify(seen))
 	f.close()
 	_log.append("client OK, latency %.3f s" % net.latency())
+	_at = ""
 	_write_log()
 	quit()
 
@@ -347,7 +356,9 @@ func _wooden(who: Node) -> bool:
 
 
 func _sample() -> void:
-	var t := Time.get_unix_time_from_system()
+	# process_frame comes before the targets' _process: what they show is from the last frame, so
+	# the moment it belongs to is a frame back. A long frame would otherwise put it that far off.
+	var t := Time.get_unix_time_from_system() - root.get_process_delta_time()
 	var lt: Node = main.get_node("LockedTargets")
 	var up: int = lt.get_node("PlateRack").up_plate()
 	if seen.rack.is_empty() or seen.rack[-1][1] != up:
@@ -393,9 +404,8 @@ func _world_agrees() -> bool:
 	for s: Array in flips:
 		if not _ok(seen.popper.any(func(m: Array) -> bool: return m[1] == s[1] and absf(m[0] - s[0]) < 0.3),
 				"popper %s on the host at the same time" % ("down" if s[1] else "up")): return false
-	# Texas Star: where the host's star pointed at each moment the client looked. Both processes
-	# share one CPU, and a frame stalled by the heap's slides shifts a sample by its length
-	# (~50 ms, 0.15 rad at 3 rad/s); a plate is 1.26 rad wide.
+	# Texas Star: where the host's star pointed at each moment the client looked. A plate is
+	# 1.26 rad wide; 0.2 rad is ~70 ms at 3 rad/s.
 	var star_worst := 0.0
 	for s: Array in theirs.star:
 		var near: Array = seen.star[0]
@@ -410,6 +420,9 @@ func _world_agrees() -> bool:
 
 func _until(cond: Callable, what: String, secs := 30.0) -> bool:
 	var t0 := Time.get_ticks_msec()
+	if not cond.call():
+		_at = "waiting for " + what
+		_write_log()
 	while not cond.call():
 		if Time.get_ticks_msec() - t0 > secs * 1000.0:
 			_fail("timed out waiting for " + what)
@@ -421,11 +434,15 @@ func _until(cond: Callable, what: String, secs := 30.0) -> bool:
 func _ok(cond: bool, what: String) -> bool:
 	if not cond:
 		_fail(what)
+	elif "--client" in OS.get_cmdline_user_args():
+		_at = "last check passed: " + what
+		_write_log()
 	return cond
 
 
 func _fail(what: String) -> void:
 	_log.append("net_check FAIL: " + what)
+	_at = ""
 	printerr("net_check FAIL: ", what)
 	_write_log()
 	quit(1)

@@ -154,6 +154,7 @@ func _online() -> void:
 	while OS.is_process_running(pid):
 		if Time.get_ticks_msec() - t0 > 120_000:
 			OS.kill(pid)
+			print(FileAccess.get_file_as_string(LOG))  # its last line is the last check it passed
 			return _fail("client timed out")
 		await process_frame
 	print(FileAccess.get_file_as_string(LOG))
@@ -227,6 +228,7 @@ func _ok(cond: bool, what: String) -> bool:
 	else:
 		print("ok   ", what)
 		_log.append("ok: " + what)
+		_write_log()  # a script error stops the client without quitting: the host shows how far it got
 	return cond
 
 
