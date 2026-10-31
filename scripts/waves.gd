@@ -164,28 +164,83 @@ const BONE_SHAPES := [
 	["RightLeg", "RightFoot", 0.08, 0.0, &"leg_r", &"shin_r"],
 	["RightFoot", "RightToeBase", 0.06, 0.06, &"leg_r", &"shin_r"],
 ]
+## Zombie types (2026-10-31, the user: "level 1'de 3 çeşit zombi gözükmesin, tek çeşit birkaç zombi
+## gelsin, giderek çeşitlendirme artsın, can barları artsın, yeni özellikler getirsinler"; which type,
+## when, and every number are mine, not rules). Wave 1 is a few of one type in one look; every wave
+## or two a new type comes, each with a look of its own so it is known across the hall, and most with
+## a trait. type -> its kind (STATS, zombie_body.gd KINDS), the wave it comes from, hit points × the
+## kind's, speed × the kind's, what a claw takes off the railing (in place of the kind's), its trait,
+## and the looks it wears with the wave each comes in from (none: the kind's own).
+## The second message (the same day): "zombilerin hepsi aynı hızda olmasın, çite vurdukları hasar da
+## aynı olmasın, tehlikeleri giderek artsın, ama oyunu bozmayacak şekilde": a claw takes
+## ×(1 + BITE_GROW·(n-1)) of it, rounded, so a 1 becomes 2 from wave 14 and a brute's 5 is 8 at 16.
+## Traits: armor (a round anywhere but the head does ARMOR of its damage), mask (a head shot only
+## MASK_HEAD, never blows it off), regen (REGEN_WAIT s left alone, it heals REGEN of its life a s),
+## rage (under RAGE_AT of its life it roars and goes RAGE × as fast, clawing one more), swarm (comes
+## as a pack, SWARM_*).
+const TYPES := {
+	&"walker": {"kind": &"walker", "from": 1, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"",
+			"looks": [[&"prisoner", 1], [&"yaku", 12], [&"parasite", 16], [&"melty", 20]]},
+	&"runner": {"kind": &"runner", "from": 2, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"", "looks": [[&"zombiegirl", 2]]},
+	&"crawler": {"kind": &"crawler", "from": 3, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"", "looks": [[&"romero", 3]]},
+	&"armored": {"kind": &"walker", "from": 4, "hp": 1.2, "speed": 0.9, "bite": 2, "trait": &"armor", "looks": [[&"copzombie", 4]]},
+	&"screamer": {"kind": &"screamer", "from": 5, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"", "looks": []},
+	&"dog": {"kind": &"dog", "from": 6, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"", "looks": []},
+	&"bloater": {"kind": &"bloater", "from": 7, "hp": 1.0, "speed": 1.0, "bite": 2, "trait": &"", "looks": []},
+	&"masked": {"kind": &"walker", "from": 8, "hp": 1.0, "speed": 1.05, "bite": 1, "trait": &"mask", "looks": [[&"hazmat", 8]]},
+	&"regen": {"kind": &"walker", "from": 9, "hp": 1.1, "speed": 0.95, "bite": 1, "trait": &"regen", "looks": [[&"fleshzombie", 9]]},
+	&"brute": {"kind": &"brute", "from": 10, "hp": 1.0, "speed": 1.0, "bite": 5, "trait": &"", "looks": []},
+	&"rager": {"kind": &"walker", "from": 11, "hp": 1.3, "speed": 1.0, "bite": 2, "trait": &"rage", "looks": [[&"warzombie", 11]]},
+	&"swarm": {"kind": &"runner", "from": 13, "hp": 0.5, "speed": 1.1, "bite": 1, "trait": &"swarm", "looks": [[&"skeletonzombie", 13]]},
+	&"blob": {"kind": &"blob", "from": 14, "hp": 1.0, "speed": 1.0, "bite": 2, "trait": &"", "looks": []},
+}
+const BITE_GROW := 0.04
+const ARMOR := 0.4
+const MASK_HEAD := 1.2  # instead of HEAD
+const REGEN := 0.08
+const REGEN_WAIT := 1.5
+const RAGE_AT := 0.5
+const RAGE := 1.25  # with a screamer's rush on top, as quick as the run clips stretch
+## Elite: from ELITE_FROM any one but the big ones (NO_ELITE) may come as an elite, ELITE_CHANCE then,
+## ELITE_GROW more each wave, up to ELITE_MAX: ELITE_HP × the life, ELITE_SIZE × as big, ELITE_SPEED ×
+## as quick, a claw more, a gold-edged bar.
+const ELITE_FROM := 11
+const ELITE_CHANCE := 0.05
+const ELITE_GROW := 0.01
+const ELITE_MAX := 0.15
+const ELITE_HP := 2.0
+const ELITE_SIZE := 1.15
+const ELITE_SPEED := 1.05
+const NO_ELITE: Array[StringName] = [&"brute", &"blob", &"dog", &"swarm"]
 ## Wave n: BASE_COUNT + COUNT_GROW·(n-1) zombies; hit points ×(1 + HP_GROW·(n-1)), speed
-## ×(1 + SPEED_GROW·(n-1)) up to SPEED_MAX. MIX: kind -> the wave it comes from, its share then,
-## how much the share grows each wave after, the most it gets; the rest are walkers. Screamers
-## come one each from SCREAMER_FROM, one more every SCREAMER_GROW waves, up to SCREAMER_MAX; a
-## brute every BRUTE_EVERY. From DOG_FROM a pack of dogs comes on top, all together: DOG_PACK
-## of them, one more every DOG_PACK_GROW waves, up to DOG_PACK_MAX.
-const BASE_COUNT := 8
-const COUNT_GROW := 4
+## ×(1 + SPEED_GROW·(n-1)) up to SPEED_MAX. MIX: type -> its share the wave it comes (TYPES), how
+## much the share grows each wave after, the most it gets; the rest are walkers. Shares are counted,
+## not rolled, so a type's first wave always shows a few of it. Screamers come one each from their
+## wave, one more every SCREAMER_GROW waves, up to SCREAMER_MAX; brutes one from theirs, one more
+## every BRUTE_EVERY. From DOG_FROM a pack of dogs comes on top, all together: DOG_PACK of them, one
+## more every DOG_PACK_GROW waves, up to DOG_PACK_MAX; skeletons the same (SWARM_*).
+const BASE_COUNT := 6
+const COUNT_GROW := 3
 const HP_GROW := 0.15
 const SPEED_GROW := 0.02
 const SPEED_MAX := 1.2
-const BLOB_FROM := 6
-const MIX := {&"runner": [2, 0.12, 0.02, 0.3], &"crawler": [2, 0.12, 0.0, 0.12],
-		&"bloater": [4, 0.06, 0.01, 0.14], &"blob": [BLOB_FROM, 0.06, 0.005, 0.1]}
-const SCREAMER_FROM := 3
+const MIX := {&"runner": [0.2, 0.01, 0.18], &"crawler": [0.12, 0.0, 0.1], &"armored": [0.15, 0.005, 0.13],
+		&"bloater": [0.06, 0.01, 0.08], &"masked": [0.12, 0.0, 0.1], &"regen": [0.1, 0.0, 0.1],
+		&"rager": [0.1, 0.0, 0.1], &"blob": [0.05, 0.005, 0.06]}
+const BLOB_FROM: int = TYPES[&"blob"].from
+const SCREAMER_FROM: int = TYPES[&"screamer"].from
 const SCREAMER_GROW := 3
 const SCREAMER_MAX := 4
+const BRUTE_FROM: int = TYPES[&"brute"].from
 const BRUTE_EVERY := 5
-const DOG_FROM := 4
+const DOG_FROM: int = TYPES[&"dog"].from
 const DOG_PACK := 2
 const DOG_PACK_GROW := 2
 const DOG_PACK_MAX := 8
+const SWARM_FROM: int = TYPES[&"swarm"].from
+const SWARM_PACK := 4
+const SWARM_PACK_GROW := 3
+const SWARM_PACK_MAX := 8
 const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "ÇİT YIKILDI"}
 
 var wave := 1
@@ -288,7 +343,7 @@ func join_cues() -> Array:
 		if not z.dead:
 			var node: Node3D = z.node
 			cues.append([&"spawn", id, z.kind, z.seed, z.gate, node.global_position, node.global_rotation.y,
-					z.speed, z.rail.z, z.moving, z.body.cuts.duplicate()])
+					z.speed, z.rail.z, z.moving, z.body.cuts.duplicate(), z.type, z.body.model, z.elite])
 	var hurt := []
 	for id: int in _hp:
 		if _zombies.has(id) and _hp[id] < _hp_full[id]:
@@ -318,6 +373,7 @@ func _process(delta: float) -> void:
 			_spawn_next()
 	if phase == Phase.FIGHT:
 		_screams(delta)
+		_regen(delta)
 	_hp_wait -= delta
 	if not _hp_news.is_empty() and _hp_wait <= 0.0:
 		_hp_wait = HP_SEND
@@ -354,46 +410,92 @@ func _on_lever(_peer: int) -> void:
 		_check_clear()  # shot down in the pens before the gates were wide enough
 
 
-## What wave `w` sends, in order.
+## What wave `w` sends, in order: the types (TYPES).
 func _plan(w: int) -> Array[StringName]:
+	var n := BASE_COUNT + COUNT_GROW * (w - 1)
 	var out: Array[StringName] = []
-	for i in BASE_COUNT + COUNT_GROW * (w - 1):
-		var r := _rng.randf()
-		var kind := &"walker"
-		for k: StringName in MIX:
-			r -= share(k, w)
-			if r < 0.0:
-				kind = k
-				break
-		out.append(kind)
+	for t: StringName in MIX:
+		for i in mini(roundi(share(t, w) * n), n - out.size()):
+			out.append(t)
+	while out.size() < n:
+		out.append(&"walker")
+	_shuffle(out)
 	for i in screamers(w):  # inside the crowd, where there are others to send running
 		out.insert(_rng.randi_range(out.size() / 4, out.size() * 3 / 4), &"screamer")
-	for i in w / BRUTE_EVERY:  # not first out of the gate
+	for i in brutes(w):  # not first out of the gate
 		out.insert(_rng.randi_range(out.size() / 3, out.size()), &"brute")
-	if w >= DOG_FROM:  # a while in, so they come at a railing that is already busy
+	for pack: Array in [[&"dog", dogs(w)], [&"swarm", swarm(w)]]:  # a while in, so they come at a railing that is already busy
 		var at := _rng.randi_range(out.size() / 4, out.size())
-		for i in mini(DOG_PACK + (w - DOG_FROM) / DOG_PACK_GROW, DOG_PACK_MAX):
-			out.insert(at, &"dog")
+		for i in pack[1]:
+			out.insert(at, pack[0])
 	return out
 
 
-## Of wave `w`, the share of `kind` (MIX).
-static func share(kind: StringName, w: int) -> float:
-	var m: Array = MIX[kind]
-	return 0.0 if w < m[0] else minf(m[1] + m[2] * (w - m[0]), m[3])
+## The host's own shuffle (Array.shuffle() takes the global seed).
+func _shuffle(a: Array) -> void:
+	for i in range(a.size() - 1, 0, -1):
+		var j := _rng.randi_range(0, i)
+		var t = a[i]
+		a[i] = a[j]
+		a[j] = t
+
+
+## Of wave `w`, the share of `type` (MIX, from its TYPES wave).
+static func share(type: StringName, w: int) -> float:
+	var m: Array = MIX[type]
+	var from: int = TYPES[type].from
+	return 0.0 if w < from else minf(m[0] + m[1] * (w - from), maxf(m[0], m[2]))
 
 
 static func screamers(w: int) -> int:
 	return 0 if w < SCREAMER_FROM else mini(1 + (w - SCREAMER_FROM) / SCREAMER_GROW, SCREAMER_MAX)
 
 
-## Hit points of `kind` in wave `w`.
-static func hp_of(kind: StringName, w: int) -> int:
-	return ceili(STATS[kind][1] * (1.0 + HP_GROW * (w - 1)))
+static func brutes(w: int) -> int:
+	return 0 if w < BRUTE_FROM else 1 + (w - BRUTE_FROM) / BRUTE_EVERY
+
+
+static func dogs(w: int) -> int:
+	return 0 if w < DOG_FROM else mini(DOG_PACK + (w - DOG_FROM) / DOG_PACK_GROW, DOG_PACK_MAX)
+
+
+static func swarm(w: int) -> int:
+	return 0 if w < SWARM_FROM else mini(SWARM_PACK + (w - SWARM_FROM) / SWARM_PACK_GROW, SWARM_PACK_MAX)
+
+
+## Of wave `w`, the odds one comes as an elite.
+static func elite_chance(type: StringName, w: int) -> float:
+	if w < ELITE_FROM or type in NO_ELITE:
+		return 0.0
+	return minf(ELITE_CHANCE + ELITE_GROW * (w - ELITE_FROM), ELITE_MAX)
+
+
+## What a claw of `type` takes off the railing in wave `w`.
+static func bite_of(type: StringName, w: int, elite := false) -> int:
+	var t: Dictionary = TYPES.get(type, {"kind": type})
+	var b: float = t.get("bite", STATS[t.kind][2])
+	return roundi(b * (1.0 + BITE_GROW * (w - 1))) + (1 if elite else 0)
+
+
+## Hit points of `type` (or a kind of the same name) in wave `w`.
+static func hp_of(type: StringName, w: int, elite := false) -> int:
+	var t: Dictionary = TYPES.get(type, {"kind": type, "hp": 1.0})
+	return ceili(STATS[t.kind][1] * t.hp * (1.0 + HP_GROW * (w - 1)) * (ELITE_HP if elite else 1.0))
+
+
+## The looks `type` may wear in wave `w` (empty: whatever its kind wears).
+static func looks(type: StringName, w: int) -> Array:
+	var out := []
+	for l: Array in TYPES.get(type, {"looks": []}).looks:
+		if w >= l[1]:
+			out.append(l[0])
+	return out
 
 
 func _spawn_next() -> void:
-	var kind: StringName = _queue.pop_front()
+	var type: StringName = _queue.pop_front()
+	var t: Dictionary = TYPES.get(type, {"kind": type})
+	var kind: StringName = t.kind
 	var at: Node3D = _spawns[_next_spawn % _spawns.size()]
 	var pos := at.global_position
 	if _next_spawn >= _spawns.size():  # a marker used before: not quite on the same spot
@@ -402,11 +504,16 @@ func _spawn_next() -> void:
 	var id := _next_id
 	_next_id += 1
 	var st: Array = STATS[kind]
-	_hp[id] = hp_of(kind, wave)
+	var elite := _rng.randf() < elite_chance(type, wave)
+	_hp[id] = hp_of(type, wave, elite)
 	_hp_full[id] = _hp[id]
-	var speed: float = st[0] * minf(1.0 + SPEED_GROW * (wave - 1), SPEED_MAX) * _rng.randf_range(SPEED_ROLL[0], SPEED_ROLL[1])
+	var speed: float = st[0] * t.get("speed", 1.0) * minf(1.0 + SPEED_GROW * (wave - 1), SPEED_MAX) * _rng.randf_range(SPEED_ROLL[0], SPEED_ROLL[1])
+	if elite:
+		speed *= ELITE_SPEED
+	var worn := looks(type, wave)
+	var model: StringName = worn[_rng.randi() % worn.size()] if worn else &""
 	GameState.cue_wave([&"spawn", id, kind, _rng.randi(), at.get_meta("gate"), pos, at.global_rotation.y,
-			speed, _rail_spot(), phase == Phase.FIGHT])
+			speed, _rail_spot(), phase == Phase.FIGHT, [], type, model, elite])
 
 
 ## Host: a spot along the railing nobody living has (a few tries; with a full railing, any).
@@ -469,7 +576,10 @@ func _on_cue(cue: Array) -> void:
 			_set_phase(cue[1], cue[2], cue[3])
 		&"spawn":
 			_add_zombie(cue[1], cue[2], cue[3], cue[4], cue[5], cue[6], cue[7], cue[8], cue[9],
-					cue[10] if cue.size() > 10 else [])
+					cue[10] if cue.size() > 10 else [], cue[11] if cue.size() > 11 else cue[2],
+					cue[12] if cue.size() > 12 else &"", cue[13] if cue.size() > 13 else false)
+		&"rage":
+			_rage(cue[1])
 		&"limb":
 			var z: Dictionary = _zombies.get(cue[1], {})
 			if not z.is_empty():
@@ -632,7 +742,8 @@ func _slide(open: bool, instant: bool) -> void:
 		_sound(&"gate", g)
 
 
-func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector3, yaw: float, speed: float, rail_z: float, walking: bool, cuts: Array = []) -> void:
+func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector3, yaw: float, speed: float, rail_z: float, walking: bool, cuts: Array = [],
+		type := &"", model := &"", elite := false) -> void:
 	if _zombies.has(id):
 		return
 	var node := Zombie.new()
@@ -644,6 +755,10 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 	node.global_transform = Transform3D(Basis(Vector3.UP, yaw), pos)
 	var body: Node3D = BODY.new()
 	body.setup(kind, seed)
+	if model != &"":
+		body.model = model
+	if elite:
+		body.size *= ELITE_SIZE
 	node.add_child(body)
 	var tall: float = body.height
 	var low: Array = LOW.get(kind, [])
@@ -682,8 +797,10 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"head_shape": head, "trunk": trunk, "bones": bones, "react": react, "speed": speed, "dead": false, "path": [],
 			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [], "count": 0,
 			"bar": BAR.new(), "rush": 0.0, "hold": 0.0, "zig": float(absi(seed) % 1000) / 1000.0 * TAU,
-			"cry": 0.0, "fit": -1}
+			"cry": 0.0, "fit": -1, "type": type if type != &"" else kind, "elite": elite, "raged": false,
+			"bite": bite_of(type if type != &"" else kind, wave, elite), "calm": 0.0}
 	_zombies[id] = z
+	z.bar.setup(_hp_full.get(id, hp_of(z.type, wave, elite)), elite)
 	node.add_child(z.bar)
 	(z.bar as Node3D).position = Vector3.UP * (node.tall + 0.25)
 	_next_id = maxi(_next_id, id + 1)  # should this machine ever be the one handing them out
@@ -784,10 +901,10 @@ func _claw(z: Dictionary) -> void:
 		await get_tree().create_timer(t * 0.5).timeout
 		if z.dead or phase != Phase.FIGHT:
 			return
-		fence_hit.emit(z.kind, STATS[z.kind][2], (z.node as Node3D).global_position)
+		fence_hit.emit(z.kind, z.bite, (z.node as Node3D).global_position)
 		_fence.struck(z.node.global_position.z, z.kind)  # every peer: the sparks, the clang
 		if not Net.is_client:
-			_bite(z.kind, z.rail.z)
+			_bite(z.kind, z.rail.z, z.bite)
 		await get_tree().create_timer(t * (0.5 + ARM_SLOW * z.body.arms_hurt()) + 0.4).timeout
 
 
@@ -804,7 +921,12 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 	if Net.is_client or combo == 0 or not _hp.has(z.id):  # combo 0: not a paying hit (wrong side of the line)
 		return
 	var gun: String = GameState.GUNS[GameState.player(peer).gun].id
-	var dmg: float = DAMAGE.get(gun, DAMAGE_ELSE) * (HEAD if weak else 1.0)
+	var t: StringName = TYPES.get(z.type, {}).get("trait", &"")
+	var dmg: float = DAMAGE.get(gun, DAMAGE_ELSE)
+	if weak:
+		dmg *= MASK_HEAD if t == &"mask" else HEAD
+	elif t == &"armor":
+		dmg *= ARMOR
 	z.count += 1
 	if part != &"":
 		_limb_hit(z, part, dmg, _roll(z, dir))
@@ -836,15 +958,18 @@ func _hurt(z: Dictionary, dmg: float, peer: int, weak: bool, gun: String, dir :=
 	if not _hp.has(z.id):
 		return
 	_hp[z.id] -= dmg
+	z.calm = 0.0
 	if _hp[z.id] > 0:
 		_hp_news[z.id] = float(_hp[z.id]) / _hp_full[z.id]
 		(z.bar as Node).set_left(_hp_news[z.id])  # here at once; the others get it with the next batch
+		if not z.raged and _hp_news[z.id] < RAGE_AT and TYPES.get(z.type, {}).get("trait", &"") == &"rage":
+			GameState.cue_wave([&"rage", z.id])
 		return
 	_hp.erase(z.id)
 	_hp_news.erase(z.id)
 	var gib := &""
 	var at := (z.node as Node3D).global_position
-	if weak and z.kind != &"blob":
+	if weak and z.kind != &"blob" and TYPES.get(z.type, {}).get("trait", &"") != &"mask":
 		var now := Time.get_ticks_msec() / 1000.0
 		var lately: Array = (_pops.get(peer, []) as Array).filter(func(t: float) -> bool: return now - t < POP_MEMORY)
 		_pops[peer] = lately
@@ -935,6 +1060,31 @@ func _cut(z: Dictionary, part: StringName, fly: bool, roll := 0) -> void:
 	trunk.position = Vector3(0, low[2], 0)
 	if z.down <= 0.0 and not z.path.is_empty():
 		z.body.move(z.speed)
+
+
+## Host: the regen ones left alone a while heal.
+func _regen(delta: float) -> void:
+	for z: Dictionary in _zombies.values():
+		if z.dead or not _hp.has(z.id) or _hp[z.id] >= _hp_full[z.id] or TYPES.get(z.type, {}).get("trait", &"") != &"regen":
+			continue
+		z.calm += delta
+		if z.calm >= REGEN_WAIT:
+			_hp[z.id] = minf(_hp_full[z.id], _hp[z.id] + REGEN * _hp_full[z.id] * delta)
+			_hp_news[z.id] = float(_hp[z.id]) / _hp_full[z.id]
+
+
+## Every peer: a rager under RAGE_AT of its life roars where it stands, then goes faster and claws harder.
+func _rage(id: int) -> void:
+	var z: Dictionary = _zombies.get(id, {})
+	if z.is_empty() or z.dead or z.raged:
+		return
+	z.raged = true
+	z.speed *= RAGE
+	z.bite += 1
+	if not z.path.is_empty() and z.down <= 0.0 and z.hold <= 0.0 and not z.body.crawling:
+		z.hold = z.body.scream()
+	elif not z.path.is_empty() and z.down <= 0.0 and z.hold <= 0.0:
+		z.body.move(_pace(z))
 
 
 ## Host: each screamer on its way through the bay counts down to its next cry; the ones walking

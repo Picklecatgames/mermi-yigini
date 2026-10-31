@@ -27,6 +27,7 @@ var main: Node
 var waves: Node
 var _log: Array[String] = []
 var _turn := 0  # _shoot_all: whose turn it is among the nearest
+var _on := [0, -1.0, 0]  # _shoot_all, a client: the zombie it stays on, its bar then, rounds since that moved
 var _cuts := {}  # zombie id -> the limbs it had lost when the die cue came (wave 3, online)
 var _down := {}  # zombie id -> its die cue came
 var _wipe_ok := false  # the railing fell, or a reset: the living may be cleared away
@@ -201,14 +202,24 @@ func _new_kinds() -> bool:
 			gibs[spawned[cue[1]]] = gibs.get(spawned[cue[1]], []) + [cue[7]]
 	gs.wave_cue.connect(cue_seen)
 	gs.mend_fence(gs.FENCE_MAX)  # the railing doesn't heal between waves; this part is about the new kinds
+	var hold := func() -> void: gs.mend_fence(gs.FENCE_MAX)  # a wave that big would have it down before the blob is out
+	process_frame.connect(hold)
 	gs.request_pull_lever()
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "wave %d's fight" % waves.BLOB_FROM): return false
-	if not await _until(func() -> bool: return spawned.values().has(&"dog") and spawned.values().has(&"blob"), "a dog and a blob out of the pens"): return false
+	var make_room := func() -> bool:  # a full floor holds the rest back: the ones in front go (the host's way)
+		if waves._alive() >= waves.MAX_ALIVE:
+			for z: Dictionary in waves._zombies.values():
+				if not z.dead and not z.kind in [&"dog", &"blob"]:
+					waves._hurt(z, 1e6, gs.local_peer(), false, "deagle")
+					break
+		return spawned.values().has(&"dog") and spawned.values().has(&"blob")
+	if not await _until(make_room, "a dog and a blob out of the pens"): return false
 	for z: Dictionary in waves._zombies.values():
 		if z.kind in [&"dog", &"blob"]:
 			if not _ok(z.body.model == z.kind and absf(z.trunk.rotation.x - PI / 2) < 0.01 and z.body.height < 1.4,
 					"%s %d wears its own model and lies low (%.2f m)" % [z.kind, z.id, z.body.height]): return false
 	if not await _shoot_all("wave %d" % waves.BLOB_FROM): return false
+	process_frame.disconnect(hold)
 	gs.wave_cue.disconnect(cue_seen)
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.CLEARED, "wave %d cleared" % waves.BLOB_FROM): return false
 	if not _ok(gibs.has(&"dog") and (gibs.get(&"blob", []) as Array).all(func(g: StringName) -> bool: return g == &"body") and gibs.has(&"blob"),
@@ -293,10 +304,17 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 			_turn += 1
 		if not near.is_empty():
 			var z: Dictionary = near[_turn % mini(near.size(), 3)]
+			if me:  # a knee behind the bottom rail takes no round: past a few without a mark, the trunk, then the next one
+				if _on[0] != z.id or _on[1] != z.bar.left:
+					_on = [z.id, z.bar.left, 0]
+				_on[2] += 1
+				if _on[2] > 12:
+					_turn += 1
+					_on[2] = 0
 			var at: Vector3 = (z.node as Node3D).global_position
 			# The trunk's shape where it is (on the bones, or low); a creature standing at chest height.
 			aim = (z.trunk as Node3D).global_position if waves.LOW.has(z.kind) or z.body.crawling or not z.bones.is_empty() else at + Vector3.UP * 1.1
-			if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
+			if me and _on[2] <= 6 and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
 				match z.id % 3:  # some into the legs, some into an arm
 					1: aim = z.body.call("_bone_at", "RightLeg")  # the knee
 					2: if z.body.can_lose(&"forearm_l"):  # (once it is off, the trunk)

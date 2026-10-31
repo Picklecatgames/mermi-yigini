@@ -78,7 +78,9 @@ const SETS := {
 		"shake": 0.7, "weight": 1.0, "ads_time": 0.19, "shot": preload("res://assets/weapons/sounds/deagle_shot.tres"),
 		"cues": {"draw": [[0.85, SAFETY]], "reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
 			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
-	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 60.0,
+	# elbow: the left elbow turned out about the shoulder-wrist line (rad), the hand staying put: the
+	# set's clips tuck it under the gun, the forearm standing straight up the middle of the screen.
+	"uzi": {"mesh": "UZI", "clips": "UZI_", "bone": "UZI Body", "eye": Vector3(0.0, 1.4742, 0.0221), "fov": 60.0, "elbow": 0.9,
 		"muzzle": Vector3(0.0078, 0.0034, 0.2585), "port": Vector3(-0.018, 0.0227, 0.0396), "aim_clips": true, "paint": 1.6,
 		"clip_fire": false, "move": 0.9, "kick": 0.354, "climb": 0.0106, "yaw": 0.0035, "bloom": 0.0019, "jiggle": 0.3, "flash": 0.75,
 		"shake": 0.3, "rise": 0.05, "weight": 1.15, "ads_time": 0.21},
@@ -94,7 +96,10 @@ const SETS := {
 	# over ramp s of firing. Let go and they run down in down s (Fire_Stop: 1.3 s); pressing again
 	# picks up from the speed they still have. walk: share of walking speed left while they turn
 	# (no sprint); rumble: the gun's shake at full speed. Heaviest to move with, lightest kick per round.
-	"minigun": {"mesh": "Minigun", "clips": "Minigun_", "bone": "Minigun_M-134_Body", "eye": Vector3(-0.0082, 1.4235, 0.0212), "fov": 60.0,
+	# curl: the set's clips were made on other arms, whose finger bones roll another way; on ours the
+	# ring fingers bent backwards and the little fingers sideways. Each finger keeps how far it bends,
+	# about its own hinge (fix_pose).
+	"minigun": {"mesh": "Minigun", "clips": "Minigun_", "bone": "Minigun_M-134_Body", "eye": Vector3(-0.0082, 1.4235, 0.0212), "fov": 60.0, "curl": true,
 		"muzzle": Vector3(0.0, 0.9167, -0.0359), "port": Vector3(0.126, 0.124, -0.025), "run": "Sprint", "no_aim": true, "paint": 1.6,
 		"spin": {"bone": "Minigun_M-134_Guns", "axis": Vector3.DOWN, "speed": 11.8, "up": 0.6, "down": 1.3,
 			"ramp": 1.5, "first": 0.16, "walk": 0.5, "rumble": 0.25},
@@ -113,6 +118,9 @@ const SPIN_STOP := preload("res://assets/weapons/sounds/minigun_stop.wav")
 const CLIPS := {"fire": "Fire", "reload": "Reload", "reload_empty": "Reload_Empty", "draw": "Equip", "holster": "Unequip"}
 const PUNCHES := ["Punch", "Punch_2"]  # fists' "fire", taking turns
 const CLIP_BLEND := 0.08  # s
+## How far a finger's joints bend at most (rad: knuckle, middle, tip), and a thumb's tip; SETS curl.
+const CURL_MAX := [1.57, 1.9, 1.4]
+const THUMB_TIP_MAX := 0.6
 ## The guns' roughness maps are made for a lit studio; in the dark hall the lamp streaks spread into a
 ## dull sheen. A share of it sharpens them into the glints of oiled steel.
 const GUN_ROUGHNESS := 0.7
@@ -495,6 +503,44 @@ static func load_clips(anim: AnimationPlayer, skel: Skeleton3D) -> void:
 	fists.free()
 
 
+## A set's fixes over the pose its clip has just given `skel` (SETS curl, elbow); the remote players'
+## rig gets them too, so their grip is ours.
+static func fix_pose(skel: Skeleton3D, kit: Dictionary) -> void:
+	if kit.get("curl", false):
+		for side: String in ["L", "R"]:
+			for f: String in ["f_index", "f_middle", "f_ring", "f_pinky"]:
+				for i in 3:
+					var b := skel.find_bone("DEF-%s.0%d.%s" % [f, i + 1, side])
+					var rest := skel.get_bone_rest(b).basis.get_rotation_quaternion()
+					var bend := (rest.inverse() * skel.get_bone_pose_rotation(b)).get_angle()
+					skel.set_bone_pose_rotation(b, rest * Quaternion(Vector3.RIGHT, minf(bend, CURL_MAX[i])))
+			# The thumb's tip folded back over the nail: as far as it goes the way it goes.
+			var tip := skel.find_bone("DEF-thumb.03." + side)
+			var rest := skel.get_bone_rest(tip).basis.get_rotation_quaternion()
+			var d := rest.inverse() * skel.get_bone_pose_rotation(tip)
+			if d.get_angle() > THUMB_TIP_MAX:
+				skel.set_bone_pose_rotation(tip, rest * Quaternion(d.get_axis(), THUMB_TIP_MAX))
+	if kit.has("elbow"):
+		var upper := skel.find_bone("DEF-upper_arm.L")
+		var hand := skel.find_bone("DEF-hand.L")
+		var up := _posed(skel, upper)
+		var held := _posed(skel, hand).basis
+		var turned := Transform3D(Basis((_posed(skel, hand).origin - up.origin).normalized(), kit.elbow) * up.basis, up.origin)
+		skel.set_bone_pose_rotation(upper, (_posed(skel, skel.get_bone_parent(upper)).affine_inverse() * turned).basis.get_rotation_quaternion())
+		var arm := _posed(skel, skel.get_bone_parent(hand))
+		skel.set_bone_pose_rotation(hand, (arm.basis.inverse() * held).get_rotation_quaternion())
+
+
+## Bone `b` of `skel` in skeleton space from the poses as they are now (get_bone_global_pose can
+## still hold the clip's pose from before a fix).
+static func _posed(skel: Skeleton3D, b: int) -> Transform3D:
+	var t := Transform3D()
+	while b >= 0:
+		t = skel.get_bone_pose(b) * t
+		b = skel.get_bone_parent(b)
+	return t
+
+
 ## Puts the one in hand away (its Unequip clip) and draws GameState.GUNS[`i`]; the player calls
 ## it when the gun in hand changes (GameState.gun_changed).
 func equip(i: int) -> void:
@@ -746,8 +792,9 @@ func _spin_play(what: AudioStream) -> void:
 	_spin_sound.play()
 
 
-## After the clip has posed the rig: the barrels' turn on top of it.
+## After the clip has posed the rig: the set's own fixes (fix_pose) and the barrels' turn on top of it.
 func _turn_barrels() -> void:
+	fix_pose(_skel, _kit)
 	if _kit.has("spin") and _barrel != 0.0:
 		var b := _skel.find_bone(_kit.spin.bone)
 		_skel.set_bone_pose_rotation(b, _skel.get_bone_pose_rotation(b) * Quaternion(_kit.spin.axis, _barrel))

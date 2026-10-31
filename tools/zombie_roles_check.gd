@@ -1,8 +1,10 @@
 extends SceneTree
-## Headless check of the zombies' roles (scripts/waves.gd STATS, MIX, DAMAGE): their own hit points,
+## Headless check of the zombies' roles (scripts/waves.gd STATS, TYPES, MIX, DAMAGE): their own hit points,
 ## limbs that cripple and don't kill, the bar over a hurt one, the screamer's cry sending the crowd
 ## running, the bloater's burst, the dog's zigzag, the waves getting harder, and every speed a kind
-## can walk at kept within what its clips stretch to (no feet sliding over the floor).
+## can walk at kept within what its clips stretch to (no feet sliding over the floor); the types
+## coming one by one (wave 1 a few of one type in one look) and their traits (armor, mask, regen,
+## rage, elites).
 ##   Godot.exe --headless --path . -s res://tools/zombie_roles_check.gd --quit-after 100000
 
 const BODY := preload("res://scripts/zombie_body.gd")
@@ -35,6 +37,7 @@ func _initialize() -> void:
 	await _bloater()
 	await _dog()
 	await _no_slide()
+	await _traits()
 	print("zombie_roles_check %s" % ("OK" if _fails == 0 else "FAILED (%d)" % _fails))
 	quit(1 if _fails else 0)
 
@@ -59,8 +62,27 @@ func _numbers() -> void:
 	for kind: StringName in waves.STATS:
 		_expect(kind == &"blob" or waves.STATS[kind][0] >= 2.0, "%s runs (%.1f m/s)" % [kind, waves.STATS[kind][0]])
 	_expect(waves.STATS[&"brute"][2] > waves.STATS[&"walker"][2] * 3, "a brute claws the railing hard")
+	var paces := {}
+	var bites := {}
+	for t: StringName in waves.TYPES:
+		paces[snappedf(waves.STATS[waves.TYPES[t].kind][0] * waves.TYPES[t].speed, 0.01)] = true
+		bites[waves.bite_of(t, 1)] = true
+	_expect(paces.size() >= 7 and bites.size() >= 3, "the types differ: %d speeds, %d claws (%s)" % [paces.size(), bites.size(), bites.keys()])
+	_expect(waves.bite_of(&"walker", 1) == 1 and waves.bite_of(&"walker", 20) == 2 and waves.bite_of(&"brute", 20) > waves.bite_of(&"brute", 10),
+			"claws grow with the waves (walker %d → %d, brute %d → %d → %d)" % [waves.bite_of(&"walker", 1), waves.bite_of(&"walker", 20),
+			waves.bite_of(&"brute", 10), waves.bite_of(&"brute", 20), waves.bite_of(&"brute", 30)])
 	var rows := []
 	var last := {}
+	var first: Array = waves._plan(1)
+	_expect(first.size() <= 8 and first.all(func(t: StringName) -> bool: return t == &"walker") and waves.looks(&"walker", 1).size() == 1,
+			"wave 1: %d of one type in one look (%s)" % [first.size(), waves.looks(&"walker", 1)])
+	for t: StringName in waves.TYPES:
+		var from: int = waves.TYPES[t].from
+		_expect(waves._plan(from).has(t), "%s shows in its first wave, %d" % [t, from])
+		_expect(from == 1 or not waves._plan(from - 1).has(t), "no %s before wave %d" % [t, from])
+		_expect(waves.STATS.has(waves.TYPES[t].kind), "%s's kind %s has STATS" % [t, waves.TYPES[t].kind])
+		for l: Array in waves.TYPES[t].looks:
+			_expect(BODY.MODELS.has(l[0]) or BODY.CREATURES.has(l[0]), "%s's look %s is a model" % [t, l[0]])
 	for w in [1, 2, 3, 4, 6, 10, 20]:
 		var plan: Array = waves._plan(w)
 		var mix := {}
@@ -72,8 +94,8 @@ func _numbers() -> void:
 			_expect(mix.size() >= last.kinds, "wave %d no less mixed" % w)
 		last = {"size": plan.size(), "w": w, "kinds": mix.size()}
 		_expect(plan.count(&"screamer") == waves.screamers(w), "wave %d: %d screamers" % [w, waves.screamers(w)])
-		for k: StringName in waves.MIX:
-			_expect(w >= waves.MIX[k][0] or not plan.has(k), "wave %d: no %s before wave %d" % [w, k, waves.MIX[k][0]])
+		for k: StringName in waves.TYPES:
+			_expect(w >= waves.TYPES[k].from or not plan.has(k), "wave %d: no %s before wave %d" % [w, k, waves.TYPES[k].from])
 	_expect(waves._plan(10).has(&"bloater") and waves._plan(10).has(&"runner"), "wave 10 has bloaters and runners")
 	print("  ", "\n  ".join(rows))
 
@@ -111,10 +133,32 @@ func _strides() -> void:
 				if natural > 0.05:
 					_expect(v / natural >= 0.6 and v / natural <= 1.8, "%s %s crawling at %.2f m/s: clip %.2f m/s" % [kind, m, v, natural])
 			b.queue_free()
+	for t: StringName in waves.TYPES:  # the types' own looks, at the elite's and the rager's pace too
+		var kind: StringName = waves.TYPES[t].kind
+		for l: Array in waves.TYPES[t].looks:
+			if BODY.CREATURES.has(l[0]):
+				continue
+			var b: Node3D = BODY.new()
+			b.setup(kind, 7)
+			b.model = l[0]
+			root.add_child(b)
+			var top: float = hi * (waves.ELITE_SPEED if waves.elite_chance(t, 99) > 0.0 else 1.0)
+			if waves.TYPES[t].trait == &"rage":
+				top *= waves.RAGE
+			var own: float = waves.STATS[kind][0] * waves.TYPES[t].speed
+			var speeds := [own * lo, own * top]
+			if not kind in waves.NO_RUSH:
+				speeds.append(own * top * waves.RUSH)
+			for v: float in speeds:
+				b.move(v)
+				var natural: float = b._lib.get_animation(b._ap.current_animation).get_meta("speed", 0.0) * b._hip
+				if natural > 0.05:
+					_expect(v / natural >= 0.6 and v / natural <= 1.8, "%s %s at %.2f m/s: clip %.2f m/s (×%.2f)" % [t, l[0], v, natural, v / natural])
+			b.queue_free()
 	await process_frame
 
 
-## A zombie of `kind` from the host's queue, standing at `at`, walking to the railing.
+## A zombie of `kind` (or a type) from the host's queue, standing at `at`, walking to the railing.
 func _spawn(kind: StringName, at: Vector3) -> Dictionary:
 	waves._queue.assign([kind])
 	var ph: int = waves.phase
@@ -125,7 +169,7 @@ func _spawn(kind: StringName, at: Vector3) -> Dictionary:
 	(z.node as Node3D).global_position = at
 	z.rail = Vector3(waves.RAIL_X, 0.0, at.z)
 	(z.node as Node3D).look_at(at + Vector3.LEFT, Vector3.UP)
-	z.speed = waves.STATS[kind][0]
+	z.speed = waves.STATS[z.kind][0]
 	z.path = [z.rail]
 	z.released = true
 	z.moving = true
@@ -286,6 +330,68 @@ func _arrival() -> void:
 	_expect(first[0] > 0.0 and first[0] <= ARRIVE, "wave 1's first at the railing %.1f s after the lever" % first[0])
 	gs.cue_wave([&"phase", 1, waves.Phase.READY, 0])  # the lost-wave reset: everyone gone
 	await process_frame
+
+
+## The types' traits, each against a plain walker of the same wave: armor takes body rounds, the
+## mask head shots, regen heals when left alone, the rager speeds up under half, an elite has twice
+## the life and a longer bar.
+func _traits() -> void:
+	gs.request_select_gun(DEAGLE)
+	var was: int = waves.wave
+	waves.wave = waves.TYPES[&"rager"].from  # every trait open, the walkers still Mixamo bodies
+	var plain := _plain(&"walker", Vector3(22, 0, -8))
+	var cop := _plain(&"armored", Vector3(22, 0, -4))
+	var mask := _plain(&"masked", Vector3(22, 0, 0))
+	var flesh := _plain(&"regen", Vector3(22, 0, 4))
+	var war := _plain(&"rager", Vector3(22, 0, 8))
+	for z: Dictionary in [plain, cop, mask, flesh, war]:
+		z.path = []
+		z.body.idle()
+	_expect(cop.body.model == &"copzombie" and mask.body.model == &"hazmat" and flesh.body.model == &"fleshzombie" and war.body.model == &"warzombie",
+			"each type in its own look (%s %s %s %s)" % [cop.body.model, mask.body.model, flesh.body.model, war.body.model])
+	await create_timer(0.3).timeout
+	var left := func(z: Dictionary) -> float: return float(waves._hp[z.id]) / waves._hp_full[z.id]
+	for z: Dictionary in [plain, cop]:
+		await _shoot(z, z.body._bone_at("Spine1"), Vector3(-1, 0, 0))
+	_expect(1.0 - left.call(cop) < (1.0 - left.call(plain)) * 0.6, "armor: a body round takes %.2f of the cop, %.2f of a walker" % [1.0 - left.call(cop), 1.0 - left.call(plain)])
+	var p2 := _plain(&"walker", Vector3(22, 0, -12))
+	p2.path = []
+	await _shoot(p2, p2.body._bone_at("Head"), Vector3(-1, 0, 0), true)
+	await _shoot(mask, mask.body._bone_at("Head"), Vector3(-1, 0, 0), true)
+	_expect(not mask.dead and 1.0 - left.call(mask) < (1.0 - left.call(p2)) * 0.6, "mask: a head shot takes %.2f of it, %.2f of a walker" % [1.0 - left.call(mask), 1.0 - left.call(p2)])
+	await _shoot(flesh, flesh.body._bone_at("Spine1"), Vector3(-1, 0, 0))
+	var hurt: float = left.call(flesh)
+	await create_timer(waves.REGEN_WAIT + 1.0).timeout
+	_expect(left.call(flesh) > hurt + 0.03, "regen: %.2f back to %.2f, left alone" % [hurt, left.call(flesh)])
+	var pace: float = war.speed
+	var shots := 0
+	while not war.raged and not war.dead and shots < 10:
+		await _shoot(war, war.body._bone_at("Head"), Vector3(-1, 0, 0), true)
+		shots += 1
+	await process_frame
+	_expect(war.raged and not war.dead and war.speed > pace * 1.2 and war.bite > waves.STATS[&"walker"][2], "rage: under half it goes %.1f → %.1f m/s, claws %d" % [pace, war.speed, war.bite])
+	_expect(waves.elite_chance(&"walker", waves.ELITE_FROM - 1) == 0.0 and waves.elite_chance(&"walker", waves.ELITE_FROM) > 0.0 and waves.elite_chance(&"brute", 30) == 0.0,
+			"elites from wave %d, never a brute" % waves.ELITE_FROM)
+	_expect(waves.hp_of(&"walker", 20, true) >= waves.hp_of(&"walker", 20) * 1.9, "an elite has twice the life")
+	var bar_w := func(full: float) -> float:
+		var bar: Node3D = waves.BAR.new()
+		bar.setup(full, false)
+		var width: float = bar._width
+		bar.free()
+		return width
+	_expect(bar_w.call(waves.hp_of(&"brute", 10)) > bar_w.call(waves.hp_of(&"walker", 10)) * 1.4 and bar_w.call(waves.hp_of(&"walker", 20)) > bar_w.call(waves.hp_of(&"walker", 1)) * 1.2,
+			"the bar grows with the life (walker 1 %.2f, walker 20 %.2f, brute 10 %.2f m)" % [bar_w.call(waves.hp_of(&"walker", 1)), bar_w.call(waves.hp_of(&"walker", 20)), bar_w.call(waves.hp_of(&"brute", 10))])
+	waves.wave = was
+	_clear()
+
+
+## One of `type` that did not come as an elite.
+func _plain(type: StringName, at: Vector3) -> Dictionary:
+	var z := _spawn(type, at)
+	while z.elite:
+		waves._kill(z.id, &"")
+		z = _spawn(type, at)
+	return z
 
 
 ## Its feet stay on the floor through the changes: the stride matches the ground it covers while it
