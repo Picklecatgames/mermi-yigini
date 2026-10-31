@@ -886,13 +886,14 @@ func _limb_hit(z: Dictionary, part: StringName, dmg: float, roll: int) -> void:
 		GameState.cue_wave([&"limb", z.id, part, roll])
 
 
-## Once the hall is up: the blood and the pieces drawn once, a speck in front of the camera, so
-## their shaders compile now and not at the first hit (zombie_body.gd prewarm()).
+## Once the hall is up: the blood, the pieces and the railing's sparks drawn once, a speck in front
+## of the camera, so their shaders compile now and not at the first hit (zombie_body.gd prewarm()).
 func _prewarm() -> void:
 	await get_tree().process_frame
 	var cam := get_viewport().get_camera_3d()
 	if cam:
 		BODY.prewarm(self, cam.global_transform * Transform3D(Basis().scaled(Vector3.ONE * 0.001), Vector3(0, 0, -1)))
+		_fence.prewarm(cam.global_transform * Vector3(0, 0, -1))
 
 
 ## Every peer, the wave lost: off back the way it came, to the bay's mouth and its gate.
@@ -1026,16 +1027,24 @@ func fit_along(from: Vector3, dir: Vector3) -> void:
 
 ## Lays the head's ball and each of `z`'s bone shapes along its bones as they are posed now. The
 ## shapes are the body's children: laid in its own space, one transform for the skeleton to it.
+## Jolt builds the body's compound shape again on every shape moved in a space (~4 µs each, 12 a
+## body): the body leaves its space while they move and is built once as it comes back (~0.6 µs a
+## shape), and the rounds traced right after still meet them where they now are.
 func _fit(z: Dictionary) -> void:
 	z.fit = _beat
 	var sk: Skeleton3D = z.body.get("_skel")
+	var node: Zombie = z.node
+	if z.bones.is_empty():  # the head's ball alone
+		(z.head_shape as Node3D).global_position = sk.global_transform * sk.get_bone_global_pose((z.head as BoneAttachment3D).bone_idx).origin
+		return
+	var rid := node.get_rid()
+	var space := PhysicsServer3D.body_get_space(rid)
+	PhysicsServer3D.body_set_space(rid, RID())
 	# Off the bone's pose, not its attachment: that follows the skeleton's update, a step behind a
 	# pose just brought up to date.
 	var head: BoneAttachment3D = z.head
 	(z.head_shape as Node3D).global_position = sk.global_transform * sk.get_bone_global_pose(head.bone_idx).origin
-	if z.bones.is_empty():
-		return
-	var to_body := (z.node as Node3D).global_transform.affine_inverse() * sk.global_transform
+	var to_body := node.global_transform.affine_inverse() * sk.global_transform
 	for s: Dictionary in z.bones:
 		var cs: CollisionShape3D = s.node
 		if cs.disabled:
@@ -1049,6 +1058,9 @@ func _fit(z: Dictionary) -> void:
 		b += y * s.past
 		var x := y.cross(Vector3.FORWARD if absf(y.z) < 0.9 else Vector3.RIGHT).normalized()
 		cs.transform = Transform3D(Basis(x, y, x.cross(y)), (a + b) * 0.5)
+	PhysicsServer3D.body_set_space(rid, space)
+	# It comes back where it last left a space, not where it has walked to since.
+	PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_TRANSFORM, node.global_transform)
 
 
 ## The region a round went into on a zombie: "head", "torso", "arm_l", "arm_r", "leg_l" or

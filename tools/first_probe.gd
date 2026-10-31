@@ -36,6 +36,8 @@ func _initialize() -> void:
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("tag="):
 			_tag = a.trim_prefix("tag=")
+	if "adds" in OS.get_cmdline_user_args():
+		node_added.connect(_on_added)
 	var clock := Clock.new()
 	clock.probe = self
 	clock.process_priority = 1000
@@ -81,8 +83,12 @@ func _initialize() -> void:
 	quit()
 
 
+var _moment_t0 := 0
+
+
 func _begin(moment: String) -> void:
 	_moment = moment
+	_moment_t0 = Time.get_ticks_usec()
 	_rows[moment] = []
 	_pipes[moment] = _pipelines()
 	_order.append(moment)
@@ -108,21 +114,43 @@ func _tick() -> void:
 	var kinds := _kinds()
 	if _moment != "":
 		(_rows[_moment] as Array).append(ms)
-		if ms > HITCH_MS:
-			_hitches.append("%-18s %7.1f ms  %s  %s" % [_moment, ms, kinds, ", ".join(_events)])
+		# A frame's draw is timed in the next one: what it drew is in the frame before's events.
+		if kinds.contains(" s") and not kinds.contains(" s0 ") and "adds" in OS.get_cmdline_user_args():
+			_hitches.append("    new: " + ", ".join(_adds_before + _adds))
+		if ms > HITCH_MS or kinds.contains(" s") and not kinds.contains(" s0 "):
+			_hitches.append("%-18s %4.2fs %7.1f ms  %s  gun %d %s  %s | before: %s" % [_moment, (now - _moment_t0) / 1e6, ms, kinds,
+					vm.gun if vm else -1, vm.clip if vm else "", ", ".join(_events), ", ".join(_before)])
+	_before = _events.duplicate()
 	_events.clear()
+	_adds_before = _adds.duplicate()
+	_adds.clear()
 
 
 var _events: Array[String] = []  # what happened since the last frame
+var _before: Array[String] = []  # and in the frame before
+var _adds: Array[String] = []  # meshes that came into the tree since the last frame (adds)
+var _adds_before: Array[String] = []
+
+
+func _on_added(n: Node) -> void:
+	if n is GeometryInstance3D:
+		var what := n.get_class()
+		if n is MeshInstance3D and (n as MeshInstance3D).mesh:
+			what += ":" + (n as MeshInstance3D).mesh.resource_path.get_file() + "/" + (n as MeshInstance3D).mesh.get_class()
+		_adds.append("%s<%s" % [n.name, n.get_parent().name if n.get_parent() else ""] + "(" + what + ")")
 
 
 func _on_cue(cue: Array) -> void:
 	if cue[0] == &"spawn":
 		_events.append("spawn %s" % cue[2])
 	elif cue[0] == &"die":
-		_events.append("die%s" % ("" if cue.size() < 8 or cue[7] == &"" else "/" + String(cue[7])))
+		_events.append("die%s %s" % ["" if cue.size() < 8 or cue[7] == &"" else "/" + String(cue[7]), _model(cue[1])])
 	elif cue[0] in [&"limb", &"blast"]:
-		_events.append(String(cue[0]))
+		_events.append("%s %s" % [cue[0], _model(cue[1])])
+
+
+func _model(id: int) -> String:
+	return String(waves._zombies[id].body.model) if waves and waves._zombies.has(id) else "?"
 
 
 var _hitches: Array[String] = []

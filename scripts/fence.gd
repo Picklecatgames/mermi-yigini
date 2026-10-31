@@ -187,6 +187,24 @@ func _burst(at: Vector3, amount: int, force: float) -> void:
 	if _sparks >= MAX_SPARKS or not is_inside_tree():
 		return
 	_sparks += 1
+	var sparks := _make_sparks(amount, force)
+	add_child(sparks)
+	sparks.global_position = at
+	sparks.emitting = true
+	var flash := _flashes[_next_flash]
+	_next_flash = (_next_flash + 1) % _flashes.size()
+	flash.global_position = at
+	if flash.has_meta(&"tween"):
+		(flash.get_meta(&"tween") as Tween).kill()
+	var tw := flash.create_tween()
+	tw.tween_property(flash, "light_energy", 0.0, 0.2).from(1.5 * force)
+	flash.set_meta(&"tween", tw)
+	sparks.finished.connect(func() -> void:
+		_sparks -= 1
+		sparks.queue_free())
+
+
+func _make_sparks(amount: int, force: float) -> CPUParticles3D:
 	var sparks := CPUParticles3D.new()
 	sparks.one_shot = true
 	sparks.explosiveness = 0.9
@@ -212,20 +230,21 @@ func _burst(at: Vector3, amount: int, force: float) -> void:
 	sparks.mesh = _spark_mesh
 	sparks.particle_flag_align_y = false
 	sparks.particle_flag_rotate_y = false
+	sparks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF  # glowing streaks: no shadow pass to compile at the first claw
+	return sparks
+
+
+## One spark too small to see at `at` (in front of the camera), so the sparks' shader compiles with
+## the hall: the first claw at the railing held its frame up 10-50 ms (tools/first_probe.gd).
+func prewarm(at: Vector3) -> void:
+	var sparks := _make_sparks(1, 0.0)
+	sparks.scale_amount_min = 0.001
+	sparks.scale_amount_max = 0.001
+	sparks.gravity = Vector3.ZERO
 	add_child(sparks)
 	sparks.global_position = at
 	sparks.emitting = true
-	var flash := _flashes[_next_flash]
-	_next_flash = (_next_flash + 1) % _flashes.size()
-	flash.global_position = at
-	if flash.has_meta(&"tween"):
-		(flash.get_meta(&"tween") as Tween).kill()
-	var tw := flash.create_tween()
-	tw.tween_property(flash, "light_energy", 0.0, 0.2).from(1.5 * force)
-	flash.set_meta(&"tween", tw)
-	sparks.finished.connect(func() -> void:
-		_sparks -= 1
-		sparks.queue_free())
+	sparks.finished.connect(sparks.queue_free)
 
 
 func _sound(slot: StringName, at: Vector3) -> void:
