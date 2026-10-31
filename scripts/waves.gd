@@ -15,13 +15,27 @@ extends Node3D
 ## speed, rail_z, walking, cuts] · [&"die", id, left, killer, weak, at, gun, gib, roll, dir] ·
 ## [&"limb", id, part, roll] (a limb torn off, zombie_body.gd LIMBS) · [&"hp", [id, left, ...]] (what is left
 ## of the ones hit lately, 0..1, for the bars) · [&"scream", id, [ids]] (a screamer's cry, and the
-## ones it sends running) · [&"blast", id, at] (a bloater bursting).
+## ones it sends running) · [&"blast", id, at] (a bloater bursting) · [&"hole", id, bay, rail_z] (off
+## to the hole in `bay`, or with -1 back to clawing at rail_z) · [&"swing", id] (one inside claws at
+## a player) · [&"at", [id, pos, ...], [id, pos, yaw, ...]] (where the host has the ones walking
+## outside, and the ones inside).
 ##
-## The railing (2026-10-30, the user's call): its hit points are GameState's (GameState.fence), every
-## claw takes a bite (STATS), and at 0 the wave is lost, in co-op too: the dead turn back, the screen
-## says so (hud.gd), the railing is patched up a little and the same wave waits again. It is mended
-## at the workshop bench (GameState.request_repair_fence, bench_menu.gd), never on its own between waves. scripts/fence.gd
-## shows the wear and the sparks. The numbers below are first guesses.
+## The railing (2026-10-31, the user's call): every bay of it has a life of its own (GameState.fence_bays),
+## every claw takes a bite out of the bay in front (STATS); a bay clawed through comes down and the dead
+## walk in through the hole, every one outside heading for the nearest hole. Inside they go for the
+## nearest player standing (the host picks, GameState.hurt_player at every claw), round the workshop
+## and the heap on a navigation mesh baked from the hall. Nobody standing, they wait. The wave is lost
+## when everyone is down (GameState.all_down): the dead turn back, the screen says so (hud.gd), the
+## holes are patched up and the same wave waits again. It is mended at the workshop bench, bay by bay
+## (GameState.request_repair_fence, bench_menu.gd), never on its own between waves. scripts/fence.gd
+## shows the wear, the holes and the sparks. The numbers below are first guesses.
+##
+## Walking (2026-10-31, the user: "zombiler çite çok saçma bir şekilde yürüyor"): each one has a
+## heading that turns at TURN, rounds its waypoints instead of turning on them, sways a little off
+## its line and surges a little; its spot on the railing lies near the way it comes in, so they
+## don't cross the hall; it turns to face the railing as it brakes. The host sends where it has the
+## ones walking (`at`): a client's copy is eased back in when it drifts, the ones inside follow the
+## host's.
 ##
 ## Sounds come from the user (assets/sounds/waves/<slot>.ogg|wav): lever, siren, gate. A missing
 ## file stays silent.
@@ -50,7 +64,29 @@ const CLEAR_PAUSE := 4.0  # s from the last kill to the lever coming back up
 const FAIL_PAUSE := 6.0  # s from the railing going to the same wave waiting again (hud.gd darkens over it)
 const DEAD_STAY := 8.0  # s a body lies before it goes
 const RAIL_X := 14.8  # where they stop, just past the railing (x 14)
-const RAIL_Z := 18.0  # ± along it
+const RAIL_Z := 25.5  # ± along it (its end posts are at ±27.5)
+const LANE := 7.0  # m: a railing spot within this of where it comes in from the bay's mouth (times FAN)
+const FAN := 1.8  # the bay's mouth is ±DOOR_Z, the railing ±RAIL_Z: the crowd fans out on the way
+const POST_CLEAR := 0.45  # m a spot keeps off a post
+const HOLE_OUT := 15.2  # x a zombie lines up at in front of a hole
+const HOLE_IN := 12.9  # x it walks to through it, on our side
+const HOLE_JITTER := 0.7  # m, ± along z off the hole's middle
+const GAP := [13.65, 14.35]  # x, the railing's band: only a hole lets anyone stand in it
+const TURN := 4.0  # rad/s its heading turns
+const LOOK := 2.5  # m: this near a waypoint it starts turning for the next
+const WANDER := 0.3  # rad, its sway off its line
+const WANDER_LEN := 6.0  # m walked for one sway
+const SURGE := 0.08  # its pace rises and falls by this
+const FACE_TURN := 5.0  # rad/s, turning to the railing once there
+## Inside (numbers mine): it claws a player within REACH m, the claw lands if they are still within
+## REACH + REACH_SLACK; PLAYER_HIT times its bite per claw. The host picks prey and paths every HUNT_EVERY s.
+const REACH := 1.25
+const REACH_SLACK := 0.5
+const PLAYER_HIT := 8.0
+const HUNT_EVERY := 0.5
+const AT_SEND := 0.15  # s between the host's positions of the ones walking
+const AT_SLACK := 0.5  # m a client's copy outside may be off before it is pulled in
+const AT_SNAP := 3.0  # m off: put there
 const DOOR_X := 29.5  # just inside the bay's mouth in the hall's east wall
 const DOOR_Z := 9.0  # ± (the opening is ±12)
 const BAY_HALF := 12.0  # tools/build_arena.gd
@@ -241,12 +277,12 @@ const SWARM_FROM: int = TYPES[&"swarm"].from
 const SWARM_PACK := 4
 const SWARM_PACK_GROW := 3
 const SWARM_PACK_MAX := 8
-const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "ÇİT YIKILDI"}
+const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "HERKES DÜŞTÜ"}
 
 var wave := 1
 var phase := Phase.READY
 var left := 0  # zombies of this wave not yet down (waiting ones too)
-var fence: int:  # the railing's hit points, GameState's
+var fence: int:  # what is left of the railing's bays, all of them (GameState's)
 	get: return GameState.fence
 
 var _zombies := {}  # id -> record (see _add_zombie)
@@ -280,6 +316,9 @@ var _next_id := 1
 var _next_spawn := 0
 var _spawn_wait := 0.0
 var _beat := 0  # frames, for FIT_EVERY
+var _at_wait := 0.0
+var _holes: Array[int] = []  # host: the bays down, as last seen
+var _nav: NavigationRegion3D  # our side of the railing, for the ones inside
 
 
 ## A zombie's body: what the shot code and the HUD ask of a target.
@@ -320,9 +359,13 @@ func _ready() -> void:
 	BLOOD.warm()
 	VOICE.warm()
 	_prewarm.call_deferred()
-	GameState.fence_changed.connect(func(_hp: int, _wear: Array) -> void: _sign())
+	GameState.fence_changed.connect(_on_fence)
+	GameState.all_down.connect(_lose)
 	_fence = FENCE.new()
 	add_child(_fence)
+	_nav = NavigationRegion3D.new()
+	add_child(_nav)
+	_bake_nav.call_deferred()
 	# The host is gone: its timers and hit points went with it, so the wave starts over here.
 	multiplayer.server_disconnected.connect(func() -> void: _reset())
 	_sign()
@@ -343,7 +386,7 @@ func join_cues() -> Array:
 		if not z.dead:
 			var node: Node3D = z.node
 			cues.append([&"spawn", id, z.kind, z.seed, z.gate, node.global_position, node.global_rotation.y,
-					z.speed, z.rail.z, z.moving, z.body.cuts.duplicate(), z.type, z.body.model, z.elite])
+					z.speed, z.rail.z, z.moving, z.body.cuts.duplicate(), z.type, z.body.model, z.elite, z.hole, z.inside])
 	var hurt := []
 	for id: int in _hp:
 		if _zombies.has(id) and _hp[id] < _hp_full[id]:
@@ -374,6 +417,10 @@ func _process(delta: float) -> void:
 	if phase == Phase.FIGHT:
 		_screams(delta)
 		_regen(delta)
+	_at_wait -= delta
+	if _at_wait <= 0.0 and Net.online:
+		_at_wait = AT_SEND
+		_send_at()
 	_hp_wait -= delta
 	if not _hp_news.is_empty() and _hp_wait <= 0.0:
 		_hp_wait = HP_SEND
@@ -512,15 +559,24 @@ func _spawn_next() -> void:
 		speed *= ELITE_SPEED
 	var worn := looks(type, wave)
 	var model: StringName = worn[_rng.randi() % worn.size()] if worn else &""
+	var lane := 0.0
+	for g in _gates:
+		if g.get_meta("gate") == at.get_meta("gate"):
+			lane = clampf((g.get_meta("mouth") as Vector3).z, -DOOR_Z, DOOR_Z)
 	GameState.cue_wave([&"spawn", id, kind, _rng.randi(), at.get_meta("gate"), pos, at.global_rotation.y,
-			speed, _rail_spot(), phase == Phase.FIGHT, [], type, model, elite])
+			speed, _rail_spot(lane), phase == Phase.FIGHT, [], type, model, elite])
 
 
-## Host: a spot along the railing nobody living has (a few tries; with a full railing, any).
-func _rail_spot() -> float:
+## Host: a spot along the railing nobody living has (a few tries; with a full railing, any), near
+## the way it comes (`lane`, z at the bay's mouth, fanned out) so the crowd doesn't cross the hall,
+## and off the posts, where it would claw at nothing.
+func _rail_spot(lane: float) -> float:
 	var z := 0.0
+	var bay := GameState.FENCE_SPAN * 2.0 / GameState.FENCE_BAYS
 	for i in 6:
-		z = _rng.randf_range(-RAIL_Z, RAIL_Z)
+		z = clampf(lane * FAN + _rng.randf_range(-LANE, LANE), -RAIL_Z, RAIL_Z)
+		var off := fposmod(z + GameState.FENCE_SPAN, bay)  # from the post below
+		z += maxf(0.0, POST_CLEAR - off) - maxf(0.0, off - (bay - POST_CLEAR))
 		var free := true
 		for o: Dictionary in _zombies.values():
 			if not o.dead and absf(o.rail.z - z) < SPREAD * 1.2:
@@ -539,21 +595,68 @@ func _alive() -> int:
 	return n
 
 
-## Host: a claw landed on the railing `along` z (or `damage` of something else, a bloater bursting).
-## Down to nothing, the wave is lost: the dead turn back and, once the screen has said so, the
-## railing is patched up and the same wave waits again.
+## Host: a claw landed on the railing `along` z (or `damage` of something else, a bloater bursting):
+## off the bay there. A bay coming down sends the dead through (_on_fence).
 func _bite(kind: StringName, along: float, damage := -1) -> void:
 	if phase != Phase.FIGHT:
 		return
 	GameState.hurt_fence(STATS[kind][2] if damage < 0 else damage, along)
-	if GameState.fence > 0:
+
+
+## Host: everyone is down (GameState.all_down): the wave is lost. The dead turn back and, once the
+## screen has said so, the holes are patched up and the same wave waits again.
+func _lose() -> void:
+	if Net.is_client or phase != Phase.FIGHT:
 		return
 	GameState.cue_wave([&"phase", wave, Phase.FAILED, left])
 	var seq := _seq
 	await get_tree().create_timer(FAIL_PAUSE).timeout
 	if seq == _seq:
-		GameState.mend_fence(GameState.FENCE_PATCH)
+		GameState.patch_fence()
 		GameState.cue_wave([&"phase", wave, Phase.READY, 0])
+
+
+## Every peer: the railing changed; the host sends the ones outside to the nearest hole when one
+## opens, and back to clawing when theirs is mended.
+func _on_fence(_bays: Array) -> void:
+	_sign()
+	if Net.is_client:
+		return
+	var holes: Array[int] = []
+	for b in GameState.FENCE_BAYS:
+		if GameState.bay_open(b):
+			holes.append(b)
+	if holes == _holes:
+		return
+	_holes = holes
+	if phase != Phase.FIGHT:
+		return
+	for z: Dictionary in _zombies.values():
+		_aim(z)
+
+
+## Host: where `z` (outside) should go now the holes are as they are: the nearest one, or with none,
+## its own spot on the railing (a new one in front of it, if its hole was mended).
+func _aim(z: Dictionary) -> void:
+	if z.dead or z.inside or not z.released:
+		return
+	var at: Vector3 = (z.node as Node3D).global_position
+	var hole := _nearest_hole(at.z)
+	if hole == z.hole:
+		return
+	if hole >= 0:
+		GameState.cue_wave([&"hole", z.id, hole, z.rail.z])
+	else:
+		GameState.cue_wave([&"hole", z.id, -1, _rail_spot(clampf(at.z, -RAIL_Z, RAIL_Z) / FAN)])
+
+
+## The bay down nearest `along` (z), -1 with none.
+func _nearest_hole(along: float) -> int:
+	var best := -1
+	for b in GameState.FENCE_BAYS:
+		if GameState.bay_open(b) and (best < 0 or absf(GameState.bay_mid(b) - along) < absf(GameState.bay_mid(best) - along)):
+			best = b
+	return best
 
 
 func _check_clear() -> void:
@@ -577,7 +680,23 @@ func _on_cue(cue: Array) -> void:
 		&"spawn":
 			_add_zombie(cue[1], cue[2], cue[3], cue[4], cue[5], cue[6], cue[7], cue[8], cue[9],
 					cue[10] if cue.size() > 10 else [], cue[11] if cue.size() > 11 else cue[2],
-					cue[12] if cue.size() > 12 else &"", cue[13] if cue.size() > 13 else false)
+					cue[12] if cue.size() > 12 else &"", cue[13] if cue.size() > 13 else false,
+					cue[14] if cue.size() > 14 else -1, cue[15] if cue.size() > 15 else false)
+		&"hole":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead and not z.inside:
+				z.hole = cue[2]
+				z.rail.z = cue[3]
+				if z.moving:  # still waiting to set off, it goes this way when it does
+					_set_out(z)
+		&"swing":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead:
+				z.swing = z.body.attack()
+				z.moving = false
+		&"at":
+			if Net.is_client:
+				_got_at(cue[1], cue[2])
 		&"rage":
 			_rage(cue[1])
 		&"limb":
@@ -637,7 +756,7 @@ func _set_phase(w: int, ph: Phase, p_left: int) -> void:
 			if was == Phase.READY:
 				_set_lever(true, true)
 				_open_gates(true)
-			for z: Dictionary in _zombies.values():  # the railing is down: they turn back for the pens
+			for z: Dictionary in _zombies.values():  # everyone is down: they turn back for the pens
 				if not z.dead:
 					_retreat(z)
 			_light(false)
@@ -743,7 +862,7 @@ func _slide(open: bool, instant: bool) -> void:
 
 
 func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector3, yaw: float, speed: float, rail_z: float, walking: bool, cuts: Array = [],
-		type := &"", model := &"", elite := false) -> void:
+		type := &"", model := &"", elite := false, hole := -1, inside := false) -> void:
 	if _zombies.has(id):
 		return
 	var node := Zombie.new()
@@ -798,7 +917,10 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [], "count": 0,
 			"bar": BAR.new(), "rush": 0.0, "hold": 0.0, "zig": float(absi(seed) % 1000) / 1000.0 * TAU,
 			"cry": 0.0, "fit": -1, "type": type if type != &"" else kind, "elite": elite, "raged": false,
-			"bite": bite_of(type if type != &"" else kind, wave, elite), "calm": 0.0}
+			"bite": bite_of(type if type != &"" else kind, wave, elite), "calm": 0.0,
+			"hole": hole, "inside": inside, "heading": Vector3.ZERO, "walked": 0.0, "face": Vector3.ZERO,
+			"claws": 0, "fix": Vector3.ZERO, "prey": 0, "think": 0.0, "goal": Vector3.ZERO,
+			"swing": 0.0, "swinging": false, "seen": Vector3.INF, "seen_yaw": 0.0, "v": 0.0}
 	_zombies[id] = z
 	z.bar.setup(_hp_full.get(id, hp_of(z.type, wave, elite)), elite)
 	node.add_child(z.bar)
@@ -816,13 +938,8 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 ## its spot on the railing. Out of a gate that has just opened, they don't all set off at once.
 func _release(z: Dictionary, stagger: bool) -> void:
 	z.released = true
-	var at: Vector3 = (z.node as Node3D).global_position
-	var path := []
-	if absf(at.z) > BAY_HALF - 0.5 or at.x > BAY_END:
-		path.append(z.mouth)
-	if at.x > DOOR_X:
-		path.append(Vector3(DOOR_X, 0.0, clampf(z.rail.z, -DOOR_Z, DOOR_Z)))
-	path.append(z.rail)
+	if z.inside:  # a joiner: one already through a hole, the host's to move
+		return
 	var r := absi(hash(z.seed))
 	if stagger:
 		await get_tree().create_timer(float(r % 100) / 100.0 * RELEASE_SPREAD).timeout
@@ -832,10 +949,37 @@ func _release(z: Dictionary, stagger: bool) -> void:
 		await get_tree().create_timer(z.body.scream()).timeout
 		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
 			return
-	z.path = path
 	z.moving = true
 	z.cry = _rng.randf_range(SCREAM_FIRST[0], SCREAM_FIRST[1])  # only the host's counts
-	z.body.move(z.speed)
+	_set_out(z)
+	if not Net.is_client:
+		_aim(z)  # a hole open already: there instead
+
+
+## Every peer: the way from where `z` stands outside to its spot on the railing, or through its
+## hole (z.hole) to our side. Out of a pen first to its gate's mouth, then the bay's mouth.
+func _set_out(z: Dictionary) -> void:
+	var at: Vector3 = (z.node as Node3D).global_position
+	var to: float = z.rail.z
+	var r := absi(hash(z.seed))
+	if z.hole >= 0:
+		to = GameState.bay_mid(z.hole) + (float(r % 1000) / 1000.0 * 2.0 - 1.0) * HOLE_JITTER
+	var path := []
+	if absf(at.z) > BAY_HALF - 0.5 or at.x > BAY_END:
+		path.append(z.mouth)
+	if at.x > DOOR_X:
+		path.append(Vector3(DOOR_X, 0.0, clampf(to, -DOOR_Z, DOOR_Z)))
+	if z.hole >= 0:
+		if at.x > GAP[1]:
+			path.append(Vector3(HOLE_OUT, 0.0, to))
+		path.append(Vector3(HOLE_IN, 0.0, to + (float(r / 1000 % 1000) / 1000.0 - 0.5) * HOLE_JITTER))
+	else:
+		path.append(z.rail)
+	z.path = path
+	z.claws += 1  # whatever clawing it was at stops
+	z.moving = true
+	if z.down <= 0.0 and z.hold <= 0.0 and not z.body.busy():
+		z.body.move(_pace(z))
 
 
 func _walk(z: Dictionary, delta: float) -> void:
@@ -845,9 +989,23 @@ func _walk(z: Dictionary, delta: float) -> void:
 		z.rush -= delta
 		if z.rush <= 0.0 and not z.path.is_empty() and z.down <= 0.0 and z.hold <= 0.0:
 			z.body.move(z.speed)  # back to its own pace
-	if z.path.is_empty():
+	if z.inside:
+		if z.hold > 0.0:
+			z.hold -= delta
+		elif Net.is_client:
+			_follow(z, delta)
+		else:
+			_hunt(z, delta)
 		return
 	var node: StaticBody3D = z.node
+	if z.fix != Vector3.ZERO:  # a client's copy drifted from the host's: eased back in
+		var f: Vector3 = z.fix * minf(1.0, 4.0 * delta)
+		node.global_position += f
+		z.fix -= f
+	if z.path.is_empty():
+		if z.face != Vector3.ZERO:  # at its spot: turns the rest of the way to the railing
+			_turn_to(node, z.face, FACE_TURN * delta)
+		return
 	var to: Vector3 = z.path[0] - node.global_position
 	to.y = 0.0
 	if falling:
@@ -864,8 +1022,10 @@ func _walk(z: Dictionary, delta: float) -> void:
 		return
 	z.stagger = maxf(0.0, z.stagger - delta)
 	var last: bool = z.path.size() == 1
+	var through: bool = z.hole >= 0  # through a hole it walks on in, no braking
 	var v: float = _pace(z) * (STAGGER_SLOW if z.stagger > 0.0 else 1.0)
-	if last:  # brakes into its spot instead of stopping dead from a run
+	v *= 1.0 + SURGE * sin(z.walked * 0.8 + z.zig * 1.7)  # never quite in step with the next one
+	if last and not through:  # brakes into its spot instead of stopping dead from a run
 		v *= clampf(to.length() / BRAKE, BRAKE_MIN, 1.0)
 	z.body.pace(v)  # the stride keeps up with the floor
 	var step := v * delta
@@ -874,17 +1034,67 @@ func _walk(z: Dictionary, delta: float) -> void:
 			node.global_position += to
 		z.path.pop_front()
 		if z.path.is_empty():
-			node.look_at(node.global_position + Vector3.LEFT, Vector3.UP)
+			if through:  # in: the host's to hunt with now
+				z.hole = -1
+				z.inside = true
+				z.heading = Vector3.ZERO
+				z.moving = false
+				z.body.idle()
+				return
+			z.face = Vector3.LEFT if phase == Phase.FIGHT else Vector3.ZERO
 			z.body.idle()  # what it stands in between swings
-			_claw(z)
+			if phase == Phase.FIGHT:
+				_claw(z)
 		return
-	var way := to.normalized()
-	if z.kind == &"dog" and to.length() > ZIG_STOP and not z.body.crawling:  # side to side, never straight at you
-		z.zig += TAU / ZIG_TIME * delta
-		way = (way + way.cross(Vector3.UP) * sin(z.zig) * ZIG).normalized()
+	var way := _steer(z, to, step, delta, last and not through)
 	node.global_position += way * step
-	node.global_transform = node.global_transform.interpolate_with(
-			node.global_transform.looking_at(node.global_position + way, Vector3.UP), minf(1.0, 6.0 * delta))
+	z.walked += step
+	var face := way
+	if last and not through and to.length() < 2.0:  # braking into its spot: already turning to the railing
+		face = way.lerp(Vector3.LEFT, 1.0 - to.length() / 2.0).normalized()
+	_turn_to(node, face, TAU * 2.0 * delta)
+
+
+## Which way `z` goes this frame, `to` its next waypoint: a heading turning at TURN towards it, round
+## the corner onto the next leg as it gets near, swaying off the line a little (nothing the last
+## metres to its spot, where it goes straight in). Dogs zigzag instead.
+func _steer(z: Dictionary, to: Vector3, step: float, delta: float, braking: bool) -> Vector3:
+	var node: Node3D = z.node
+	var d := to.length()
+	var want := to / d
+	if z.path.size() > 1 and d < LOOK:
+		var next: Vector3 = z.path[1] - node.global_position
+		next.y = 0.0
+		if next.length() > 0.01:
+			want = want.lerp(next.normalized(), 0.5 * (1.0 - d / LOOK)).normalized()
+	if z.kind == &"dog" and d > ZIG_STOP and not z.body.crawling:  # side to side, never straight at you
+		z.zig += TAU / ZIG_TIME * delta
+		return (want + want.cross(Vector3.UP) * sin(z.zig) * ZIG).normalized()
+	if braking and d < 1.5:
+		z.heading = want
+		return want
+	var sway := WANDER * sin(z.walked / WANDER_LEN * TAU + z.zig) * clampf((d - 1.5) / 3.0, 0.0, 1.0) if braking else WANDER * sin(z.walked / WANDER_LEN * TAU + z.zig)
+	want = want.rotated(Vector3.UP, sway)
+	var heading: Vector3 = z.heading
+	if heading == Vector3.ZERO:
+		heading = -node.global_transform.basis.z
+		heading.y = 0.0
+		heading = heading.normalized() if heading.length() > 0.01 else want
+	var turn := clampf(heading.signed_angle_to(want, Vector3.UP), -TURN * delta, TURN * delta)
+	z.heading = heading.rotated(Vector3.UP, turn)
+	# Close to the point (closer than it turns round), straight at it: it would circle it otherwise.
+	return want if d < maxf(1.0, step) else z.heading
+
+
+## Turns `node` about y towards facing `dir`, by at most `most` rad.
+func _turn_to(node: Node3D, dir: Vector3, most: float) -> void:
+	dir.y = 0.0
+	if dir.length() < 0.01:
+		return
+	var now := -node.global_transform.basis.z
+	now.y = 0.0
+	var turn := clampf(now.signed_angle_to(dir, Vector3.UP), -most, most)
+	node.global_rotation.y += turn
 
 
 ## How fast it goes now: its own speed, more while a screamer's cry drives it.
@@ -893,13 +1103,16 @@ func _pace(z: Dictionary) -> float:
 
 
 func _claw(z: Dictionary) -> void:
-	while not z.dead and is_instance_valid(z.node) and phase == Phase.FIGHT:
+	z.claws += 1
+	var mine: int = z.claws  # sent on elsewhere (a hole), this clawing stops
+	var at_it := func() -> bool: return not z.dead and is_instance_valid(z.node) and phase == Phase.FIGHT 			and z.claws == mine and z.path.is_empty() and not z.inside
+	while at_it.call():
 		if z.down > 0.0:  # a leg torn off at the railing: down first, then it bites from there
 			await get_tree().process_frame
 			continue
 		var t: float = z.body.attack()
 		await get_tree().create_timer(t * 0.5).timeout
-		if z.dead or phase != Phase.FIGHT:
+		if not at_it.call():
 			return
 		fence_hit.emit(z.kind, z.bite, (z.node as Node3D).global_position)
 		_fence.struck(z.node.global_position.z, z.kind)  # every peer: the sparks, the clang
@@ -1024,8 +1237,17 @@ func _prewarm() -> void:
 ## Every peer, the wave lost: off back the way it came, to the bay's mouth and its gate.
 func _retreat(z: Dictionary) -> void:
 	z.released = true
+	z.claws += 1
+	z.hole = -1
 	var at: Vector3 = (z.node as Node3D).global_position
 	var path := []
+	if z.inside or at.x < GAP[1]:  # inside: back out through the nearest hole
+		z.inside = false
+		var hole := _nearest_hole(at.z)
+		var through := GameState.bay_mid(hole) if hole >= 0 else at.z
+		path.append(Vector3(HOLE_IN, 0.0, through))
+		path.append(Vector3(HOLE_OUT, 0.0, through))
+		at = path[-1]
 	if at.x < DOOR_X:
 		path.append(Vector3(DOOR_X, 0.0, clampf(at.z, -DOOR_Z, DOOR_Z)))
 	path.append(z.mouth)
@@ -1234,7 +1456,8 @@ func _spread(delta: float) -> void:
 			live.append(z)
 			reach.append(SPREAD * (1.5 if z.body.crawling or LOW.has(z.kind) else 1.0) * z.body.size)
 			at.append((z.node as Node3D).global_position)
-			held.append(z.path.is_empty())
+			# Clawing at the railing stays put; so does a client's copy inside (the host's moves it).
+			held.append(z.path.is_empty() and not z.inside or z.inside and Net.is_client)
 	var k := minf(1.0, SPREAD_PUSH * delta)
 	var moved: Array[bool] = []
 	moved.resize(live.size())
@@ -1257,7 +1480,20 @@ func _spread(delta: float) -> void:
 				moved[j] = true
 	for i in live.size():
 		if moved[i]:
-			(live[i].node as Node3D).global_position = at[i]
+			(live[i].node as Node3D).global_position = _keep_side(at[i])
+
+
+## `at` kept out of the railing's band unless it is in a hole there (and then off its posts).
+func _keep_side(at: Vector3) -> Vector3:
+	if at.x <= GAP[0] or at.x >= GAP[1]:
+		return at
+	var b := GameState.bay_at(at.z)
+	if GameState.bay_open(b):
+		var half := GameState.FENCE_SPAN / GameState.FENCE_BAYS - 0.3
+		at.z = clampf(at.z, GameState.bay_mid(b) - half, GameState.bay_mid(b) + half)
+		return at
+	at.x = GAP[0] if at.x < GameState.FIRING_LINE_X else GAP[1]
+	return at
 
 
 func _kill(id: int, gib: StringName, weak := false, roll := 0, dir := Vector3.ZERO) -> void:
@@ -1294,8 +1530,12 @@ func _pen_cries() -> void:
 func _sign() -> void:
 	if _status:
 		var text: String = STATUS.get(phase, "")
-		if phase == Phase.FIGHT:
-			text = "KALAN %d   ÇİT %d" % [left, GameState.fence]
+		if phase == Phase.FIGHT:  # how many are left and how the railing stands: holes, else bays hurt
+			text = "KALAN %d" % left
+			if GameState.fence_holes() > 0:
+				text += "   DELİK %d" % GameState.fence_holes()
+			elif GameState.fence_hurt() > 0:
+				text += "   HASAR %d" % GameState.fence_hurt()
 		_status.text = text
 	if _number and wave != _shown_wave:
 		var first := _shown_wave < 0
@@ -1307,6 +1547,217 @@ func _sign() -> void:
 		tw.tween_property(_number, "scale:y", 0.0, 0.12)
 		tw.tween_callback(func() -> void: _number.text = "%02d" % wave)
 		tw.tween_property(_number, "scale:y", 1.0, 0.12)
+
+
+# --- inside -----------------------------------------------------------------------------------------
+
+## Our side of the railing as a navigation mesh, baked once from the hall's world colliders (the
+## workshop, the heap, the walls), so the ones through a hole walk round them.
+func _bake_nav() -> void:
+	var mesh := NavigationMesh.new()
+	mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	mesh.geometry_collision_mask = 1  # the world layer: not the railing's wall, not loose rounds
+	var map := get_world_3d().navigation_map
+	mesh.cell_size = NavigationServer3D.map_get_cell_size(map)
+	mesh.cell_height = NavigationServer3D.map_get_cell_height(map)
+	mesh.agent_radius = 0.45
+	mesh.agent_height = 1.7
+	mesh.agent_max_climb = 0.35
+	mesh.agent_max_slope = 30.0  # the heap's sides are no floor
+	mesh.filter_baking_aabb = AABB(Vector3(-30.0, -1.0, -29.0), Vector3(30.0 + GameState.FIRING_LINE_X + 0.5, 5.0, 58.0))
+	var source := NavigationMeshSourceGeometryData3D.new()
+	NavigationServer3D.parse_source_geometry_data(mesh, source, get_parent())
+	# The floor's collider is a plane the parser can't take: laid in as a mesh of its own.
+	var floor := PlaneMesh.new()
+	var box := mesh.filter_baking_aabb
+	floor.size = Vector2(box.size.x, box.size.z)
+	source.add_mesh(floor, Transform3D(Basis(), Vector3(box.get_center().x, 0.0, box.get_center().z)))
+	NavigationServer3D.bake_from_source_geometry_data_async(mesh, source, func() -> void:
+		if is_instance_valid(_nav):
+			_nav.navigation_mesh = mesh)
+
+
+## The way from `from` to `to` on our side, waypoints on the floor; straight there without a mesh.
+func _route(from: Vector3, to: Vector3) -> Array:
+	var way := []
+	if _nav.navigation_mesh != null:
+		for p in NavigationServer3D.map_get_path(get_world_3d().navigation_map, from, to, true):
+			way.append(Vector3(p.x, 0.0, p.z))
+	if way.size() >= 2:
+		way.pop_front()  # where it stands
+		return way
+	return [Vector3(to.x, 0.0, to.z)]
+
+
+## The players in the hall who are up: peer -> where they stand.
+func _standing() -> Dictionary:
+	var out := {}
+	for peer: int in GameState._slots_now():
+		var p = GameState.player(peer)
+		if p.has_pose and not GameState.is_down(peer):
+			out[peer] = Vector3(p.pos.x, 0.0, p.pos.z)
+	return out
+
+
+## Host: one inside goes for the nearest player standing, round what is in the way, and claws them
+## once within REACH. Nobody standing, it waits where it is.
+func _hunt(z: Dictionary, delta: float) -> void:
+	var node: StaticBody3D = z.node
+	var at := node.global_position
+	var up := _standing()
+	z.think -= delta
+	if z.think <= 0.0 or not up.has(z.prey):
+		z.think = HUNT_EVERY
+		z.prey = 0
+		var near := INF
+		for peer: int in up:
+			if at.distance_to(up[peer]) < near:
+				near = at.distance_to(up[peer])
+				z.prey = peer
+		if z.prey != 0:
+			z.goal = up[z.prey]
+			z.path = _route(at, z.goal)
+	if z.down > 0.0 or z.body.busy() or z.swinging:
+		return
+	if z.prey == 0:
+		_moving(z, 0.0)
+		return
+	var goal: Vector3 = up[z.prey]
+	var off := goal - at
+	off.y = 0.0
+	if off.length() <= REACH:
+		_moving(z, 0.0)
+		_turn_to(node, off, FACE_TURN * delta)
+		_swing(z)
+		return
+	if z.path.is_empty() or goal.distance_to(z.goal) > 1.5:
+		z.goal = goal
+		z.path = _route(at, goal)
+	var to: Vector3 = z.path[0] - at
+	to.y = 0.0
+	if to.length() < WAYPOINT_SLACK and z.path.size() > 1:
+		z.path.pop_front()
+		to = z.path[0] - at
+		to.y = 0.0
+	z.stagger = maxf(0.0, z.stagger - delta)
+	var v := _pace(z) * (STAGGER_SLOW if z.stagger > 0.0 else 1.0)
+	var step := minf(v * delta, maxf(0.0, off.length() - REACH * 0.8))
+	if to.length() < 0.01 or step <= 0.0:
+		return
+	var way := _steer(z, to, step, delta, false)
+	var face := way
+	# One nearer the player in the way: it edges round it, its own side, or waits behind (a crowd
+	# round someone, not one heap on them).
+	for o: Dictionary in _zombies.values():
+		if o.dead or not o.inside or o.id == z.id:
+			continue
+		var rel: Vector3 = (o.node as Node3D).global_position - at
+		rel.y = 0.0
+		var near: float = SPREAD * 1.2 * maxf(z.body.size, o.body.size)
+		if rel.length() < near and rel.dot(way) > 0.4 * rel.length() and goal.distance_to((o.node as Node3D).global_position) < off.length():
+			var side := 1.0 if z.id % 2 == 0 else -1.0
+			way = way.rotated(Vector3.UP, side * PI * 0.45)
+			step *= 0.5 if off.length() > REACH * 2.0 else 0.0
+			break
+	node.global_position = _keep_side(at + way * step)
+	z.walked += step
+	_turn_to(node, face, TAU * 2.0 * delta)
+	_moving(z, step / delta)
+
+
+## Host: a claw at its prey (every peer sees the swing); it lands if they are still within reach and up.
+func _swing(z: Dictionary) -> void:
+	z.swinging = true
+	GameState.cue_wave([&"swing", z.id])
+	var t: float = z.swing
+	await get_tree().create_timer(t * 0.5).timeout
+	if not z.dead and phase == Phase.FIGHT and z.inside:
+		var up := _standing()
+		var at := (z.node as Node3D).global_position
+		if up.has(z.prey) and at.distance_to(up[z.prey]) <= REACH + REACH_SLACK:
+			GameState.hurt_player(z.prey, PLAYER_HIT * z.bite, at)
+	await get_tree().create_timer(t * (0.5 + ARM_SLOW * z.body.arms_hurt()) + 0.3).timeout
+	z.swinging = false
+
+
+## Its gait as it goes `v` m/s: walking (its stride kept to the floor) or standing.
+func _moving(z: Dictionary, v: float) -> void:
+	if z.down > 0.0:  # going down on a torn leg: once down, it sets off in its new gait
+		z.moving = false
+		return
+	if z.body.busy():
+		return
+	if v > 0.3:
+		if not z.moving:
+			z.moving = true
+			z.body.move(v)
+		else:
+			z.body.pace(v)
+	elif v < 0.1 and z.moving:
+		z.moving = false
+		z.body.idle()
+
+
+## Host: where it has the ones walking outside and the ones inside, for the clients.
+func _send_at() -> void:
+	var out := []
+	var inside := []
+	for z: Dictionary in _zombies.values():
+		if z.dead or not z.released:
+			continue
+		var node: Node3D = z.node
+		if z.inside:
+			inside.append_array([z.id, node.global_position, node.global_rotation.y])
+		elif not z.path.is_empty():
+			out.append_array([z.id, node.global_position])
+	if not out.is_empty() or not inside.is_empty():
+		GameState.cue_wave([&"at", out, inside])
+
+
+## Client: the host's positions. One outside drifted more than AT_SLACK is eased back in; the ones
+## inside follow the host's.
+func _got_at(out: Array, inside: Array) -> void:
+	for i in range(0, out.size() - 1, 2):
+		var z: Dictionary = _zombies.get(out[i], {})
+		if z.is_empty() or z.dead or z.inside:
+			continue
+		var off: Vector3 = out[i + 1] - (z.node as Node3D).global_position
+		off.y = 0.0
+		if off.length() > AT_SNAP:
+			(z.node as Node3D).global_position = out[i + 1]
+			z.fix = Vector3.ZERO
+		elif off.length() > AT_SLACK:
+			z.fix = off.normalized() * (off.length() - AT_SLACK)
+	for i in range(0, inside.size() - 2, 3):
+		var z: Dictionary = _zombies.get(inside[i], {})
+		if z.is_empty() or z.dead:
+			continue
+		if not z.inside:
+			z.inside = true
+			z.hole = -1
+			z.path = []
+			z.claws += 1
+		if z.seen == Vector3.INF or (inside[i + 1] as Vector3).distance_to((z.node as Node3D).global_position) > AT_SNAP:
+			(z.node as Node3D).global_position = inside[i + 1]
+		z.seen = inside[i + 1]
+		z.seen_yaw = inside[i + 2]
+
+
+## Client: one inside goes where the host has it, as fast as it needs to get there by the next word.
+func _follow(z: Dictionary, delta: float) -> void:
+	if z.seen == Vector3.INF:
+		return
+	var node: Node3D = z.node
+	var off: Vector3 = z.seen - node.global_position
+	off.y = 0.0
+	var d := off.length()
+	var v := minf(d / AT_SEND, _pace(z) * 1.5) if d > 0.05 else 0.0
+	if v > 0.0:
+		node.global_position += off / d * minf(d, v * delta)
+	z.v = lerpf(z.v, v, minf(1.0, 8.0 * delta))
+	node.global_rotation.y = lerp_angle(node.global_rotation.y, z.seen_yaw, minf(1.0, 10.0 * delta))
+	if not z.body.busy():
+		_moving(z, z.v)
 
 
 func _sound(slot: StringName, at: Node3D) -> void:

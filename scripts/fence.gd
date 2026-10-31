@@ -1,17 +1,19 @@
 extends Node3D
-## The railing's wear (GameState.fence, fence_wear; docs/ayrintilar.md "Çit"): the builder's railing
-## (tools/build_arena.gd _firing_line) is left as it is, only its two long rails are swapped for a
-## pair of halves per bay, so each bay can give on its own. The more a bay is clawed, the more its
-## posts lean back over our side and its rails bow in and sag; clawed through, the top rail hangs
-## snapped from one post, its other half lies on the floor and the bottom one sags to the ground.
-## Mended, it straightens back. Every peer shows the same, from the host's fence_changed; the sparks
-## of each claw (struck) come from each peer's own zombie, like its swing.
+## The railing's bays (GameState.fence_bays; docs/ayrintilar.md "Çit"): the builder's railing
+## (tools/build_arena.gd _firing_line) is left as it is, only its two long rails, the wall that
+## stops players and the rails' bullet stops are swapped for one of each per bay, so each bay can
+## give on its own. The more a bay is clawed, the more its posts lean back over our side and its
+## rails bow in and sag; clawed through, it comes down and leaves a hole: each rail snaps off a post,
+## a stub hangs down it, the rest lies on our side of the floor, the posts either side lean away,
+## and its wall and bullet stops go (the dead walk in through it, waves.gd). Mended, it straightens
+## back and shuts. Every peer shows the same, from the host's fence_changed; the sparks of each claw
+## (struck) come from each peer's own zombie, like its swing.
 ## Sounds come from the user (assets/sounds/fence/<slot>.ogg|wav): hit, break, repair. A missing
 ## file stays silent.
 
 const SOUNDS := "res://assets/sounds/fence/"
-const BREAK_AT := 8.0  # points clawed off one bay that tear it down
 const LEAN := 0.5  # rad, a post at its worst
+const SPLAY := 0.22  # rad, a post beside a hole leaning away from it
 const BOW := 0.32  # m, a rail bowed in at its worst
 const SAG := 0.22  # m
 const EASE := 2.5  # 1/s, the shown wear following the real one
@@ -26,6 +28,8 @@ var _post_home: Array[Transform3D] = []
 var _halves: Array = []  # per bay: per rail [half from the lower post, half from the upper post]
 var _shown: Array[float] = []  # per bay, 0..1 (1 torn down), easing to _goal
 var _goal: Array[float] = []
+var _walls: Array[CollisionShape3D] = []  # per bay: its piece of the wall that stops players
+var _stops: Array = []  # per bay: its rails' bullet stops (FiringLineBars)
 var _sparks := 0
 var _streams := {}  # slot -> AudioStream or null
 
@@ -49,7 +53,10 @@ func _ready() -> void:
 		add_child(flash)
 		_flashes.append(flash)
 	var paint: Material = null
+	var wall: CollisionShape3D = null
 	for c in line.get_children():
+		if c is CollisionShape3D and c.shape is BoxShape3D and (c.shape as BoxShape3D).size.z > 10.0:
+			wall = c
 		if not (c is MeshInstance3D and c.mesh is BoxMesh):
 			continue
 		var size: Vector3 = (c.mesh as BoxMesh).size
@@ -81,10 +88,58 @@ func _ready() -> void:
 		_halves.append(rails)
 		_shown.append(0.0)
 		_goal.append(0.0)
+	_split_wall(line, wall)
+	_split_stops(line.get_parent().get_node_or_null("FiringLineBars") as Node3D)
 	GameState.fence_changed.connect(_on_fence)
-	_on_fence(GameState.fence, GameState.fence_wear)
+	_on_fence(GameState.fence_bays)
 	_shown = _goal.duplicate()
 	_pose()
+
+
+## The one wall that stops players, wall to wall, cut into a piece per bay (the end ones out to the
+## hall's walls), so a torn down bay lets the dead through.
+func _split_wall(line: Node3D, wall: CollisionShape3D) -> void:
+	if wall == null:
+		return
+	var box: BoxShape3D = wall.shape
+	var ends := [wall.position.z - box.size.z * 0.5, wall.position.z + box.size.z * 0.5]
+	wall.disabled = true
+	for b in _halves.size():
+		var z0: float = ends[0] if b == 0 else _posts[b].position.z
+		var z1: float = ends[1] if b == _halves.size() - 1 else _posts[b + 1].position.z
+		var cs := CollisionShape3D.new()
+		var piece := BoxShape3D.new()
+		piece.size = Vector3(box.size.x, box.size.y, z1 - z0)
+		cs.shape = piece
+		cs.position = Vector3(wall.position.x, wall.position.y, (z0 + z1) * 0.5)
+		line.add_child(cs)
+		_walls.append(cs)
+
+
+## The long rails' bullet stops the same: a piece per bay and rail, gone with the bay.
+func _split_stops(bars: Node3D) -> void:
+	if bars == null:
+		return
+	var long: Array[CollisionShape3D] = []
+	for c in bars.get_children():
+		if c is CollisionShape3D and c.shape is BoxShape3D and (c.shape as BoxShape3D).size.z > 10.0:
+			long.append(c)
+	for b in _halves.size():
+		var pieces := []
+		var z0 := _posts[b].position.z
+		var z1 := _posts[b + 1].position.z
+		for rail in long:
+			var size: Vector3 = (rail.shape as BoxShape3D).size
+			var cs := CollisionShape3D.new()
+			var piece := BoxShape3D.new()
+			piece.size = Vector3(size.x, size.y, z1 - z0)
+			cs.shape = piece
+			cs.position = Vector3(rail.position.x, rail.position.y, (z0 + z1) * 0.5)
+			bars.add_child(cs)
+			pieces.append(cs)
+		_stops.append(pieces)
+	for rail in long:
+		rail.disabled = true
 
 
 ## A zombie's claw landed on the railing at `along` (z): sparks off the steel there, a clang.
@@ -94,16 +149,22 @@ func struck(along: float, kind: StringName) -> void:
 	_sound(&"hit", Vector3(_x, 0.8, along))
 
 
-func _on_fence(_hp: int, wear: Array) -> void:
+func _on_fence(hp: Array) -> void:
 	if _halves.is_empty():
 		return
 	var bays := _halves.size()
 	for b in bays:
 		# GameState's bays and the builder's are the same 20; should they ever differ, by share.
-		var w: float = wear[mini(b * wear.size() / bays, wear.size() - 1)] if not wear.is_empty() else 0.0
-		var goal := clampf(w / BREAK_AT, 0.0, 1.0)
+		var left: float = hp[mini(b * hp.size() / bays, hp.size() - 1)] if not hp.is_empty() else float(GameState.BAY_HP)
+		var goal := clampf(1.0 - left / GameState.BAY_HP, 0.0, 1.0)
+		var open := goal >= 1.0
+		if b < _walls.size():
+			_walls[b].disabled = open
+		if b < _stops.size():
+			for cs: CollisionShape3D in _stops[b]:
+				cs.disabled = open
 		var mid := Vector3(_x, _heights[0], (_posts[b].position.z + _posts[b + 1].position.z) * 0.5)
-		if goal >= 1.0 and _goal[b] < 1.0:
+		if open and _goal[b] < 1.0:
 			_burst(mid, 30, 2.0)
 			_sound(&"break", mid)
 		elif goal < _goal[b] - 0.01:  # mended: a shower off the welds
@@ -116,7 +177,11 @@ func _process(delta: float) -> void:
 	var moved := false
 	for b in _shown.size():
 		if not is_equal_approx(_shown[b], _goal[b]):
-			_shown[b] = move_toward(_shown[b], _goal[b], EASE * delta)
+			# Coming down it drops at once (a hole is a hole); everything else eases.
+			if _goal[b] >= 1.0:
+				_shown[b] = 1.0
+			else:
+				_shown[b] = move_toward(minf(_shown[b], 0.999), _goal[b], EASE * delta)
 			moved = true
 	if moved:
 		_pose()
@@ -126,9 +191,13 @@ func _process(delta: float) -> void:
 func _pose() -> void:
 	var bays := _halves.size()
 	for i in _posts.size():
-		var d := maxf(_shown[i - 1] if i > 0 else 0.0, _shown[i] if i < bays else 0.0)
+		var below := _shown[i - 1] if i > 0 else 0.0  # the bay on its -z side
+		var above := _shown[i] if i < bays else 0.0
+		var d := maxf(below, above)
 		var r := _rand(i)
-		var lean := Basis(Vector3.BACK, d * LEAN * (0.65 + 0.35 * r)) * Basis(Vector3.RIGHT, d * (r - 0.5) * 0.3)
+		# Beside a hole it leans away from it, out along the railing (a hole either side: upright).
+		var splay := (_down(below) - _down(above)) * SPLAY * (0.7 + 0.6 * r)
+		var lean := Basis(Vector3.BACK, d * LEAN * (0.65 + 0.35 * r)) * Basis(Vector3.RIGHT, d * (r - 0.5) * 0.3 + splay)
 		var home := _post_home[i]
 		var foot := home.origin - Vector3.UP * home.origin.y
 		_posts[i].transform = Transform3D(lean, foot + lean * (Vector3.UP * home.origin.y))
@@ -144,18 +213,24 @@ func _pose() -> void:
 				_beam(pair[0], a, mid)
 				_beam(pair[1], mid, c)
 				continue
-			if k == 0:  # the top rail snapped: one half hangs off its post, the other lies on the floor
-				var span := c.z - a.z
-				var from := a if r < 0.5 else c
-				var hang := Vector3(_x - 0.3, 0.25, from.z + span * (0.3 if r < 0.5 else -0.3))
-				_beam(pair[0], from, hang)
-				var lie_z := (a.z + c.z) * 0.5 + span * (r - 0.5) * 0.4
-				_beam(pair[1], Vector3(_x - 0.55 - r * 0.3, RAIL * 0.5, lie_z - span * 0.22),
-						Vector3(_x - 0.75, RAIL * 0.5, lie_z + span * 0.22))
-			else:  # the bottom one bent down to the ground
-				var low := Vector3(_x - 0.45, RAIL * 0.5, (a.z + c.z) * 0.5)
-				_beam(pair[0], a, low)
-				_beam(pair[1], low, c)
+			# Torn down, a hole: each rail snapped off one post (top and bottom off opposite ones).
+			# A short stub hangs down that post, close in to it; the rest lies on our side of the
+			# floor, out of the way through.
+			var span := c.z - a.z
+			var from_a := (r < 0.5) == (k == 0)
+			var from := a if from_a else c
+			var side := 1.0 if from_a else -1.0  # into the bay from that post
+			_beam(pair[0], from, Vector3(_x - 0.12 - 0.1 * k, 0.12 + 0.1 * r, from.z + side * span * 0.12))
+			var lie_x := _x - 0.75 - 0.45 * k - 0.25 * r
+			var lie_z := (a.z + c.z) * 0.5 + span * (r - 0.5) * 0.3
+			var tilt := (0.18 + 0.12 * r) * (1.0 if k == 0 else -1.0)
+			_beam(pair[1], Vector3(lie_x + tilt, RAIL * 0.5, lie_z - span * 0.3),
+					Vector3(lie_x - tilt, RAIL * 0.5, lie_z + span * 0.3))
+
+
+## 1 for a bay shown torn down, else 0.
+func _down(d: float) -> float:
+	return 1.0 if d >= 1.0 else 0.0
 
 
 ## Where rail height `h` meets post `i` as it leans now.
