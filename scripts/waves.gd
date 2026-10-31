@@ -136,10 +136,11 @@ const ZIG := 1.2
 const ZIG_TIME := 1.4
 const ZIG_STOP := 3.0
 const HP_SEND := 0.1  # s between the host's hit point updates
-## The bone hit shapes are laid on the bones every FIT_EVERY frames (each zombie on its own beat):
-## putting 40 zombies' 11 shapes to the physics every frame took ~2 ms. A round about to be traced
-## (GameState.fired, before the trace) has the ones within FIT_NEAR m of its line fitted first, so it
-## meets each body where it is drawn now.
+## The bone hit shapes and the head's ball are laid on the bones every FIT_EVERY frames (each zombie
+## on its own beat): putting 40 zombies' 12 shapes to the physics every frame took ~2 ms. A round
+## about to be traced (GameState.fired, before the trace) has the ones within FIT_NEAR m of its line
+## fitted first, their clips brought up to date if they were held back (zombie_body.gd catch_up), so
+## it meets each body where it is drawn now.
 const FIT_EVERY := 3
 const FIT_NEAR := 2.5
 ## The ones that keep low, lying along their way: kind -> trunk radius, trunk length, trunk height,
@@ -306,10 +307,8 @@ func _process(delta: float) -> void:
 	_spread(delta)
 	_beat += 1
 	for z: Dictionary in _zombies.values():
-		if not z.dead:
-			(z.head_shape as Node3D).global_position = (z.head as Node3D).global_position
-			if (_beat + z.id) % FIT_EVERY == 0:
-				_fit(z)
+		if not z.dead and (_beat + z.id) % FIT_EVERY == 0:
+			_fit(z)
 	if Net.is_client:
 		return
 	if phase == Phase.FIGHT and not _queue.is_empty():
@@ -1017,32 +1016,39 @@ func _bone_shapes(node: Node3D, body: Node3D) -> Array:
 func fit_along(from: Vector3, dir: Vector3) -> void:
 	dir = dir.normalized()
 	for z: Dictionary in _zombies.values():
-		if z.dead or z.bones.is_empty() or z.fit == _beat:
+		if z.dead or z.fit == _beat:
 			continue
 		var to := (z.node as Node3D).global_position + Vector3.UP - from
 		if to.dot(dir) > -FIT_NEAR and to.cross(dir).length() < FIT_NEAR:
+			z.body.catch_up()
 			_fit(z)
 
 
-## Lays each of `z`'s bone shapes along its bones as they are posed now.
+## Lays the head's ball and each of `z`'s bone shapes along its bones as they are posed now. The
+## shapes are the body's children: laid in its own space, one transform for the skeleton to it.
 func _fit(z: Dictionary) -> void:
-	if z.bones.is_empty():
-		return
 	z.fit = _beat
 	var sk: Skeleton3D = z.body.get("_skel")
+	# Off the bone's pose, not its attachment: that follows the skeleton's update, a step behind a
+	# pose just brought up to date.
+	var head: BoneAttachment3D = z.head
+	(z.head_shape as Node3D).global_position = sk.global_transform * sk.get_bone_global_pose(head.bone_idx).origin
+	if z.bones.is_empty():
+		return
+	var to_body := (z.node as Node3D).global_transform.affine_inverse() * sk.global_transform
 	for s: Dictionary in z.bones:
 		var cs: CollisionShape3D = s.node
 		if cs.disabled:
 			continue
-		var a := sk.to_global(sk.get_bone_global_pose(s.from).origin)
-		var b := sk.to_global(sk.get_bone_global_pose(s.to).origin)
+		var a := to_body * sk.get_bone_global_pose(s.from).origin
+		var b := to_body * sk.get_bone_global_pose(s.to).origin
 		var y := b - a
 		if y.length() < 0.001:
 			continue
 		y = y.normalized()
 		b += y * s.past
 		var x := y.cross(Vector3.FORWARD if absf(y.z) < 0.9 else Vector3.RIGHT).normalized()
-		cs.global_transform = Transform3D(Basis(x, y, x.cross(y)), (a + b) * 0.5)
+		cs.transform = Transform3D(Basis(x, y, x.cross(y)), (a + b) * 0.5)
 
 
 ## The region a round went into on a zombie: "head", "torso", "arm_l", "arm_r", "leg_l" or
@@ -1058,30 +1064,38 @@ static func region_at(zombie: CollisionObject3D, shape: int) -> StringName:
 ## client's rounds go where the host has nobody.
 func _spread(delta: float) -> void:
 	var live: Array[Dictionary] = []
-	var reach: Array[float] = []
+	var reach := PackedFloat32Array()
+	var at := PackedVector3Array()  # where each stands, as the pushes move it
+	var held: Array[bool] = []  # clawing at the railing: stays put
 	for z: Dictionary in _zombies.values():
 		if not z.dead and z.released:
 			live.append(z)
 			reach.append(SPREAD * (1.5 if z.body.crawling or LOW.has(z.kind) else 1.0) * z.body.size)
+			at.append((z.node as Node3D).global_position)
+			held.append(z.path.is_empty())
 	var k := minf(1.0, SPREAD_PUSH * delta)
+	var moved: Array[bool] = []
+	moved.resize(live.size())
 	for i in live.size():
-		var a: Node3D = live[i].node
 		for j in range(i + 1, live.size()):
-			var off := a.global_position - (live[j].node as Node3D).global_position
+			if held[i] and held[j]:  # both on their spots: neither would move
+				continue
+			var off := at[i] - at[j]
 			off.y = 0.0
 			var r := (reach[i] + reach[j]) * 0.5
 			var d := off.length()
 			if d >= r:
 				continue
 			var push := (off / d if d > 0.001 else Vector3(0, 0, 1)) * (r - d) * 0.5 * k
-			_nudge(live[i], push)
-			_nudge(live[j], -push)
-
-
-func _nudge(z: Dictionary, by: Vector3) -> void:
-	if z.path.is_empty():  # clawing at the railing
-		return
-	(z.node as Node3D).global_position += by
+			if not held[i]:
+				at[i] += push
+				moved[i] = true
+			if not held[j]:
+				at[j] -= push
+				moved[j] = true
+	for i in live.size():
+		if moved[i]:
+			(live[i].node as Node3D).global_position = at[i]
 
 
 func _kill(id: int, gib: StringName, weak := false, roll := 0, dir := Vector3.ZERO) -> void:

@@ -72,6 +72,7 @@ var _last_gold := 0
 var _earned: Array = []  # [msec, gold] of every gain in the last RATE_WINDOW
 var _shown_at := 0  # msec: cards that come in reach right after opening do not pop
 var _models_built := false
+var _gear_scenes := {}  # id -> its scene, read on a thread with the hall (kept: placement.gd's too)
 var _till := AudioStreamPlayer.new()
 var _cards := {}  # id -> {card, style, need, button, gauge, ready, and level/value/next/track or stock/model}
 var _recess := _round(Color(0, 0, 0, 0.32))  # a gear card's stage, sunk into its plate
@@ -99,6 +100,8 @@ class Track extends Control:
 		if armed and is_visible_in_tree():
 			queue_redraw()  # the next pip beats
 
+	var _pips: Array[StyleBoxTexture] = []  # one plate per pip, made once: the beat redraws every frame
+
 	func _draw() -> void:  # steel studs (plate "pip"), painted the upgrade's colour once bought
 		var gap := 4.0
 		var w := (size.x - gap * (levels - 1)) / levels
@@ -107,13 +110,22 @@ class Track extends Control:
 			var r := Rect2(i * (w + gap), 0, w, size.y)
 			if i < level:
 				var grow := 3.0 * flash if i == level - 1 else 0.0
-				draw_style_box(UiStyle.small_plate("pip", i, color.lerp(Color.WHITE, flash if i == level - 1 else 0.0), size.y), r.grow(grow))
+				draw_style_box(_pip(i, color.lerp(Color.WHITE, flash if i == level - 1 else 0.0)), r.grow(grow))
 			elif i == level:
-				draw_style_box(UiStyle.small_plate("pip", i, Color(0.46, 0.47, 0.46), size.y), r)
+				draw_style_box(_pip(i, Color(0.46, 0.47, 0.46)), r)
 				if armed:
 					draw_rect(r.grow(1.0), Color(BUY, 0.5 + 0.5 * beat), false, 1.5)
 			else:
-				draw_style_box(UiStyle.small_plate("pip", i, Color(0.26, 0.27, 0.26), size.y), r)
+				draw_style_box(_pip(i, Color(0.26, 0.27, 0.26)), r)
+
+	func _pip(i: int, tint: Color) -> StyleBoxTexture:
+		if _pips.size() != levels or not is_equal_approx(_pips[0].get_meta(&"h"), size.y):
+			_pips.clear()
+			for k in levels:
+				_pips.append(UiStyle.small_plate("pip", k, Color.WHITE, size.y))
+				_pips[k].set_meta(&"h", size.y)
+		_pips[i].modulate_color = tint
+		return _pips[i]
 
 
 ## The price: a slot sunk in the steel (plate "slot") that fills with a brass bar (plate "fill") as
@@ -138,8 +150,10 @@ class Gauge extends Control:
 	func _process(delta: float) -> void:
 		if not is_visible_in_tree():
 			return
-		fill = move_toward(fill, goal, delta * 2.5)
-		queue_redraw()
+		# Drawn again only while it moves: twenty of them redrawn every frame cost ~10 ms.
+		if full or fill != goal:
+			fill = move_toward(fill, goal, delta * 2.5)
+			queue_redraw()
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
@@ -162,6 +176,10 @@ func _ready() -> void:
 	_till.volume_db = BUY_DB
 	add_child(_till)
 	visible = false
+	# The gear tab's twelve pieces read off the disk took ~500 ms the first time it opened (built in
+	# the background instead, their pipelines held the hall up for seconds on a new machine).
+	for id in GameState.GEAR:
+		ResourceLoader.load_threaded_request(GameState.GEAR[id].scene)
 	add_child(UiStyle.backdrop())  # the menu has no frame: it stands over the blurred range
 	_center = CenterContainer.new()
 	add_child(_center)
@@ -536,7 +554,7 @@ func _model_view(id: String) -> SubViewportContainer:
 	var holder := _little_world(turn, cam)
 	# Many pieces build their meshes in _ready: the original enters the tree a moment, hidden and
 	# still, and is freed at once (as placement.gd's see-through copy does).
-	var src: Node3D = load(GameState.GEAR[id].scene).instantiate()
+	var src: Node3D = _gear_scene(id).instantiate()
 	src.process_mode = Node.PROCESS_MODE_DISABLED
 	src.visible = false
 	add_child(src)
@@ -562,6 +580,14 @@ func _model_view(id: String) -> SubViewportContainer:
 	cam.transform = Transform3D(Basis.looking_at(Vector3(0, box.get_center().y, 0) - eye), eye)
 	turn.create_tween().set_loops().tween_property(turn, "rotation:y", TAU, 9.0).from(0.0)
 	return holder
+
+
+func _gear_scene(id: String) -> PackedScene:
+	if not _gear_scenes.has(id):
+		var path: String = GameState.GEAR[id].scene
+		var asked := ResourceLoader.load_threaded_get_status(path) != ResourceLoader.THREAD_LOAD_INVALID_RESOURCE
+		_gear_scenes[id] = ResourceLoader.load_threaded_get(path) if asked else load(path)
+	return _gear_scenes[id]
 
 
 ## A transparent little world with its own key and rim light, `turn` in its middle seen by `cam`.
@@ -748,6 +774,7 @@ func _price(c: Dictionary, cost: int, have: int, maxed: bool) -> void:
 	c.ready = false
 	gauge.maxed = maxed
 	gauge.full = false
+	gauge.queue_redraw()
 	if maxed:
 		b.text = "Son"
 		b.disabled = true
