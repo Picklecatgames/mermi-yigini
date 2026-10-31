@@ -27,6 +27,7 @@ var main: Node
 var waves: Node
 var _log: Array[String] = []
 var _turn := 0  # _shoot_all: whose turn it is among the nearest
+var _on := [0, -1.0, 0]  # _shoot_all, a client: the zombie it stays on, its bar then, rounds since that moved
 var _cuts := {}  # zombie id -> the limbs it had lost when the die cue came (wave 3, online)
 var _down := {}  # zombie id -> its die cue came
 var _wipe_ok := false  # the railing fell, or a reset: the living may be cleared away
@@ -293,10 +294,17 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 			_turn += 1
 		if not near.is_empty():
 			var z: Dictionary = near[_turn % mini(near.size(), 3)]
+			if me:  # a knee behind the bottom rail takes no round: past a few without a mark, the trunk, then the next one
+				if _on[0] != z.id or _on[1] != z.bar.left:
+					_on = [z.id, z.bar.left, 0]
+				_on[2] += 1
+				if _on[2] > 12:
+					_turn += 1
+					_on[2] = 0
 			var at: Vector3 = (z.node as Node3D).global_position
 			# The trunk's shape where it is (on the bones, or low); a creature standing at chest height.
 			aim = (z.trunk as Node3D).global_position if waves.LOW.has(z.kind) or z.body.crawling or not z.bones.is_empty() else at + Vector3.UP * 1.1
-			if me and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
+			if me and _on[2] <= 6 and not waves.LOW.has(z.kind) and not z.body.crawling and z.kind != &"brute":
 				match z.id % 3:  # some into the legs, some into an arm
 					1: aim = z.body.call("_bone_at", "RightLeg")  # the knee
 					2: if z.body.can_lose(&"forearm_l"):  # (once it is off, the trunk)
