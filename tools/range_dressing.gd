@@ -2,8 +2,7 @@ extends RefCounted
 ## Dresses the range for tools/build_arena.gd (called from its _range): "POLİGON 7 – YIĞIN
 ## BÖLÜĞÜ", an old military range a crew took over to finish the pile. Two layers: the old
 ## institution's stencilled signs; and the crew's spray paint, posters, mats and gear. Past the
-## railing it is the dead's side since 2026-10-29: tools/zombie_bay.gd dresses that. Everything hugs the walls or hangs overhead: the target zones
-## (GameState.PLACE_ZONES) stay clear, and so does the east wall straight behind the targets.
+## railing it is the dead's side since 2026-10-29: tools/zombie_bay.gd dresses that. Everything hugs the walls or hangs overhead.
 ## Colours: range yellow for safety only, signal orange-red for the unit, olive for the old army.
 ## Plan from the art-director and level-designer reviews of 2026-10-22.
 
@@ -444,7 +443,7 @@ func _overhead() -> void:
 					_mesh(wire, null, Transform3D(basis, at + basis * Vector3(0, 0.75, 0.9))) if k % 2 == 0 else null]:
 				if m:
 					b.add(m, root)
-					b.overhead(m)  # the placement overview looks past the ducts
+					b.overhead(m)
 
 
 ## One node's mesh out of a Poly Haven set, saved on its own (the arena can't point into a glTF).

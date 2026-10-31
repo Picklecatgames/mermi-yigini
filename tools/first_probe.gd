@@ -1,7 +1,7 @@
 extends SceneTree
 ## A new player's firsts: the load and each first moment of the first waves (the first shot, the
-## first blood, the first head and the first blast, the first minigun, the bench, the Q menu and its
-## gear tab, the railing torn down), each one's frames: average, 1% low, the longest and the pipelines compiled then.
+## first blood, the first head and the first blast, the first minigun, the bench, the Q menu, the
+## railing torn down), each one's frames: average, 1% low, the longest and the pipelines compiled then.
 ## Meant for a cold start, with no shader or pipeline cache as on a new machine. The user dir (and
 ## Godot's caches in it) lives under %APPDATA% and NVIDIA's own pipeline cache follows
 ## __GL_SHADER_DISK_CACHE_PATH, so point both at empty folders for the run (the real ones are left alone):
@@ -76,8 +76,7 @@ func _initialize() -> void:
 	await _moment_of("ilk_scorpion", func() -> void: await _draw(4); await _hold(1.0, false))
 	await _moment_of("ilk_patlama", _blast)
 	await _moment_of("ilk_tezgah", _bench)
-	await _moment_of("ilk_q_menu", func() -> void: player.get_node("UpgradeMenu").toggle(); await _wait(1.0))
-	await _moment_of("ilk_techizat", func() -> void: player.get_node("UpgradeMenu").open_tab(1); await _wait(1.0); player.get_node("UpgradeMenu").toggle())
+	await _moment_of("ilk_q_menu", func() -> void: player.get_node("UpgradeMenu").toggle(); await _wait(1.0); player.get_node("UpgradeMenu").toggle())
 	await _moment_of("ilk_cit_kirilmasi", func() -> void: gs.hurt_fence(gs.fence, 0.0))
 	_report()
 	quit()

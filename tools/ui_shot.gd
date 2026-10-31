@@ -1,7 +1,6 @@
 extends SceneTree
 ## The screens in UiStyle, saved as PNGs to look at the spacing and alignment without playing:
-## HUD, the "found one" note, the round picker, both Q tabs, placement mode with the pendulum's
-## and the bank-shot plate's copies under the cursor.
+## HUD, the "found one" note, the round picker, the Q menu.
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/ui_shot.gd
 
 
@@ -45,17 +44,7 @@ func _initialize() -> void:
 	await _shot("q_kisisel", 10)
 	menu._cards["carry"].button.pressed.emit()  # the moment of buying
 	await _shot("q_al", 8)
-	menu._show_tab(1)
-	await _shot("q_techizat", 30)
 	menu.toggle()
-	gs.gear_stock = {"pendulum": 2, "ricochet": 1, "popper": 1}
-	gs.gear_changed.emit(gs.gear_stock)
-	gs.request_toggle_placing()
-	var placement: Node = main.get_node("Placed")
-	for id in ["pendulum", "ricochet"]:
-		placement.focus(id)
-		Input.warp_mouse(Vector2(560, 420))
-		await _shot("place_" + id, 40)
 	quit()
 
 

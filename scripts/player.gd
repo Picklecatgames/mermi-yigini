@@ -57,7 +57,6 @@ const LANTERN_ROOF_IN := 9.5  # m: under the glass the roof is 11.6 m up, so the
 const BALLOON_TIME := 4.0  # s
 const BALLOON_RISE := 1.0  # m/s
 const BALLOON_FALL := 1.0  # m/s at most on the way down
-const SPECIAL_DEMO := preload("res://scripts/special_demo.gd")  # N, debug builds, solo
 const CHARACTER_DEMO := preload("res://scripts/character_demo.gd")  # K, debug builds, solo
 ## Scream: the clown's face rushes at the view, holds, shakes, is gone. Its sound is the user's
 ## recording, played if it is there (no sound is made in code).
@@ -100,7 +99,6 @@ const SHOVE_DECAY := 6.0  # 1/s: a shove dies out in about half a second
 const FF_CLIMB := Vector2(0.05, 0.1)
 const FF_YAW := 0.09
 const FF_KICK := 0.06  # rad of view jolt on top
-const PLACEMENT := preload("res://scripts/placement.gd")  # its HUD box and label helpers
 
 var _grab_timer := 0.0
 var _yaw := 0.0
@@ -494,9 +492,9 @@ void fragment() {
 	add_child(_laser_beam)
 
 
-## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
+## A menu has the keys: we stand still and grab nothing.
 func _hands_busy() -> bool:
-	return GameState.player().placing or _shop.visible or _bench.visible or _board_menu.visible \
+	return _shop.visible or _bench.visible or _board_menu.visible \
 		or _melter.visible or _press.visible or _pick.visible
 
 
@@ -531,8 +529,6 @@ func _station() -> String:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if GameState.player().placing and not event.is_action_pressed("placement_mode"):
-		return  # the overview has the mouse and keys (scripts/placement.gd)
 	if event is InputEventMouseMotion and _wheel.is_open:
 		_wheel.steer(event.relative.x)  # the view holds still while picking
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not _steered:
@@ -544,8 +540,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("infinite_ammo"):
 		GameState.request_toggle_infinite_ammo()
-	elif event.is_action_pressed("placement_mode"):
-		GameState.request_toggle_placing()
 	elif event.is_action_pressed("pick_up") and _looking_at_table():
 		var warm := GameState.warming() and not GameState.player().has_pistol  # a 2nd E before the table fades
 		GameState.request_take_pistol()
@@ -566,8 +560,6 @@ func _unhandled_input(event: InputEvent) -> void:
 				GameState.request_pull_lever()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
-	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:
-		_toggle_demo(not event.shift_pressed)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
 		_toggle_mirror(not event.shift_pressed)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
@@ -591,22 +583,6 @@ func _show_heap() -> void:
 	tw.tween_property(self, "_pitch", pitch, HEAP_TURN)
 	tw.chain().tween_callback(func() -> void: _steered = false)
 	_hud.say(HEAP_LINE, HEAP_LINE_TIME)
-
-
-## N: the special rounds test (scripts/special_demo.gd) opens, or tops the pocket up again;
-## Shift+N closes it. Letter keys: not every keyboard has F keys.
-func _toggle_demo(on: bool) -> void:
-	var demo := get_parent().get_node_or_null("SpecialDemo")
-	if not on:
-		if demo:
-			demo.queue_free()
-		return
-	if demo:
-		demo.refill()
-		return
-	demo = SPECIAL_DEMO.new()
-	demo.name = "SpecialDemo"
-	get_parent().add_child(demo)
 
 
 ## K: the character test (scripts/character_demo.gd) opens, or puts on the next character;
@@ -646,7 +622,7 @@ func _process(delta: float) -> void:
 	# R held with special rounds in the pocket: the ammo wheel; let go, it loads what was picked
 	# (a tap still reloads, viewmodel.gd).
 	var p := GameState.player()
-	if Input.is_action_pressed("reload") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.placing and p.gun != 0 and not p.specials.is_empty():
+	if Input.is_action_pressed("reload") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and p.gun != 0 and not p.specials.is_empty():
 		_reload_held += delta
 		if _reload_held >= WHEEL_HOLD and not _wheel.is_open:
 			_wheel.open()
@@ -658,7 +634,7 @@ func _process(delta: float) -> void:
 	_hip_fov = Settings.value("fov")
 	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom)) + _punch * Settings.value("screen_shake") / 100.0
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
-	_crosshair.visible = not GameState.player().placing  # the overview has its own cursor
+	_crosshair.visible = true  # the laser's dot hides it again below
 	# Screen px per unit of tan(angle) off the view axis (fov is vertical).
 	var focal := get_viewport().get_visible_rect().size.y * 0.5 / tan(deg_to_rad(_camera.fov) * 0.5)
 	var off: Vector2 = _viewmodel.aim_offset
@@ -711,7 +687,7 @@ func _physics_process(delta: float) -> void:
 		_drifting = false
 	_crouch(delta)
 
-	# Placement mode: WASD moves the overview camera, not us; the Q menu holds us still.
+	# A menu open holds us still.
 	var input := Vector2.ZERO if _hands_busy() else Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := Basis(Vector3.UP, _yaw) * Vector3(input.x, 0.0, input.y)
 	# Dizzy (punch round): the aim wanders off and the legs head somewhere near where we steer.
@@ -788,7 +764,7 @@ func _physics_process(delta: float) -> void:
 	_lever_hint.visible = station == "lever"
 	var p := GameState.player()
 	_reload_hint.visible = not looking and station == "" and p.gun != 0 and GameState.loaded == 0 \
-		and GameState.carried > 0 and not p.placing
+		and GameState.carried > 0
 	_table_hint.visible = _looking_at_table()
 	if p.has_pistol:  # taken here, or on record from before a rejoin
 		get_tree().call_group("gun_table", "fade")

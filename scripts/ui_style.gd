@@ -256,7 +256,7 @@ static func backdrop() -> ColorRect:
 
 ## A shaped steel plate of `kind` (rounded corners, a rim, an inset line, a lip at the foot), 9-sliced
 ## to any size; `key` picks one of its variants, so cards side by side are different steel. `tint`
-## over it, `pad` px inside. card: a gear card, row: an upgrade, button: a price in reach, tray: what
+## over it, `pad` px inside. card: a card, row: an upgrade, button: a price in reach, tray: what
 ## the cards stand in, chain/cork: the quest board's halves, hazard: a shut piece's stage.
 static func plate(kind: String, key: Variant = 0, tint := PLATE_GREY, pad := 12) -> StyleBoxTexture:
 	var spec: Array = PLATES[kind]

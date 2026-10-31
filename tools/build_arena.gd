@@ -1039,8 +1039,8 @@ func _firing_line() -> void:
 
 
 ## A plain box mesh under `parent`.
-## Puts everything under `node` on GS.OVERHEAD_LAYER: the placement overview camera leaves it out,
-## so from above the range reads like a plan (roof, lamps, the bay's lid and baffles gone).
+## Puts everything under `node` on GS.OVERHEAD_LAYER (roof, lamps, the bay's lid and baffles):
+## some lights reach only that layer.
 func overhead(node: Node) -> void:
 	if node is GeometryInstance3D:
 		(node as GeometryInstance3D).layers = 1 << (GS.OVERHEAD_LAYER - 1)
@@ -1127,7 +1127,7 @@ func _bay(parent: Node, steel: Material, dark: Material) -> void:
 	# Ceiling: flat, painted near black, so the lit lane below is all there is to look at.
 	var lid := Vector3(BAY_END + 0.3 - 28.0, 0.12, 2.0 * BAY_HALF + 0.6)
 	var lid_at := Vector3((28.0 + BAY_END + 0.3) / 2.0, BAY_H + 0.06, 0)
-	var ceiling := StaticBody3D.new()  # its own body: the placement overview's ray skips it
+	var ceiling := StaticBody3D.new()  # its own body
 	ceiling.name = "BayCeiling"
 	ceiling.add_to_group("overhead", true)
 	add(ceiling, parent)

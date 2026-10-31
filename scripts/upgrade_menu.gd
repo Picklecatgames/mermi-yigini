@@ -1,9 +1,8 @@
 extends CanvasLayer
 ## The workshop, opened over the bench (bench_menu.gd; Esc or E back to it), in UiStyle: a dark steel panel under a brass
 ## edge, names and numbers in Oswald. Top: the player's gold and what it earns a
-## second on the left, the team vault on the right (co-op only), two tabs between them (the
-## player's own upgrades, GameState.UPGRADES, paid from their gold; the team's gear, GameState.GEAR,
-## paid from the vault, alone from the player's gold). Opened over the bench (bench_menu.gd), and with Q on the gear (player.gd). The upgrades are long rows, the gear a grid of cards turning their target's model.
+## second on the left, the team vault on the right (co-op only), the player's name between them
+## over their own upgrades, GameState.UPGRADES, paid from their gold, in long rows.
 ## Every price is a gauge that fills with brass as the money comes in; full, it turns green, breathes
 ## and buys. Buying pops the card, throws coins off the gauge, floats "+1" up and the gauge drains
 ## to what is left. The game keeps running, so the gauges keep filling while the menu is open.
@@ -15,25 +14,8 @@ const INFO := {  # name, value format, icon colour, what it does
 	"gold_bonus": ["Para Bonusu", "+%d%%", Color(1.0, 0.8, 0.25), "Her isabetten kazandığın paraya eklenen pay"],
 	"range_bonus": ["Uzak Atış", "+%d%%/m", Color(0.35, 0.9, 0.75), "Korkuluktan uzaklaştıkça metre başı ek para"],
 }
-const GEAR_INFO := {  # gold per hit, difficulty 1-5 (name: GameState.GEAR)
-	"dummy": [1, 1],
-	"popper": [3, 2],
-	"steel_rack": [4, 3],
-	"plate_rack": [7, 4],
-	"texas_star": [12, 5],
-	"barrel": [5, 2],
-	"scarecrow": [1, 1],
-	"armored_dummy": [10, 3],
-	"pendulum": [8, 4],
-	"twin_gong": [2, 4],
-	"gold_dummy": [10, 4],
-	"ricochet": [9, 5],
-}
 const ICONS := {"carry": "bullets", "magazine": "magazine", "combo_cap": "combo",
 	"gold_bonus": "banknote", "range_bonus": "sniper_eye"}  # UiStyle.icon
-const COLUMNS := 6  # gear cards
-const CARD_W := 172.0  # px, a gear card: six fill the tray
-const MODEL_H := 74.0  # px, a gear card's turning model
 const GAUGE_W := 210.0  # px, an upgrade row's price gauge
 const MAX_SIZE := Vector2(1200, 720)  # px; small windows keep a margin round it
 const PAD := 22  # px inside the panel
@@ -71,11 +53,8 @@ var _gold_shown := 0.0  # what the gold figure reads while it counts to the real
 var _last_gold := 0
 var _earned: Array = []  # [msec, gold] of every gain in the last RATE_WINDOW
 var _shown_at := 0  # msec: cards that come in reach right after opening do not pop
-var _models_built := false
-var _gear_scenes := {}  # id -> its scene, read on a thread with the hall (kept: placement.gd's too)
 var _till := AudioStreamPlayer.new()
-var _cards := {}  # id -> {card, style, need, button, gauge, ready, and level/value/next/track or stock/model}
-var _recess := _round(Color(0, 0, 0, 0.32))  # a gear card's stage, sunk into its plate
+var _cards := {}  # id -> {card, style, need, button, gauge, ready, level, value, next, track}
 
 
 ## Pips, one per level: bought ones filled in the upgrade's colour, the next one an outline that
@@ -176,10 +155,6 @@ func _ready() -> void:
 	_till.volume_db = BUY_DB
 	add_child(_till)
 	visible = false
-	# The gear tab's twelve pieces read off the disk took ~500 ms the first time it opened (built in
-	# the background instead, their pipelines held the hall up for seconds on a new machine).
-	for id in GameState.GEAR:
-		ResourceLoader.load_threaded_request(GameState.GEAR[id].scene)
 	add_child(UiStyle.backdrop())  # the menu has no frame: it stands over the blurred range
 	_center = CenterContainer.new()
 	add_child(_center)
@@ -199,7 +174,6 @@ func _ready() -> void:
 	# The magazine and the gun's parts are bought at the bench (scripts/bench_menu.gd).
 	_pages.append(_page(GameState.UPGRADES.keys().filter(func(id: String) -> bool:
 		return not GameState.UPGRADES[id].get("bench", false)), _upgrade_card, 1))
-	_pages.append(_page(GameState.GEAR.keys(), _gear_card, COLUMNS))
 	for p in _pages:
 		stack.add_child(p)
 	var foot := HBoxContainer.new()  # the gold Deagle's line, in the middle under the cards
@@ -217,7 +191,6 @@ func _ready() -> void:
 	GameState.gold_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
 	GameState.vault_changed.connect(_refresh.unbind(1))
-	GameState.gear_changed.connect(_refresh.unbind(1))
 	_show_tab(0)
 
 
@@ -226,7 +199,7 @@ func _input(event: InputEvent) -> void:
 		toggle()
 		get_viewport().set_input_as_handled()
 	elif visible and event is InputEventKey:
-		get_viewport().set_input_as_handled()  # no gun swap, B, throw or the like behind the menu
+		get_viewport().set_input_as_handled()  # no gun swap, throw or the like behind the menu
 
 
 ## A click or wheel turn the cards let pass would reach player.gd, which takes the mouse back
@@ -236,7 +209,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Opened over the bench (bench_menu.gd) on tab `index`: 0 the player's upgrades, 1 the gear.
+## Opened over the bench (bench_menu.gd) on tab `index`: 0 the player's upgrades, the only one.
 func open_tab(index: int) -> void:
 	_tab = index
 	if not visible:
@@ -252,8 +225,8 @@ func toggle() -> void:
 	var hud := get_node_or_null("../HUD") as CanvasLayer  # the player's: its corners would show through
 	if hud and not at_bench:
 		hud.visible = not visible
-	# The placement overview keeps its cursor when the workshop closes over it, the bench too.
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or at_bench or GameState.player().placing else Input.MOUSE_MODE_CAPTURED
+	# The bench keeps its cursor when the workshop closes over it.
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if visible or at_bench else Input.MOUSE_MODE_CAPTURED
 	if visible:
 		_gold_shown = GameState.gold
 		_show_tab(_tab)
@@ -296,7 +269,6 @@ func _header() -> Control:
 	tabs.add_theme_constant_override("separation", 32)
 	mid.add_child(tabs)
 	tabs.add_child(_tab_button(0))
-	tabs.add_child(_tab_button(1))
 	_subtitle = _centred(UiStyle.label("", 14, UiStyle.REGULAR, UiStyle.DIM))
 	_subtitle.visible = false  # the tabs say it
 	mid.add_child(_subtitle)
@@ -364,7 +336,7 @@ func _show_tab(index: int) -> void:
 	_shown_at = Time.get_ticks_msec()
 	_fit()
 	_frame.custom_minimum_size = MAX_SIZE - Vector2.ONE * PAD * 2
-	var titles := [GameState.display_name(), "Teçhizat"]
+	var titles := [GameState.display_name()]
 	for i in _tabs.size():
 		var on := i == index
 		var b := _tabs[i]
@@ -374,12 +346,6 @@ func _show_tab(index: int) -> void:
 		b.add_theme_color_override("font_hover_color", UiStyle.WHITE)
 		_marks[i].color = SIGNAL if on else Color(1, 1, 1, 0.0)
 		_pages[i].visible = on
-	if index == 1 and not _models_built:  # built on first look: twelve small worlds
-		_models_built = true
-		for id in GameState.GEAR:
-			var model: Control = _cards[id].model
-			model.add_child(_model_view(id))
-			model.move_child(model.get_child(-1), 0)
 	_refresh()
 
 
@@ -494,102 +460,6 @@ func _upgrade_card(id: String) -> Control:
 	return card
 
 
-func _gear_card(id: String) -> Control:
-	var body := VBoxContainer.new()
-	body.add_theme_constant_override("separation", 5)
-	var stage := PanelContainer.new()  # its turning model comes in on the first look (_show_tab)
-	stage.add_theme_stylebox_override("panel", _recess)
-	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var model := Control.new()
-	model.custom_minimum_size = Vector2(0, MODEL_H)
-	model.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	stage.add_child(model)
-	body.add_child(stage)
-	var badge := UiStyle.panel(0, 4)  # "Depoda N" in the stage's top left, only while some wait
-	(badge.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_left = 7
-	(badge.get_theme_stylebox("panel") as StyleBoxFlat).content_margin_right = 7
-	badge.position = Vector2(6, 6)
-	var stock := UiStyle.label("", 12, UiStyle.SEMIBOLD, UiStyle.ACCENT)
-	badge.add_child(stock)
-	model.add_child(badge)
-	var diff := _pips(5)  # difficulty: five short bars along the stage's foot, lit as hard as it is to hit
-	for i in GEAR_INFO[id][1]:
-		(diff.get_child(i) as ColorRect).color = Color(BRASS, 0.9)
-	diff.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	diff.offset_left = 8
-	diff.offset_right = -8
-	diff.offset_top = -9
-	diff.offset_bottom = -6
-	model.add_child(diff)
-	var lock := UiStyle.icon("padlock", 34, UiStyle.WHITE)  # in place of the model while it is shut, on hazard stripes
-	lock.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	lock.grow_horizontal = Control.GROW_DIRECTION_BOTH  # its size grows out from the middle, not rightwards
-	lock.grow_vertical = Control.GROW_DIRECTION_BOTH
-	model.add_child(lock)
-	var title := _stencil(GameState.GEAR[id].name, 22)
-	body.add_child(title)
-	var values := HBoxContainer.new()
-	values.add_theme_constant_override("separation", 5)
-	body.add_child(values)
-	var value := UiStyle.display("$%d" % GEAR_INFO[id][0], 20, UiStyle.SEMIBOLD, BUY)
-	values.add_child(value)
-	values.add_child(UiStyle.icon("crosshair", 16, UiStyle.DIM))  # a hit's pay
-	var card := _card(id, body, func() -> bool:
-		if not GameState.request_buy_gear(id):
-			return false
-		_to_placing.call_deferred(id)  # after the "+1" floats up: shut the workshop, go put it up
-		return true, 0.0, "card")
-	card.custom_minimum_size.x = CARD_W
-	(_cards[id].style as StyleBox).set_content_margin_all(14)
-	_cards[id].merge({"stock": stock, "model": model, "value": value, "color": BRASS, "title": title,
-		"lock": lock, "diff": diff, "stage": stage, "shut": UiStyle.plate("hazard", id, Color(0.55, 0.55, 0.55), 0)})
-	return card
-
-
-## The piece turning slowly on its own, lit like the round picker's rounds: a copy of its meshes
-## (with their own materials) in a little world of its own, framed to fit.
-func _model_view(id: String) -> SubViewportContainer:
-	var turn := Node3D.new()
-	var cam := Camera3D.new()
-	var holder := _little_world(turn, cam)
-	# Many pieces build their meshes in _ready: the original enters the tree a moment, hidden and
-	# still, and is freed at once (as placement.gd's see-through copy does).
-	var src: Node3D = _gear_scene(id).instantiate()
-	src.process_mode = Node.PROCESS_MODE_DISABLED
-	src.visible = false
-	add_child(src)
-	var box := AABB()
-	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
-		if not m.mesh:
-			continue
-		var copy := MeshInstance3D.new()
-		copy.mesh = m.mesh
-		copy.transform = src.global_transform.affine_inverse() * m.global_transform
-		copy.material_override = m.material_override
-		for s in m.get_surface_override_material_count():
-			copy.set_surface_override_material(s, m.get_surface_override_material(s))
-		turn.add_child(copy)
-		var b := copy.transform * m.mesh.get_aabb()
-		box = b if box.size == Vector3.ZERO else box.merge(b)
-	src.free()
-	for c: Node3D in turn.get_children():  # its middle on the turning axis
-		c.position -= Vector3(box.get_center().x, 0.0, box.get_center().z)
-	var reach := maxf(box.size.y, Vector2(box.size.x, box.size.z).length() * 0.8)
-	var far := reach * 0.5 / tan(deg_to_rad(cam.fov * 0.5)) * 1.25
-	var eye := Vector3(0, box.get_center().y + far * 0.25, far)
-	cam.transform = Transform3D(Basis.looking_at(Vector3(0, box.get_center().y, 0) - eye), eye)
-	turn.create_tween().set_loops().tween_property(turn, "rotation:y", TAU, 9.0).from(0.0)
-	return holder
-
-
-func _gear_scene(id: String) -> PackedScene:
-	if not _gear_scenes.has(id):
-		var path: String = GameState.GEAR[id].scene
-		var asked := ResourceLoader.load_threaded_get_status(path) != ResourceLoader.THREAD_LOAD_INVALID_RESOURCE
-		_gear_scenes[id] = ResourceLoader.load_threaded_get(path) if asked else load(path)
-	return _gear_scenes[id]
-
-
 ## A transparent little world with its own key and rim light, `turn` in its middle seen by `cam`.
 func _little_world(turn: Node3D, cam: Camera3D) -> SubViewportContainer:
 	var holder := SubViewportContainer.new()
@@ -690,22 +560,6 @@ func _deagle_view() -> SubViewportContainer:
 	return holder
 
 
-## Just bought a piece: straight into placement mode with it in hand, over the firing line.
-func _to_placing(id: String) -> void:
-	await get_tree().create_timer(0.35).timeout
-	if visible:
-		toggle()
-	var bench := get_node_or_null("../BenchMenu")  # bought at the bench: off it first, then the overview
-	if bench and bench.visible:
-		await bench.close()
-	if not GameState.player().placing:
-		GameState.request_toggle_placing()
-	var placement := get_tree().get_first_node_in_group("placement")
-	if placement:
-		placement.focus(id)
-
-
-
 # --- state ------------------------------------------------------------------------------------
 
 func _refresh() -> void:
@@ -737,27 +591,6 @@ func _refresh() -> void:
 		track.level = level
 		track.armed = c.ready
 		track.queue_redraw()
-	for id in GameState.GEAR:
-		var c: Dictionary = _cards[id]
-		var n: int = GameState.gear_stock.get(id, 0)
-		(c.stock as Label).text = "×%d" % n
-		(c.stock as Label).get_parent().visible = n > 0
-		_price(c, GameState.GEAR[id].cost, floori(GameState.vault) if GameState.team_vault() else GameState.gold, false)
-		# Through the warmup only the straw dummy: the rest are a padlock, not what they will be.
-		var open := GameState.gear_open(id)
-		(c.stage as Control).add_theme_stylebox_override("panel", _recess if open else c.shut)
-		(c.lock as Control).visible = not open
-		(c.diff as Control).visible = open
-		var view := (c.model as Control).get_child(0)
-		if view is SubViewportContainer:
-			view.visible = open
-		(c.title as Label).text = GameState.GEAR[id].name if open else "Kilitli"
-		(c.value as Control).get_parent().visible = open
-		if not open:
-			(c.button as Button).disabled = true
-			(c.button as Button).text = ""
-			c.ready = false
-			(c.card as Control).modulate.a = WAITING
 
 
 ## The gauge, its button and the line under it. Money enough: the gauge is full and green, the
@@ -912,28 +745,6 @@ static func _box(fill: Color, edge: Color, radius: int, pad: int) -> StyleBoxFla
 	s.set_content_margin_all(pad)
 	s.anti_aliasing = true
 	return s
-
-
-## A soft-cornered slot in `fill`, to sit inside a plate's rounded corners.
-static func _round(fill: Color, radius := 6) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = fill
-	s.set_corner_radius_all(radius)
-	s.anti_aliasing = true
-	return s
-
-
-## A row of short 4 px bars, unlit (difficulty).
-func _pips(count: int) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 3)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	for i in count:
-		var p := UiStyle.line(0, Color(1, 1, 1, 0.12))
-		p.custom_minimum_size.y = 3
-		p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(p)
-	return row
 
 
 ## A button with no frame of its own, mouse only (Space must keep jumping).

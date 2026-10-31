@@ -26,13 +26,11 @@ signal loaded_changed(count: int)        # local player
 ## first person for its own shots, in the world for everyone else's.
 signal fired(peer: int, from: Vector3, dir: Vector3)
 ## Where that round landed. `target` is what it hit (null for a miss into the sky), `gold` what
-## the shooter earned for it, `weak` whether it struck a weak spot (a dummy's head), `combo`
-## the shooter's chain after it (0 when it didn't hit a dummy).
-## Dummies react and pay out from this; impacts are drawn from it.
+## the shooter earned for it, `weak` whether it struck a weak spot (a zombie's head), `combo`
+## the shooter's chain after it (0 when the hit paid nothing).
+## Zombies react to this; impacts are drawn from it.
 signal shot_landed(peer: int, at: Vector3, normal: Vector3, dir: Vector3, target: Node, gold: int, weak: bool, combo: int)
 signal gold_changed(gold: int)  # local player
-## Local player went into or out of placement mode (sets targets up from behind the railing).
-signal placing_changed(on: bool)
 ## Crate keys buried in the heap (scripts/key_cache.gd). Digging reached one: it pops out at `at`.
 signal key_revealed(rank: int, at: Vector3)
 ## Someone picked a key up; every peer removes it from the heap.
@@ -46,23 +44,9 @@ signal spawn_assigned(index: int)
 ## Where the keys are buried: the host rolls the seed, a client lays its keys out again from it
 ## (scripts/key_cache.gd).
 signal key_layout(seed: int)
-## The shared vault: everything built into the world is bought from it. Every paying hit adds
+## The shared vault: the team's stations and the fence are paid from it. Every paying hit adds
 ## VAULT_SHARE of its pay on top (the shooter keeps all of theirs). Float, so $1 hits add up.
 signal vault_changed(vault: float)
-signal gear_changed(stock: Dictionary)  # GEAR id -> bought, not placed yet
-## Gear went up in the target area: number `n` in placement order (its node is Placed/Gear_<n>).
-signal gear_placed(n: int, id: String, pos: Vector3, yaw: float)
-## Placed piece `n` was taken down and went back to the stock; its number stays unused.
-signal gear_removed(n: int)
-## Someone else's placement preview (scripts/placement.gd draws it faint); id "" when they stop.
-signal preview_received(peer: int, id: String, pos: Vector3, yaw: float)
-## A moving target's own call, made on the host alone: which plate comes up, when a popper
-## stands back up, where the star has turned to. Clients follow these instead of rolling their own.
-## What `cue` holds is up to the target.
-signal target_cue(target: Node, cue: Array)
-## `peer` earned `gold` from `target` on its own, not from a shot of theirs (a burning scarecrow,
-## a gong pair rung together); pay_bonus. It pops over the target.
-signal bonus_paid(peer: int, target: Node, gold: int)
 ## Friendly fire: `shooter`'s round struck `victim`. It does no harm; it throws the victim's aim.
 signal player_shot(shooter: int, victim: int, at: Vector3, dir: Vector3, special: String)
 ## Who stands on which spawn point (peer -> slot, the host 0); a player's colour follows it.
@@ -148,8 +132,7 @@ const GUNS := [
 	# opens (gun_open).
 	{"id": "minigun", "name": "Minigun", "ready": true, "interval": 0.05, "auto": true, "mag": 30, "crate": 12},
 ]
-## A weak spot pays this many times over: a collision shape in group "weak_spot" (the dummy's
-## head), or where the target's `is_weak(at)` says so (a popper's round head).
+## A weak spot pays this many times over: a collision shape in group "weak_spot" (a zombie's head).
 const WEAK_MULT := 2
 const LASER_WEAK_MULT := 3  # the same with the laser on the Deagle in hand: it puts the dot on the head
 ## Combo: each paying hit within this long of the last one adds 1 to the chain, and the chain is
@@ -159,10 +142,9 @@ const LASER_WEAK_MULT := 3  # the same with the laser on the Deagle in hand: it 
 const COMBO_WINDOW := 1.5  # s
 const COMBO_MAX := 20  # combo_cap's last level; the combo meter's full size and colour
 const SHOT_RANGE := 300.0  # m
-const SHOT_MASK := 1 | 1 << 5  # world layer (walls, floor, heap, dummies) and the railing's bars (RAIL_LAYER)
-## The firing line: a railing across the shed at this x, with every target past it. Players
-## never cross it (targets go up from behind it), and rounds fired from past it pay nothing and build no combo,
-## so walking up to a target to shoot it point blank gets you nothing.
+const SHOT_MASK := 1 | 1 << 5  # world layer (walls, floor, heap, zombies) and the railing's bars (RAIL_LAYER)
+## The firing line: a railing across the shed at this x, the zombies' side past it. Players
+## never cross it, and rounds fired from past it pay nothing and build no combo.
 const FIRING_LINE_X := 14.0
 ## Physics layer of the railing's wall: it stops players (mask), never rounds (SHOT_MASK).
 const FENCE_LAYER := 4
@@ -182,27 +164,6 @@ const FIRE_FROM_SLACK := 1.5  # m
 const PUSH_REACH := 1.5  # m
 const PUSH_MAX := 8.0  # m/s
 const VAULT_SHARE := 0.2  # placeholder (yol haritası 7)
-## A round that glances off a "ricochet" body (the bank-shot plate) flies on, up to this many
-## times, and a target it then hits pays this many times over.
-const MAX_BOUNCES := 1
-const RICOCHET_MULT := 3
-## Gear: targets the team buys from the shared vault (Q menu, Teçhizatlar). Bought ones wait in
-## the shared stock until someone places them (yol haritası 10). Order is the menu's order.
-# ponytail: placeholder prices until the 60-minute balance pass.
-const GEAR := {
-	"dummy": {"name": "Saman Kukla", "scene": "res://scenes/dummy.tscn", "cost": 20},
-	"popper": {"name": "Popper", "scene": "res://scenes/popper_target.tscn", "cost": 60},
-	"steel_rack": {"name": "Plaka Dizisi", "scene": "res://scenes/steel_rack.tscn", "cost": 90},
-	"plate_rack": {"name": "Köstebek Rafı", "scene": "res://scenes/plate_rack.tscn", "cost": 150},
-	"texas_star": {"name": "Texas Star", "scene": "res://scenes/texas_star.tscn", "cost": 300},
-	"barrel": {"name": "Patlayan Varil", "scene": "res://scenes/barrel_target.tscn", "cost": 120},
-	"scarecrow": {"name": "Yanan Korkuluk", "scene": "res://scenes/scarecrow.tscn", "cost": 60},
-	"armored_dummy": {"name": "Zırhlı Kukla", "scene": "res://scenes/armored_dummy.tscn", "cost": 200},
-	"pendulum": {"name": "Sarkaç", "scene": "res://scenes/pendulum.tscn", "cost": 180},
-	"twin_gong": {"name": "Çift Gong", "scene": "res://scenes/twin_gong.tscn", "cost": 150},
-	"gold_dummy": {"name": "Altın Kukla", "scene": "res://scenes/gold_dummy.tscn", "cost": 400},
-	"ricochet": {"name": "Sekme Plakası", "scene": "res://scenes/ricochet_plate.tscn", "cost": 100},
-}
 ## Rare rounds that come out of the heap now and then (rolled on the host, per bullet picked up):
 ## `chance` is 1 in that many, about 1 in 75 for any of them. They go in a pocket of their own,
 ## not the hand; the player arms one (request_arm_special) and the next shot is that round.
@@ -228,29 +189,21 @@ const QUEST_SLOTS := ["main", "easy", "medium", "medium", "hard"]
 ## Kinds: gold_earned, bullets_carried (off the heap), bullets_fired, hits, weak_hits, combo (the
 ## longest chain), crafted (bullets made into recipe rounds), bullets_melted, key_found, loaded
 ## (rounds put in a magazine), board_claim (someone at the board pressed E), gun_taken (the pistol
-## off the table at the spawn), bench_bought (an upgrade bought at the workshop bench), gear_bought,
-## gear_placed (a target bought for the team, put up).
+## off the table at the spawn), bench_bought (an upgrade bought at the workshop bench).
 ## The demo's pool draft (docs/gorev_sistemi_plani.md, "Görev havuzu"); numbers from tools/quest_sim.gd.
 ## warmup: the first minutes (docs/ayrintilar.md "Pano = teslim yeri ve ısınma zinciri"), one thing
 ## each; the target doesn't grow with the team and the quest is done the moment it is reached, no
-## trip to the board, except t06, which is the trip. hint: the key and what to do, for the HUD.
+## trip to the board, except t03, which is the trip. hint: the key and what to do, for the HUD.
 ## Their unlocks open parts of the HUD; "board" also lets the four pool slots draw.
 # ponytail: crafted and bullets_melted have no hook until the bench and the melter exist (plan 6, 9).
 const QUESTS := {
 	"t00": {"tier": "main", "warmup": true, "name": "Tabancayı al", "kind": "gun_taken", "target": 1,
 		"unlock": "workbench", "hint": ["E", "Masadaki tabancayı al"], "reward": {}},  # the bench drops in, gold shows
-	# Everything is bought at the bench (2026-10-28, the user's call: no Q menu of its own).
-	"t01": {"tier": "main", "warmup": true, "name": "Kukla al", "kind": "gear_bought", "target": 1,
-		"hint": ["E", "Tezgâhtan kukla al"], "reward": {}},  # the gold it starts with buys exactly one
-	"t02": {"tier": "main", "warmup": true, "name": "Kuklayı yerleştir", "kind": "gear_placed", "target": 1,
-		"hint": ["SOL TIK", "Kuklayı korkuluğun ötesine koy"], "reward": {}},
-	"t03": {"tier": "main", "warmup": true, "name": "Yığından mermi al", "kind": "bullets_carried", "target": 1,
+	"t01": {"tier": "main", "warmup": true, "name": "Yığından mermi al", "kind": "bullets_carried", "target": 1,
 		"unlock": "hud_ammo", "hint": ["E", "Yığından bir mermi al"], "reward": {}},  # the hand holds 1 at first
-	"t04": {"tier": "main", "warmup": true, "name": "Tabancayı doldur", "kind": "loaded", "target": 1,
+	"t02": {"tier": "main", "warmup": true, "name": "Tabancayı doldur", "kind": "loaded", "target": 1,
 		"hint": ["R", "Şarjörü doldur"], "reward": {}},
-	"t05": {"tier": "main", "warmup": true, "name": "Kuklaya sık", "kind": "hits", "target": 1,
-		"hint": ["SOL TIK", "Kuklaya ateş et"], "reward": {}},
-	"t06": {"tier": "main", "warmup": true, "name": "Görevlerine bak", "kind": "board_claim", "target": 1,
+	"t03": {"tier": "main", "warmup": true, "name": "Görevlerine bak", "kind": "board_claim", "target": 1,
 		"unlock": "board", "hint": ["E", "Görevlerine panodan bak"], "reward": {"gold": 10}},
 	# The bench is open from the pistol on (t00); a couple of quests, then the first thing on it.
 	"m01": {"tier": "main", "name": "İlk kazanç", "kind": "gold_earned", "target": 6, "reward": {}},
@@ -313,7 +266,7 @@ const BOARD_POS := Vector3(8.85, 0.0, 26.72)
 const BOARD_REACH := 3.0  # m
 ## The melting hopper and the press (docs/ayrintilar.md "Pres", docs/uretim_agaci.md), one each
 ## for the team. Rounds poured into the hopper melt MELT_RATES[melt_level] a second into brass, the
-## team's; the press makes rounds out of it, each player's own. Upgrades are paid like gear: from
+## team's; the press makes rounds out of it, each player's own. Upgrades are paid like the fence: from
 ## the vault in co-op, alone from one's own gold. Numbers are placeholders.
 const MELTER_POS := Vector3(10.24, 0.0, 27.15)  # tools/range_dressing.gd _workshop
 const PRESS_POS := Vector3(11.34, 0.0, 27.53)  # on the bench's low stand
@@ -350,34 +303,28 @@ enum Act { IDLE, WALKING, RELOADING, SHOOTING }
 ## What a client may ask the host for, with its argument count (`peer` comes from the sender).
 const REQUESTS := {
 	&"request_buy_upgrade": 1, &"request_debug_level_up": 1, &"request_pick_up": 2,
-	&"request_pick_up_loose": 1, &"request_reload": 0, &"request_toggle_placing": 0,
+	&"request_pick_up_loose": 1, &"request_reload": 0,
 	&"request_toggle_infinite_ammo": 0, &"request_fire": 2, &"request_take_key": 1,
-	&"request_throw": 2, &"request_push": 2, &"request_hello": 1, &"request_buy_gear": 1,
-	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
+	&"request_throw": 2, &"request_push": 2, &"request_hello": 1,
+	&"request_select_gun": 1, &"request_arm_special": 1,
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 	&"request_pull_lever": 0, &"request_repair_fence": 0,
 }
-## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
-## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
-## PLACE_GAP from any target's origin and with nothing solid in the way.
-const PLACE_ZONES: Array[Rect2] = [Rect2(20.0, -25.0, 6.5, 45.0), Rect2(26.5, -11.2, 9.0, 22.4)]
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
-const PLACE_ROOM := 0.35  # m: a piece's footing needs this much clear of walls, columns, props
-const PLACE_GAP := 1.6  # m
-## Render layer of what hangs over the range (roof, lamps, the bay's lid and baffles, ducts): the
-## placement overview camera leaves it out (tools/build_arena.gd overhead()).
+## Render layer of what hangs over the range (roof, lamps, the bay's lid and baffles, ducts); some
+## lights reach only it (tools/build_arena.gd overhead()).
 const OVERHEAD_LAYER := 3
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
-	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed",
-	&"bonus_paid", &"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
+	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
+	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
 	&"fence_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
-const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0, &"bonus_paid": 1}
+const NODE_ARG := {&"shot_landed": 4}
 
 
 class PlayerState:
@@ -394,7 +341,6 @@ class PlayerState:
 	var keys: Array[int] = []  # crate key ranks held (1 = most common)
 	var combo_left := 0.0  # s until the body chain breaks; game time
 	var weak_left := 0.0  # s until the weak spot chain breaks
-	var placing := false  # placement mode: puts targets up, no shooting
 	var gun := 0  # GUNS index in hand; 0 is bare fists
 	var specials: Array[String] = []  # SPECIALS ids in the pocket, one per round
 	var armed := ""  # the special the next shot fires; "" for a plain round
@@ -407,13 +353,10 @@ class PlayerState:
 	var character := ""  # CHARACTERS id; "" until picked
 
 
-## What everyone starts with: one straw dummy's price, so the warmup's first buy is that (2026-10-28,
-## the user's call). Co-op buys gear from the vault, so it starts with as much.
+## What everyone starts with; the co-op vault starts with as much.
 const START_GOLD := 20
 var pile: int = PILE_START
 var vault := float(START_GOLD)
-var gear_stock := {}  # GEAR id -> bought and not placed yet, shared by the team
-var placed := []      # [GEAR id, pos, yaw] per piece put up, in order
 var _players := {}  # peer id -> PlayerState
 var _next_loose_id := THROWN_ID_START
 # ponytail: grows by one per loose grab; the save system can prune ids no longer in the world.
@@ -509,7 +452,6 @@ func _ready() -> void:
 			_event.rpc_id(id, &"pile_changed", [pile])
 			_event.rpc_id(id, &"key_layout", [key_seed])
 			_event.rpc_id(id, &"vault_changed", [vault])
-			_event.rpc_id(id, &"gear_changed", [gear_stock])
 			_event.rpc_id(id, &"melter_changed", [melt_bin, brass, melt_level, press_level])
 			_event.rpc_id(id, &"fence_changed", [fence, fence_wear])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
@@ -522,9 +464,6 @@ func _ready() -> void:
 					_event.rpc_id(id, &"key_revealed", [rank, key_at.get(rank, Vector3.ZERO)])
 				if key_states[rank] == KeyState.TAKEN:
 					_event.rpc_id(id, &"key_taken", [rank, _holder_of(rank)])
-			for n in placed.size():  # before the cues: placed targets have state of their own
-				if placed[n]:
-					_event.rpc_id(id, &"gear_placed", [n] + placed[n])
 			for peer: int in _players:
 				if _players[peer].gun != 0 and peer != id:
 					_event.rpc_id(id, &"gun_changed", [peer, _players[peer].gun])
@@ -532,13 +471,9 @@ func _ready() -> void:
 					_event.rpc_id(id, &"pistol_grip", [peer, _players[peer].levels.grip])
 				if _players[peer].character != "" and peer != id:
 					_event.rpc_id(id, &"character_changed", [peer, _players[peer].character])
-			for w: Node in get_tree().get_nodes_in_group("waves"):  # before the targets: zombies are some
+			for w: Node in get_tree().get_nodes_in_group("waves"):
 				for cue: Array in w.join_cues():
 					_event.rpc_id(id, &"wave_cue", [cue])
-			for t: Node in get_tree().get_nodes_in_group("target"):
-				if t.has_method("join_cues"):
-					for cue: Array in t.join_cues():
-						_event.rpc_id(id, &"target_cue", [t.get_path(), cue])
 			# Each player starts on a spawn point of their own: the first one nobody holds.
 			var slot := 1
 			while slot in _spawn_slots.values():
@@ -699,7 +634,7 @@ func near_station(at: Vector3, peer := 0) -> bool:
 func request_melt(peer := 0) -> int:
 	var p := player(peer)
 	var n := p.carried
-	if n <= 0 or p.placing or not unlocked("melter") or not near_station(MELTER_POS, peer):
+	if n <= 0 or not unlocked("melter") or not near_station(MELTER_POS, peer):
 		return 0
 	var sent := _send(&"request_melt", [], peer)
 	_set_carried(peer, 0)
@@ -789,129 +724,10 @@ func team_vault() -> bool:
 	return Net.online
 
 
-## Anyone buys a piece of gear for the team, from the shared vault; alone there is no vault and the
-## player pays from their own gold (2026-10-28, the user's call). No guess on a client: the vault is
-## the host's, and two players may spend the same money; gear_changed says what came of it.
-func request_buy_gear(id: String, peer := 0) -> bool:
-	if not GEAR.has(id) or not gear_open(id):
-		return false
-	if _send(&"request_buy_gear", [id], peer):
-		return vault >= GEAR[id].cost
-	if not team_vault():
-		var p := player(peer)
-		if p.gold < GEAR[id].cost:
-			return false
-		p.gold -= GEAR[id].cost
-		gold_changed.emit(p.gold)
-	elif vault < GEAR[id].cost:
-		return false
-	else:
-		vault -= GEAR[id].cost
-		_world(&"vault_changed", [vault])
-	gear_stock[id] = gear_stock.get(id, 0) + 1
-	_world(&"gear_changed", [gear_stock])
-	quest_add("gear_bought", 1)
-	return true
-
-
-## Whether piece `id` can be bought yet: through the warmup only the straw dummy, the rest show locked.
-func gear_open(id: String) -> bool:
-	return id == "dummy" or not warming()
-
-
-## The team is still in the warmup (GameState QUESTS t00-t06): parts of the game wait for it.
+## The team is still in the warmup (GameState QUESTS t00-t03): parts of the game wait for it.
 func warming() -> bool:
 	var main: String = quest_board[0] if not quest_board.is_empty() else ""
 	return main != "" and QUESTS[main].get("warmup", false)
-
-
-## Whether piece `id` from the stock may go up at `pos` (target area, room around it).
-func can_place(id: String, pos: Vector3) -> bool:
-	return place_problem(id, pos) == ""
-
-
-## Why piece `id` can't go up at `pos`, for the placement banner; "" when it can.
-func place_problem(id: String, pos: Vector3) -> String:
-	if gear_stock.get(id, 0) <= 0:
-		return "depoda yok"
-	if not in_place_zone(pos):
-		return "yeşil alanın dışında"
-	for t: Node in get_tree().get_nodes_in_group("target"):
-		var at: Vector3 = (t as Node3D).global_position
-		if Vector2(at.x - pos.x, at.z - pos.z).length() < PLACE_GAP:
-			return "başka bir hedefe çok yakın"
-	var q := PhysicsShapeQueryParameters3D.new()  # a column, a prop, a player standing there
-	var foot := CylinderShape3D.new()
-	foot.radius = PLACE_ROOM
-	foot.height = 1.2
-	q.shape = foot
-	q.transform = Transform3D(Basis(), pos + Vector3.UP * 0.75)  # clear of the floor
-	q.collision_mask = SHOT_MASK
-	if not get_viewport().world_3d.direct_space_state.intersect_shape(q, 1).is_empty():
-		return "yer dolu"
-	return ""
-
-
-static func in_place_zone(pos: Vector3) -> bool:
-	return PLACE_ZONES.any(func(r: Rect2) -> bool: return r.has_point(Vector2(pos.x, pos.z)))
-
-
-## Puts piece `id` from the shared stock up at `pos`, turned `yaw`. The host checks the spot; two
-## players dropping on one spot: the first wins, the second finds it taken (or the stock empty).
-func request_place_gear(id: String, pos: Vector3, yaw: float, peer := 0) -> bool:
-	if not GEAR.has(id) or not pos.is_finite() or not is_finite(yaw) or absf(pos.y) > 2.0:
-		return false  # a peer's NaN passes the zone check; the range floor is flat
-	if _send(&"request_place_gear", [id, pos, yaw], peer):
-		return can_place(id, pos)  # no guess: the piece appears when the host's gear_placed comes
-	if not can_place(id, pos):
-		return false
-	gear_stock[id] -= 1
-	placed.append([id, pos, yaw])
-	_world(&"gear_changed", [gear_stock])
-	_world(&"gear_placed", [placed.size() - 1, id, pos, yaw])
-	quest_add("gear_placed", 1)
-	return true
-
-
-## Takes placed piece `n` down, back into the shared stock. Anyone may; the host decides.
-func request_remove_gear(n: int, peer := 0) -> bool:
-	if n < 0 or n >= placed.size() or placed[n] == null:
-		return false
-	if _send(&"request_remove_gear", [n], peer):
-		return true  # it goes when the host's gear_removed comes
-	var id: String = placed[n][0]
-	placed[n] = null
-	gear_stock[id] = gear_stock.get(id, 0) + 1
-	_world(&"gear_changed", [gear_stock])
-	_world(&"gear_removed", [n])
-	return true
-
-
-## Our placement preview for the others to see faint; id "" when we stop. Unreliable, ~10 Hz.
-func send_preview(id: String, pos: Vector3, yaw: float) -> void:
-	if not Net.online:
-		return
-	if multiplayer.is_server():
-		_preview_of.rpc(local_peer(), id, pos, yaw)
-	else:
-		_preview.rpc_id(1, id, pos, yaw)
-
-
-@rpc("any_peer", "call_remote", "unreliable_ordered", 2)
-func _preview(id: String, pos: Vector3, yaw: float) -> void:
-	if not multiplayer.is_server():
-		return
-	var peer := multiplayer.get_remote_sender_id()
-	preview_received.emit(peer, id, pos, yaw)
-	for other in multiplayer.get_peers():
-		if other != peer:
-			_preview_of.rpc_id(other, peer, id, pos, yaw)
-
-
-@rpc("authority", "call_remote", "unreliable_ordered", 2)
-func _preview_of(peer: int, id: String, pos: Vector3, yaw: float) -> void:
-	if peer != local_peer():
-		preview_received.emit(peer, id, pos, yaw)
 
 
 ## What a player is called on screen (name tag, Q menu).
@@ -1034,21 +850,11 @@ func request_reload(peer := 0) -> int:
 	return n
 
 
-## Placement mode (B for now, until the build mode has its own way in): the player sets targets
-## up past the firing line from behind it.
-func request_toggle_placing(peer := 0) -> void:
-	_send(&"request_toggle_placing", [], peer)
-	var p := player(peer)
-	p.placing = not p.placing
-	if _is_local(peer):
-		placing_changed.emit(p.placing)
-
-
 ## Puts away what is in hand and draws GUNS[`gun`]; the same one again goes back to bare fists.
 ## Everyone sees it (gun_changed): the first-person arms and others' third-person hold follow it.
 func request_select_gun(gun: int, peer := 0) -> void:
 	var p := player(peer)
-	if gun < 0 or gun >= GUNS.size() or not gun_open(gun, peer) or p.placing:
+	if gun < 0 or gun >= GUNS.size() or not gun_open(gun, peer):
 		return
 	if gun == p.gun:
 		gun = 0
@@ -1152,7 +958,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	# Slack for frame timing on the caller, more for a remote one's network jitter, never so much
 	# that a client could fire faster than its gun does.
 	var interval: float = GUNS[p.gun].interval
-	if p.gun == 0 or p.placing or (p.loaded <= 0 and p.armed == "") or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
+	if p.gun == 0 or (p.loaded <= 0 and p.armed == "") or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
 		return false
 	# A remote round leaves from that player's synced eye, or not at all.
 	if not _is_local(peer) and not (p.has_pose and from.distance_to(p.pos + Vector3.UP * (CROUCH_EYE if p.crouch else EYE)) <= FIRE_FROM_SLACK):
@@ -1179,19 +985,9 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 		q.exclude = [own.get_rid()]
 	var space := get_viewport().world_3d.direct_space_state
 	var hit := space.intersect_ray(q)
-	var leg := from  # where the last leg of the round's flight started
-	var bounces := 0
-	while bounces < MAX_BOUNCES and not hit.is_empty() and hit.collider.is_in_group("ricochet"):
-		_world(&"shot_landed", [who, hit.position, hit.normal, dir, hit.collider, 0, false, 0])
-		dir = dir.bounce(hit.normal)
-		leg = hit.position
-		q = PhysicsRayQueryParameters3D.create(leg, leg + dir * SHOT_RANGE, SHOT_MASK)
-		q.exclude = [hit.rid]
-		hit = space.intersect_ray(q)
-		bounces += 1
 	if hit.is_empty():
 		_break_chain(p)
-		_world(&"shot_landed", [who, leg + dir * SHOT_RANGE, -dir, dir, null, 0, false, 0])
+		_world(&"shot_landed", [who, from + dir * SHOT_RANGE, -dir, dir, null, 0, false, 0])
 		return true
 	var target: Node = hit.collider
 	var victim := _peer_of(target)
@@ -1208,7 +1004,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var past: float = (target as Node3D).global_position.x if target.has_meta("zombie") else hit.position.x
 	if target.is_in_group("target") and from.x <= FIRING_LINE_X and past > FIRING_LINE_X:
 		var shape: Node = target.shape_owner_get_owner(target.shape_find_owner(hit.shape))
-		weak = shape.is_in_group("weak_spot") or (target.has_method("is_weak") and target.is_weak(hit.position))
+		weak = shape.is_in_group("weak_spot")
 		var cap := upgrade_value("combo_cap", peer)
 		if weak:
 			p.weak_combo = mini(p.weak_combo + 1, cap)
@@ -1218,11 +1014,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 			p.combo = mini(p.combo + 1, cap)
 			p.combo_left = COMBO_WINDOW
 			chain = p.combo
-		# A target whose pay depends on the moment (a swing's speed, armour left) says so itself.
-		var base = target.hit_gold_at(hit.position) if target.has_method("hit_gold_at") else target.get("hit_gold")
-		if bounces > 0 and base is int:
-			base *= RICOCHET_MULT
-		gold = hit_pay(peer, base if base is int else 1, weak, chain, FIRING_LINE_X - from.x)
+		gold = hit_pay(peer, 1, weak, chain, FIRING_LINE_X - from.x)  # a zombie hit is $1 before the multipliers
 		p.gold += gold
 		if _is_local(peer):
 			gold_changed.emit(p.gold)
@@ -1423,12 +1215,6 @@ func set_key_seed(seed: int) -> void:
 		_world(&"key_layout", [seed])
 
 
-## Host (or solo): a moving target's decision; see target_cue. A client's own calls are dropped.
-func cue_target(target: Node, cue: Array) -> void:
-	if not Net.is_client:
-		_world(&"target_cue", [target, cue])
-
-
 ## Host (or solo): a wave's decision, told to everyone (scripts/waves.gd). A client's own calls are dropped.
 func cue_wave(cue: Array) -> void:
 	if not Net.is_client:
@@ -1440,22 +1226,6 @@ func request_pull_lever(peer := 0) -> void:
 	if not near_station(LEVER_POS, peer) or _send(&"request_pull_lever", [], peer):
 		return
 	lever_pulled.emit(local_peer() if peer == 0 else peer)
-
-
-## Host (or solo): `target` pays `peer` on its own, outside a shot (bonus_paid). Flat: no combo,
-## no gold upgrades. A client's own call is dropped; it learns of the gold from the event.
-func pay_bonus(peer: int, target: Node, gold: int) -> void:
-	if Net.is_client or gold <= 0 or not (_is_local(peer) or _players.has(peer)):
-		return  # gone: player() would open a ghost record for them
-	var p := player(peer)
-	p.gold += gold
-	if _is_local(peer):
-		gold_changed.emit(p.gold)
-	if team_vault():
-		vault += gold * VAULT_SHARE
-		_world(&"vault_changed", [vault])
-	_world(&"bonus_paid", [peer, target, gold])
-	quest_add("gold_earned", gold)
 
 
 ## The heap uncovered key `rank`; only buried keys can be revealed, once.
@@ -1590,12 +1360,12 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	var peer := multiplayer.get_remote_sender_id()
 	callv(method, args + [peer])
 	var p := player(peer)
-	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol, p.rounds)
+	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol, p.rounds)
 
 
 ## Client: the host's word on our own state, after request `seq`.
 @rpc("authority", "call_remote", "reliable")
-func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, placing: bool, infinite: bool, keys: Array, gun: int, specials: Array, armed: String, pistol: bool, rounds: Dictionary) -> void:
+func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, infinite: bool, keys: Array, gun: int, specials: Array, armed: String, pistol: bool, rounds: Dictionary) -> void:
 	_acked_seq = seq
 	if seq != _sent_seq:
 		return  # newer requests are still on their way; their answer will have it all
@@ -1622,9 +1392,6 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 		if p.levels.get(id) != levels[id]:
 			p.levels[id] = levels[id]
 			upgraded.emit(id, levels[id])
-	if p.placing != placing:
-		p.placing = placing
-		placing_changed.emit(placing)
 	if p.gun != gun:  # a pick the host turned down, or the gun we had before rejoining
 		p.gun = gun
 		gun_changed.emit(local_peer(), gun)
@@ -1719,19 +1486,6 @@ func _event(event: StringName, args: Array) -> void:
 			brass = args[1]
 			melt_level = args[2]
 			press_level = args[3]
-		&"gear_changed":
-			gear_stock = args[0]
-		&"gear_placed":
-			if placed.size() <= args[0]:
-				placed.resize(args[0] + 1)  # a joiner skips numbers taken down before it came
-			placed[args[0]] = args.slice(1)
-		&"gear_removed":
-			if args[0] < placed.size():
-				placed[args[0]] = null
-		&"bonus_paid":
-			if args[0] == local_peer():  # the host's _state carries it too; this shows it now
-				player().gold += args[2]
-				gold_changed.emit(player().gold)
 		&"quests_changed":
 			quest_board = args[0].duplicate()
 			quest_progress = args[1].duplicate()
@@ -1757,6 +1511,4 @@ func _event(event: StringName, args: Array) -> void:
 		var i: int = NODE_ARG[event]
 		var path: NodePath = args[i]
 		args[i] = null if path.is_empty() else get_node_or_null(path)
-		if event == &"target_cue" and args[i] == null:
-			return
 	callv(&"emit_signal", [event] + args)

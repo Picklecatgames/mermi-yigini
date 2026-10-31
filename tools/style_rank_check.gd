@@ -32,7 +32,7 @@ func _initialize() -> void:
 	# Variety climbs faster than the same kill over and over.
 	var same: Control = fresh.call()
 	var mixed: Control = fresh.call()
-	var flair := ["head", "air", "bounce", "swap", "close"]
+	var flair := ["head", "air", "swap", "close"]
 	for i in 10:
 		same.gain(["kill"])
 		mixed.gain(["kill", flair[i % flair.size()]])

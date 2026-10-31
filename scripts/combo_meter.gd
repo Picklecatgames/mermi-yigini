@@ -1,5 +1,5 @@
 extends Control
-## Combo multiplier over the dummy the local player is chaining hits on: "x5" with a glass bar
+## Combo multiplier over the zombie the local player is chaining hits on: "x5" with a glass bar
 ## under it that drains over GameState.COMBO_WINDOW while the text fades out. Every hit refills
 ## it, punches the text, and grows it a little; the growth is logarithmic so x20 stays a
 ## corner of the screen, not all of it.
@@ -7,7 +7,7 @@ extends Control
 const BASE_SIZE := 30.0  # px at x2
 const GROW := 0.9        # x20 (GameState.COMBO_MAX) is (1 + GROW) times the x2 size: ~57 px
 const PUNCH := 0.35      # extra scale on each hit, settles in ~0.15 s
-const OFFSET := Vector2(48, -6)  # px from the top of the dummy's head, right of the "+$" pop
+const OFFSET := Vector2(48, -6)  # px from the top of the zombie's head
 const BAR_H := 5.0
 const WHITE := Color(1.0, 0.96, 0.85)
 const GOLD := Color(1.0, 0.76, 0.2)

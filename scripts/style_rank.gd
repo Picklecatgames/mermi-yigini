@@ -19,10 +19,9 @@ const MOVES := {
 	"kill": 22.0,   # a zombie down
 	"head": 18.0,   # ... by the head
 	"air": 20.0,    # ... or a hit, while off the floor
-	"bounce": 28.0, # ... or a hit, off the bank-shot plate
 	"swap": 18.0,   # within SWAP_TIME of drawing another gun
 	"close": 22.0,  # a zombie down within CLOSE_DIST of the railing
-	"hit": 3.0,     # a paying hit on a target
+	"hit": 3.0,     # a paying hit on a zombie
 	"headhit": 5.0, # ... on its weak spot
 	"combo": 8.0,   # the hit chain at a multiple of 5
 }
@@ -34,7 +33,6 @@ const STREAK_PAY := 6.0  # each kill past the first in a streak, up to STREAK_MA
 const STREAK_MAX := 5
 const SWAP_TIME := 2.0  # s
 const CLOSE_DIST := 3.0  # m past the railing (GameState.FIRING_LINE_X)
-const BOUNCE_MS := 150  # a hit this soon after a round glanced off the plate came off it
 const HIT_TAKEN := 60.0  # points lost to a teammate's round, or 2/3 of it for firing one
 ## Sound slots: drop the user's recordings here (ogg or wav); nothing plays while they're missing.
 const SOUNDS := {"up": "res://assets/sounds/style/rank_up_%d", "down": "res://assets/sounds/style/rank_down"}
@@ -70,7 +68,6 @@ var _stale := {}  # move -> how used up it is
 var _streak := 0
 var _since_kill := INF
 var _since_swap := INF
-var _bounce_ms := -100000
 var _kill_gun := ""  # the gun of the last kill (GameState.GUNS id)
 var _waves: Node  # waves.gd, once it is in the world
 var _tier := -1  # what is on screen
@@ -160,11 +157,8 @@ func step(delta: float) -> void:
 	_show()
 
 
-func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, target: Node, gold: int, weak: bool, combo: int) -> void:
+func _on_shot_landed(peer: int, at: Vector3, _n: Vector3, _d: Vector3, _target: Node, gold: int, weak: bool, combo: int) -> void:
 	if peer != GameState.local_peer():
-		return
-	if target and target.is_in_group("ricochet"):
-		_bounce_ms = Time.get_ticks_msec()
 		return
 	if gold <= 0 and combo <= 0:
 		return
@@ -206,8 +200,6 @@ func _flair() -> Array:
 	var body := get_tree().get_first_node_in_group("walker") as CharacterBody3D
 	if body and not body.is_on_floor():
 		out.append("air")
-	if Time.get_ticks_msec() - _bounce_ms < BOUNCE_MS:
-		out.append("bounce")
 	if _since_swap < SWAP_TIME:
 		out.append("swap")
 	return out
