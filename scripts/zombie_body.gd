@@ -101,6 +101,7 @@ const STRIDE := [0.6, 1.8]
 const FALL_SPEED := 1.5  # the stumble-and-fall clip is slow for a leg torn off
 const LIMB_REACH := 0.1  # m at size 1: how far off a limb's bone a round's line may pass and hit it
 const TORSO_REACH := 0.15  # the same for the spine, which takes the round if it is first in line
+const NECK_SKIN := 0.45  # of the head's size, around the neck's line: skin that stays when the head goes (_make_headless)
 
 var kind := &"walker"
 var model := &""
@@ -517,6 +518,8 @@ func die(gib := &"") -> float:
 				1.6 * size, flat)
 		if gib == &"head":
 			_flinch.head_gone = true
+			for hat: Array in _lose_head():
+				_throw_hat(hat[0], hat[1])
 			_stump(&"Neck", 0.16)
 		else:
 			_stump(&"Spine1", 0.3)
@@ -542,6 +545,219 @@ func _bleed_out(after: float) -> void:
 	_reseed("pool")
 	BLOOD.ground(_world(), hips, global_position.y, [&"pool"], _rng, 1.4 * size, Vector3.ZERO, 5.0)
 	_voice.ooze(hips)
+
+
+## What hangs off the head but is skinned to the neck and shoulders too (long hair, a fringe, a
+## hood) would stay on the neck, drawn in halfway: each mesh is swapped for one where that skin
+## hangs on the head alone, so it folds away with it. Returns the hats it wore (_make_headless()),
+## each [mesh in the head bone's space, the head's height in it].
+func _lose_head() -> Array:
+	var hats := []
+	for mi: MeshInstance3D in _skel.get_parent().find_children("*", "MeshInstance3D", true, false):
+		if mi.skin != null and mi.mesh != null:
+			var off := headless(mi.mesh, mi.skin, _skel, _flinch.head)
+			mi.mesh = off.mesh
+			if off.hat != null:
+				hats.append([off.hat, off.crown])
+	return hats
+
+
+## A hat knocked off the falling head: thrown on the way the round went, tumbling, landing on its
+## brim or its crown.
+func _throw_hat(hat: Mesh, crown: float) -> void:
+	var m := MeshInstance3D.new()
+	m.mesh = hat
+	var bone := _skel.global_transform * _skel.get_bone_global_pose(_flinch.head)
+	m.transform = bone
+	# (its ends around the hat, which sits from about 0.3 to 1.15 of the head's height up the bone)
+	GIBS.limb(_world(), m, bone * Vector3(0, crown * 0.4, 0), bone * Vector3(0, crown * 1.1, 0), _last_dir,
+			global_position.y, size, _rng.randi(), true)
+
+
+## `mesh` with the skin that goes with the head on head bone `head` alone, and its hat, made once per
+## mesh: {mesh (itself when nothing of it goes), hat (or null), crown}.
+static func headless(mesh: Mesh, skin: Skin, sk: Skeleton3D, head: int) -> Dictionary:
+	if not _headless.has(mesh):
+		_headless[mesh] = _make_headless(mesh, skin, sk, head)
+	return _headless[mesh]
+
+
+static var _headless := {}
+
+
+## A piece of a mesh (its triangles that share corners, seams welded) goes with the head when the
+## head carries most of its weight: hair, glasses, a hood, the head's own skin. Only its part in the
+## neck (NECK_SKIN of the head's size around the neck's line, hung on the spine alone) stays as it
+## was, blended between the two, or the neck would be left open. The body's skin, which the head
+## pulls on only near the neck, stays too.
+## A piece wholly on the head that sits on its top and is as wide and deep as it is high (a cap, a
+## helmet) is also given as a mesh of its own, in the head bone's space, to be knocked off.
+static func _make_headless(mesh: Mesh, skin: Skin, sk: Skeleton3D, head: int) -> Dictionary:
+	var inhead := {}
+	var todo: Array[int] = [head]
+	var top := sk.get_bone_global_rest(head).origin
+	var reach := 0.0
+	while not todo.is_empty():
+		var i: int = todo.pop_back()
+		inhead[i] = true
+		reach = maxf(reach, sk.get_bone_global_rest(i).origin.y - top.y)  # its crown (not a rope of hair below it)
+		todo.append_array(sk.get_bone_children(i))
+	var spine := {}  # the bones the head hangs from, down to the root
+	var down := sk.get_bone_parent(head)
+	while down >= 0:
+		spine[down] = true
+		down = sk.get_bone_parent(down)
+	var neck := top.distance_to(sk.get_bone_global_rest(sk.get_bone_parent(head)).origin)
+	if reach < neck * 0.5:  # no bone up at its crown: about as big as its neck is long
+		reach = neck
+	var crown := reach
+	reach *= NECK_SKIN
+	var binds: Array[int] = []  # skin bind -> bone
+	var to_head := -1
+	for b in skin.get_bind_count():
+		var name := skin.get_bind_name(b)
+		binds.append(sk.find_bone(name) if name != &"" else skin.get_bind_bone(b))
+		if binds[b] == head or (to_head < 0 and inhead.has(binds[b])):
+			to_head = b
+	var kept := {"mesh": mesh, "hat": null, "crown": crown}
+	if to_head < 0:
+		return kept
+	var bind := skin.get_bind_pose(to_head)  # mesh -> the head bone as bound: the neck's top at 0, up its +Y
+	var out := ArrayMesh.new()
+	var hat := ArrayMesh.new()
+	var changed := false
+	for s in mesh.get_surface_count():
+		var a := mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		var bones = a[Mesh.ARRAY_BONES]
+		var w: PackedFloat32Array = a[Mesh.ARRAY_WEIGHTS]
+		var per := 0 if v.is_empty() else w.size() / v.size()
+		var piece := _pieces(v, a[Mesh.ARRAY_INDEX])
+		var on := PackedFloat32Array()  # how much each vertex hangs on the head
+		on.resize(v.size())
+		var pull := {}  # piece -> [head weight, vertices, least on the head, box in the head's space]
+		for i in v.size():
+			for k in per:
+				if inhead.has(binds[bones[i * per + k]]):
+					on[i] += w[i * per + k]
+			var p: Array = pull.get_or_add(piece[i], [0.0, 0, 1.0, AABB(bind * v[i], Vector3.ZERO)])
+			p[0] += on[i]
+			p[1] += 1
+			p[2] = minf(p[2], on[i])
+			p[3] = p[3].expand(bind * v[i])
+		var hats := {}
+		for k in pull:
+			var p: Array = pull[k]
+			var box: AABB = p[3]
+			if p[2] > 0.99 and p[1] >= 30 and box.position.y > crown * 0.3 and box.end.y > crown 					and box.size.x > crown and box.size.z > crown:
+				hats[k] = true
+		if not hats.is_empty():
+			_add_piece(hat, a, piece, hats, bind)
+			hat.surface_set_material(hat.get_surface_count() - 1, mesh.surface_get_material(s))
+		var moved := 0
+		for i in v.size():
+			var p: Array = pull[piece[i]]
+			if p[0] < p[1] * 0.5 or (w[i * per] > 0.999 and binds[bones[i * per]] == head):
+				continue
+			if on[i] < 0.99 and _on_spine(i, per, bones, w, binds, inhead, spine):
+				var at := bind * v[i]
+				if at.y < reach and Vector2(at.x, at.z).length() < reach:  # in the neck, or just over it
+					continue
+			for k in per:
+				bones[i * per + k] = to_head if k == 0 else 0
+				w[i * per + k] = 1.0 if k == 0 else 0.0
+			moved += 1
+		if moved > 0:
+			changed = true
+			a[Mesh.ARRAY_BONES] = bones
+			a[Mesh.ARRAY_WEIGHTS] = w
+		var flags: int = mesh.surface_get_format(s) & (Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS | Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES)
+		out.add_surface_from_arrays(mesh.surface_get_primitive_type(s), a, [], {}, flags)
+		out.surface_set_material(s, mesh.surface_get_material(s))
+	if changed:
+		kept.mesh = out
+	if hat.get_surface_count() > 0:
+		kept.hat = hat
+	return kept
+
+
+## The triangles of surface `a` in `pieces` (piece -> true), as a surface of `to`, moved by `bind`.
+static func _add_piece(to: ArrayMesh, a: Array, piece: PackedInt32Array, pieces: Dictionary, bind: Transform3D) -> void:
+	var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	var n: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+	var uv: PackedVector2Array = a[Mesh.ARRAY_TEX_UV]
+	var index: PackedInt32Array = a[Mesh.ARRAY_INDEX]
+	if index.is_empty():
+		index = PackedInt32Array(range(v.size()))
+	var turn := bind.basis.orthonormalized()
+	var new_at := {}  # old vertex -> new
+	var out_v := PackedVector3Array()
+	var out_n := PackedVector3Array()
+	var out_uv := PackedVector2Array()
+	var out_i := PackedInt32Array()
+	for t in range(0, index.size(), 3):
+		if not pieces.has(piece[index[t]]):
+			continue
+		for j in 3:
+			var i := index[t + j]
+			if not new_at.has(i):
+				new_at[i] = out_v.size()
+				out_v.append(bind * v[i])
+				if not n.is_empty():
+					out_n.append(turn * n[i])
+				if not uv.is_empty():
+					out_uv.append(uv[i])
+			out_i.append(new_at[i])
+	var b := []
+	b.resize(Mesh.ARRAY_MAX)
+	b[Mesh.ARRAY_VERTEX] = out_v
+	b[Mesh.ARRAY_INDEX] = out_i
+	if not out_n.is_empty():
+		b[Mesh.ARRAY_NORMAL] = out_n
+	if not out_uv.is_empty():
+		b[Mesh.ARRAY_TEX_UV] = out_uv
+	var st := SurfaceTool.new()
+	st.create_from_arrays(b)
+	if not out_n.is_empty() and not out_uv.is_empty():
+		st.generate_tangents()  # (for the normal map)
+	st.commit(to)
+
+
+## Whether vertex `i` hangs on nothing but the head and the neck and spine under it (not a shoulder:
+## hair lying on them).
+static func _on_spine(i: int, per: int, bones, w: PackedFloat32Array, binds: Array[int], inhead: Dictionary, spine: Dictionary) -> bool:
+	for k in per:
+		var b: int = binds[bones[i * per + k]]
+		if w[i * per + k] > 0.0 and not spine.has(b) and not inhead.has(b):
+			return false
+	return true
+
+
+## Which piece each vertex is in: vertices joined by triangles, or at the same spot (a UV seam).
+static func _pieces(v: PackedVector3Array, index: PackedInt32Array) -> PackedInt32Array:
+	if index.is_empty():
+		index = PackedInt32Array(range(v.size()))
+	var up := PackedInt32Array()
+	up.resize(v.size())
+	var at := {}
+	for i in v.size():
+		up[i] = at.get_or_add(Vector3i((v[i] * 10000.0).round()), i)
+	for t in range(0, index.size(), 3):
+		var a := _root(up, index[t])
+		for j in [1, 2]:
+			var b := _root(up, index[t + j])
+			if b != a:
+				up[b] = a
+	for i in v.size():
+		up[i] = _root(up, i)
+	return up
+
+
+static func _root(up: PackedInt32Array, i: int) -> int:
+	while up[i] != i:
+		up[i] = up[up[i]]
+		i = up[i]
+	return i
 
 
 ## Raw meat where a part tore off: a lump of flesh on the bone, `width` m across at this size.
@@ -710,7 +926,8 @@ static func _drops() -> void:
 
 ## Everything a zombie's blood and pieces draw with, drawn once at `at` (a speck in front of the
 ## camera) under `world`, so their shaders compile with the hall instead of at the first hit or the
-## first head blown off (each of those held up its frame for 20 ms or more). waves.gd does it.
+## first head blown off (each of those held up its frame for 20 ms or more), and the meshes a head
+## blown off leaves (_lose_head()) worked out. waves.gd does it.
 static func prewarm(world: Node, at: Transform3D) -> void:
 	_drops()
 	var shown: Array[Node3D] = []
@@ -734,6 +951,22 @@ static func prewarm(world: Node, at: Transform3D) -> void:
 	await world.get_tree().create_timer(0.3).timeout
 	for n in shown:
 		n.queue_free()
+	# Each model's headless meshes, one a frame (the biggest takes ~70 ms to work out).
+	var looks := []
+	for m in MODELS:
+		looks.append([MODELS[m], "Skeleton3D", "mixamorig_Head"])
+	for m in CREATURES:
+		looks.append([CREATURES[m].scene, CREATURES[m].skeleton, CREATURES[m].bones.Head])
+	for look: Array in looks:
+		var body: Node3D = look[0].instantiate()
+		var sk: Skeleton3D = body.get_node(look[1])
+		for mi: MeshInstance3D in body.find_children("*", "MeshInstance3D", true, false):
+			if mi.skin != null and mi.mesh != null:
+				headless(mi.mesh, mi.skin, sk, sk.find_bone(look[2]))
+		body.free()
+		if not is_instance_valid(world):
+			return
+		await world.get_tree().process_frame
 
 
 ## Node that follows a bone, for hit shapes (the head's weak spot) or effects.

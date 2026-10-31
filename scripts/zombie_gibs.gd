@@ -56,7 +56,9 @@ static func burst(world: Node, at: Vector3, dir: Vector3, floor_y: float, count:
 ## A torn-off limb (zombie_body.gd _piece(): a copy of the model showing only that limb, placed where
 ## it was) thrown off the body: out along `dir` and up, tumbling end over end, landing in a splash
 ## and settling flat. `joint` and `tip`: its two ends in the world. The oldest goes past LIMBS_MAX.
-static func limb(world: Node, piece: Node3D, joint: Vector3, tip: Vector3, dir: Vector3, floor_y: float, size := 1.0, seed := 0) -> void:
+## `upright`: it settles standing on one end or the other instead (a hat off a head).
+static func limb(world: Node, piece: Node3D, joint: Vector3, tip: Vector3, dir: Vector3, floor_y: float, size := 1.0, seed := 0,
+		upright := false) -> void:
 	var g = load("res://scripts/zombie_gibs.gd").new()
 	world.add_child(g)
 	var live: Array[Node] = []
@@ -84,7 +86,7 @@ static func limb(world: Node, piece: Node3D, joint: Vector3, tip: Vector3, dir: 
 	var spin := (flat.cross(Vector3.UP) * rng.randf_range(-1.0, 1.0) + Vector3(rng.randf_range(-0.4, 0.4), rng.randf_range(-1, 1), 0.0))
 	g._lumps.append({"node": pivot, "v": v, "spin": spin.normalized() * rng.randf_range(7.0, 13.0), "bounced": false,
 			"rest": false, "r": 0.05 * size, "seed": rng.randi(), "axis": pivot.global_basis.inverse() * (tip - joint),
-			"big": true})
+			"big": true, "upright": upright})
 
 
 func _process(delta: float) -> void:
@@ -117,11 +119,13 @@ func _process(delta: float) -> void:
 			queue_free()
 
 
-## A limb at rest rolls over until it lies along the floor.
+## A limb at rest rolls over until it lies along the floor (or stands on an end, `upright`).
 func _lie_flat(l: Dictionary, delta: float) -> void:
 	var m: Node3D = l.node
 	var along: Vector3 = m.global_basis * l.axis
 	var flat := Vector3(along.x, 0.0, along.z)
+	if l.upright:
+		flat = Vector3(0.0, signf(along.y) if along.y != 0.0 else 1.0, 0.0)
 	if flat.length() < 0.01 or along.normalized().dot(flat.normalized()) > 0.999:
 		return
 	var turn := Quaternion(along.normalized(), flat.normalized())
