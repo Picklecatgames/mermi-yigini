@@ -48,7 +48,7 @@ const DEFAULTS := {
 	# controls
 	"sensitivity": 1.0, "ads_sensitivity": 100, "invert_y": false,
 	# game
-	"fov": 75, "head_bob": 100, "screen_shake": 100, "crosshair_color": 0, "crosshair_size": 100, "crosshair_dot": false, "show_fps": false,
+	"fov": 75, "head_bob": 100, "screen_shake": 100, "screen_blood": true, "crosshair_color": 0, "crosshair_size": 100, "crosshair_dot": false, "show_fps": false,
 }
 
 # What a loaded number may be: the pause menu's own slider and choice ranges.

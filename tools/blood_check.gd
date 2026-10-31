@@ -51,8 +51,9 @@ func _run() -> void:
 			mist_same = false
 	_expect(mist_same, "the same films at the same sizes")
 	var stump: Array = a.body.find_children("*", "MeshInstance3D", true, false).filter(
-			func(m: MeshInstance3D) -> bool: return m.material_override == BODY.FLESH)
+			func(m: MeshInstance3D) -> bool: return m.material_override == BODY.GIBS.material(3))
 	_expect(stump.size() == 1, "raw flesh on the neck")
+	_expect(a.body.find_children("*", "Decal", true, false).size() >= 1, "blood soaked over it")
 	var gibs: Array = a.world.find_children("*", "MeshInstance3D", true, false).filter(
 			func(m: MeshInstance3D) -> bool: return m.material_override == BODY.FLESH and not a.body.is_ancestor_of(m))
 	_expect(gibs.size() >= 9, "the head's pieces are flesh (%d)" % gibs.size())

@@ -16,6 +16,7 @@ extends Node3D
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const GIBS := preload("res://scripts/zombie_gibs.gd")
 const BLOOD := preload("res://scripts/blood_fx.gd")
+const SCREEN := preload("res://scripts/screen_blood.gd")
 const FLESH := preload("res://materials/env/gore/flesh.tres")
 const STUMP := preload("res://materials/env/gore/meat_1.res")
 const LIB := preload("res://assets/characters/zombies/zombie_anims.res")
@@ -101,6 +102,15 @@ const STRIDE := [0.6, 1.8]
 const FALL_SPEED := 1.5  # the stumble-and-fall clip is slow for a leg torn off
 const LIMB_REACH := 0.1  # m at size 1: how far off a limb's bone a round's line may pass and hit it
 const TORSO_REACH := 0.15  # the same for the spine, which takes the round if it is first in line
+const HEAD_R := 0.1  # m at size 1, about: from the head bone out to where a round goes in
+## A head blown off (_blow_head()): the body stands a blink before it goes (s), the neck spurts this
+## many more times, and blood lands on the screen when it happened this close to the camera (m: all
+## of it at SCREEN_NEAR, none past SCREEN_FAR).
+const POP_HOLD := [0.12, 0.3]
+const POP_BEATS := [3, 5]
+const SCREEN_NEAR := 1.5
+const SCREEN_FAR := 4.0
+const NECK_SKIN := 0.45  # of the head's size, around the neck's line: skin that stays when the head goes (_make_headless)
 
 var kind := &"walker"
 var model := &""
@@ -148,11 +158,12 @@ class Flinch extends SkeletonModifier3D:
 	var arms: Array[int] = []  # the upper arms' bones, and their kicks
 	var arm_kick: Array = []
 	var cut: Array[int] = []  # bones folded to nothing: the limb hanging off them is gone
+	var slump := Vector3.ZERO  # the way a headless body sags as it goes down (_collapse())
 
 	func _process_modification() -> void:
 		var sk := get_skeleton()
 		for b in spine:
-			_turn(sk, b, bend / spine.size())
+			_turn(sk, b, (bend + slump) / spine.size())
 		_turn(sk, head, nod)
 		for i in arms.size():
 			_turn(sk, arms[i], arm_kick[i])
@@ -366,8 +377,8 @@ func arms_hurt() -> int:
 ## Takes `part` off. `fly`: it tears off now, thrown along the last round with a spurt of blood
 ## (zombie_gibs.gd limb()); without, it is simply gone (a joiner seeing it already off). A leg drops
 ## it to its belly: returns how long the fall takes (s, 0 if it was down already), after which it
-## crawls (move()).
-func cut(part: StringName, fly := true) -> float:
+## crawls (move()). `roll` (waves.gd, the host's) makes the throw unlike the last one.
+func cut(part: StringName, fly := true, roll := 0) -> float:
 	if not can_lose(part):
 		return 0.0
 	var b := _skel.find_bone("mixamorig_" + LIMBS[part][0])
@@ -378,7 +389,7 @@ func cut(part: StringName, fly := true) -> float:
 			var end := _skel.find_bone("mixamorig_" + ("LeftHand" if part == &"forearm_l" else "RightHand" if part == &"forearm_r" else
 					"LeftToeBase" if part == &"shin_l" else "RightToeBase"))
 			tip = _skel.to_global(_skel.get_bone_global_pose(end).origin)
-		_reseed("cut" + part)
+		_reseed("cut%s%d" % [part, roll])
 		GIBS.limb(_world(), _piece(b), joint, tip, _last_dir, global_position.y, size, _rng.randi())
 	cuts.append(part)
 	_flinch.cut.append(b)
@@ -489,37 +500,40 @@ func scream() -> float:
 	return _one_shot("scream" if _set == "" else "roar")
 
 
-## Falls and stays down. Returns the clip's length (s). `gib`: &"head" blows the head off in a
-## spray of meat (no death rattle, the mouth is gone), &"body" bursts the chest; the wave code
-## decides when (a head shot kill, a burst of rounds, a brute going down).
-func die(gib := &"") -> float:
+## Falls and stays down. Returns the clip's length (s). `gib`: &"head" blows the head off
+## (_blow_head()), &"body" bursts the chest; `weak` without a gib: shot through the head, it goes
+## down with the head snapped back (_head_shot()). The wave code decides which (waves.gd
+## pop_chance()); its `roll`, and `dir` the killing round's way, make this death unlike the last
+## one and the same on every peer.
+func die(gib := &"", weak := false, roll := 0, dir := Vector3.ZERO) -> float:
 	if _dead:
 		return 0.0
-	var clip := _pick("death")
+	if dir.length() > 0.01:
+		_last_dir = dir.normalized()
 	_dead = true
 	var head := _skel.to_global(_skel.get_bone_global_pose(_flinch.head).origin)
 	var chest := _skel.to_global(_skel.get_bone_global_pose(_chest).origin)
 	_voice.die(head if gib == &"head" else chest, gib != &"", gib == &"head")
-	_reseed("die")
-	if gib != &"":
-		var from := head if gib == &"head" else chest
+	_reseed("die%d" % roll)
+	var clip := _death_clip()
+	var hold := 0.0
+	if gib == &"head":
+		hold = _blow_head(head)
+	elif gib == &"body":
 		var world := _world()
-		GIBS.burst(world, from, _last_dir, global_position.y,
-				(9 if gib == &"head" else 14) + (8 if kind == &"brute" else 0), size, _rng.randi())
-		_spray(from, Vector3.UP, 22, 1.3)
-		_spray(from, _last_dir, 16, 1.2)
-		BLOOD.mist(world, from - _last_dir * 0.1, _aside(_last_dir, 0.3), _rng, 1.2 * size, 0.7)
-		BLOOD.mist(world, from - _last_dir * 0.1, _aside(_last_dir, 0.3), _rng, 1.0 * size, 0.6)
-		BLOOD.mist(world, from, (Vector3.UP + _last_dir).normalized(), _rng, 0.9 * size, 0.6)
-		BLOOD.wall(world, from, _last_dir, _rng, 3.5, 1.4 * size)
+		GIBS.burst(world, chest, _last_dir, global_position.y, 14 + (8 if kind == &"brute" else 0), size, _rng.randi())
+		_spray(chest, Vector3.UP, 22, 1.3)
+		_spray(chest, _last_dir, 16, 1.2)
+		BLOOD.mist(world, chest - _last_dir * 0.1, _aside(_last_dir, 0.3), _rng, 1.2 * size, 0.7)
+		BLOOD.mist(world, chest - _last_dir * 0.1, _aside(_last_dir, 0.3), _rng, 1.0 * size, 0.6)
+		BLOOD.mist(world, chest, (Vector3.UP + _last_dir).normalized(), _rng, 0.9 * size, 0.6)
+		BLOOD.wall(world, chest, _last_dir, _rng, 3.5, 1.4 * size)
 		var flat := Vector3(_last_dir.x, 0.0, _last_dir.z).normalized()
-		BLOOD.ground(world, from + flat * _rng.randf_range(0.6, 1.4), global_position.y, [&"spray", &"mist"], _rng,
+		BLOOD.ground(world, chest + flat * _rng.randf_range(0.6, 1.4), global_position.y, [&"spray", &"mist"], _rng,
 				1.6 * size, flat)
-		if gib == &"head":
-			_flinch.head_gone = true
-			_stump(&"Neck", 0.16)
-		else:
-			_stump(&"Spine1", 0.3)
+		_stump(&"Spine1", 0.3)
+	elif weak:
+		_head_shot(head)
 	_ap.speed_scale = 1.0
 	var length := _lib.get_animation(clip).length
 	if crawling:
@@ -527,10 +541,123 @@ func die(gib := &"") -> float:
 		_ap.play(clip, 0.6)
 		_ap.seek(length * 0.8, true)
 		length *= 0.2
+	elif hold > 0.0:
+		_ap.speed_scale = 0.0  # it stands there a blink, headless, before it goes
+		length = _collapse(clip, hold)
 	else:
 		_ap.play(clip, BLEND)
 	_bleed_out(length * 0.7)
 	return length
+
+
+## The death clip this time, picked by the death's roll.
+func _death_clip() -> String:
+	var clips := _clips(_lib, _set + "death")
+	if clips.is_empty():
+		clips = _clips(_lib, ("" if _set != "" else "mutant_") + "death")
+	return clips[_rng.randi() % clips.size()]
+
+
+## The head comes apart at `at`: a skull's worth of small pieces (zombie_gibs.gd head()), a hard
+## spurt up out of the neck and on along the round, mist, a big splash on whatever is behind, and
+## the neck pumping a few more times. How hard, which way and how many are rolled each time.
+## Returns how long the body stands before it goes down (s).
+func _blow_head(at: Vector3) -> float:
+	var world := _world()
+	var dir := _last_dir
+	var side := dir.cross(Vector3.UP)
+	side = side.normalized() if side.length() > 0.05 else Vector3.RIGHT
+	var flat := Vector3(dir.x, 0.0, dir.z).normalized()
+	var power := _rng.randf_range(0.8, 1.3)
+	GIBS.head(world, at, dir, global_position.y, size, _rng.randi(), power)
+	var up := (Vector3.UP + dir * _rng.randf_range(0.1, 0.8) + side * _rng.randf_range(-0.45, 0.45)).normalized()
+	_spray(at, up, roundi(28 * power), 1.6 * power)
+	_spray(at, (dir + side * _rng.randf_range(-0.5, 0.5) + Vector3.UP * 0.2).normalized(), roundi(22 * power), 1.4 * power)
+	_spray(at, (-dir + Vector3.UP * 0.4).normalized(), 6, 0.6)
+	BLOOD.mist(world, at - dir * 0.1, _aside(dir, 0.3), _rng, _rng.randf_range(1.0, 1.4) * size, 0.7)
+	BLOOD.mist(world, at + dir * 0.1, (dir + Vector3.UP * 0.5).normalized(), _rng, _rng.randf_range(0.9, 1.3) * size, 0.6)
+	BLOOD.mist(world, at, up, _rng, _rng.randf_range(0.7, 1.1) * size, 0.5)
+	# The big splash on whatever is behind it, and a second one off to a side.
+	BLOOD.wall(world, at, (dir + side * _rng.randf_range(-0.25, 0.25)).normalized(), _rng, 4.5, _rng.randf_range(1.7, 2.4) * size)
+	BLOOD.wall(world, at, (dir + side * _rng.randf_range(-0.9, 0.9) + Vector3.UP * _rng.randf_range(-0.2, 0.3)).normalized(),
+			_rng, 3.5, _rng.randf_range(0.9, 1.4) * size)
+	var along := flat.rotated(Vector3.UP, _rng.randf_range(-0.5, 0.5))
+	BLOOD.ground(world, at + along * _rng.randf_range(0.6, 1.8), global_position.y, [&"spray", &"mist"], _rng,
+			_rng.randf_range(1.4, 2.2) * size, along)
+	_flinch.head_gone = true
+	for hat: Array in _lose_head():
+		_throw_hat(hat[0], hat[1])
+	_stump(&"Neck", 0.16)
+	var neck := _skel.get_bone_parent(_flinch.head)
+	_pulse(neck, _rng.randi_range(POP_BEATS[0], POP_BEATS[1]), power)
+	VOICE.gore(&"pop", at, 3.0, _rng.randf_range(0.92, 1.08) / sqrt(size))
+	VOICE.gore(&"crack", at, -1.0, _rng.randf_range(0.9, 1.15))
+	var glass := RandomNumberGenerator.new()  # its own, so the peers' rolls stay in step
+	glass.seed = _rng.randi()
+	var cam := get_viewport().get_camera_3d()
+	if cam:
+		var d := cam.global_position.distance_to(at)
+		SCREEN.splash(get_tree(), clampf((SCREEN_FAR - d) / (SCREEN_FAR - SCREEN_NEAR), 0.0, 1.0), glass)
+	return _rng.randf_range(POP_HOLD[0], POP_HOLD[1])
+
+
+## After standing `hold` s with no head, it goes down: `clip` from a little way in, quicker or
+## slower, the body sagging forward, back or to a side as it falls. Returns the whole time (s).
+func _collapse(clip: String, hold: float) -> float:
+	var speed := _rng.randf_range(0.85, 1.3)
+	var skip := _rng.randf_range(0.0, 0.25) * _lib.get_animation(clip).length
+	# skeleton space: it faces +Z, so about +X it pitches forward, about Z it leans to a side
+	var sag: Vector3 = [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD][_rng.randi() % 4] * _rng.randf_range(0.25, 0.55)
+	_fall_after(clip, hold, speed, skip, sag)
+	return hold + (_lib.get_animation(clip).length - skip) / speed
+
+
+func _fall_after(clip: String, hold: float, speed: float, skip: float, sag: Vector3) -> void:
+	await get_tree().create_timer(hold).timeout
+	if not is_inside_tree():
+		return
+	_ap.play(clip, 0.15)
+	_ap.seek(skip, true)
+	_ap.speed_scale = speed
+	var t := create_tween()
+	t.tween_property(_flinch, "slump", sag, 0.7 / speed).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+
+## The neck of a head blown off (bone `b`) spurts `beats` more times with the heart, each weaker,
+## each its own way.
+func _pulse(b: int, beats: int, power: float) -> void:
+	var gaps: Array[float] = []
+	var aims: Array[Vector3] = []
+	for i in beats:
+		gaps.append(_rng.randf_range(0.26, 0.42))
+		aims.append(Vector3(_rng.randf_range(-0.4, 0.4), 0.0, _rng.randf_range(-0.4, 0.4)))
+	for i in beats:
+		await get_tree().create_timer(gaps[i]).timeout
+		if not is_inside_tree():
+			return
+		var joint := _skel.to_global(_skel.get_bone_global_pose(b).origin)
+		var out := joint - _skel.to_global(_skel.get_bone_global_pose(_skel.get_bone_parent(b)).origin)
+		var left := 1.0 - float(i) / beats
+		_spray(joint, (out.normalized() + aims[i]).normalized(), 4 + roundi(14 * left * power), (0.6 + 0.7 * left) * power)
+		if i % 2 == 0:
+			VOICE.gore(&"squirt", joint, -8.0 + 5.0 * left)
+
+
+## Shot through the head and down, the head still on: it snaps back from the round, blood and mist
+## come out the back, a hole stays where it went in.
+func _head_shot(at: Vector3) -> void:
+	var dir := _last_dir
+	var axis := Vector3.UP.cross(dir)
+	if axis.length() > 0.01:
+		axis = _skel.global_basis.orthonormalized().inverse() * axis.normalized()
+		_nod_v += axis * KICK * KICK_HEAD * _rng.randf_range(1.6, 2.4)
+		_bend_v += axis * KICK * _rng.randf_range(0.5, 1.1)
+	var world := _world()
+	_spray(at + dir * 0.08, (dir + Vector3.UP * _rng.randf_range(0.0, 0.4)).normalized(), 18, 1.3)
+	BLOOD.mist(world, at + dir * 0.15, dir, _rng, _rng.randf_range(0.8, 1.1) * size, 0.5)
+	BLOOD.mist(world, at - dir * 0.1, _aside(dir, 0.4), _rng, 0.7 * size, 0.4)
+	BLOOD.wall(world, at, (dir + Vector3.UP * _rng.randf_range(-0.1, 0.2)).normalized(), _rng, 3.0, _rng.randf_range(0.9, 1.3) * size)
+	BLOOD.hole(attach("Head"), at - dir * HEAD_R * size, dir, _rng, 0.06 * size)
 
 
 ## Once it is down, a pool spreads under the body.
@@ -544,14 +671,232 @@ func _bleed_out(after: float) -> void:
 	_voice.ooze(hips)
 
 
-## Raw meat where a part tore off: a lump of flesh on the bone, `width` m across at this size.
+## What hangs off the head but is skinned to the neck and shoulders too (long hair, a fringe, a
+## hood) would stay on the neck, drawn in halfway: each mesh is swapped for one where that skin
+## hangs on the head alone, so it folds away with it. Returns the hats it wore (_make_headless()),
+## each [mesh in the head bone's space, the head's height in it].
+func _lose_head() -> Array:
+	var hats := []
+	for mi: MeshInstance3D in _skel.get_parent().find_children("*", "MeshInstance3D", true, false):
+		if mi.skin != null and mi.mesh != null:
+			var off := headless(mi.mesh, mi.skin, _skel, _flinch.head)
+			mi.mesh = off.mesh
+			if off.hat != null:
+				hats.append([off.hat, off.crown])
+	return hats
+
+
+## A hat knocked off the falling head: thrown on the way the round went, tumbling, landing on its
+## brim or its crown.
+func _throw_hat(hat: Mesh, crown: float) -> void:
+	var m := MeshInstance3D.new()
+	m.mesh = hat
+	var bone := _skel.global_transform * _skel.get_bone_global_pose(_flinch.head)
+	m.transform = bone
+	# (its ends around the hat, which sits from about 0.3 to 1.15 of the head's height up the bone)
+	GIBS.limb(_world(), m, bone * Vector3(0, crown * 0.4, 0), bone * Vector3(0, crown * 1.1, 0), _last_dir,
+			global_position.y, size, _rng.randi(), true)
+
+
+## `mesh` with the skin that goes with the head on head bone `head` alone, and its hat, made once per
+## mesh: {mesh (itself when nothing of it goes), hat (or null), crown}.
+static func headless(mesh: Mesh, skin: Skin, sk: Skeleton3D, head: int) -> Dictionary:
+	if not _headless.has(mesh):
+		_headless[mesh] = _make_headless(mesh, skin, sk, head)
+	return _headless[mesh]
+
+
+static var _headless := {}
+
+
+## A piece of a mesh (its triangles that share corners, seams welded) goes with the head when the
+## head carries most of its weight: hair, glasses, a hood, the head's own skin. Only its part in the
+## neck (NECK_SKIN of the head's size around the neck's line, hung on the spine alone) stays as it
+## was, blended between the two, or the neck would be left open. The body's skin, which the head
+## pulls on only near the neck, stays too.
+## A piece wholly on the head that sits on its top and is as wide and deep as it is high (a cap, a
+## helmet) is also given as a mesh of its own, in the head bone's space, to be knocked off.
+static func _make_headless(mesh: Mesh, skin: Skin, sk: Skeleton3D, head: int) -> Dictionary:
+	var inhead := {}
+	var todo: Array[int] = [head]
+	var top := sk.get_bone_global_rest(head).origin
+	var reach := 0.0
+	while not todo.is_empty():
+		var i: int = todo.pop_back()
+		inhead[i] = true
+		reach = maxf(reach, sk.get_bone_global_rest(i).origin.y - top.y)  # its crown (not a rope of hair below it)
+		todo.append_array(sk.get_bone_children(i))
+	var spine := {}  # the bones the head hangs from, down to the root
+	var down := sk.get_bone_parent(head)
+	while down >= 0:
+		spine[down] = true
+		down = sk.get_bone_parent(down)
+	var neck := top.distance_to(sk.get_bone_global_rest(sk.get_bone_parent(head)).origin)
+	if reach < neck * 0.5:  # no bone up at its crown: about as big as its neck is long
+		reach = neck
+	var crown := reach
+	reach *= NECK_SKIN
+	var binds: Array[int] = []  # skin bind -> bone
+	var to_head := -1
+	for b in skin.get_bind_count():
+		var name := skin.get_bind_name(b)
+		binds.append(sk.find_bone(name) if name != &"" else skin.get_bind_bone(b))
+		if binds[b] == head or (to_head < 0 and inhead.has(binds[b])):
+			to_head = b
+	var kept := {"mesh": mesh, "hat": null, "crown": crown}
+	if to_head < 0:
+		return kept
+	var bind := skin.get_bind_pose(to_head)  # mesh -> the head bone as bound: the neck's top at 0, up its +Y
+	var out := ArrayMesh.new()
+	var hat := ArrayMesh.new()
+	var changed := false
+	for s in mesh.get_surface_count():
+		var a := mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+		var bones = a[Mesh.ARRAY_BONES]
+		var w: PackedFloat32Array = a[Mesh.ARRAY_WEIGHTS]
+		var per := 0 if v.is_empty() else w.size() / v.size()
+		var piece := _pieces(v, a[Mesh.ARRAY_INDEX])
+		var on := PackedFloat32Array()  # how much each vertex hangs on the head
+		on.resize(v.size())
+		var pull := {}  # piece -> [head weight, vertices, least on the head, box in the head's space]
+		for i in v.size():
+			for k in per:
+				if inhead.has(binds[bones[i * per + k]]):
+					on[i] += w[i * per + k]
+			var p: Array = pull.get_or_add(piece[i], [0.0, 0, 1.0, AABB(bind * v[i], Vector3.ZERO)])
+			p[0] += on[i]
+			p[1] += 1
+			p[2] = minf(p[2], on[i])
+			p[3] = p[3].expand(bind * v[i])
+		var hats := {}
+		for k in pull:
+			var p: Array = pull[k]
+			var box: AABB = p[3]
+			if p[2] > 0.99 and p[1] >= 30 and box.position.y > crown * 0.3 and box.end.y > crown 					and box.size.x > crown and box.size.z > crown:
+				hats[k] = true
+		if not hats.is_empty():
+			_add_piece(hat, a, piece, hats, bind)
+			hat.surface_set_material(hat.get_surface_count() - 1, mesh.surface_get_material(s))
+		var moved := 0
+		for i in v.size():
+			var p: Array = pull[piece[i]]
+			if p[0] < p[1] * 0.5 or (w[i * per] > 0.999 and binds[bones[i * per]] == head):
+				continue
+			if on[i] < 0.99 and _on_spine(i, per, bones, w, binds, inhead, spine):
+				var at := bind * v[i]
+				if at.y < reach and Vector2(at.x, at.z).length() < reach:  # in the neck, or just over it
+					continue
+			for k in per:
+				bones[i * per + k] = to_head if k == 0 else 0
+				w[i * per + k] = 1.0 if k == 0 else 0.0
+			moved += 1
+		if moved > 0:
+			changed = true
+			a[Mesh.ARRAY_BONES] = bones
+			a[Mesh.ARRAY_WEIGHTS] = w
+		var flags: int = mesh.surface_get_format(s) & (Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS | Mesh.ARRAY_FLAG_COMPRESS_ATTRIBUTES)
+		out.add_surface_from_arrays(mesh.surface_get_primitive_type(s), a, [], {}, flags)
+		out.surface_set_material(s, mesh.surface_get_material(s))
+	if changed:
+		kept.mesh = out
+	if hat.get_surface_count() > 0:
+		kept.hat = hat
+	return kept
+
+
+## The triangles of surface `a` in `pieces` (piece -> true), as a surface of `to`, moved by `bind`.
+static func _add_piece(to: ArrayMesh, a: Array, piece: PackedInt32Array, pieces: Dictionary, bind: Transform3D) -> void:
+	var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+	var n: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+	var uv: PackedVector2Array = a[Mesh.ARRAY_TEX_UV]
+	var index: PackedInt32Array = a[Mesh.ARRAY_INDEX]
+	if index.is_empty():
+		index = PackedInt32Array(range(v.size()))
+	var turn := bind.basis.orthonormalized()
+	var new_at := {}  # old vertex -> new
+	var out_v := PackedVector3Array()
+	var out_n := PackedVector3Array()
+	var out_uv := PackedVector2Array()
+	var out_i := PackedInt32Array()
+	for t in range(0, index.size(), 3):
+		if not pieces.has(piece[index[t]]):
+			continue
+		for j in 3:
+			var i := index[t + j]
+			if not new_at.has(i):
+				new_at[i] = out_v.size()
+				out_v.append(bind * v[i])
+				if not n.is_empty():
+					out_n.append(turn * n[i])
+				if not uv.is_empty():
+					out_uv.append(uv[i])
+			out_i.append(new_at[i])
+	var b := []
+	b.resize(Mesh.ARRAY_MAX)
+	b[Mesh.ARRAY_VERTEX] = out_v
+	b[Mesh.ARRAY_INDEX] = out_i
+	if not out_n.is_empty():
+		b[Mesh.ARRAY_NORMAL] = out_n
+	if not out_uv.is_empty():
+		b[Mesh.ARRAY_TEX_UV] = out_uv
+	var st := SurfaceTool.new()
+	st.create_from_arrays(b)
+	if not out_n.is_empty() and not out_uv.is_empty():
+		st.generate_tangents()  # (for the normal map)
+	st.commit(to)
+
+
+## Whether vertex `i` hangs on nothing but the head and the neck and spine under it (not a shoulder:
+## hair lying on them).
+static func _on_spine(i: int, per: int, bones, w: PackedFloat32Array, binds: Array[int], inhead: Dictionary, spine: Dictionary) -> bool:
+	for k in per:
+		var b: int = binds[bones[i * per + k]]
+		if w[i * per + k] > 0.0 and not spine.has(b) and not inhead.has(b):
+			return false
+	return true
+
+
+## Which piece each vertex is in: vertices joined by triangles, or at the same spot (a UV seam).
+static func _pieces(v: PackedVector3Array, index: PackedInt32Array) -> PackedInt32Array:
+	if index.is_empty():
+		index = PackedInt32Array(range(v.size()))
+	var up := PackedInt32Array()
+	up.resize(v.size())
+	var at := {}
+	for i in v.size():
+		up[i] = at.get_or_add(Vector3i((v[i] * 10000.0).round()), i)
+	for t in range(0, index.size(), 3):
+		var a := _root(up, index[t])
+		for j in [1, 2]:
+			var b := _root(up, index[t + j])
+			if b != a:
+				up[b] = a
+	for i in v.size():
+		up[i] = _root(up, i)
+	return up
+
+
+static func _root(up: PackedInt32Array, i: int) -> int:
+	while up[i] != i:
+		up[i] = up[up[i]]
+		i = up[i]
+	return i
+
+
+## Where a part tore off, on the bone: its raw end, a flattish lump of dark wet meat (GIBS wound) with
+## blood soaked over it and down the edge, `width` m across at this size. Not the pink of a lump of
+## flesh: the user's call, the neck of a head blown off looked like a sweet.
 func _stump(bone: StringName, width: float) -> void:
+	var a := attach(bone)
 	var m := MeshInstance3D.new()
 	m.mesh = STUMP
-	m.material_override = FLESH
+	m.material_override = GIBS.material(3)
 	var s := width * size
-	m.scale = Vector3(s, s * 0.7, s)
-	attach(bone).add_child(m)
+	m.scale = Vector3(s, s * 0.45, s) * Vector3(_rng.randf_range(0.9, 1.1), _rng.randf_range(0.8, 1.2), _rng.randf_range(0.9, 1.1))
+	m.rotation.y = _rng.randf() * TAU
+	a.add_child(m)
+	_soak(a, Vector3.ZERO, Vector3.UP, s)
 
 
 ## The same at `offset` (the bone's own space, at size 1: the body's scale carries it) on bone `b`,
@@ -562,10 +907,19 @@ func _stump_on(b: int, offset: Vector3, width: float) -> void:
 	_skel.add_child(a)
 	var m := MeshInstance3D.new()
 	m.mesh = STUMP
-	m.material_override = FLESH
+	m.material_override = GIBS.material(3)
 	m.position = offset
-	m.scale = Vector3(width, width * 0.8, width)
+	m.scale = Vector3(width, width * 0.6, width)
 	a.add_child(m)
+	_soak(a, offset, offset.normalized() if offset.length() > 0.001 else Vector3.UP, width * size)
+
+
+## Blood over a stump at `at` on `holder` (its own space), facing `out` along the bone, `width` m
+## across: one decal soaked down over the raw end and onto the skin around it.
+func _soak(holder: Node3D, at: Vector3, out: Vector3, width: float) -> void:
+	var top := holder.global_transform * (at + out * width * 0.6)
+	var down := holder.global_basis * -out
+	BLOOD.hole(holder, top, down, _rng, width * 1.6, &"pool", 0.8)
 
 
 ## Where bone "mixamorig_<name>" is now, in the world.
@@ -643,7 +997,6 @@ func _world() -> Node:
 
 func _reseed(salt: String) -> void:
 	_rng.seed = hash("%d:blood:%s" % [_seed, salt])
-	_rng.state = 0
 
 
 static var _drop_mesh: QuadMesh
@@ -710,7 +1063,8 @@ static func _drops() -> void:
 
 ## Everything a zombie's blood and pieces draw with, drawn once at `at` (a speck in front of the
 ## camera) under `world`, so their shaders compile with the hall instead of at the first hit or the
-## first head blown off (each of those held up its frame for 20 ms or more). waves.gd does it.
+## first head blown off (each of those held up its frame for 20 ms or more), and the meshes a head
+## blown off leaves (_lose_head()) worked out. waves.gd does it.
 static func prewarm(world: Node, at: Transform3D) -> void:
 	_drops()
 	var shown: Array[Node3D] = []
@@ -722,10 +1076,11 @@ static func prewarm(world: Node, at: Transform3D) -> void:
 	p.draw_pass_1 = _drop_mesh
 	shown.append(p)
 	for mesh: Mesh in GIBS.MESHES:
-		var m := MeshInstance3D.new()
-		m.mesh = mesh
-		m.material_override = FLESH
-		shown.append(m)
+		for i in 4:  # flesh, bone, brain, a stump's end
+			var m := MeshInstance3D.new()
+			m.mesh = mesh
+			m.material_override = GIBS.material(i)
+			shown.append(m)
 	for n in shown:
 		world.add_child(n)
 		n.global_transform = at
@@ -734,6 +1089,22 @@ static func prewarm(world: Node, at: Transform3D) -> void:
 	await world.get_tree().create_timer(0.3).timeout
 	for n in shown:
 		n.queue_free()
+	# Each model's headless meshes, one a frame (the biggest takes ~70 ms to work out).
+	var looks := []
+	for m in MODELS:
+		looks.append([MODELS[m], "Skeleton3D", "mixamorig_Head"])
+	for m in CREATURES:
+		looks.append([CREATURES[m].scene, CREATURES[m].skeleton, CREATURES[m].bones.Head])
+	for look: Array in looks:
+		var body: Node3D = look[0].instantiate()
+		var sk: Skeleton3D = body.get_node(look[1])
+		for mi: MeshInstance3D in body.find_children("*", "MeshInstance3D", true, false):
+			if mi.skin != null and mi.mesh != null:
+				headless(mi.mesh, mi.skin, sk, sk.find_bone(look[2]))
+		body.free()
+		if not is_instance_valid(world):
+			return
+		await world.get_tree().process_frame
 
 
 ## Node that follows a bone, for hit shapes (the head's weak spot) or effects.

@@ -12,8 +12,8 @@ extends Node3D
 ## A joiner gets the phase and the living zombies where they stand (join_cues).
 ##
 ## Cues (wave_cue): [&"reset"] (a joiner drops what it had alone) · [&"phase", wave, phase, left] · [&"spawn", id, kind, seed, gate, pos, yaw,
-## speed, rail_z, walking, cuts] · [&"die", id, left, killer, weak, at, gun, gib] ·
-## [&"limb", id, part] (a limb torn off, zombie_body.gd LIMBS) · [&"hp", [id, left, ...]] (what is left
+## speed, rail_z, walking, cuts] · [&"die", id, left, killer, weak, at, gun, gib, roll, dir] ·
+## [&"limb", id, part, roll] (a limb torn off, zombie_body.gd LIMBS) · [&"hp", [id, left, ...]] (what is left
 ## of the ones hit lately, 0..1, for the bars) · [&"scream", id, [ids]] (a screamer's cry, and the
 ## ones it sends running) · [&"blast", id, at] (a bloater bursting).
 ##
@@ -58,11 +58,28 @@ const BAY_END := 36.3
 const MAX_ALIVE := 40  # on the floor at once, the rest wait their turn (network load stays flat)
 const SPAWN_EVERY := 0.5  # s between the waiting ones once the gates are open
 const PEN_BATCH := 8  # made in one frame at the pull: 24 at once held that frame up ~40 ms
-## How it comes apart (the host decides, the die cue carries it): a head shot kill takes the head
-## off, SHRED of its hit points taken inside SHRED_TIME (a burst from the minigun) bursts the body,
-## a brute, a blob and a bloater always burst (a blob has no head to lose).
+## How it comes apart (the host decides, the die cue carries it): a head shot kill now and then
+## blows the head off (pop_chance()), SHRED of its hit points taken inside SHRED_TIME (a burst from
+## the minigun) bursts the body, a brute, a blob and a bloater always burst (a blob has no head to
+## lose). The cue also carries a `roll` made from the zombie's seed, its hits and the round's way, so
+## every death comes apart differently and the same on every peer.
 const SHRED := 0.85  # of its full hit points
 const SHRED_TIME := 0.5
+## A head blown off is a reward, not every head shot kill (2026-10-31, the user's call: "Kafa
+## patlamaları nadiren girsin, sürekli girmesin; sürekli patlarsa oyuncu iyi vuruş yaptığını
+## düşünmez."). The rest go down with the head snapped back, a hole and a puff. The odds follow the
+## shot: a heavy gun, a round that took most of its life alone, from close by; and they drop for a
+## shooter who blew one off a moment ago. First guesses, about one head shot kill in 6 to 10 on a
+## usual mix (tools/head_pop_check.gd measures it).
+const POP_BASE := {"pistol": 0.08, "deagle": 0.13, "uzi": 0.06, "scorpion": 0.065, "minigun": 0.07}
+const POP_BASE_ELSE := 0.07
+const POP_BIG := 0.14  # added when the killing round alone took POP_BIG_SHARE of its full life or more
+const POP_BIG_SHARE := 0.6
+const POP_NEAR := 0.12  # added at POP_NEAR_M or closer, nothing at twice that
+const POP_NEAR_M := 5.0
+const POP_AGAIN := 0.4  # times the odds for every head this shooter blew off in the last POP_MEMORY s
+const POP_MEMORY := 10.0
+const POP_MAX := 0.6
 ## What a paying hit takes off, by the gun it came from (GameState.GUNS id); a head shot HEAD times
 ## that. Hit points (STATS) are in the same units: a walker of wave 1 takes 3 Deagle rounds in the
 ## body, 2 in the head.
@@ -200,6 +217,7 @@ var _queue: Array[StringName] = []
 var _hp := {}  # id -> hit points left
 var _hp_full := {}  # id -> what it came with
 var _limb_hits := {}  # id -> {"arm_l": damage taken, ...}
+var _pops := {}  # peer -> times (s) it blew a head off lately
 var _hp_news := {}  # id -> left 0..1, not sent yet
 var _hp_wait := 0.0
 var _next_id := 1
@@ -456,7 +474,7 @@ func _on_cue(cue: Array) -> void:
 		&"limb":
 			var z: Dictionary = _zombies.get(cue[1], {})
 			if not z.is_empty():
-				_cut(z, cue[2], true)
+				_cut(z, cue[2], true, cue[3] if cue.size() > 3 else 0)
 		&"hp":
 			var list: Array = cue[1]
 			for i in range(0, list.size() - 1, 2):
@@ -474,7 +492,8 @@ func _on_cue(cue: Array) -> void:
 			var z: Dictionary = _zombies.get(cue[1], {})
 			if not z.is_empty() and not z.dead:
 				zombie_killed.emit(cue[3], z.kind, cue[4], cue[5], cue[6])
-			_kill(cue[1], cue[7] if cue.size() > 7 else &"")
+			_kill(cue[1], cue[7] if cue.size() > 7 else &"", cue[4], cue[8] if cue.size() > 8 else 0,
+					cue[9] if cue.size() > 9 else Vector3.ZERO)
 			_sign()
 			if not Net.is_client:
 				_check_clear()
@@ -662,7 +681,7 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 	var z := {"id": id, "node": node, "body": body, "kind": kind, "seed": seed, "gate": gate,
 			"mouth": mouth, "rail": Vector3(RAIL_X, 0.0, rail_z), "head": body.attach("Head"),
 			"head_shape": head, "trunk": trunk, "bones": bones, "react": react, "speed": speed, "dead": false, "path": [],
-			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [],
+			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [], "count": 0,
 			"bar": BAR.new(), "rush": 0.0, "hold": 0.0, "zig": float(absi(seed) % 1000) / 1000.0 * TAU,
 			"cry": 0.0, "fit": -1}
 	_zombies[id] = z
@@ -787,17 +806,34 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 		return
 	var gun: String = GameState.GUNS[GameState.player(peer).gun].id
 	var dmg: float = DAMAGE.get(gun, DAMAGE_ELSE) * (HEAD if weak else 1.0)
+	z.count += 1
 	if part != &"":
-		_limb_hit(z, part, dmg)
+		_limb_hit(z, part, dmg, _roll(z, dir))
 		dmg *= LIMB_BODY
 	var now := Time.get_ticks_msec() / 1000.0
 	z.hits = (z.hits as Array).filter(func(h: Vector2) -> bool: return now - h.x < SHRED_TIME) + [Vector2(now, dmg)]
-	_hurt(z, dmg, peer, weak, gun)
+	_hurt(z, dmg, peer, weak, gun, dir)
+
+
+## How one zombie's death or torn limb comes apart this time: from its seed, how many rounds it has
+## taken and the way the last one went (the host's, sent with the cue).
+func _roll(z: Dictionary, dir: Vector3) -> int:
+	return hash([z.seed, z.count, dir.snapped(Vector3.ONE * 0.01)]) & 0x7fffffff
+
+
+## The odds a head shot kill blows the head off: by `gun`, the `share` of its full life the killing
+## round took, how far the shooter stood (m) and how many heads they blew off lately.
+static func pop_chance(gun: String, share: float, dist: float, recent: int) -> float:
+	var p: float = POP_BASE.get(gun, POP_BASE_ELSE)
+	if share >= POP_BIG_SHARE:
+		p += POP_BIG
+	p += POP_NEAR * clampf(2.0 - dist / POP_NEAR_M, 0.0, 1.0)
+	return minf(p * pow(POP_AGAIN, recent), POP_MAX)
 
 
 ## Host: takes `dmg` off its life; at 0 it goes down, `peer`'s kill with `gun`, and how it comes
-## apart is picked here and sent with the die cue.
-func _hurt(z: Dictionary, dmg: float, peer: int, weak: bool, gun: String) -> void:
+## apart is picked here and sent with the die cue. `dir`: the way the round went (zero for a blast).
+func _hurt(z: Dictionary, dmg: float, peer: int, weak: bool, gun: String, dir := Vector3.ZERO) -> void:
 	if not _hp.has(z.id):
 		return
 	_hp[z.id] -= dmg
@@ -808,12 +844,21 @@ func _hurt(z: Dictionary, dmg: float, peer: int, weak: bool, gun: String) -> voi
 	_hp.erase(z.id)
 	_hp_news.erase(z.id)
 	var gib := &""
-	if weak and z.kind != &"blob":
-		gib = &"head"
-	elif z.kind in [&"brute", &"blob", &"bloater"] or (z.hits as Array).reduce(func(sum: float, h: Vector2) -> float: return sum + h.y, 0.0) >= SHRED * _hp_full[z.id]:
-		gib = &"body"
 	var at := (z.node as Node3D).global_position
-	GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1, peer, weak, at, gun, gib])
+	if weak and z.kind != &"blob":
+		var now := Time.get_ticks_msec() / 1000.0
+		var lately: Array = (_pops.get(peer, []) as Array).filter(func(t: float) -> bool: return now - t < POP_MEMORY)
+		_pops[peer] = lately
+		var p = GameState.player(peer)
+		var dist: float = p.pos.distance_to(at) if p and p.has_pose else 10.0
+		if _rng.randf() < pop_chance(gun, dmg / _hp_full[z.id], dist, lately.size()):
+			gib = &"head"
+			lately.append(now)
+	# A head shot kill that kept its head goes down whole (the head snapped back), a burst or not.
+	if gib == &"" and (z.kind in [&"brute", &"blob", &"bloater"] or (not weak and (z.hits as Array).reduce(
+			func(sum: float, h: Vector2) -> float: return sum + h.y, 0.0) >= SHRED * _hp_full[z.id])):
+		gib = &"body"
+	GameState.cue_wave([&"die", z.id, _queue.size() + _alive() - 1, peer, weak, at, gun, gib, _roll(z, dir), dir])
 	if z.kind == &"bloater":
 		_burst(z, at, peer, gun)
 
@@ -831,7 +876,7 @@ func _burst(z: Dictionary, at: Vector3, peer: int, gun: String) -> void:
 
 ## Host: a paying hit of `dmg` on `part`; once that arm or leg has taken its share it goes, at the
 ## joint above where this one went in.
-func _limb_hit(z: Dictionary, part: StringName, dmg: float) -> void:
+func _limb_hit(z: Dictionary, part: StringName, dmg: float, roll: int) -> void:
 	if not z.body.can_lose(part):
 		return
 	var limb := ("leg" if BODY.is_leg(part) else "arm") + String(part).right(2)
@@ -839,7 +884,7 @@ func _limb_hit(z: Dictionary, part: StringName, dmg: float) -> void:
 	taken[limb] = taken.get(limb, 0.0) + dmg
 	if taken[limb] >= LIMB_HP[limb.left(3)] * _hp_full[z.id]:
 		taken[limb] = 0.0  # what is left of it (an arm that lost the forearm) can go too
-		GameState.cue_wave([&"limb", z.id, part])
+		GameState.cue_wave([&"limb", z.id, part, roll])
 
 
 ## Once the hall is up: the blood and the pieces drawn once, a speck in front of the camera, so
@@ -867,9 +912,9 @@ func _retreat(z: Dictionary) -> void:
 
 ## Every peer: `part` comes off (zombie_body.gd cut()). A leg lost drops a standing one to its belly:
 ## it waits out the fall, then crawls on slower and lies low for the rounds.
-func _cut(z: Dictionary, part: StringName, fly: bool) -> void:
+func _cut(z: Dictionary, part: StringName, fly: bool, roll := 0) -> void:
 	var was_low: bool = z.body.crawling
-	z.down = maxf(z.down, z.body.cut(part, fly))
+	z.down = maxf(z.down, z.body.cut(part, fly, roll))
 	for s: Dictionary in z.bones:  # what came off takes no more rounds
 		if s.limb != &"" and (s.limb == part or BODY.LOWER.get(s.limb, &"") == part) and part in z.body.cuts:
 			(s.node as CollisionShape3D).disabled = true
@@ -1039,7 +1084,7 @@ func _nudge(z: Dictionary, by: Vector3) -> void:
 	(z.node as Node3D).global_position += by
 
 
-func _kill(id: int, gib: StringName) -> void:
+func _kill(id: int, gib: StringName, weak := false, roll := 0, dir := Vector3.ZERO) -> void:
 	var z: Dictionary = _zombies.get(id, {})
 	if z.is_empty() or z.dead:
 		return
@@ -1052,7 +1097,7 @@ func _kill(id: int, gib: StringName) -> void:
 	(z.bar as Node).hide_now()
 	for s: Dictionary in z.bones:
 		(s.node as CollisionShape3D).disabled = true
-	z.body.die(gib)
+	z.body.die(gib, weak, roll, dir)
 	await get_tree().create_timer(DEAD_STAY).timeout
 	if is_instance_valid(node):
 		node.queue_free()

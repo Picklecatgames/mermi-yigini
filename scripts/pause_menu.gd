@@ -473,6 +473,7 @@ func _game_page() -> Control:
 	list.add_child(_slider("fov", "Görüş açısı", 60, 110, 1, "%d°", ""))
 	list.add_child(_slider("head_bob", "Kafa sallantısı", 0, 100, 5, "%d%%", ""))
 	list.add_child(_slider("screen_shake", "Ekran sarsıntısı", 0, 100, 5, "%d%%", ""))
+	list.add_child(_toggle("screen_blood", "Ekranda kan", ""))
 	list.add_child(_heading("NİŞANGÂH"))
 	list.add_child(_choice("crosshair_color", "Renk", ["Beyaz", "Yeşil", "Sarı", "Camgöbeği", "Turuncu"], ""))
 	list.add_child(_slider("crosshair_size", "Boyut", 50, 200, 10, "%d%%", ""))
