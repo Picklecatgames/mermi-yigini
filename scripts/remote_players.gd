@@ -423,6 +423,7 @@ class Character extends Node3D:
 		_fp_anim.seek(0.0, true)
 		_fp_anim.advance(0.0)
 		_fp_anim.pause()  # held still: the body's own clips move the hands
+		VIEWMODEL.fix_pose(_fp_skel, set)
 		if set.has("spin"):  # turned here, as viewmodel.gd turns ours
 			_barrel = _fp_skel.find_bone(set.spin.bone)
 			_barrel_rest = _fp_skel.get_bone_pose_rotation(_barrel)
