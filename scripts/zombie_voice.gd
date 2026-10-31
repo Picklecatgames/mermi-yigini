@@ -19,7 +19,11 @@ const BANKS := {
 	&"death": ["death_", 5, VOICES], &"distant": ["distant_", 3, VOICES],
 	&"flesh": ["flesh_", 8, GORE], &"head": ["head_", 5, GORE], &"kill": ["kill_", 2, GORE],
 	&"burst": ["burst_", 5, GORE], &"chunk": ["chunk_", 5, GORE], &"ooze": ["ooze_", 5, GORE],
+	# A head blown off (zombie_body.gd _blow_head()): the skull going, bone cracking, the neck spurting.
+	# Not recorded yet: a bank with no files on disk stays silent.
+	&"pop": ["pop_", 4, GORE], &"crack": ["crack_", 4, GORE], &"squirt": ["squirt_", 4, GORE],
 }
+const UNRECORDED := [&"pop", &"crack", &"squirt"]  # banks still waiting for the user's recordings
 ## kind -> ambient banks, seconds between them, voice pitch range
 const KIND_VOICE := {
 	&"walker": {"banks": [&"groan", &"groan", &"growl"], "gap": [4.0, 11.0], "pitch": [0.9, 1.08]},
@@ -175,11 +179,12 @@ static func gore(bank: StringName, at: Vector3, db := 0.0, pitch := 1.0) -> void
 		_tick_count += 1
 		if _tick_count > FLESH_PER_TICK:
 			return
-	var p := _free_player()
+	var stream := _draw(bank)
+	var p := _free_player() if stream else null
 	if p == null:
 		return
 	p.global_position = at
-	p.stream = _draw(bank)
+	p.stream = stream
 	p.pitch_scale = pitch * randf_range(0.93, 1.07)
 	p.volume_db = db + randf_range(-1.5, 1.0)
 	p.play()
@@ -220,7 +225,7 @@ static func warm() -> void:
 		var b: Array = BANKS[bank]
 		for i in b[1]:
 			var path := "%s%s%02d.ogg" % [b[2], b[0], i + 1]
-			if not _streams.has(bank) and not _warming.has(path):
+			if not _streams.has(bank) and not _warming.has(path) and ResourceLoader.exists(path):
 				_warming[path] = ResourceLoader.load_threaded_request(path) == OK
 
 
@@ -234,10 +239,12 @@ static func _draw(bank: StringName) -> AudioStream:
 			if _warming.get(path, false):
 				_warming[path] = false
 				list.append(ResourceLoader.load_threaded_get(path))
-			else:
+			elif ResourceLoader.exists(path):
 				list.append(load(path))
 		_streams[bank] = list
 	var list: Array = _streams[bank]
+	if list.is_empty():
+		return null
 	var bag: Array = _bags.get(bank, [])
 	if bag.is_empty():
 		for i in list.size():

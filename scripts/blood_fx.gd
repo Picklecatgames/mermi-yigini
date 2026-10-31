@@ -10,6 +10,7 @@ extends Node3D
 ##   BloodFx.mist(world, at, dir, rng, size, life)
 ##   BloodFx.wall(world, at, dir, rng, reach, width)  # the round flew on: a spray where it lands
 ##   BloodFx.ground(world, at, floor_y, kinds, rng, width, along, grow)
+##   BloodFx.hole(holder, at, dir, rng, width, kind)  # on a bone: a round's way in, a torn stump's blood
 
 const MAX_DECALS := 64
 const MAX_MISTS := 16
@@ -81,6 +82,24 @@ static func ground(world: Node, at: Vector3, floor_y: float, kinds: Array, rng: 
 		t.tween_property(d, "size", full, grow).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
 		fx._grow[d] = t
 	return d
+
+
+## A hole where a round went in at `at` going along `dir` (or, `kind` &"pool", the blood over a torn
+## stump), under `holder` (a bone's attachment), so it goes where the bone goes and goes with the
+## body. Not one of the pool's.
+static func hole(holder: Node3D, at: Vector3, dir: Vector3, rng: RandomNumberGenerator, width := 0.06, kind := &"drop",
+		depth := 2.0) -> void:
+	var d := Decal.new()
+	var tex := _tex(kind, rng.randi() % SETS[kind])
+	d.texture_albedo = tex[0]
+	d.texture_normal = tex[1]
+	d.texture_orm = tex[2]
+	d.albedo_mix = 1.0
+	d.size = Vector3(width, width * depth, width)  # how far in it reaches, × width
+	holder.add_child(d)
+	var y := -dir.normalized()  # it projects down its -Y: into the head
+	var x := y.cross(Vector3.UP if absf(y.y) < 0.9 else Vector3.RIGHT).normalized().rotated(y, rng.randf() * TAU)
+	d.global_transform = Transform3D(Basis(x, y, x.cross(y)), at)
 
 
 ## Starts reading every decal set and mist off the disk on a thread, so none is loaded in the middle

@@ -5,7 +5,8 @@ extends SceneTree
 ## Every round jolts the camera by its gun's share (the Deagle hardest, the minigun least), aimed
 ## less; the SMGs climb more the longer a burst runs; the minigun's muzzle smoke goes with every
 ## other round only. The player's shake runs down, the settings turn it off, a spinning minigun keeps
-## a floor. Hit marker: a zombie hit, a head hit, a kill, and the kill isn't cut short by the next hit.
+## a floor. Hit marker: a zombie hit, a head hit, a kill, and the kill isn't cut short by the next hit;
+## a head blown off has its own and holds the game a blink, ours only.
 
 const ORDER := ["deagle", "pistol", "uzi", "scorpion", "minigun"]  # hardest jolt first
 
@@ -134,6 +135,19 @@ func _initialize() -> void:
 	check.call(marker._kind == &"kill", "a kill has its own")
 	gs.shot_landed.emit(gs.local_peer(), Vector3.ZERO, Vector3.UP, Vector3.FORWARD, zombie, 0, false, 1)
 	check.call(marker._kind == &"kill", "the next hit doesn't cut the kill short")
+	await create_timer(0.2, true, false, true).timeout  # the head kill above held the game a blink
+	check.call(Engine.time_scale == 1.0, "the hold of the head blown off above let go")
+	marker._alpha = 0.0
+	gs.wave_cue.emit([&"die", 1, 0, gs.local_peer(), true, Vector3.ZERO, "deagle", &"head", 5, Vector3.FORWARD])
+	check.call(marker._kind == &"pop", "a head blown off has its own marker")
+	check.call(Engine.time_scale < 1.0, "and holds the game a blink")
+	gs.wave_cue.emit([&"die", 2, 0, gs.local_peer(), true, Vector3.ZERO, "deagle", &"", 6, Vector3.FORWARD])
+	check.call(marker._kind == &"pop", "a plain kill after it doesn't cut it short")
+	await create_timer(0.2, true, false, true).timeout
+	check.call(Engine.time_scale == 1.0, "then lets the game go")
+	marker._alpha = 0.0
+	gs.wave_cue.emit([&"die", 3, 0, gs.local_peer() + 7, true, Vector3.ZERO, "deagle", &"head", 7, Vector3.FORWARD])
+	check.call(marker._alpha == 0.0 and Engine.time_scale == 1.0, "someone else's head blown off: no marker, no hold here")
 	marker._alpha = 0.0
 	gs.shot_landed.emit(gs.local_peer() + 7, Vector3.ZERO, Vector3.UP, Vector3.FORWARD, zombie, 0, false, 1)
 	check.call(marker._alpha == 0.0, "someone else's hit doesn't flash ours")

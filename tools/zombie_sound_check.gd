@@ -27,6 +27,9 @@ func _run() -> void:
 
 	# Banks: files load, shuffled bags.
 	for bank in VOICE.BANKS:
+		if bank in VOICE.UNRECORDED:
+			print("  (%s: not recorded yet, silent)" % bank)
+			continue
 		var n: int = VOICE.BANKS[bank][1]
 		var seen := {}
 		var last: AudioStream = null
