@@ -22,3 +22,6 @@ assets/characters/players/raw/
 
 # ActionVFX ham kan videoları ve dokuları, TextureCan 4K: dağıtılamaz (tools/build_blood.py okur)
 assets/vfx/blood/raw/
+
+# Reels için eski sürümlerden çekimler
+reels/
