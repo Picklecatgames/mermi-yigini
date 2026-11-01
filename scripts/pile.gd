@@ -7,7 +7,7 @@ extends StaticBody3D
 ## past a threshold the host lets that part of the face give way (GameState scrap_collapse): it
 ## slumps to REPOSE_SLOPE, the top comes down with it, and real pieces tumble off the face and
 ## shove whoever stands below. A height field can't hang: nothing ever floats over a hole.
-## Pieces on the surface are drawn from data/scrap_parts.json (tools/build_scrap.py), one
+## Pieces on the surface are drawn from the prepared scrap (assets/props/hurda/hurda.json), one
 ## MultiMesh per part; loose pieces on the floor are numbered and picked up one by one.
 ## Co-op: only GameState events cross the network (bullets_taken for the heap, loose_taken by id,
 ## scrap_collapse with the host's seed); every peer digs, slides and slumps locally, the same way.
@@ -41,16 +41,13 @@ const CHUNKS_Z := (GRID_Z - 2) / CHUNK + 1
 const REDRAW_STEP := 0.002    # m a cell drifts before the pieces on it are moved
 const GRAB_DEPTH := 0.05      # m of heap under the crosshair before E grabs from it
 const SURFACE_GRAB := 0.35    # m around a heap take to pick the drawn piece from
-## The pieces: the prepared scrap (assets/props/hurda/hurda.json: id, glb, tur, boyut_m...) once
-## it is in; until then the stand-ins tools/build_scrap.py makes (data/scrap_parts.json).
+## The pieces: the prepared scrap (id, glb, tur, kutle_kg, boyut_m...; each glb a mesh with its
+## base at y = 0 and one convex collision).
 const PARTS_FILE := "res://assets/props/hurda/hurda.json"
-const STAND_IN_FILE := "res://data/scrap_parts.json"
-const STAND_IN_DIR := "res://assets/scrap/"
-## How often each kind of piece turns up in the heap, by hurda.json "tur" (and the stand-ins'
-## kinds): small metal most, crates and whole guns few.
+## How often each kind of piece turns up in the heap, by hurda.json "tur" (times the root of how
+## many pieces the kind has): small metal most, crates few. Guns (tur "silah") stay out: they would read as weapons to pick up.
 const KIND_WEIGHT := {"disli": 1.0, "yay": 1.0, "civata": 1.0, "zincir": 0.8, "boru": 0.8, "sac": 0.7,
-	"alet": 0.7, "konserve": 0.6, "motor": 0.4, "elektronik": 0.3, "kap": 0.25, "jant": 0.22, "sandik": 0.1, "silah": 0.06,
-	"small": 1.0, "sheet": 0.7, "can": 0.5, "can_big": 0.25, "wheel": 0.22, "box": 0.18, "crate": 0.1}
+	"alet": 0.7, "konserve": 0.6, "motor": 0.4, "elektronik": 0.3, "kap": 0.25, "jant": 0.22, "sandik": 0.1}
 ## The roof (tools/build_arena.gd): a 6° pitch from 8.8 m at the eaves, and the glass lantern over
 ## the middle, 11.6 m to the top of its walls. The heap is packed up to just under them.
 const EAVE := 8.8
@@ -113,7 +110,7 @@ var _shape_timer := 0.0
 var _digs := []                  # [cell: Vector2i, height-metres still to remove]
 var _dig_w := PackedFloat64Array()
 var _noise := FastNoiseLite.new()
-# Parts: one entry per glb in data/scrap_parts.json.
+# Parts: one entry per piece in hurda.json that goes into the heap.
 var _part_mesh: Array[Mesh] = []
 var _part_size: Array[Vector3] = []
 var _part_mid: Array[Vector3] = []  # the mesh's box centre: pieces are placed and collide by it
@@ -121,7 +118,10 @@ var _part_low: Array[Mesh] = []     # LOW_TRIS copy, for the thousands on the su
 var _part_foot := PackedFloat32Array()  # m², lying on its widest side
 var _mark_mi := MeshInstance3D.new()  # the piece under a player's crosshair, outlined (highlight())
 var _marked := -1
-var _part_shape: Array[BoxShape3D] = []
+var _part_shape: Array[BoxShape3D] = []  # resting loose pieces: cheap boxes
+var _part_hull: Array[Shape3D] = []     # moving ones: the glb's own convex hull, so wheels roll
+var _part_hull_at: Array[Transform3D] = []  # the hull relative to the box centre
+var _part_mass := PackedFloat32Array()
 var _part_pick := PackedFloat32Array()  # running weight, for picking a part by a random number
 var _face_pick := PackedFloat32Array()  # the same for the face, without the parts under SURFACE_MIN
 # Surface pieces: a MultiMesh per part, slots in cell order.
@@ -226,19 +226,25 @@ func _ready() -> void:
 
 func _load_parts() -> void:
 	var list: Array = []
-	if FileAccess.file_exists(PARTS_FILE):
-		for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(PARTS_FILE)):
-			list.append({"glb": PARTS_FILE.get_base_dir().path_join(p.glb.get_file()), "kind": p.tur})
-	else:
-		for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(STAND_IN_FILE)):
-			list.append({"glb": STAND_IN_DIR + p.name + ".glb", "kind": p.kind})
+	for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(PARTS_FILE)):
+		if KIND_WEIGHT.has(p.tur):
+			p.glb = PARTS_FILE.get_base_dir().path_join(p.glb.get_file())
+			list.append(p)
+	var in_kind := {}
+	for p: Dictionary in list:
+		in_kind[p.tur] = in_kind.get(p.tur, 0) + 1
 	for p: Dictionary in list:  # all at once, on the loader's threads: one by one took 1.4 s
 		ResourceLoader.load_threaded_request(p.glb)
 	var total := 0.0
 	for p: Dictionary in list:
 		var glb: Node = (ResourceLoader.load_threaded_get(p.glb) as PackedScene).instantiate()
-		var mesh: Mesh = (glb.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
+		var mi: MeshInstance3D = glb.find_children("*", "MeshInstance3D", true, false)[0]
+		var mesh: Mesh = mi.mesh
 		_part_mesh.append(mesh)
+		var hull: CollisionShape3D = glb.find_children("*", "CollisionShape3D", true, false)[0]
+		_part_hull.append(hull.shape)
+		_part_hull_at.append(Transform3D(Basis(), -mesh.get_aabb().get_center()) * _to_root(mi).affine_inverse() * _to_root(hull))
+		_part_mass.append(clampf(p.kutle_kg, 0.05, 30.0))
 		glb.free()
 		_part_low.append(_low_poly(mesh))
 		var box: AABB = mesh.get_aabb()
@@ -250,7 +256,8 @@ func _load_parts() -> void:
 		var dims := [box.size.x, box.size.y, box.size.z]
 		dims.sort()
 		_part_foot.append(dims[1] * dims[2])
-		total += KIND_WEIGHT.get(p.kind, 0.5)
+		# A kind's share grows with the root of its count: 96 pipe pieces don't bury the one spring.
+		total += KIND_WEIGHT[p.tur] / sqrt(in_kind[p.tur])
 		_part_pick.append(total)
 	var face := 0.0
 	for i in _part_pick.size():
@@ -260,6 +267,16 @@ func _load_parts() -> void:
 	for i in _part_pick.size():
 		_part_pick[i] /= total
 		_face_pick[i] /= face
+
+
+## `n`'s transform in its scene, outside a tree.
+static func _to_root(n: Node) -> Transform3D:
+	var t := Transform3D()
+	while n:
+		if n is Node3D:
+			t = (n as Node3D).transform * t
+		n = n.get_parent()
+	return t
 
 
 ## `mesh` brought down to about LOW_TRIS triangles with the engine's own simplifier (meshoptimizer,
@@ -588,18 +605,18 @@ func _redraw_slot(s: int) -> void:
 	_surface[_slot_part[s]].multimesh.set_instance_transform(_slot_index[s], t)
 
 
-## A piece as a rigid body: a box the part's size round its mesh. `t` is global.
+## A piece as a rigid body: its own convex hull and weight. `t` is global, at the box centre.
 func _make_body(part: int, t: Transform3D) -> RigidBody3D:
 	var body := RigidBody3D.new()
-	var s := _part_size[part]
-	body.mass = clampf(s.x * s.y * s.z * 1500.0, 0.05, 30.0)  # mostly air: thin steel and hollow cans
+	body.mass = _part_mass[part]
 	body.continuous_cd = true
 	body.angular_damp = 1.5
 	body.physics_material_override = PhysicsMaterial.new()
 	body.physics_material_override.friction = 0.8
 	body.physics_material_override.bounce = 0.15
 	var col := CollisionShape3D.new()
-	col.shape = _part_shape[part]
+	col.shape = _part_hull[part]
+	col.transform = _part_hull_at[part]
 	body.add_child(col)
 	var look := MeshInstance3D.new()
 	look.mesh = _part_mesh[part]
