@@ -3,22 +3,23 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cv0o07jgfpq5b"
-path="res://.godot/imported/ogutucu_ogutucu_govde_renk.jpg-524b29356a99979a0f7d8313bd5a0c7c.ctex"
+path.s3tc="res://.godot/imported/ogutucu_ogutucu_govde_renk.jpg-524b29356a99979a0f7d8313bd5a0c7c.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
-"md5": "c07169e7943a8f2a71657851bfd7e873"
+"md5": "946a6620bb0c574374b27b343296e934"
 }
 
 [deps]
 
 source_file="res://assets/props/ogutucu/ogutucu_ogutucu_govde_renk.jpg"
-dest_files=["res://.godot/imported/ogutucu_ogutucu_govde_renk.jpg-524b29356a99979a0f7d8313bd5a0c7c.ctex"]
+dest_files=["res://.godot/imported/ogutucu_ogutucu_govde_renk.jpg-524b29356a99979a0f7d8313bd5a0c7c.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

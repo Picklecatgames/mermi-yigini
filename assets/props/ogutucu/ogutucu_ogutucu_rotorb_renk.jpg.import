@@ -3,22 +3,23 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cki4uqxjxijml"
-path="res://.godot/imported/ogutucu_ogutucu_rotorb_renk.jpg-709da2e1cda949729ec699b88bf01cd5.ctex"
+path.s3tc="res://.godot/imported/ogutucu_ogutucu_rotorb_renk.jpg-709da2e1cda949729ec699b88bf01cd5.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
-"md5": "add2962fe11311524728f5283518f7a5"
+"md5": "ece73094ce4861363a80f6a0552e2247"
 }
 
 [deps]
 
 source_file="res://assets/props/ogutucu/ogutucu_ogutucu_rotorb_renk.jpg"
-dest_files=["res://.godot/imported/ogutucu_ogutucu_rotorb_renk.jpg-709da2e1cda949729ec699b88bf01cd5.ctex"]
+dest_files=["res://.godot/imported/ogutucu_ogutucu_rotorb_renk.jpg-709da2e1cda949729ec699b88bf01cd5.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
