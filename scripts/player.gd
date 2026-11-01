@@ -101,6 +101,15 @@ const FF_CLIMB := Vector2(0.05, 0.1)
 const FF_YAW := 0.09
 const FF_KICK := 0.06  # rad of view jolt on top
 const PLACEMENT := preload("res://scripts/placement.gd")  # its HUD box and label helpers
+const DOWN_VIEW := preload("res://scripts/down_view.gd")
+## Down (GameState.player_downed, docs/ayrintilar.md "Baygınlık"): the view drops to the floor and
+## tips over on its side; once dark (GameState.DOWN_TIME) it looks through a standing teammate's
+## eyes, left and right click for the next one. Numbers are first guesses.
+const DOWN_EYE := 0.22  # m over the feet
+const DOWN_ROLL := 1.35  # rad the view tips over
+const DOWN_FALL := 0.6  # s to get down there (and back up, revived)
+const HURT_SHAKE := 0.55  # trauma a blow adds
+const HURT_KICK := 0.05  # rad the view jolts
 
 var _grab_timer := 0.0
 var _yaw := 0.0
@@ -140,6 +149,9 @@ var _dizzy_t := 0.0  # s into it, for the sways
 var _special_sound: AudioStreamPlayer
 var crouched := false
 var _crouch_view := 0.0  # 0..1, the eye on its way between EYE and CROUCH_EYE
+var _down_view := 0.0  # 0..1, the eye on its way down to the floor
+var watching := 0  # the teammate whose eyes we look through while down, 0 none
+var _down_ui: Control  # scripts/down_view.gd
 
 @onready var _head: Node3D = $Head
 @onready var _collision: CollisionShape3D = $Collision
@@ -240,11 +252,24 @@ func _ready() -> void:
 		add_child(b)
 		_fly.append(b)
 	GameState.pushed.connect(func(v: Vector3) -> void:
-		if v.length() > _shove.length():
+		if v.length() > _shove.length() and not GameState.is_down():
 			_shove = v)
 	GameState.player_shot.connect(_on_player_shot)
 	_wheel = AMMO_WHEEL.new()
 	$HUD.add_child(_wheel)
+	_down_ui = DOWN_VIEW.new()
+	_down_ui.player = self
+	$HUD.add_child(_down_ui)
+	GameState.health_changed.connect(func(peer: int, _hp: float, _from: Vector3, hurt: bool) -> void:
+		if hurt and peer == GameState.local_peer():
+			_trauma = minf(_trauma + HURT_SHAKE, 1.0)
+			_recoil_vel += HURT_KICK * KICK_OMEGA * exp(1.0))
+	GameState.player_downed.connect(func(peer: int) -> void:
+		if peer == GameState.local_peer():
+			_go_down())
+	GameState.player_revived.connect(func(peer: int) -> void:
+		if peer == GameState.local_peer():
+			_watch(0))
 	_wheel.picked.connect(_on_wheel_picked)
 	_pocket_seen = GameState.player().specials.duplicate()
 	_special_sound = AudioStreamPlayer.new()  # in our ears only: it is our scare
@@ -497,7 +522,7 @@ void fragment() {
 ## The overview (B) or the Q menu has the keys: we stand still and grab nothing.
 func _hands_busy() -> bool:
 	return GameState.player().placing or _shop.visible or _bench.visible or _board_menu.visible \
-		or _melter.visible or _press.visible or _pick.visible
+		or _melter.visible or _press.visible or _pick.visible or GameState.is_down()
 
 
 ## E in the workshop: of the board, bench, hopper and press in reach, the one the view points
@@ -531,6 +556,11 @@ func _station() -> String:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if GameState.is_down() and not (event is InputEventMouseMotion and watching == 0):
+		if watching != 0 and event is InputEventMouseButton and event.pressed:
+			if event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT:
+				_next_watch(1 if event.button_index == MOUSE_BUTTON_LEFT else -1)
+		return  # on the floor: looking about is all that is left, then not even that
 	if GameState.player().placing and not event.is_action_pressed("placement_mode"):
 		return  # the overview has the mouse and keys (scripts/placement.gd)
 	if event is InputEventMouseMotion and _wheel.is_open:
@@ -642,11 +672,14 @@ func _process(delta: float) -> void:
 		_punch += _punch_vel * h
 	_shake_camera(dt)
 	_head_bob(delta)
+	_down_view = move_toward(_down_view, 1.0 if GameState.is_down() else 0.0, dt / DOWN_FALL)
+	if GameState.is_down() and GameState.player().down_for >= GameState.DOWN_TIME and not _can_watch(watching):
+		_next_watch(1)
 	_place_head()
 	# R held with special rounds in the pocket: the ammo wheel; let go, it loads what was picked
 	# (a tap still reloads, viewmodel.gd).
 	var p := GameState.player()
-	if Input.is_action_pressed("reload") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.placing and p.gun != 0 and not p.specials.is_empty():
+	if Input.is_action_pressed("reload") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.placing and not p.down and p.gun != 0 and not p.specials.is_empty():
 		_reload_held += delta
 		if _reload_held >= WHEEL_HOLD and not _wheel.is_open:
 			_wheel.open()
@@ -658,7 +691,7 @@ func _process(delta: float) -> void:
 	_hip_fov = Settings.value("fov")
 	_camera.fov = rad_to_deg(2.0 * atan(tan(deg_to_rad(_hip_fov) * 0.5) / _zoom)) + _punch * Settings.value("screen_shake") / 100.0
 	_crosshair.modulate.a = 1.0 - _viewmodel.aim  # the front post is the crosshair now
-	_crosshair.visible = not GameState.player().placing  # the overview has its own cursor
+	_crosshair.visible = not GameState.player().placing and _down_view == 0.0  # the overview has its own cursor
 	# Screen px per unit of tan(angle) off the view axis (fov is vertical).
 	var focal := get_viewport().get_visible_rect().size.y * 0.5 / tan(deg_to_rad(_camera.fov) * 0.5)
 	var off: Vector2 = _viewmodel.aim_offset
@@ -677,14 +710,65 @@ func _process(delta: float) -> void:
 
 
 func _place_head() -> void:
+	var rp := get_tree().get_first_node_in_group("remote_players")
+	var them: Node3D = rp.character(watching) if rp and watching != 0 else null
+	if them:  # down and dark: through a teammate's eyes
+		_head.global_transform = them.eye_transform()
+		_camera.transform = Transform3D.IDENTITY
+		return
 	var feet := get_global_transform_interpolated().origin
-	var eye := lerpf(EYE, CROUCH_EYE, smoothstep(0.0, 1.0, _crouch_view))
+	var floor_k := smoothstep(0.0, 1.0, _down_view)
+	var eye := lerpf(lerpf(EYE, CROUCH_EYE, smoothstep(0.0, 1.0, _crouch_view)), DOWN_EYE, floor_k)
 	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0.0)), feet + Vector3.UP * eye)
-	_camera.position = _bob_offset
+	_camera.position = _bob_offset * (1.0 - floor_k)
 	var k := smoothstep(0.0, 1.0, _dizzy / DIZZY_TIME)
 	_camera.rotation.x = _recoil + _tumble.x + _shake.x
 	_camera.rotation.y = _shake.y
-	_camera.rotation.z = _tumble.y + (sin(_dizzy_t * 2.1) + 0.5 * sin(_dizzy_t * 3.7)) / 1.5 * DIZZY_ROLL * k + _shake.z
+	_camera.rotation.z = _tumble.y + (sin(_dizzy_t * 2.1) + 0.5 * sin(_dizzy_t * 3.7)) / 1.5 * DIZZY_ROLL * k + _shake.z \
+		+ DOWN_ROLL * floor_k
+
+
+## We went down: every screen closes, the overview too, the gun goes away (viewmodel.gd), and the
+## view drops to the floor.
+func _go_down() -> void:
+	if _shop.visible:
+		_shop.toggle()
+	for m: CanvasLayer in [_bench, _board_menu, _melter, _press]:
+		if m.visible:
+			m.close()
+	_wheel.close()
+	if GameState.player().placing:
+		GameState.request_toggle_placing()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Can we look through `peer`'s eyes: a teammate standing, their body here.
+func _can_watch(peer: int) -> bool:
+	var rp := get_tree().get_first_node_in_group("remote_players")
+	return peer != 0 and peer != GameState.local_peer() and not GameState.is_down(peer) \
+		and rp != null and rp.character(peer) != null and GameState.slots.has(peer)
+
+
+## The next standing teammate to watch, `step` along by peer id; none left, none (the screen stays dark).
+func _next_watch(step: int) -> void:
+	var them: Array = GameState.slots.keys().filter(_can_watch)
+	them.sort()
+	if them.is_empty():
+		_watch(0)
+		return
+	var i := them.find(watching)
+	_watch(them[posmod(i + step, them.size())] if i >= 0 else them[0])
+
+
+func _watch(peer: int) -> void:
+	if peer == watching:
+		return
+	var rp := get_tree().get_first_node_in_group("remote_players")
+	if rp and rp.character(watching):
+		rp.character(watching).watched = false
+	watching = peer
+	if rp and rp.character(peer):
+		rp.character(peer).watched = true
 
 
 ## Runs the trauma down (or holds it at a spinning gun's floor) and picks this frame's wobble.

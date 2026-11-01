@@ -92,6 +92,15 @@ signal lever_pulled(peer: int)
 ## The railing's hit points and how worn each of its bays is (FENCE_BAYS, points clawed off there;
 ## they add up to FENCE_MAX - hp). Host's, told to everyone (scripts/fence.gd shows it).
 signal fence_changed(hp: int, wear: Array)
+## A player's life (docs/ayrintilar.md "Baygınlık"): `hurt` when a blow took it down (`from`, where
+## it came from), else it is regen or a revive. Host's, told to everyone.
+signal health_changed(peer: int, hp: float, from: Vector3, hurt: bool)
+## Down at 0 life: on the floor, no moving, no shooting; the screen reddens, darkens and then
+## watches a teammate (player.gd, down_view.gd). Up again when revived, or when a lost wave waits again.
+signal player_downed(peer: int)
+signal player_revived(peer: int)
+## Host: nobody is standing any more, DOWN_TIME after the last went down (waves.gd makes it a lost wave).
+signal all_down
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -332,6 +341,27 @@ const FENCE_REPAIR_COST := 3  # gold a point
 const FENCE_SEND := 0.25  # s between the host's updates of the clawing to clients
 const REPAIR_POS := Vector3(12.2, 0.0, 26.85)  # in front of the workshop bench (tools/range_dressing.gd _workshop)
 const REPAIR_REACH := 2.5  # m, feet: bench_menu.gd opens within REACH of its front edge
+## Going down (docs/ayrintilar.md "Baygınlık", 2026-10-31, the user's call: the zombies in through a
+## broken bay go for the players, a player at 0 life falls, the screen reddens, darkens and then
+## watches another, and after a cleared wave a teammate can raise them at a high price). The numbers
+## are first guesses.
+const HP_MAX := 100.0
+const HP_REGEN := 10.0  # a second, outside a fight (between waves); none while the wave is on
+const HP_SEND := 0.25  # s between the host's regen updates to clients
+const DOWN_RED := 8.0  # s the screen reddens on the floor
+const DOWN_DARK := 1.2  # s from there to black; then the view goes to a teammate, and alone (or all down) all_down
+const DOWN_TIME := DOWN_RED + DOWN_DARK
+const REVIVE_COST := 300  # at the first wave cleared: as much as the whole railing
+const REVIVE_GROW := 100  # more per wave after it
+const REVIVE_HP := 50.0  # what a raised player stands up with; the pause between waves fills the rest
+## What a downed client may still ask for.
+const DOWN_REQUESTS := [&"request_hello", &"request_pick_character"]
+## waves.gd Phase, as the wave cues carry it.
+const WAVE_READY := 0
+const WAVE_STARTING := 1
+const WAVE_FIGHT := 2
+const WAVE_CLEARED := 3
+const WAVE_FAILED := 4
 const MELT_RATES := [2.0, 4.0, 8.0, 16.0, 32.0, 64.0]  # rounds a second, per level
 const MELT_COSTS := [120, 500, 2000, 8000, 30000]  # to the next level
 const PRESS_COSTS := [1500, 9000]
@@ -356,7 +386,7 @@ const REQUESTS := {
 	&"request_place_gear": 3, &"request_remove_gear": 1, &"request_select_gun": 1, &"request_arm_special": 1,
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
-	&"request_pull_lever": 0, &"request_repair_fence": 0,
+	&"request_pull_lever": 0, &"request_repair_fence": 0, &"request_revive": 1,
 }
 ## Where gear may stand (x, z): the hall past the firing line, clear of the east wall, and the
 ## range bay out through it up to the sand backstop (tools/build_arena.gd BAY_*); at least
@@ -375,7 +405,7 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"target_cue", &"player_shot", &"player_slots", &"vault_changed", &"gear_changed", &"gear_placed", &"gear_removed", &"gun_changed",
 	&"bonus_paid", &"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
-	&"fence_changed"]
+	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4, &"target_cue": 0, &"bonus_paid": 1}
 
@@ -405,6 +435,11 @@ class PlayerState:
 	var has_pose := false
 	var crouch := false  # from the last pose
 	var character := ""  # CHARACTERS id; "" until picked
+	var hp := HP_MAX
+	var down := false
+	var down_for := 0.0  # s on the floor, game time; every machine counts it from when it heard
+	var down_pos := Vector3.ZERO  # host: where they fell; their poses stay there
+	var hp_news := false  # host: regen not told yet
 
 
 ## What everyone starts with: one straw dummy's price, so the warmup's first buy is that (2026-10-28,
@@ -450,6 +485,10 @@ var fence := FENCE_MAX
 var fence_wear: Array[int] = []  # per FENCE_BAYS bay, from -z to +z
 var _fence_wait := 0.0  # host: s until clients hear of the clawing again
 var _fence_news := false
+var wave_phase := WAVE_READY  # from the wave cues, on every machine
+var wave_cleared := 0  # the last wave cleared, for the revive's price
+var _hp_wait := 0.0
+var _all_down_sent := false  # host: once until the next READY
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -503,6 +542,7 @@ func mag_capacity_of(peer: int) -> int:
 func _ready() -> void:
 	_reset_quests()  # Net isn't in the tree yet; a joiner gets the host's board on joining
 	fence_wear.resize(FENCE_BAYS)
+	wave_cue.connect(_on_wave_cue)
 	# Someone joined: they get the world as it is now, in one go, before any later event.
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		if multiplayer.is_server():
@@ -532,6 +572,10 @@ func _ready() -> void:
 					_event.rpc_id(id, &"pistol_grip", [peer, _players[peer].levels.grip])
 				if _players[peer].character != "" and peer != id:
 					_event.rpc_id(id, &"character_changed", [peer, _players[peer].character])
+				if peer != id:
+					_event.rpc_id(id, &"health_changed", [peer, _players[peer].hp, Vector3.ZERO, false])
+					if _players[peer].down:
+						_event.rpc_id(id, &"player_downed", [peer])
 			for w: Node in get_tree().get_nodes_in_group("waves"):  # before the targets: zombies are some
 				for cue: Array in w.join_cues():
 					_event.rpc_id(id, &"wave_cue", [cue])
@@ -584,8 +628,11 @@ func _process(delta: float) -> void:
 			p.combo = 0
 		if p.weak_left == 0.0:
 			p.weak_combo = 0
+		if p.down:
+			p.down_for += delta
 	if Net.is_client:
 		return  # the hopper melts on the host
+	_health(delta)
 	if melt_bin > 0:
 		_melt_part += MELT_RATES[melt_level] * delta
 		var n := mini(int(_melt_part), melt_bin)
@@ -683,6 +730,138 @@ func _fence_now(send := false) -> void:
 	_fence_news = false
 	_fence_wait = FENCE_SEND
 	_world(&"fence_changed", [fence, fence_wear.duplicate()])
+
+
+## Host (or solo): a blow from `from` takes `amount` off `peer`'s life (0: the local player); at 0
+## they go down. Only a standing player is hurt. A client's own call is dropped.
+func hurt_player(peer: int, amount: float, from: Vector3) -> void:
+	if peer == 0:
+		peer = local_peer()
+	if Net.is_client or amount <= 0.0 or not (_is_local(peer) or _players.has(peer)):
+		return
+	var p := player(peer)
+	if p.down:
+		return
+	p.hp = maxf(p.hp - amount, 0.0)
+	p.hp_news = false
+	_world(&"health_changed", [peer, p.hp, from, true])
+	if p.hp > 0.0:
+		return
+	p.down = true
+	p.down_for = 0.0
+	p.down_pos = p.pos
+	if p.placing:  # the overview closes; a client hears of it with its next answer
+		p.placing = false
+		if _is_local(peer):
+			placing_changed.emit(false)
+	_world(&"player_downed", [peer])
+
+
+## Whether `peer` (0: the local player) is down.
+func is_down(peer := 0) -> bool:
+	var p: PlayerState = _players.get(local_peer() if peer == 0 else peer)
+	return p != null and p.down
+
+
+## Everyone in the session (alone, just us).
+func everyone() -> Array:
+	return slots.keys() if Net.online and not slots.is_empty() else [local_peer()]
+
+
+## Raises downed `peer` from the workshop bench, for REVIVE_COST plus REVIVE_GROW a wave cleared
+## since the first: from the vault in co-op (it is the team's teammate), alone from one's own gold.
+## Only once a wave is cleared (CLEARED, or READY after it), never during one. The place is
+## temporary (bench_menu.gd), a revive point comes later.
+func request_revive(target: int, peer := 0) -> bool:
+	var p := player(peer)
+	var t: PlayerState = _players.get(target)
+	var slack := 0.0 if _is_local(peer) else 1.0
+	if p.down or t == null or not t.down or not revive_open() \
+			or (p.has_pose and Vector2(p.pos.x - REPAIR_POS.x, p.pos.z - REPAIR_POS.z).length() > REPAIR_REACH + slack):
+		return false
+	var price := revive_price()
+	if (vault if team_vault() else float(p.gold)) < price:
+		return false
+	if _send(&"request_revive", [target], peer):
+		return true
+	if team_vault():
+		vault -= price
+		_world(&"vault_changed", [vault])
+	else:
+		p.gold -= price
+		if _is_local(peer):
+			gold_changed.emit(p.gold)
+	_raise(target, REVIVE_HP)
+	return true
+
+
+## Reviving is open: the wave is cleared, or the next one waits after a cleared one.
+func revive_open() -> bool:
+	return wave_phase == WAVE_CLEARED or (wave_phase == WAVE_READY and wave_cleared > 0)
+
+
+func revive_price() -> int:
+	return REVIVE_COST + REVIVE_GROW * maxi(wave_cleared - 1, 0)
+
+
+## Host: `peer` stands up with `hp`.
+func _raise(peer: int, hp: float) -> void:
+	var p := player(peer)
+	p.down = false
+	p.down_for = 0.0
+	p.hp = hp
+	p.hp_news = false
+	_world(&"health_changed", [peer, hp, Vector3.ZERO, false])
+	_world(&"player_revived", [peer])
+
+
+## Host: regen between waves, and all_down once nobody stands.
+func _health(delta: float) -> void:
+	_hp_wait -= delta
+	var calm := wave_phase != WAVE_FIGHT and wave_phase != WAVE_STARTING
+	for peer: int in _players:
+		var p: PlayerState = _players[peer]
+		if calm and not p.down and p.hp < HP_MAX:
+			p.hp = minf(p.hp + HP_REGEN * delta, HP_MAX)
+			p.hp_news = true
+		if p.hp_news and (_hp_wait <= 0.0 or p.hp == HP_MAX):
+			p.hp_news = false
+			_world(&"health_changed", [peer, p.hp, Vector3.ZERO, false])
+	if _hp_wait <= 0.0:
+		_hp_wait = HP_SEND
+	if _all_down_sent:
+		return
+	for peer: int in everyone():
+		var p: PlayerState = _players.get(peer)
+		if p == null or not p.down or p.down_for < DOWN_TIME:
+			return
+	_all_down_sent = true
+	_world(&"all_down", [])
+
+
+## Every machine: the wave's phase, for regen and reviving. On the host a lost wave waiting again
+## stands everyone up.
+func _on_wave_cue(cue: Array) -> void:
+	if cue[0] == &"reset":
+		wave_phase = WAVE_READY
+		return
+	if cue[0] != &"phase":
+		return
+	var was := wave_phase
+	wave_phase = cue[2]
+	if wave_phase == WAVE_CLEARED:
+		wave_cleared = cue[1]
+	elif wave_phase == WAVE_READY:
+		wave_cleared = cue[1] - 1  # waiting on wave n: n - 1 are behind us (a joiner learns it so too)
+		_all_down_sent = false
+		if was == WAVE_FAILED and not Net.is_client:
+			for peer: int in _players:
+				var p: PlayerState = _players[peer]
+				if p.down:
+					_raise(peer, HP_MAX)
+				elif p.hp < HP_MAX:
+					p.hp = HP_MAX
+					p.hp_news = true
 
 
 ## Feet within reach of a station (MELTER_POS, PRESS_POS). The host allows a metre more for
@@ -1152,7 +1331,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	# Slack for frame timing on the caller, more for a remote one's network jitter, never so much
 	# that a client could fire faster than its gun does.
 	var interval: float = GUNS[p.gun].interval
-	if p.gun == 0 or p.placing or (p.loaded <= 0 and p.armed == "") or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
+	if p.gun == 0 or p.placing or p.down or (p.loaded <= 0 and p.armed == "") or p.cooldown > (0.02 if _is_local(peer) else minf(NET_JITTER, interval * 0.5)):
 		return false
 	# A remote round leaves from that player's synced eye, or not at all.
 	if not _is_local(peer) and not (p.has_pose and from.distance_to(p.pos + Vector3.UP * (CROUCH_EYE if p.crouch else EYE)) <= FIRE_FROM_SLACK):
@@ -1490,6 +1669,10 @@ func request_hello(token: String, peer := 0) -> void:
 		p.cooldown = 0.0
 		p.has_pose = false
 		_players[peer] = p  # the answer to this request (_state) carries it to the client
+		_world(&"health_changed", [peer, p.hp, Vector3.ZERO, false])
+		if p.down:  # left on the floor: back on it, wherever they come in (leaving is no revive)
+			p.down_pos = Vector3.INF
+			_world(&"player_downed", [peer])
 		if p.gun != 0:
 			_world(&"gun_changed", [peer, p.gun])
 		if p.levels.grip > 0:
@@ -1588,7 +1771,8 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	if not multiplayer.is_server() or REQUESTS.get(method, -1) != args.size():
 		return  # anything else off the wire is ignored
 	var peer := multiplayer.get_remote_sender_id()
-	callv(method, args + [peer])
+	if not is_down(peer) or method in DOWN_REQUESTS:  # down: no moving, shooting or buying; still answered
+		callv(method, args + [peer])
 	var p := player(peer)
 	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.placing, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol, p.rounds)
 
@@ -1654,6 +1838,11 @@ func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool
 		return
 	var peer := multiplayer.get_remote_sender_id()
 	var p := player(peer)
+	if p.down:  # on the floor where they fell, whatever their machine says
+		if p.down_pos == Vector3.INF:
+			p.down_pos = pos
+		pos = p.down_pos
+		crouch = false
 	p.pos = pos
 	p.has_pose = true
 	p.crouch = crouch
@@ -1714,6 +1903,14 @@ func _event(event: StringName, args: Array) -> void:
 		&"fence_changed":
 			fence = args[0]
 			fence_wear.assign(args[1])
+		&"health_changed":
+			player(args[0]).hp = args[1]
+		&"player_downed":
+			player(args[0]).down = true
+			player(args[0]).down_for = 0.0
+		&"player_revived":
+			player(args[0]).down = false
+			player(args[0]).down_for = 0.0
 		&"melter_changed":
 			melt_bin = args[0]
 			brass = args[1]

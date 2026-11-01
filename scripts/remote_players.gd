@@ -112,6 +112,8 @@ const BODY_RADIUS := 0.35
 const BODY_HEIGHT := 1.8
 const TAG_FONT := 24
 const TAG_PAD := Vector2(8, 2)  # px around the name
+const FALLEN_HEIGHT := 0.6  # m, the capsule of one lying down
+const FALLEN_TAG := 0.9  # m, their name tag over them
 
 var _chars := {}  # peer -> Character
 ## Our own body, drawn only into the lights' shadows: the camera never sees it, the floor gets our
@@ -169,6 +171,8 @@ class Character extends Node3D:
 	# Sounds (Faz 6, step 25): steps and reloads play from this node, shots from muzzle_position().
 	var peer: int
 	var shadow_only := false  # our own body (_own_shadow): no tag, nothing to bump, not seen
+	var watched := false  # the local player, down, looks through these eyes (player.gd): no body in the way
+	var _fallen := false  # down (GameState.is_down): the death clip, held on its last frame
 	var _delay := DELAY
 	var act := GameState.Act.IDLE
 	var air := false
@@ -627,7 +631,16 @@ class Character extends Node3D:
 		body.add_node("mix", mix)
 		body.connect_node("mix", 0, "land")
 		body.connect_node("mix", 1, "arms")
-		body.connect_node("output", 0, "mix")
+		# Down: the rifle pack's fall, held where it ends; up again, a fade back to the rest.
+		body.add_node("fall_clip", _clip("rifle_death_front"))
+		var fall := AnimationNodeTransition.new()
+		fall.xfade_time = 0.25
+		fall.add_input("up")
+		fall.add_input("down")
+		body.add_node("fall", fall)
+		body.connect_node("fall", 0, "mix")
+		body.connect_node("fall", 1, "fall_clip")
+		body.connect_node("output", 0, "fall")
 		var tree := AnimationTree.new()
 		tree.add_animation_library("", ANIMS)
 		tree.root_node = ^".."  # the body's scene root: the clips' track paths start there
@@ -675,6 +688,8 @@ class Character extends Node3D:
 
 	func _place_tag() -> void:
 		var y := _tag_y - (PLAYER.EYE - PLAYER.CROUCH_EYE) * smoothstep(0.0, 1.0, _crouch_drop)
+		if _fallen:
+			y = minf(y, FALLEN_TAG)
 		_tag_label.position.y = y
 		_tag_box.position.y = y
 
@@ -710,7 +725,8 @@ class Character extends Node3D:
 		var catch := BODY_CATCH_SHOOTING if shooting else BODY_CATCH
 		if _body_yaw == INF:
 			_body_yaw = _look_yaw
-		_body_yaw = lerp_angle(_body_yaw, _look_yaw, 1.0 - exp(-delta * catch))
+		if not _fallen:  # on the floor the body stays as it fell, whatever they look at
+			_body_yaw = lerp_angle(_body_yaw, _look_yaw, 1.0 - exp(-delta * catch))
 		var off := wrapf(_look_yaw - _body_yaw, -PI, PI)
 		_body_yaw = _look_yaw - clampf(off, -HEAD_FREE.x, HEAD_FREE.x)
 		rotation.y = _body_yaw
@@ -727,13 +743,19 @@ class Character extends Node3D:
 		crouch = b[6]
 		aim = b[7]
 		visible = true
+		_fallen = GameState.is_down(peer)
 		_crouch_drop = move_toward(_crouch_drop, 1.0 if crouch else 0.0, delta * CROUCH_RATE)
 		if _shape:  # others bump into and shoot at the lower body
-			_shape.height = lerpf(BODY_HEIGHT, PLAYER.CROUCH_HEIGHT, _crouch_drop)
+			_shape.height = FALLEN_HEIGHT if _fallen else lerpf(BODY_HEIGHT, PLAYER.CROUCH_HEIGHT, _crouch_drop)
 			(body.get_child(0) as Node3D).position.y = _shape.height * 0.5
 		_place_tag()
+		if not shadow_only:
+			_tag_label.visible = not watched
+			_tag_box.visible = not watched
 		if _model == null:
 			return
+		_model.visible = not watched
+		_tree.set("parameters/fall/transition_request", "down" if _fallen else "up")
 		_pick_ground()
 		if was_air and not air and speed < MOVING:
 			_tree.set("parameters/land/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
@@ -745,6 +767,12 @@ class Character extends Node3D:
 		_air_arms = move_toward(_air_arms, 1.0 if (air or landing or crouch) and stance != "rifle" else 0.0, delta * AIR_ARMS)
 		_tree.set("parameters/mix/blend_amount", _air_arms)
 		_tree.advance(delta)
+		if _fallen:
+			_gun.visible = false
+			if _flash:
+				_flash.visible = false
+			return
+		_gun.visible = gun != 0
 		_kick = move_toward(_kick, 0.0, _kick * KICK_BACK * delta + 0.0001)
 		_look_pitch = lerpf(_look_pitch, clampf(lerpf(a[3], b[3], f), -PITCH_MAX, PITCH_MAX), 1.0 - exp(-delta * 20.0))
 		_pitch = lerpf(_pitch, _look_pitch, 1.0 - exp(-delta * catch))
@@ -764,6 +792,11 @@ class Character extends Node3D:
 			_flash.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 			_flash_left -= delta
 			_flash.visible = _flash_left > 0.0
+
+	## Where these eyes are and look: the local player watches through them while down (player.gd).
+	func eye_transform() -> Transform3D:
+		var eye := lerpf(PLAYER.EYE, PLAYER.CROUCH_EYE, smoothstep(0.0, 1.0, _crouch_drop))
+		return Transform3D(Basis.from_euler(Vector3(_look_pitch, _look_yaw, 0.0)), global_position + Vector3.UP * eye)
 
 	## How much faster than its clips the stride goes: the moving clip pointing most the way it
 	## goes sets the top pace that way.

@@ -709,7 +709,7 @@ func _process(delta: float) -> void:
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	# Placing gear (B): left click puts it up and R turns it (scripts/placement.gd), so the gun goes
 	# to low ready, and is only live again once it is all the way back up.
-	var placing := GameState.player().placing
+	var placing := GameState.player().placing or GameState.is_down()  # down: the gun goes away too
 	_low_lin = move_toward(_low_lin, 1.0 if placing else 0.0, delta / LOW_TIME)
 	_lowered = smoothstep(0.0, 1.0, _low_lin)
 	var live := _low_lin == 0.0
