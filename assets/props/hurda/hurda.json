@@ -1,0 +1,1302 @@
+[
+ {
+  "id": "adjustable_wrench",
+  "ad": "Ayarlı anahtar",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/adjustable_wrench.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.74,
+  "boyut_m": [
+   0.068,
+   0.254,
+   0.031
+  ],
+  "ucgen": 1199,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Mateusz Sadek",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/adjustable_wrench"
+ },
+ {
+  "id": "ammo_box",
+  "ad": "Cephane kutusu",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/ammo_box.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 2.82,
+  "boyut_m": [
+   0.087,
+   0.177,
+   0.258
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "DanKit",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/ammo_box"
+ },
+ {
+  "id": "bolt_cutters_01",
+  "ad": "Cıvata makası",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/bolt_cutters_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 8.5,
+  "boyut_m": [
+   0.151,
+   0.803,
+   0.036
+  ],
+  "ucgen": 3000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Yann Kervran, Antanas Kep",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/bolt_cutters_01"
+ },
+ {
+  "id": "bolts_nuts_01",
+  "ad": "Cıvata ve somunlar",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 1.09,
+  "boyut_m": [
+   0.143,
+   0.04,
+   0.111
+  ],
+  "ucgen": 1200,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
+  "id": "bolts_nuts_02",
+  "ad": "Cıvata ve somunlar",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.4,
+  "boyut_m": [
+   0.045,
+   0.073,
+   0.039
+  ],
+  "ucgen": 500,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
+  "id": "boombox",
+  "ad": "Teyp",
+  "tur": "elektronik",
+  "glb": "res://assets/props/hurda/boombox.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır, plastik",
+  "kutle_kg": 31.56,
+  "boyut_m": [
+   0.723,
+   0.47,
+   0.186
+  ],
+  "ucgen": 3000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Thomas Paul Mouilleron",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/boombox"
+ },
+ {
+  "id": "camshaft_scan",
+  "ad": "Eksantrik mili (tarama)",
+  "tur": "motor",
+  "glb": "res://assets/props/hurda/camshaft_scan.glb",
+  "materyal": "celik",
+  "materyaller": "Dövme çelik",
+  "kutle_kg": 0.66,
+  "boyut_m": [
+   0.03,
+   0.03,
+   0.45
+  ],
+  "ucgen": 1999,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "IU Indianapolis University Library",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-1f1c66b214834f9887aab1ecb3111149"
+ },
+ {
+  "id": "can_rusted",
+  "ad": "Paslı teneke",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/can_rusted.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.61,
+  "boyut_m": [
+   0.125,
+   0.152,
+   0.125
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Rahul Chaudhary",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/can_rusted"
+ },
+ {
+  "id": "cardboard_box_01",
+  "ad": "Karton kutu seti",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/cardboard_box_01.glb",
+  "materyal": "karton",
+  "materyaller": "Karton",
+  "kutle_kg": 2.48,
+  "boyut_m": [
+   0.222,
+   0.27,
+   0.435
+  ],
+  "ucgen": 108,
+  "set": "cardboard_box",
+  "kaynak": "Sketchfab",
+  "yazar": "NotAnotherApocalypticCo.",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/set-of-cardboard-boxes-8986ba512f704ac5b253286a0d1ad8bb"
+ },
+ {
+  "id": "cardboard_box_02",
+  "ad": "Karton kutu seti",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/cardboard_box_02.glb",
+  "materyal": "karton",
+  "materyaller": "Karton",
+  "kutle_kg": 0.62,
+  "boyut_m": [
+   0.299,
+   0.19,
+   0.186
+  ],
+  "ucgen": 108,
+  "set": "cardboard_box",
+  "kaynak": "Sketchfab",
+  "yazar": "NotAnotherApocalypticCo.",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/set-of-cardboard-boxes-8986ba512f704ac5b253286a0d1ad8bb"
+ },
+ {
+  "id": "cardboard_box_03",
+  "ad": "Karton kutu seti",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/cardboard_box_03.glb",
+  "materyal": "karton",
+  "materyaller": "Karton",
+  "kutle_kg": 1.61,
+  "boyut_m": [
+   0.29,
+   0.29,
+   0.29
+  ],
+  "ucgen": 108,
+  "set": "cardboard_box",
+  "kaynak": "Sketchfab",
+  "yazar": "NotAnotherApocalypticCo.",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/set-of-cardboard-boxes-8986ba512f704ac5b253286a0d1ad8bb"
+ },
+ {
+  "id": "chain_shackles",
+  "ad": "Paslı zincir prangası",
+  "tur": "zincir",
+  "glb": "res://assets/props/hurda/chain_shackles.glb",
+  "materyal": "demir",
+  "materyaller": "Demir",
+  "kutle_kg": 2.87,
+  "boyut_m": [
+   0.6,
+   0.036,
+   0.121
+  ],
+  "ucgen": 608,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "SangeetBlaze",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/rusted-chain-shackles-924c7cc2ee074e57a81cc82b58e0ac6f"
+ },
+ {
+  "id": "cleaner_tin_01",
+  "ad": "Temizlik tenekesi",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/cleaner_tin_01.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.25,
+  "boyut_m": [
+   0.087,
+   0.13,
+   0.087
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Tom Phillips",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/cleaner_tin_01"
+ },
+ {
+  "id": "coil_spring",
+  "ad": "Helezon yay",
+  "tur": "yay",
+  "glb": "res://assets/props/hurda/coil_spring.glb",
+  "materyal": "celik",
+  "materyaller": "Yay çeliği",
+  "kutle_kg": 1.69,
+  "boyut_m": [
+   0.105,
+   0.25,
+   0.105
+  ],
+  "ucgen": 3000,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "VR DESIGNER",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/coil-spring-3bf2215ce5f34e83a966c780393956fc"
+ },
+ {
+  "id": "combination_wrench",
+  "ad": "Kombine anahtar",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/combination_wrench.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.81,
+  "boyut_m": [
+   0.057,
+   0.022,
+   0.337
+  ],
+  "ucgen": 1986,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "BKS",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/combination_wrench"
+ },
+ {
+  "id": "copper_pipe_section",
+  "ad": "Bakır boru parçası",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/copper_pipe_section.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 2.5,
+  "boyut_m": [
+   0.06,
+   0.122,
+   0.5
+  ],
+  "ucgen": 1999,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "pixol3d",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-91807ce330af449bbd3c59b5ede8ce67"
+ },
+ {
+  "id": "cross_pein_hammer",
+  "ad": "Çekiç",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/cross_pein_hammer.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 1.19,
+  "boyut_m": [
+   0.099,
+   0.3,
+   0.024
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Tics",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/cross_pein_hammer"
+ },
+ {
+  "id": "crowbar_01",
+  "ad": "Levye",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/crowbar_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 3.43,
+  "boyut_m": [
+   0.04,
+   0.555,
+   0.128
+  ],
+  "ucgen": 1998,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Alexander Otterbeck",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/crowbar_01"
+ },
+ {
+  "id": "crumpled_can_01",
+  "ad": "Ezik kutular",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/crumpled_can_01.glb",
+  "materyal": "aluminyum",
+  "materyaller": "Alüminyum",
+  "kutle_kg": 0.08,
+  "boyut_m": [
+   0.195,
+   0.1,
+   0.082
+  ],
+  "ucgen": 172,
+  "set": "crumpled_can",
+  "kaynak": "Sketchfab",
+  "yazar": "Sunbox Games",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/cans-dirty-and-crumpled-3-piece-set-5f4c354cf4474c58bad147b346399a5f"
+ },
+ {
+  "id": "crushed_can",
+  "ad": "Ezik kutu",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/crushed_can.glb",
+  "materyal": "aluminyum",
+  "materyaller": "Alüminyum",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.114,
+   0.044,
+   0.12
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Sousinho",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-51e709ee7f624316a5ef886b58429abc"
+ },
+ {
+  "id": "dirty_tire_01",
+  "ad": "Kirli eski lastikler",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/dirty_tire_01.glb",
+  "materyal": "celik",
+  "materyaller": "Kauçuk, çelik tel",
+  "kutle_kg": 39.33,
+  "boyut_m": [
+   0.606,
+   0.199,
+   0.62
+  ],
+  "ucgen": 2816,
+  "set": "dirty_tire",
+  "kaynak": "Sketchfab",
+  "yazar": "chrisg4919",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dirty-old-tires-3ac31ac8a2cf4b7187b4d1b95d2aeea0"
+ },
+ {
+  "id": "gate_latch_01",
+  "ad": "Kapı mandalı",
+  "tur": "zincir",
+  "glb": "res://assets/props/hurda/gate_latch_01.glb",
+  "materyal": "demir",
+  "materyaller": "Demir",
+  "kutle_kg": 0.63,
+  "boyut_m": [
+   0.205,
+   0.085,
+   0.075
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Desktoy",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/gate_latch_01"
+ },
+ {
+  "id": "metal_jerrycan",
+  "ad": "Metal bidon",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/metal_jerrycan.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 8.38,
+  "boyut_m": [
+   0.35,
+   0.455,
+   0.172
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Sean Buckley",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/metal_jerrycan"
+ },
+ {
+  "id": "metal_jerrycan_green",
+  "ad": "Yeşil metal bidon",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/metal_jerrycan_green.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 7.99,
+  "boyut_m": [
+   0.361,
+   0.5,
+   0.171
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Ulan Cabanilla",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/metal_jerrycan_green"
+ },
+ {
+  "id": "metal_jug",
+  "ad": "Metal sürahi",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/metal_jug.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 1.94,
+  "boyut_m": [
+   0.197,
+   0.288,
+   0.196
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Anzor Lezhava",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/metal_jug"
+ },
+ {
+  "id": "metal_toolbox",
+  "ad": "Metal alet kutusu",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/metal_toolbox.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 15.59,
+  "boyut_m": [
+   0.4,
+   0.305,
+   0.271
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Mateusz Sadek",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/metal_toolbox"
+ },
+ {
+  "id": "oil_tin",
+  "ad": "Yağ tenekesi",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/oil_tin.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 1.0,
+  "boyut_m": [
+   0.114,
+   0.205,
+   0.154
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Niklas",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/oil_tin"
+ },
+ {
+  "id": "old_military_crate_a",
+  "ad": "Eski askerî sandık",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/old_military_crate_a.glb",
+  "materyal": "celik",
+  "materyaller": "Ahşap, çelik",
+  "kutle_kg": 73.76,
+  "boyut_m": [
+   0.816,
+   0.3,
+   0.538
+  ],
+  "ucgen": 2999,
+  "set": "old_military_crate",
+  "kaynak": "Poly Haven",
+  "yazar": "Jack Mava",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/old_military_crate"
+ },
+ {
+  "id": "old_military_crate_b",
+  "ad": "Eski askerî sandık (açık)",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/old_military_crate_b.glb",
+  "materyal": "celik",
+  "materyaller": "Ahşap, çelik",
+  "kutle_kg": 101.22,
+  "boyut_m": [
+   0.816,
+   0.258,
+   0.975
+  ],
+  "ucgen": 2999,
+  "set": "old_military_crate",
+  "kaynak": "Poly Haven",
+  "yazar": "Jack Mava",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/old_military_crate"
+ },
+ {
+  "id": "old_tyre",
+  "ad": "Eski lastik",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/old_tyre.glb",
+  "materyal": "celik",
+  "materyaller": "Kauçuk, çelik tel",
+  "kutle_kg": 34.24,
+  "boyut_m": [
+   0.6,
+   0.6,
+   0.165
+  ],
+  "ucgen": 2880,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "MP",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/old_tyre"
+ },
+ {
+  "id": "pipe_wrench",
+  "ad": "Boru anahtarı",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/pipe_wrench.glb",
+  "materyal": "dokme_demir",
+  "materyaller": "Dökme demir",
+  "kutle_kg": 1.83,
+  "boyut_m": [
+   0.084,
+   0.405,
+   0.034
+  ],
+  "ucgen": 1999,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Will Evarts",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/pipe_wrench"
+ },
+ {
+  "id": "plastic_crate_03",
+  "ad": "Plastik kasa",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/plastic_crate_03.glb",
+  "materyal": "plastik",
+  "materyaller": "Plastik",
+  "kutle_kg": 2.4,
+  "boyut_m": [
+   0.483,
+   0.265,
+   0.265
+  ],
+  "ucgen": 4050,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Pacific Penguin",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/plastic_crate_03"
+ },
+ {
+  "id": "pliers",
+  "ad": "Pense",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/pliers.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.31,
+  "boyut_m": [
+   0.055,
+   0.18,
+   0.018
+  ],
+  "ucgen": 1199,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "PierreB3D",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/pliers"
+ },
+ {
+  "id": "ratchet_wrench",
+  "ad": "Cırcır anahtar",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/ratchet_wrench.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.53,
+  "boyut_m": [
+   0.044,
+   0.246,
+   0.044
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "John Hutcheson",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/ratchet_wrench"
+ },
+ {
+  "id": "retro_multimeter",
+  "ad": "Eski ölçü aleti",
+  "tur": "elektronik",
+  "glb": "res://assets/props/hurda/retro_multimeter.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır, plastik",
+  "kutle_kg": 4.47,
+  "boyut_m": [
+   0.216,
+   0.278,
+   0.203
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "elli moeller",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/retro_multimeter"
+ },
+ {
+  "id": "russian_food_cans_01_can_cond",
+  "ad": "Süt konservesi",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/russian_food_cans_01_can_cond.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.039,
+   0.038,
+   0.039
+  ],
+  "ucgen": 500,
+  "set": "russian_food_cans_01",
+  "kaynak": "Poly Haven",
+  "yazar": "Kosan Aziz",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/russian_food_cans_01"
+ },
+ {
+  "id": "russian_food_cans_01_can_fish",
+  "ad": "Balık konservesi",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/russian_food_cans_01_can_fish.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.046,
+   0.02,
+   0.046
+  ],
+  "ucgen": 500,
+  "set": "russian_food_cans_01",
+  "kaynak": "Poly Haven",
+  "yazar": "Kosan Aziz",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/russian_food_cans_01"
+ },
+ {
+  "id": "russian_food_cans_01_salt_box",
+  "ad": "Tuz kutusu",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/russian_food_cans_01_salt_box.glb",
+  "materyal": "karton",
+  "materyaller": "Karton",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.033,
+   0.085,
+   0.027
+  ],
+  "ucgen": 44,
+  "set": "russian_food_cans_01",
+  "kaynak": "Poly Haven",
+  "yazar": "Kosan Aziz",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/russian_food_cans_01"
+ },
+ {
+  "id": "rusted_hacksaw",
+  "ad": "Paslı demir testeresi",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/rusted_hacksaw.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 2.87,
+  "boyut_m": [
+   0.496,
+   0.109,
+   0.033
+  ],
+  "ucgen": 1999,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Dabou Master",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/rusted_hacksaw"
+ },
+ {
+  "id": "rusted_spade_01",
+  "ad": "Paslı kürek",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/rusted_spade_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 15.66,
+  "boyut_m": [
+   0.168,
+   1.101,
+   0.046
+  ],
+  "ucgen": 2999,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Blemonade",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/rusted_spade_01"
+ },
+ {
+  "id": "rusted_wheel_rim_01",
+  "ad": "Paslı jant",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/rusted_wheel_rim_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 8.97,
+  "boyut_m": [
+   0.403,
+   0.396,
+   0.154
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "John Hutcheson",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/rusted_wheel_rim_01"
+ },
+ {
+  "id": "rusted_wheel_rim_02",
+  "ad": "Paslı jant 2",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/rusted_wheel_rim_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 5.0,
+  "boyut_m": [
+   0.336,
+   0.338,
+   0.121
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "John Hutcheson",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/rusted_wheel_rim_02"
+ },
+ {
+  "id": "rusty_gears_01",
+  "ad": "Paslı dişliler",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/rusty_gears_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 4.19,
+  "boyut_m": [
+   0.288,
+   0.31,
+   0.014
+  ],
+  "ucgen": 1651,
+  "set": "rusty_gears",
+  "kaynak": "Sketchfab",
+  "yazar": "ayumi ikeda",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/rusty-gears-10e4ab22490f470aaf91498199ec17d9"
+ },
+ {
+  "id": "rusty_gears_02",
+  "ad": "Paslı dişliler",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/rusty_gears_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.27,
+  "boyut_m": [
+   0.086,
+   0.086,
+   0.013
+  ],
+  "ucgen": 386,
+  "set": "rusty_gears",
+  "kaynak": "Sketchfab",
+  "yazar": "ayumi ikeda",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/rusty-gears-10e4ab22490f470aaf91498199ec17d9"
+ },
+ {
+  "id": "rusty_gears_03",
+  "ad": "Paslı dişliler",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/rusty_gears_03.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.15,
+  "boyut_m": [
+   0.063,
+   0.065,
+   0.013
+  ],
+  "ucgen": 246,
+  "set": "rusty_gears",
+  "kaynak": "Sketchfab",
+  "yazar": "ayumi ikeda",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/rusty-gears-10e4ab22490f470aaf91498199ec17d9"
+ },
+ {
+  "id": "screwdriver",
+  "ad": "Tornavida",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/screwdriver.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.24,
+  "boyut_m": [
+   0.027,
+   0.209,
+   0.027
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "PierreB3D",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/screwdriver"
+ },
+ {
+  "id": "sledgehammer_01",
+  "ad": "Balyoz",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/sledgehammer_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 33.44,
+  "boyut_m": [
+   0.208,
+   1.006,
+   0.09
+  ],
+  "ucgen": 2596,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Dylan Guzman",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/sledgehammer_01"
+ },
+ {
+  "id": "small_lpg_tank",
+  "ad": "Küçük LPG tüpü",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/small_lpg_tank.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, pirinç vana",
+  "kutle_kg": 17.53,
+  "boyut_m": [
+   0.411,
+   0.642,
+   0.409
+  ],
+  "ucgen": 3000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Ulan Cabanilla",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/small_lpg_tank"
+ },
+ {
+  "id": "small_oil_can_01",
+  "ad": "Küçük yağdanlık",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/small_oil_can_01.glb",
+  "materyal": "pirinc",
+  "materyaller": "Teneke, pirinç",
+  "kutle_kg": 0.54,
+  "boyut_m": [
+   0.266,
+   0.237,
+   0.105
+  ],
+  "ucgen": 1199,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Raven van de Werken",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/small_oil_can_01"
+ },
+ {
+  "id": "soviet_tin_can_01",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_01.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.24,
+  "boyut_m": [
+   0.093,
+   0.1,
+   0.093
+  ],
+  "ucgen": 1200,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "soviet_tin_can_02",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_02.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.101,
+   0.025,
+   0.101
+  ],
+  "ucgen": 500,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "soviet_tin_can_03",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_03.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.17,
+  "boyut_m": [
+   0.093,
+   0.1,
+   0.093
+  ],
+  "ucgen": 1200,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "soviet_tin_can_04",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_04.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.1,
+   0.025,
+   0.1
+  ],
+  "ucgen": 1200,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "soviet_tin_can_05",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_05.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.056,
+   0.1,
+   0.056
+  ],
+  "ucgen": 1200,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "soviet_tin_can_06",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_06.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.08,
+  "boyut_m": [
+   0.1,
+   0.091,
+   0.09
+  ],
+  "ucgen": 1200,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "soviet_tin_can_07",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_07.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.055,
+   0.1,
+   0.055
+  ],
+  "ucgen": 1200,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "soviet_tin_can_08",
+  "ad": "Eski konserveler (süt, et, balık)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/soviet_tin_can_08.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.1,
+  "boyut_m": [
+   0.1,
+   0.095,
+   0.1
+  ],
+  "ucgen": 500,
+  "set": "soviet_tin_can",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "spray_paint_bottles_02_a",
+  "ad": "Sprey boya kutusu",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/spray_paint_bottles_02_a.glb",
+  "materyal": "aluminyum",
+  "materyaller": "Alüminyum",
+  "kutle_kg": 0.11,
+  "boyut_m": [
+   0.076,
+   0.217,
+   0.076
+  ],
+  "ucgen": 1200,
+  "set": "spray_paint_bottles_02",
+  "kaynak": "Poly Haven",
+  "yazar": "Riley Queen",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/spray_paint_bottles_02"
+ },
+ {
+  "id": "spray_paint_bottles_02_dented",
+  "ad": "Ezik sprey boya kutusu",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/spray_paint_bottles_02_dented.glb",
+  "materyal": "aluminyum",
+  "materyaller": "Alüminyum",
+  "kutle_kg": 0.08,
+  "boyut_m": [
+   0.095,
+   0.19,
+   0.076
+  ],
+  "ucgen": 1200,
+  "set": "spray_paint_bottles_02",
+  "kaynak": "Poly Haven",
+  "yazar": "Riley Queen",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/spray_paint_bottles_02"
+ },
+ {
+  "id": "tongue_groove_pliers",
+  "ad": "Kanallı pense",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/tongue_groove_pliers.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.45,
+  "boyut_m": [
+   0.062,
+   0.014,
+   0.245
+  ],
+  "ucgen": 1199,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "BKS",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/tongue_groove_pliers"
+ },
+ {
+  "id": "vintage_flashlight",
+  "ad": "Eski el feneri",
+  "tur": "elektronik",
+  "glb": "res://assets/props/hurda/vintage_flashlight.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, cam",
+  "kutle_kg": 2.5,
+  "boyut_m": [
+   0.096,
+   0.144,
+   0.305
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Omar M. El-Safy",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/vintage_flashlight"
+ },
+ {
+  "id": "watering_can_metal_01",
+  "ad": "Metal sulama kabı",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/watering_can_metal_01.glb",
+  "materyal": "celik",
+  "materyaller": "Galvaniz çelik",
+  "kutle_kg": 1.49,
+  "boyut_m": [
+   0.191,
+   0.197,
+   0.452
+  ],
+  "ucgen": 1999,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Charles Nderitu",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/watering_can_metal_01"
+ },
+ {
+  "id": "wooden_crate_01",
+  "ad": "Ahşap sandık",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/wooden_crate_01.glb",
+  "materyal": "demir",
+  "materyaller": "Ahşap, demir çivi",
+  "kutle_kg": 96.34,
+  "boyut_m": [
+   0.824,
+   0.349,
+   0.409
+  ],
+  "ucgen": 3000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "James Ray Cock",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/wooden_crate_01"
+ },
+ {
+  "id": "wooden_crate_02",
+  "ad": "Ahşap sandık 2",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/wooden_crate_02.glb",
+  "materyal": "demir",
+  "materyaller": "Ahşap, demir çivi",
+  "kutle_kg": 251.21,
+  "boyut_m": [
+   0.529,
+   0.464,
+   1.166
+  ],
+  "ucgen": 3000,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "James Ray Cock, Jurita Burger",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/wooden_crate_02"
+ },
+ {
+  "id": "wooden_military_crate",
+  "ad": "Ahşap askerî sandık",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/wooden_military_crate.glb",
+  "materyal": "celik",
+  "materyaller": "Ahşap, çelik",
+  "kutle_kg": 269.67,
+  "boyut_m": [
+   1.241,
+   0.464,
+   0.519
+  ],
+  "ucgen": 2999,
+  "set": null,
+  "kaynak": "Poly Haven",
+  "yazar": "Prabhjinder Singh",
+  "lisans": "CC0",
+  "url": "https://polyhaven.com/a/wooden_military_crate"
+ }
+]
