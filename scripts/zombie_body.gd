@@ -104,6 +104,29 @@ const LOD_STEP := 3
 const LOD_RADIUS := 1.5  # m around the middle of a body that still counts as in view
 ## How far a loop's playback may be sped up or slowed to match the ground it covers (move()).
 const STRIDE := [0.6, 1.8]
+## Over and under the railing (waves.gd cross; 2026-11-01). The library has no climb, vault or
+## under-crawl, so these are the nearest clips (docs/ayrintilar.md lists the Mixamo ones to fetch):
+## the mutant standing jump (crouch to VAULT_OFF s, feet down again at VAULT_LAND), the stumble's
+## last part for one shot out of the air (on the floor at KNOCK_FLOOR), the zombie get-up, played
+## backwards over DUCK_SECTION to lie down and forwards to stand up, and the belly crawl's low part
+## (CREEP_SECTION, between the two times it props itself up; "creep_a", _library()) looped back and
+## forth, so the head keeps under the bottom rail. Rates and times are mine.
+const VAULT_CLIP := "mutant_jump_a"
+const VAULT_OFF := 1.15
+const VAULT_LAND := 2.05
+const VAULT_RATE := 1.4
+const VAULT_AGAIN := 0.45  # s into the clip a hit sends it back to, standing, before the crouch
+const KNOCK_CLIP := "fall_a"
+const KNOCK_FROM := 1.8
+const KNOCK_FLOOR := 2.5
+const KNOCK_RATE := 1.6
+const DUCK_CLIP := "stand_up_a"
+const DUCK_SECTION := [0.15, 2.7]  # flat on its belly at the start
+const CREEP_CLIP := "crawl_a"
+const CREEP_SECTION := [2.05, 2.95]
+const CREEP_RATE := 1.3
+const DUCK_RATE := 1.3
+const RISE_RATE := 1.3
 const FALL_SPEED := 1.5  # the stumble-and-fall clip is slow for a leg torn off
 const LIMB_REACH := 0.1  # m at size 1: how far off a limb's bone a round's line may pass and hit it
 const TORSO_REACH := 0.15  # the same for the spine, which takes the round if it is first in line
@@ -149,6 +172,8 @@ var crawling := false  # on its belly: a crawler, or one that lost a leg
 var _lod_wait := 0.0  # s of animation held back while far
 var _lod_beat := 0
 var fall_speed := 0.0  # m/s it stumbles on while going down (the clip is in place)
+var _hold := false  # lying where it fell, until get_up()
+var _stand_move := ""  # its gait before it went down to go under
 var _arm_kick := [Vector3.ZERO, Vector3.ZERO]  # left, right: the springs on the upper arms
 var _arm_kick_v := [Vector3.ZERO, Vector3.ZERO]
 
@@ -536,6 +561,86 @@ func hit() -> void:
 func scream() -> float:
 	_voice.scream()
 	return _one_shot("scream" if _set == "" else "roar")
+
+
+## Over the railing (waves.gd cross): the mutant set's standing jump, quickened by VAULT_RATE. It
+## crouches for the spring (the clip's first VAULT_OFF s, the moment to shoot it), is in the air
+## until VAULT_LAND and comes up out of the landing after. Returns [s to the spring, s in the air].
+## Again while it crouches (a hit stops it): back up a little and down into the crouch again.
+func vault() -> Array:
+	var from := 0.0
+	if _ap.current_animation == VAULT_CLIP:
+		from = VAULT_AGAIN
+		_ap.seek(from, true)
+	else:
+		_voice.attack()
+		_busy = true
+		_ap.play(VAULT_CLIP, BLEND)
+	_ap.speed_scale = VAULT_RATE
+	return [(VAULT_OFF - from) / VAULT_RATE, (VAULT_LAND - VAULT_OFF) / VAULT_RATE]
+
+
+## Shot out of the air: the stumble's last part, flat on the floor, and it lies there (held) until
+## get_up(). Returns s to the floor.
+func knocked() -> float:
+	if _dead:
+		return 0.0
+	_busy = true
+	_hold = true
+	_ap.play(KNOCK_CLIP, 0.1)
+	_ap.seek(KNOCK_FROM, true)
+	_ap.speed_scale = KNOCK_RATE
+	return (KNOCK_FLOOR - KNOCK_FROM) / KNOCK_RATE
+
+
+## Under the railing (waves.gd cross): down onto its belly, the get-up played backwards, then the
+## belly crawl is its loop (crawling, so its hit shapes lie low with it). Returns s till it lies.
+func duck() -> float:
+	if _dead:
+		return 0.0
+	_stand_move = _move
+	crawling = true
+	_move = "crawl"
+	_loop = _pick(_move)
+	_loop_speed = 1.0
+	_busy = true
+	_ap.play_section_backwards(DUCK_CLIP, DUCK_SECTION[0], DUCK_SECTION[1], BLEND * 2.0)
+	_ap.speed_scale = DUCK_RATE
+	return (DUCK_SECTION[1] - DUCK_SECTION[0]) / DUCK_RATE
+
+
+## The wriggle under the railing (after duck()): the belly crawl's low part, back and forth.
+func creep() -> void:
+	if _dead:
+		return
+	_busy = false
+	_loop = "creep_a"
+	_loop_speed = CREEP_RATE
+	_ap.play(_loop, BLEND * 2.0)
+	_ap.speed_scale = CREEP_RATE
+
+
+## Up off the floor (after going under, or shot out of the air) into its standing loop again.
+## Nothing with a leg gone: it crawls on. Returns the get-up's length (s).
+func get_up() -> float:
+	_hold = false
+	if _dead:
+		return 0.0
+	if cuts.any(is_leg):
+		_busy = false
+		_ap.play(_loop, BLEND)
+		_ap.speed_scale = _loop_speed
+		return 0.0
+	if _stand_move != "":
+		_move = _stand_move
+		_stand_move = ""
+	crawling = false
+	_loop = _pick("idle")
+	_loop_speed = 1.0
+	_busy = true
+	_ap.play(DUCK_CLIP, BLEND)
+	_ap.speed_scale = RISE_RATE
+	return _lib.get_animation(DUCK_CLIP).length / RISE_RATE
 
 
 ## Falls and stays down. Returns the clip's length (s). `gib`: &"head" blows the head off
@@ -1175,7 +1280,7 @@ func _one_shot(action: String) -> float:
 
 
 func _on_finished(_clip: StringName) -> void:
-	if _dead or not _busy:
+	if _dead or not _busy or _hold:
 		return
 	_busy = false
 	_ap.play(_loop, BLEND)
@@ -1238,8 +1343,38 @@ static func _library(name: StringName, skel: Skeleton3D) -> AnimationLibrary:
 			for t in missing:
 				anim.remove_track(t)
 		lib.add_animation(a, anim)
+		if a == CREEP_CLIP:
+			lib.add_animation("creep_a", _section(anim, CREEP_SECTION[0], CREEP_SECTION[1]))
 	_libs[name] = lib
 	return lib
+
+
+## `anim` from `from` to `to` s as a clip of its own, played there and back (LOOP_PINGPONG).
+static func _section(anim: Animation, from: float, to: float) -> Animation:
+	var out := Animation.new()
+	out.length = to - from
+	out.loop_mode = Animation.LOOP_PINGPONG
+	for t in anim.get_track_count():
+		var type := anim.track_get_type(t)
+		if type not in [Animation.TYPE_POSITION_3D, Animation.TYPE_ROTATION_3D, Animation.TYPE_SCALE_3D]:
+			continue
+		var i := out.add_track(type)
+		out.track_set_path(i, anim.track_get_path(t))
+		var times := [from, to]
+		for k in anim.track_get_key_count(t):
+			var at := anim.track_get_key_time(t, k)
+			if at > from and at < to:
+				times.append(at)
+		times.sort()
+		for at: float in times:
+			match type:
+				Animation.TYPE_POSITION_3D:
+					out.position_track_insert_key(i, at - from, anim.position_track_interpolate(t, at))
+				Animation.TYPE_ROTATION_3D:
+					out.rotation_track_insert_key(i, at - from, anim.rotation_track_interpolate(t, at))
+				Animation.TYPE_SCALE_3D:
+					out.scale_track_insert_key(i, at - from, anim.scale_track_interpolate(t, at))
+	return out
 
 
 ## The meshes' box in `body`'s space as they stand at rest. A skinned mesh is drawn through its binds,

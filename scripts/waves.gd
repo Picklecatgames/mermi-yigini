@@ -18,7 +18,9 @@ extends Node3D
 ## ones it sends running) · [&"blast", id, at] (a bloater bursting) · [&"hole", id, bay, rail_z] (off
 ## to the hole in `bay`, or with -1 back to clawing at rail_z) · [&"swing", id] (one inside claws at
 ## a player) · [&"at", [id, pos, ...], [id, pos, yaw, ...]] (where the host has the ones walking
-## outside, and the ones inside).
+## outside, and the ones inside) · [&"cross", id, step, from, to] (going over or under the railing, cross_of:
+## &"wind" crouching to spring over from `from` to `to`, again after a hit · &"duck" down to crawl
+## under · &"fall" shot out of the air at `from`, down at `to`).
 ##
 ## The railing (2026-10-31, the user's call): every bay of it has a life of its own (GameState.fence_bays),
 ## every claw takes a bite out of the bay in front (STATS); a bay clawed through comes down and the dead
@@ -214,10 +216,11 @@ const BONE_SHAPES := [
 ## MASK_HEAD, never blows it off), regen (REGEN_WAIT s left alone, it heals REGEN of its life a s),
 ## rage (under RAGE_AT of its life it roars and goes RAGE × as fast, clawing one more), swarm (comes
 ## as a pack, SWARM_*), leap (springs the last LEAP_FROM m to the railing; a head shot in the air
-## kills), maw (the head is weak only while it roars, every MAW_EVERY s; the rest takes MAW_BODY).
+## kills), maw (the head is weak only while it roars, every MAW_EVERY s; the rest takes MAW_BODY),
+## over and under (cross_of, below).
 const TYPES := {
 	&"walker": {"kind": &"walker", "from": 1, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"",
-			"looks": [[&"prisoner", 1], [&"yaku", 12], [&"parasite", 16], [&"melty", 20]]},
+			"looks": [[&"prisoner", 1], [&"melty", 20]]},
 	&"runner": {"kind": &"runner", "from": 2, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"", "looks": [[&"zombiegirl", 2]]},
 	&"crawler": {"kind": &"crawler", "from": 3, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"", "looks": [[&"romero", 3]]},
 	&"armored": {"kind": &"walker", "from": 4, "hp": 1.2, "speed": 0.9, "bite": 2, "trait": &"armor", "looks": [[&"copzombie", 4]]},
@@ -231,6 +234,8 @@ const TYPES := {
 	&"swarm": {"kind": &"runner", "from": 13, "hp": 0.5, "speed": 1.1, "bite": 1, "trait": &"swarm", "looks": [[&"skeletonzombie", 13]]},
 	&"blob": {"kind": &"blob", "from": 14, "hp": 1.0, "speed": 1.0, "bite": 2, "trait": &"", "looks": []},
 	&"leaper": {"kind": &"crawler", "from": 15, "hp": 0.875, "speed": 1.25, "bite": 1, "trait": &"leap", "looks": [[&"leaper", 15]]},
+	&"vaulter": {"kind": &"runner", "from": 12, "hp": 1.6, "speed": 0.95, "bite": 1, "trait": &"over", "looks": [[&"yaku", 12]]},
+	&"creeper": {"kind": &"walker", "from": 16, "hp": 0.9, "speed": 1.0, "bite": 1, "trait": &"under", "looks": [[&"parasite", 16]]},
 	&"spiker": {"kind": &"brute", "from": 25, "hp": 2.0, "speed": 0.92, "bite": 7, "trait": &"maw", "looks": [[&"spiker", 25]]},
 }
 const BITE_GROW := 0.04
@@ -247,6 +252,28 @@ const MAW_EVERY := 5.0  # s from one roar to the next
 const MAW_FIRST := [2.0, 4.0]  # s after it is let out
 const MAW_HEAD := 3.0  # instead of HEAD, while it roars; ×1 otherwise
 const MAW_BODY := 0.5
+## Over and under (2026-11-01, the user: "altından geçen tipler de olacak, ekle"; types, waves and
+## numbers are mine): at its spot on a bay still standing, the vaulter crouches (zombie_body.gd
+## vault(), the moment to stop it: a hit there sends it back into the crouch, BALK_AFTER s into it
+## at the soonest) and springs over in an arc whose top clears the railing by VAULT_CLEAR, down at
+## VAULT_TO on our side; shot in the air it falls (FALL_TIME), on our side if past the railing,
+## else back on its own, lies FALL_LIE s, gets up and goes again. The creeper lies down (duck()) and
+## crawls under the bottom rail at CREEP_SPEED to CREEP_TO, low the whole way, then gets up. Then
+## both are inside like the ones through a hole. Only these types: a cripple on its belly claws on,
+## and a vaulter that loses a leg can't spring. The railing is measured (GameState.fence_top(),
+## fence_gap()): taller than VAULT_MAX, nobody springs it; less room under it than CREEP_MIN, nobody
+## gets under. The host starts each crossing (`cross` cue) and every peer plays it from there.
+const VAULT_TO := 12.9  # x it comes down at
+const VAULT_CLEAR := 0.1  # m
+const VAULT_TUCK := 0.75  # m its feet tuck up under its middle at the top of the jump clip
+const VAULT_MAX := 1.6
+const BALK_AFTER := 0.15
+const FALL_TIME := 0.45
+const FALL_LIE := 1.2
+const CREEP_FROM := 15.7  # x its spot is at: lying down it reaches forward, its head still short of the railing
+const CREEP_TO := 12.6
+const CREEP_SPEED := 0.65  # m/s it slides along wriggling (zombie_body.gd creep())
+const CREEP_MIN := 0.4
 ## Elite: from ELITE_FROM any one but the big ones (NO_ELITE) may come as an elite, ELITE_CHANCE then,
 ## ELITE_GROW more each wave, up to ELITE_MAX: ELITE_HP × the life, ELITE_SIZE × as big, ELITE_SPEED ×
 ## as quick, a claw more, a gold-edged bar.
@@ -257,7 +284,7 @@ const ELITE_MAX := 0.15
 const ELITE_HP := 2.0
 const ELITE_SIZE := 1.15
 const ELITE_SPEED := 1.05
-const NO_ELITE: Array[StringName] = [&"brute", &"blob", &"dog", &"swarm", &"spiker", &"leaper"]  # leaper: its crawl clip strides no quicker
+const NO_ELITE: Array[StringName] = [&"brute", &"blob", &"dog", &"swarm", &"spiker", &"leaper", &"creeper"]  # leaper: its crawl clip strides no quicker; creeper: a bigger one would not get under
 ## Wave n: BASE_COUNT + COUNT_GROW·(n-1) zombies; hit points ×(1 + HP_GROW·(n-1)), speed
 ## ×(1 + SPEED_GROW·(n-1)) up to SPEED_MAX. MIX: type -> its share the wave it comes (TYPES), how
 ## much the share grows each wave after, the most it gets; the rest are walkers. Shares are counted,
@@ -270,9 +297,11 @@ const COUNT_GROW := 3
 const HP_GROW := 0.15
 const SPEED_GROW := 0.02
 const SPEED_MAX := 1.2
+const MIX_ALL := 0.85  # the most all the shares together take: the rest (15% at least) walkers
 const MIX := {&"runner": [0.2, 0.01, 0.18], &"crawler": [0.12, 0.0, 0.1], &"armored": [0.15, 0.005, 0.13],
 		&"bloater": [0.06, 0.01, 0.08], &"masked": [0.12, 0.0, 0.1], &"regen": [0.1, 0.0, 0.1],
-		&"rager": [0.1, 0.0, 0.1], &"blob": [0.05, 0.005, 0.06], &"leaper": [0.08, 0.005, 0.12]}
+		&"rager": [0.1, 0.0, 0.1], &"blob": [0.05, 0.005, 0.06], &"leaper": [0.08, 0.005, 0.12],
+		&"vaulter": [0.06, 0.005, 0.1], &"creeper": [0.06, 0.005, 0.1]}
 const BLOB_FROM: int = TYPES[&"blob"].from
 const SCREAMER_FROM: int = TYPES[&"screamer"].from
 const SCREAMER_GROW := 3
@@ -399,6 +428,10 @@ func join_cues() -> Array:
 			var node: Node3D = z.node
 			cues.append([&"spawn", id, z.kind, z.seed, z.gate, node.global_position, node.global_rotation.y,
 					z.speed, z.rail.z, z.moving, z.body.cuts.duplicate(), z.type, z.body.model, z.elite, z.hole, z.inside])
+			if z.cross in [&"wind", &"duck", &"creep"]:  # crossing, from where it is now (in the air or down, the next `at` puts it)
+				var at := node.global_position
+				at.y = 0.0
+				cues.append([&"cross", id, &"wind" if z.cross == &"wind" else &"duck", at, z.cross_to])
 	var hurt := []
 	for id: int in _hp:
 		if _zombies.has(id) and _hp[id] < _hp_full[id]:
@@ -474,8 +507,12 @@ func _on_lever(_peer: int) -> void:
 func _plan(w: int) -> Array[StringName]:
 	var n := BASE_COUNT + COUNT_GROW * (w - 1)
 	var out: Array[StringName] = []
+	var all := 0.0
 	for t: StringName in MIX:
-		for i in mini(roundi(share(t, w) * n), n - out.size()):
+		all += share(t, w)
+	var k := minf(1.0, MIX_ALL / all) if all > 0.0 else 1.0  # more types than room: each gives a little
+	for t: StringName in MIX:
+		for i in mini(roundi(share(t, w) * k * n), n - out.size()):
 			out.append(t)
 	while out.size() < n:
 		out.append(&"walker")
@@ -658,7 +695,7 @@ func _on_fence(_bays: Array) -> void:
 ## Host: where `z` (outside) should go now the holes are as they are: the nearest one, or with none,
 ## its own spot on the railing (a new one in front of it, if its hole was mended).
 func _aim(z: Dictionary) -> void:
-	if z.dead or z.inside or not z.released:
+	if z.dead or z.inside or not z.released or z.cross != &"":
 		return
 	var at: Vector3 = (z.node as Node3D).global_position
 	var hole := _nearest_hole(at.z)
@@ -704,11 +741,15 @@ func _on_cue(cue: Array) -> void:
 					cue[14] if cue.size() > 14 else -1, cue[15] if cue.size() > 15 else false)
 		&"hole":
 			var z: Dictionary = _zombies.get(cue[1], {})
-			if not z.is_empty() and not z.dead and not z.inside:
+			if not z.is_empty() and not z.dead and not z.inside and z.cross == &"":
 				z.hole = cue[2]
 				z.rail.z = cue[3]
 				if z.moving:  # still waiting to set off, it goes this way when it does
 					_set_out(z)
+		&"cross":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead and not z.inside:
+				_cross(z, cue[2], cue[3], cue[4])
 		&"swing":
 			var z: Dictionary = _zombies.get(cue[1], {})
 			if not z.is_empty() and not z.dead:
@@ -934,7 +975,7 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 		if g.get_meta("gate") == gate:
 			mouth = g.get_meta("mouth")
 	var z := {"id": id, "node": node, "body": body, "kind": kind, "seed": seed, "gate": gate,
-			"mouth": mouth, "rail": Vector3(RAIL_X, 0.0, rail_z), "head": body.attach("Head"),
+			"mouth": mouth, "rail": Vector3(_spot_x(type if type != &"" else kind), 0.0, rail_z), "head": body.attach("Head"),
 			"head_shape": head, "trunk": trunk, "bones": bones, "react": react, "speed": speed, "dead": false, "path": [],
 			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [], "count": 0,
 			"bar": BAR.new(), "rush": 0.0, "hold": 0.0, "zig": float(absi(seed) % 1000) / 1000.0 * TAU,
@@ -944,7 +985,8 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"maw": lerpf(MAW_FIRST[0], MAW_FIRST[1], float(absi(seed) % 997) / 996.0),
 			"hole": hole, "inside": inside, "heading": Vector3.ZERO, "walked": 0.0, "face": Vector3.ZERO,
 			"claws": 0, "fix": Vector3.ZERO, "prey": 0, "think": 0.0, "goal": Vector3.ZERO,
-			"swing": 0.0, "swinging": false, "seen": Vector3.INF, "seen_yaw": 0.0, "v": 0.0}
+			"swing": 0.0, "swinging": false, "seen": Vector3.INF, "seen_yaw": 0.0, "v": 0.0,
+			"cross": &"", "cross_t": 0.0, "cross_from": Vector3.ZERO, "cross_to": Vector3.ZERO, "cross_wind": 0.0, "cross_air": 0.0}
 	_zombies[id] = z
 	z.bar.setup(_hp_full.get(id, hp_of(z.type, wave, elite)), elite)
 	node.add_child(z.bar)
@@ -973,6 +1015,8 @@ func _release(z: Dictionary, stagger: bool) -> void:
 		await get_tree().create_timer(z.body.scream()).timeout
 		if z.dead or not is_instance_valid(z.node) or phase != Phase.FIGHT:
 			return
+	if z.cross != &"":  # a joiner: the host had it crossing already (its cue came while this waited)
+		return
 	z.moving = true
 	z.cry = _rng.randf_range(SCREAM_FIRST[0], SCREAM_FIRST[1])  # only the host's counts
 	_set_out(z)
@@ -1021,6 +1065,9 @@ func _walk(z: Dictionary, delta: float) -> void:
 			_follow(z, delta)
 		else:
 			_hunt(z, delta)
+		return
+	if z.cross != &"":
+		_crossing(z, delta)
 		return
 	var node: StaticBody3D = z.node
 	if z.fix != Vector3.ZERO:  # a client's copy drifted from the host's: eased back in
@@ -1086,7 +1133,7 @@ func _walk(z: Dictionary, delta: float) -> void:
 			z.face = Vector3.LEFT if phase == Phase.FIGHT else Vector3.ZERO
 			z.body.idle()  # what it stands in between swings
 			if phase == Phase.FIGHT:
-				_claw(z)
+				_arrive(z)
 		return
 	var way := _steer(z, to, step, delta, last and not through)
 	node.global_position += way * step
@@ -1173,6 +1220,133 @@ func _claw(z: Dictionary) -> void:
 		await get_tree().create_timer(t * (0.5 + ARM_SLOW * z.body.arms_hurt()) + 0.4).timeout
 
 
+## At its spot on the railing: it claws at it, or (cross_of) the host has it go over or under; a
+## client's copy stands there until the host's cue.
+func _arrive(z: Dictionary) -> void:
+	var how := cross_of(z)
+	if how == &"":
+		_claw(z)
+	elif not Net.is_client:
+		var at: Vector3 = (z.node as Node3D).global_position
+		at.y = 0.0
+		var over := how == &"over"
+		GameState.cue_wave([&"cross", z.id, &"wind" if over else &"duck", at, Vector3(VAULT_TO if over else CREEP_TO, 0.0, at.z)])
+
+
+## x of the spot along the railing a `type` makes for: a creeper lies down further out (CREEP_FROM).
+func _spot_x(type: StringName) -> float:
+	var under: bool = TYPES.get(type, {}).get("trait", &"") == &"under" and GameState.fence_gap() >= CREEP_MIN
+	return CREEP_FROM if under else RAIL_X
+
+
+## How `z` gets past the railing where it stands: &"over", &"under" or &"" (it claws at it). Its
+## type's trait alone, never one on its belly going over, and only a railing it can (VAULT_MAX, CREEP_MIN).
+func cross_of(z: Dictionary) -> StringName:
+	match TYPES.get(z.type, {}).get("trait", &""):
+		&"over":
+			if not z.body.crawling and GameState.fence_top() <= VAULT_MAX:
+				return &"over"
+		&"under":
+			if GameState.fence_gap() >= CREEP_MIN:
+				return &"under"
+	return &""
+
+
+## Every peer, the host's `cross` cue: `z` starts that step of its crossing, `from` -> `to`.
+func _cross(z: Dictionary, step: StringName, from: Vector3, to: Vector3) -> void:
+	z.path = []
+	z.claws += 1  # whatever clawing it was at stops
+	z.moving = false
+	z.cross = step
+	z.cross_t = 0.0
+	z.cross_from = from
+	z.cross_to = to
+	match step:
+		&"wind":
+			var t: Array = z.body.vault()
+			z.cross_wind = t[0]
+			z.cross_air = t[1]
+		&"duck":
+			z.cross_wind = z.body.duck()
+		&"fall":
+			z.body.knocked()
+			(z.node as Node3D).global_position = from
+
+
+## Every peer: a step of the crossing, from its cue: the crouch (or lying down) on its spot, the arc
+## over, the crawl under, the fall, lying there, getting up. Through, it is inside.
+func _crossing(z: Dictionary, delta: float) -> void:
+	var node: Node3D = z.node
+	z.cross_t += delta
+	var t: float = z.cross_t
+	var from: Vector3 = z.cross_from
+	var to: Vector3 = z.cross_to
+	match z.cross:
+		&"wind", &"duck":  # on its spot (a client's copy eased onto the host's), facing over
+			node.global_position = node.global_position.move_toward(from, 3.0 * delta)
+			_turn_to(node, Vector3.LEFT, FACE_TURN * delta)
+			if t >= z.cross_wind:
+				z.cross_t = 0.0
+				z.cross = &"air" if z.cross == &"wind" else &"creep"
+				if z.cross == &"creep":
+					z.body.creep()
+		&"air":
+			var s := minf(1.0, t / z.cross_air)
+			var top := GameState.fence_top() + VAULT_CLEAR - VAULT_TUCK
+			node.global_position = from.lerp(to, s) + Vector3.UP * sin(PI * s) * top
+			if s >= 1.0:
+				node.global_position = to
+				_in(z)
+		&"creep":
+			var off: Vector3 = to - node.global_position
+			off.y = 0.0
+			var step := CREEP_SPEED * delta
+			_turn_to(node, Vector3.LEFT, FACE_TURN * delta)
+			if off.length() > step:
+				node.global_position += off.normalized() * step
+				return
+			node.global_position = to
+			_get_up(z)
+		&"fall":
+			var s := minf(1.0, t / FALL_TIME)
+			var p := from.lerp(to, s)
+			p.y = from.y * (1.0 - s * s)
+			node.global_position = p
+			if s >= 1.0:
+				z.cross = &"lie"
+				z.cross_t = 0.0
+		&"lie":
+			if t >= FALL_LIE:
+				_get_up(z)
+		&"rise":
+			if t < z.cross_wind:
+				return
+			if node.global_position.x < GameState.FIRING_LINE_X:
+				_in(z)
+				return
+			z.cross = &""  # fell back on its own side: at the railing again, and the host sends it over again
+			z.face = Vector3.LEFT
+			if phase == Phase.FIGHT:
+				_arrive(z)
+
+
+func _get_up(z: Dictionary) -> void:
+	z.cross = &"rise"
+	z.cross_t = 0.0
+	z.cross_wind = z.body.get_up()  # 0 with a leg gone: it crawls on from where it lies
+
+
+## Over or under: on our side now, the host's to hunt with like the ones through a hole.
+func _in(z: Dictionary) -> void:
+	z.cross = &""
+	z.inside = true
+	z.hole = -1
+	z.heading = Vector3.ZERO
+	z.moving = false
+	if not z.body.busy():
+		z.body.idle()
+
+
 func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _gold: int, weak: bool, combo: int) -> void:
 	if target == null or not target.has_meta("zombie"):
 		return
@@ -1185,6 +1359,14 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 	z.body.hit()
 	if Net.is_client or combo == 0 or not _hp.has(z.id):  # combo 0: not a paying hit (wrong side of the line)
 		return
+	match z.cross:
+		&"wind":  # stopped in the crouch: back into it
+			if z.cross_t >= BALK_AFTER:
+				GameState.cue_wave([&"cross", z.id, &"wind", z.cross_from, z.cross_to])
+		&"air":  # shot out of the air: down on whichever side it is over
+			var now_at: Vector3 = (z.node as Node3D).global_position
+			var past := now_at.x < GameState.FIRING_LINE_X
+			GameState.cue_wave([&"cross", z.id, &"fall", now_at, Vector3(VAULT_TO if past else RAIL_X, 0.0, now_at.z)])
 	var gun: String = GameState.GUNS[GameState.player(peer).gun].id
 	var t: StringName = TYPES.get(z.type, {}).get("trait", &"")
 	var dmg: float = DAMAGE.get(gun, DAMAGE_ELSE)
@@ -1299,11 +1481,22 @@ func _retreat(z: Dictionary) -> void:
 	z.claws += 1
 	z.hole = -1
 	z.leap = LEAP_TIME  # a leaper in the air lands where it was going and turns from there
+	if z.cross in [&"air", &"fall"]:  # the same for a vaulter
+		(z.node as Node3D).global_position = z.cross_to
+	if z.cross in [&"fall", &"lie"]:
+		z.body.get_up()
+	z.cross = &""
 	var at: Vector3 = (z.node as Node3D).global_position
 	var path := []
 	if z.inside or at.x < GAP[1]:  # inside: back out through the nearest hole
 		z.inside = false
 		var hole := _nearest_hole(at.z)
+		if hole < 0:  # in over or under the railing and no hole to go back by: it stays (the lost wave clears it)
+			z.path = []
+			z.moving = false
+			if not z.body.busy():
+				z.body.idle()
+			return
 		var through := GameState.bay_mid(hole) if hole >= 0 else at.z
 		path.append(Vector3(HOLE_IN, 0.0, through))
 		path.append(Vector3(HOLE_OUT, 0.0, through))
@@ -1325,6 +1518,11 @@ func _cut(z: Dictionary, part: StringName, fly: bool, roll := 0) -> void:
 	for s: Dictionary in z.bones:  # what came off takes no more rounds
 		if s.limb != &"" and (s.limb == part or BODY.LOWER.get(s.limb, &"") == part) and part in z.body.cuts:
 			(s.node as CollisionShape3D).disabled = true
+	if z.cross == &"wind" and z.body.crawling:  # a leg gone in the crouch: no spring, it claws from the floor
+		z.cross = &""
+		z.face = Vector3.LEFT
+		if phase == Phase.FIGHT:
+			_claw(z)
 	if was_low or not z.body.crawling:
 		return
 	z.speed *= LEGLESS.get(z.kind, LEGLESS_ELSE)
@@ -1586,7 +1784,10 @@ func _kill(id: int, gib: StringName, weak := false, roll := 0, dir := Vector3.ZE
 		return
 	z.dead = true
 	z.path = []
+	z.cross = &""
 	var node: Node3D = z.node
+	if node.global_position.y > 0.01:  # killed in the air (a leaper's or a vaulter's spring): down to the floor
+		node.create_tween().tween_property(node, "global_position:y", 0.0, 0.35).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	node.remove_from_group("target")
 	(z.trunk as CollisionShape3D).disabled = true
 	(z.head_shape as CollisionShape3D).disabled = true
@@ -1817,6 +2018,11 @@ func _got_at(out: Array, inside: Array) -> void:
 		if z.is_empty() or z.dead:
 			continue
 		if not z.inside:
+			if z.cross != &"":  # through on the host before this copy was: on the floor, up, as the host has it
+				if z.cross in [&"duck", &"creep", &"fall", &"lie"]:
+					z.body.get_up()
+				z.cross = &""
+				(z.node as Node3D).global_position.y = 0.0
 			z.inside = true
 			z.hole = -1
 			z.path = []
