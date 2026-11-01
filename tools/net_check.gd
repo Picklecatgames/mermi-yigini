@@ -21,6 +21,7 @@ extends SceneTree
 
 const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the way
 const LOG := "user://net_check_client.log"
+const ENGINE_LOG := "user://net_check_client_engine.log"  # the client's engine output: script errors, a crash
 const WORLD := "user://net_check_client.json"  # what the client saw of the shared world
 ## The host digs these [at, rounds] as the client joins, near the heap's top, clear of the keys.
 const HEAP := Vector3(-9, 0, 0)  # on the scrap heap's face (scenes/main.tscn Pile at x -11.75)
@@ -44,6 +45,7 @@ var _log: Array[String] = []
 ## coroutine without quitting, so the host kills it after a while: this line then says where it was.
 var _at := ""
 var seen := {}  # client: what it saw of the shared world, for the host to compare
+var _client_pid := 0  # host: the client's process, till it has gone and passed
 
 
 func _initialize() -> void:
@@ -117,23 +119,21 @@ func _host() -> void:
 	gs.player_slots.connect(func(s: Dictionary) -> void:  # sent again when it leaves
 		for id: int in s:
 			tag_ok[0] = tag_ok[0] or (id != gs.local_peer() and gs.color_of(id) == gs.PLAYER_COLORS[1]))
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
-	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
-		ProjectSettings.globalize_path("res://"), "-s", "res://tools/net_check.gd", "--", "--client"])
+	_client_pid = _start_client("res://tools/net_check.gd")
 	var t0 := Time.get_ticks_msec()
-	while OS.is_process_running(pid):
+	while OS.is_process_running(_client_pid):
 		if Time.get_ticks_msec() - t0 > 120_000:
-			OS.kill(pid)
-			print(FileAccess.get_file_as_string(LOG))  # its last line says where it stopped
-			return _fail("client timed out")
+			return _fail("client timed out")  # its log's last line says where it stopped
 		await process_frame
-	var code := OS.get_process_exit_code(pid)
-	print(FileAccess.get_file_as_string(LOG))
+	var code := OS.get_process_exit_code(_client_pid)
 	if code != 0:
 		return _fail("client side failed (exit %d)" % code)
+	_client_pid = 0
+	print(FileAccess.get_file_as_string(LOG))
 	var cid: int = client_id[0]
 	if not _ok(cid != 0, "client connected"): return
-	if not _ok(gs.pile == gs.PILE_START - 2 - DUG, "host pile: its loose bullet, its digs, the client's grab"): return
+	var grabs: int = JSON.parse_string(FileAccess.get_file_as_string(WORLD)).grabs
+	if not _ok(gs.pile == gs.PILE_START - 1 - grabs - DUG, "host pile: its loose bullet, its digs, the client's %d grab(s)" % grabs): return
 	if not _ok(collapsed[0], "part of the heap's face gave way while the client was in"): return
 	if not await _world_agrees(): return
 	if not _ok(shots.size() == 1 and shots[0][0] == cid, "host traced one shot, the client's"): return
@@ -154,7 +154,8 @@ func _host() -> void:
 	if not await _until(func() -> bool: return rp.character(cid) == null, "the client's character to go"): return
 	var p = gs._saved.values()[0] if gs._saved.size() == 1 else null  # under the client's token
 	if not _ok(p != null and p.gold == gs.TEST_MONEY and p.loaded == 0 and p.carried == 0, "host keeps the client's state"): return
-	if not _ok(gs.player().carried == 1, "the host's own hand is untouched"): return
+	# Its loose bullet may have come out a special round (GameState._roll_specials): pocket, not hand.
+	if not _ok(gs.player().carried + gs.player().specials.size() == 1, "the host's own hand is untouched"): return
 	if not _ok(p.rounds.get("clone", 0) == 3 and gs.brass == 0 and gs.melt_bin == 0, "the client pressed three clones from the team's brass"): return
 	if not _ok(paid[0] >= 1 and topped[0] > 0.0 and is_equal_approx(gs.vault, topped[0] + paid[0] * gs.VAULT_SHARE), "every paid $ put its share in the vault (%.2f of $%.0f)" % [gs.vault, paid[0]]): return
 	print("net_check OK")
@@ -216,10 +217,17 @@ func _client() -> void:
 	if not _ok(gs.request_pick_up_loose(0) == 0, "holding E asks only once"): return
 	if not await _until(gs.synced, "answer to the loose grab"): return
 	if not _ok(gs.carried == 0, "host said no: the bullet is taken back"): return
-	# From the heap.
-	if not _ok(gs.request_pick_up(HEAP + Vector3(0, 1, 0), 1) == 1, "heap grab predicted"): return
-	if not await _until(gs.synced, "answer to the heap grab"): return
-	if not _ok(gs.carried == 1 and gs.pile == gs.PILE_START - 2 - DUG, "host agrees: in hand, pile down (carried %d, pile %d short)" % [gs.carried, gs.PILE_START - gs.pile]): return
+	# From the heap. About 1 in 75 grabs is a special round (GameState._roll_specials): the host puts
+	# it in the pocket, not the hand, and we grab again.
+	seen.grabs = 0
+	while gs.carried == 0:
+		if not _ok(seen.grabs < 5 and gs.request_pick_up(HEAP + Vector3(0, 1, 0), 1) == 1, "heap grab predicted"): return
+		seen.grabs += 1
+		if not await _until(gs.synced, "answer to the heap grab"): return
+		if gs.carried == 0:
+			if not _ok(gs.player().specials.size() == seen.grabs, "the grab the host took back is in our pocket (%s)" % [gs.player().specials]): return
+			_log.append("heap grab %d came out a special round: %s" % [seen.grabs, gs.player().specials.back()])
+	if not _ok(gs.carried == 1 and gs.pile == gs.PILE_START - 1 - seen.grabs - DUG, "host agrees: in hand, pile down (carried %d, pile %d short)" % [gs.carried, gs.PILE_START - gs.pile]): return
 	if not _ok(gs.request_reload() == 1, "reload"): return
 	if not await _until(gs.synced, "answer to the reload"): return
 	if not _ok(gs.loaded == 1 and gs.carried == 0, "round in the gun"): return
@@ -373,13 +381,38 @@ func _ok(cond: bool, what: String) -> bool:
 func _fail(what: String) -> void:
 	_log.append("net_check FAIL: " + what)
 	_at = ""
+	_stop_client()
 	printerr("net_check FAIL: ", what)
 	_write_log()
 	quit(1)
 
 
+## Host: the client, this script again with `-- --client`, its engine output in ENGINE_LOG.
+func _start_client(script: String) -> int:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ENGINE_LOG))
+	return OS.create_process(OS.get_executable_path(), ["--headless", "--log-file", ProjectSettings.globalize_path(ENGINE_LOG),
+		"--path", ProjectSettings.globalize_path("res://"), "-s", script, "--", "--client"])
+
+
+## Host, failing with the client still about: stops it and shows its log and the end of its engine
+## output, so a hang, a script error or a crash on its side says where.
+func _stop_client() -> void:
+	if _client_pid == 0:
+		return
+	if OS.is_process_running(_client_pid):
+		OS.kill(_client_pid)
+	_client_pid = 0
+	print("--- client log:\n", FileAccess.get_file_as_string(LOG))
+	var engine := FileAccess.get_file_as_string(ENGINE_LOG).split("\n")
+	print("--- client engine output, last lines:\n", "\n".join(engine.slice(-40)))
+
+
 func _write_log() -> void:
 	if "--client" in OS.get_cmdline_user_args():
+		var lines := _log.duplicate()
+		if _at:
+			lines.append(_at)
 		var f := FileAccess.open(LOG, FileAccess.WRITE)
 		if f:
-			f.store_string("\n".join(_log))
+			f.store_string("\n".join(lines))

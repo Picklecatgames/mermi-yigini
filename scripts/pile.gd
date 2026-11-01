@@ -232,11 +232,17 @@ func _load_parts() -> void:
 	else:
 		for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(STAND_IN_FILE)):
 			list.append({"glb": STAND_IN_DIR + p.name + ".glb", "kind": p.kind})
-	for p: Dictionary in list:  # all at once, on the loader's threads: one by one took 1.4 s
-		ResourceLoader.load_threaded_request(p.glb)
+	# All at once, on the loader's threads: one by one took 1.4 s. Not headless (the checks): there
+	# the dummy renderer makes meshes and textures without a lock, and now and then two threads
+	# made one at once and crashed it.
+	var threaded := DisplayServer.get_name() != "headless"
+	if threaded:
+		for p: Dictionary in list:
+			ResourceLoader.load_threaded_request(p.glb)
 	var total := 0.0
 	for p: Dictionary in list:
-		var glb: Node = (ResourceLoader.load_threaded_get(p.glb) as PackedScene).instantiate()
+		var scene: PackedScene = ResourceLoader.load_threaded_get(p.glb) if threaded else load(p.glb)
+		var glb: Node = scene.instantiate()
 		var mesh: Mesh = (glb.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
 		_part_mesh.append(mesh)
 		glb.free()

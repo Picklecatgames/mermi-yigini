@@ -18,6 +18,7 @@ extends SceneTree
 
 const PORT := 24693
 const LOG := "user://waves_check_client.log"
+const ENGINE_LOG := "user://waves_check_client_engine.log"  # the client's engine output: script errors, a crash
 const CUTS := "user://waves_check_cuts.json"
 const TIME_SCALE := 4.0  # the solo part: walkers take half a minute to reach the railing
 const SHOOT_FROM_X := 12.5
@@ -27,6 +28,7 @@ var net: Node
 var main: Node
 var waves: Node
 var _log: Array[String] = []
+var _client_pid := 0  # host: the client's process, till it has gone and passed
 var _turn := 0  # _shoot_all: whose turn it is among the nearest
 var _on := [0, -1.0, 0]  # _shoot_all, a client: the zombie it stays on, its bar then, rounds since that moved
 var _cuts := {}  # zombie id -> the limbs it had lost when the die cue came (wave 3, online)
@@ -151,20 +153,17 @@ func _online() -> void:
 	gs.multiplayer.peer_connected.connect(func(id: int) -> void: client_id[0] = id)
 	var pulled_by := [0]
 	gs.lever_pulled.connect(func(peer: int) -> void: pulled_by[0] = peer)
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
-	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
-		ProjectSettings.globalize_path("res://"), "-s", "res://tools/waves_check.gd", "--", "--client"])
+	_client_pid = _start_client("res://tools/waves_check.gd")
 	var t0 := Time.get_ticks_msec()
-	while OS.is_process_running(pid):
+	while OS.is_process_running(_client_pid):
 		gs.mend_fence(gs.FENCE_MAX)  # wave 3 must not be lost under the client's slow fire
 		if Time.get_ticks_msec() - t0 > 240_000:
-			OS.kill(pid)
-			print(FileAccess.get_file_as_string(LOG))  # its last line is the last check it passed
-			return _fail("client timed out")
+			return _fail("client timed out")  # its log's last line is the last check it passed
 		await process_frame
-	print(FileAccess.get_file_as_string(LOG))
-	if OS.get_process_exit_code(pid) != 0:
+	if OS.get_process_exit_code(_client_pid) != 0:
 		return _fail("client side failed")
+	_client_pid = 0
+	print(FileAccess.get_file_as_string(LOG))
 	var theirs = JSON.parse_string(FileAccess.get_file_as_string(CUTS))
 	var torn := 0
 	for id: String in _cuts:
@@ -350,6 +349,8 @@ func _shoot_all(what: String, me: Node3D = null) -> bool:
 
 func _until(cond: Callable, what: String, secs := 60.0) -> bool:
 	var t0 := Time.get_ticks_msec()
+	if not cond.call():
+		_write_log(what)
 	while not cond.call():
 		if Time.get_ticks_msec() - t0 > secs * 1000.0:
 			_fail("waited for %s (phase %d, fence %d, %d alive)" % [what, waves.phase, gs.fence, waves._alive()])
@@ -370,13 +371,39 @@ func _ok(cond: bool, what: String) -> bool:
 func _fail(what: String) -> void:
 	_wipe_ok = true  # quitting frees the floor
 	_log.append("waves_check FAIL: " + what)
+	_stop_client()
 	printerr("waves_check FAIL: ", what)
 	_write_log()
 	quit(1)
 
 
-func _write_log() -> void:
+## Host: the client, this script again with `-- --client`, its engine output in ENGINE_LOG.
+func _start_client(script: String) -> int:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ENGINE_LOG))
+	return OS.create_process(OS.get_executable_path(), ["--headless", "--log-file", ProjectSettings.globalize_path(ENGINE_LOG),
+		"--path", ProjectSettings.globalize_path("res://"), "-s", script, "--", "--client"])
+
+
+## Host, failing with the client still about: stops it and shows its log and the end of its engine
+## output, so a hang, a script error or a crash on its side says where.
+func _stop_client() -> void:
+	if _client_pid == 0:
+		return
+	if OS.is_process_running(_client_pid):
+		OS.kill(_client_pid)
+	_client_pid = 0
+	print("--- client log:\n", FileAccess.get_file_as_string(LOG))
+	var engine := FileAccess.get_file_as_string(ENGINE_LOG).split("\n")
+	print("--- client engine output, last lines:\n", "\n".join(engine.slice(-40)))
+
+
+## `waiting`: the step the client is on, for the host to print if it has to kill it there.
+func _write_log(waiting := "") -> void:
 	if "--client" in OS.get_cmdline_user_args():
+		var lines := _log.duplicate()
+		if waiting:
+			lines.append("waiting for " + waiting)
 		var f := FileAccess.open(LOG, FileAccess.WRITE)
 		if f:
-			f.store_string("\n".join(_log))
+			f.store_string("\n".join(lines))
