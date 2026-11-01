@@ -77,14 +77,16 @@ Oyun steril ve tekdüze görünüyor; mekân post-apokaliptik bir hurdalık kale
 - Yeni kovanlar ve yeni mermi türleri açıldıkça daha fazla hurda gerekir.
 - Silahlar post-apokaliptik silahlara geçer; şimdikiler fazla cilalı.
 - Oyuncunun arkasındaki alan tavana kadar hurdayla dolar, arkası görünmez, aralarda kutular olur. Kullanıcının saydıkları: dişliler, yaylar, paslı metaller, "hurda denince akla gelen şeyler".
+- Hurdada çeşitlilik çok olmalı ("çöp çeşitliliğini arttır").
+- Paslı, hafif karikatürize görünümlü asetler de alınabilir (kullanıcı: "paslı hafif karikatürize bir görünüm verecek şeyleri de indir"); gerçekçi PBR tek seçenek değil. Aset indirmeye izin var.
 
 **Öneriler (benim, kural değil):**
 - **Sahne katmanları:** arkada tavana kadar büyük siluetler (araba ve kamyon kasaları, konteyner, varil yığınları, makine gövdeleri, kiriş ve oluklu saç), önünde orta boy (dişli, helezon yay, zincir, boru, lastik, jant, radyatör, beyaz eşya, jeneratör), en önde küçük detay (cıvata, somun, teneke, alet, kablo); aralarda ahşap ve askerî sandıklar, paletler. Uzak duvar birkaç birleştirilmiş yığın mesh'i olur, tek tek düğüm değil.
 - **Hurda → materyal eşlemesi:** araç kasası, konteyner, kiriş, varil, saç → çelik/demir; motor, radyatör, kalorifer peteği, matkap tezgâhı, mengene → dökme demir; elektrik motoru, jeneratör, klima, kablo, buzdolabı borusu → bakır; vana, tencere, pürmüz, kovan hurdası → pirinç; teneke, konserve → kalaylı çelik; içecek kutusu, klima kanatçığı → alüminyum; lastik → kauçuk + çelik tel; akü → kurşun (aday model bulunamadı). Kovana pirinç ve çelik, barut tarafına (kükürt, nitrat) kauçuk ve kimyasal içerikli hurdalar uyar; bu bölüşüm tasarım sorusu.
 - **Gerçek marka:** araç modellerinin çoğu gerçek bir modele benziyor; rozet ve logo silinmeden alınmaz.
-- **Eksikler:** motor bloğu, akü ve küçük yay için uygun model bulunamadı; Blender'da basit model + ambientCG pas dokusu olabilir.
+- **Eksikler:** akü ve küçük yay için uygun model bulunamadı; Blender'da basit model + ambientCG pas dokusu olabilir.
 
-**Aday asetler:** galeri, boyut grubuna ve lisansa göre süzülür, her kalemin verdiği materyal yazılı: https://claude.ai/artifact/AbZ1qisnc8UYjruHkhUXXJ (134 aday: Poly Haven ve ambientCG CC0, Sketchfab CC-BY 4.0 ve CC0; lisanslar 2026-11-01'de kaynakların API'sinden doğrulandı). Henüz hiçbiri seçilmedi ya da indirilmedi; seçilen aset "Kullanılan asetler"e yazılır, CC-BY olanın yazarı jeneriğe girer.
+**Aday asetler:** galeri, boyut grubuna ve lisansa göre süzülür, her kalemin verdiği materyal yazılı: https://claude.ai/artifact/AbZ1qisnc8UYjruHkhUXXJ (233 aday, 24'ü stilize; boyut, lisans ve görünüme göre süzülür. Poly Haven ve ambientCG CC0, Sketchfab CC-BY 4.0 ve CC0; lisanslar 2026-11-01'de Sketchfab'in model ve arama API'sinden okundu). Henüz hiçbiri seçilmedi ya da indirilmedi; seçilen aset "Kullanılan asetler"e yazılır, CC-BY olanın yazarı jeneriğe girer.
 
 ### Tasarım kuralları
 
