@@ -81,8 +81,8 @@ const SLUMP_RADIUS := Vector2(1.8, 3.6)  # m, the host rolls a face's size betwe
 ## The face is covered in pieces (2026-11-01, the user: where the heap shows, scrap, no mesh, each
 ## piece its own): this many times over by their footprints, at most MAX_PER_CELL to a cell.
 @export var cover := 1.3
-const MAX_PER_CELL := 4
-const SURFACE_MIN := 0.09    # m: smaller parts (nuts, bolts) lie loose but not on the face, unseen there
+const MAX_PER_CELL := 6
+const SURFACE_MIN := 0.025   # m: only crumbs smaller than this stay off the face (the user: nuts and bolts too)
 const LOW_TRIS := 150         # surface pieces are drawn from a lighter copy of their part
 ## Loose pieces on the floor round the foot, thinning out with distance.
 @export var spill_pieces := 700
@@ -393,8 +393,8 @@ func _build_surface() -> void:
 				var up := Basis(Quaternion(Vector3.UP, n))
 				var b := up * tumble * Basis(Vector3.UP, rng.randf() * TAU) * lay
 				var o := _cell_pos(cell) + Vector3(rng.randf_range(-0.5, 0.5) * CELL, 0.0, rng.randf_range(-0.5, 0.5) * CELL)
-				# Half sunk or more: hooked into what is under it.
-				o.y = s[thin] * rng.randf_range(0.0, 0.45)
+				# A quarter sunk at most: hooked into what is under it, its shape still all there to see.
+				o.y = s[thin] * rng.randf_range(0.25, 0.5)
 				var idx: int = per_part[part].size()
 				per_part[part].append(Transform3D(b, o))
 				var list: Array = cell_slots.get(k, [])

@@ -4,12 +4,14 @@ shader_type spatial;
 // deep. A tile baked from the real pieces (tools/build_scrap_carpet.gd: colour darkened in the
 // cracks, height in alpha, normal map), mapped triplanar since the face is near vertical. Two
 // takes on it, turned and scaled apart, are mixed by height (the higher piece wins) under a slow
-// noise, so the repeat doesn't show; kept a little dark, in the shade of what lies on it.
+// noise, so the repeat doesn't show. Kept dark and soft: it is the depth behind the drawn pieces,
+// and busy detail there blurred their outlines (the user: every piece must stand out).
 
 uniform sampler2D carpet_col : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D carpet_nrm : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform float tile = 2.0;        // m one repeat covers (build_scrap_carpet.gd TILE)
-uniform float depth_dark = 0.55; // the whole surface: under the pieces drawn over it
+uniform float depth_dark = 0.22; // the whole surface: deep under the pieces drawn over it
+uniform float soft = 2.0;        // mip levels of blur: depth behind the pieces, not more detail to read
 
 // Heap shape: height per cell, written by pile.gd as scrap is taken and slopes slide.
 uniform sampler2D height_field : filter_nearest;
@@ -55,8 +57,8 @@ void take(vec3 p, vec3 w, mat2 turn, float scale, out vec4 col, out vec3 nrm) {
 	vec2 ux = turn * p.zy / (tile * scale);
 	vec2 uy = turn * p.xz / (tile * scale);
 	vec2 uz = turn * p.xy / (tile * scale);
-	col = texture(carpet_col, ux) * w.x + texture(carpet_col, uy) * w.y + texture(carpet_col, uz) * w.z;
-	nrm = texture(carpet_nrm, ux).rgb * w.x + texture(carpet_nrm, uy).rgb * w.y + texture(carpet_nrm, uz).rgb * w.z;
+	col = texture(carpet_col, ux, soft) * w.x + texture(carpet_col, uy, soft) * w.y + texture(carpet_col, uz, soft) * w.z;
+	nrm = texture(carpet_nrm, ux, soft).rgb * w.x + texture(carpet_nrm, uy, soft).rgb * w.y + texture(carpet_nrm, uz, soft).rgb * w.z;
 }
 
 void fragment() {
