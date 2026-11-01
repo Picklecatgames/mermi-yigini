@@ -822,6 +822,9 @@ func _physics_process(delta: float) -> void:
 	# Holding E keeps grabbing, one bullet at a time, until the hand is full.
 	_grab_timer -= delta
 	var looking := _looking_at_pile()
+	var heap := _pile()
+	if heap:  # the piece E would take, outlined
+		heap.highlight(_reach.get_collision_point(), looking and _reach.get_collider() == heap)
 	if Input.is_action_pressed("pick_up") and _grab_timer <= 0.0 and looking and not _hands_busy():
 		_grab_timer = GRAB_REPEAT
 		var at := _reach.get_collision_point()
@@ -852,6 +855,13 @@ func _physics_process(delta: float) -> void:
 		get_tree().call_group("gun_table", "fade")
 
 
+
+
+## Something heavy knocks us along (scrap tumbling or pouring off the heap, pile.gd); the
+## stronger shove wins.
+func shove(v: Vector3) -> void:
+	if v.length() > _shove.length() and not GameState.is_down():
+		_shove = v
 
 
 ## Bumped into another player's body: shove them along with how fast we walked into them.

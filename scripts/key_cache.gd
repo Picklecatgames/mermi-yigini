@@ -1,15 +1,14 @@
 extends Node3D
-## The twelve crate keys, buried in the bullet heap. Each game puts them somewhere new, but always
-## deeper the rarer they are (DEPTHS, measured down from the starting surface), so what a key is
-## worth decides how much of the heap has to go before it can be reached.
+## The twelve crate keys, buried in the scrap heap. Each game puts them somewhere new, but always
+## costlier to reach the rarer they are (COSTS), so what a key is worth decides how much of the
+## heap has to go before it can be reached.
 ##
-## Why depth is a hard gate: the heap slides at its angle of repose, so uncovering a point D below
-## the surface means digging out at least the 30° crater above it, π·D³ m³, however and wherever
-## one digs; the sides pour back into anything narrower. `min_bullets(depth)` is that bound, and
-## digging straight onto a key in the real heap costs about six times it (tools/keys_check.gd).
-## By hand the first fifteen minutes move ~1,500 rounds in all (docs/ajan_kritik/ekonomi.md):
-## a common key costs ~300-3,000 in one spot, a rare one ~0.5-1.6 million (belts), a legendary
-## one 25 million and up (late automation). A minigun at minute 10 cannot happen.
+## Why the cost is a hard gate: no slope in the heap stands steeper than Pile.LOCK_SLOPE, so before
+## the surface over a key comes down to it, everything above a cone at that slope with its tip on
+## the key has to go, however and wherever one digs (pile.gd min_take). A key is put where that
+## cone holds its cost: the commons in the thin foot, reachable by hand from the floor, the
+## legendaries deep under the roof.
+## By hand the first fifteen minutes move ~1,500 pieces in all (docs/ajan_kritik/ekonomi.md).
 ##
 ## When digging gets down to a key it pops out onto the surface, glows in its tier's colour and
 ## lies there until someone walks over it. Placement and the reveal check run where the heap is
@@ -18,7 +17,6 @@ extends Node3D
 ## keys out again from it on its own heap, which is the host's starting heap, so they land on the
 ## same spots. Only the host's heap decides when one comes out.
 
-const PILE := preload("res://scripts/pile.gd")
 ## Rank order, most common first: [name, tier]. Models: assets/props/keys/key_NN.glb
 ## (tools/build_keys.py). Key N opens crate N (scripts/chests.gd; 1-7 were picked to match theirs).
 ## The 6th opens the mid-game weapon, the 12th the minigun.
@@ -29,19 +27,21 @@ const KEYS := [
 ]
 const TIER_NAMES := ["Sıradan", "Nadir", "Efsanevi"]
 const TIER_COLORS := [Color(0.85, 0.9, 1.0), Color(0.35, 0.65, 1.0), Color(1.0, 0.72, 0.2)]
-## m below the starting surface, by rank. Commons by hand in the first twenty minutes, rares once
-## belts dig, legendaries in the last quarter hour.
-# ponytail: placeholder until the 60-minute balance pass; min_bullets() shows what each costs.
-# ×∛3 since the 45° heap (2026-10-21): its narrower funnel costs a third, so the same rounds reach 1.44× deeper.
-const DEPTHS := [0.05, 0.06, 0.072, 0.084, 0.65, 0.735, 0.82, 0.91, 1.01, 2.52, 2.88, 3.31]
-const JITTER := 0.08       # ± fraction of a key's depth, so no two games match
+## Least pieces dug before each key can come out, by rank: commons and rares what the bullet
+## heap's depths cost (2026-10-21 numbers); commons by hand in the first twenty minutes, rares
+## once belts dig. Legendaries go deep under the glass roof, where the heap is thickest: the
+## cone there holds ~2M at most (4.4-10M on the bullet heap), and reaching one really means
+## clearing the face in front of it, many times that.
+# ponytail: placeholder until the 60-minute balance pass; keys_check.gd prints what each costs.
+const COSTS := [34, 60, 103, 164, 75_900, 110_000, 153_000, 209_000, 285_000, 1_200_000, 1_400_000, 1_600_000]
+const JITTER := 0.15       # ± fraction of a key's cost, so no two games match
 const FLOOR_GAP := 0.15    # m of heap kept under a key: never on the bare floor
 const SPACING := 1.5       # m between keys
-## m from the heap's centre each tier may lie, [inner, outer]. Commons stay on the outer slopes:
-## reachable by hand from the floor, and the same dig there costs a fraction of one higher up
-## the heap, where everything above slides in (tools/keys_check.gd: ~1,000-3,000 rounds from
-## 6 m out, 11,000-15,000 at 3.4-5.4 m).
-const RING := [[5.0, 6.5], [0.0, 7.1], [0.0, 7.1]]
+## Surface height over a spot each tier may lie under, [low, high] m: commons in the foot, the
+## others anywhere the heap is thick enough.
+const BAND := [[0.3, 1.6], [1.0, 99.0], [9.5, 99.0]]
+const TRIES := 260         # spots looked at per key
+const MIN_DEPTH := 0.08    # m under the surface: a key is never showing from the start
 const CHECK_INTERVAL := 0.2  # s between looks at buried keys
 const PICK_RADIUS := 1.2   # m from a walker's feet
 const HOVER := 0.08        # m an exposed key floats over the surface
@@ -57,18 +57,13 @@ var _pile: Node3D
 var _seed := 0
 var _pos := {}    # rank -> world position: buried centre, then where it lies
 var _depth := {}  # rank -> m below the starting surface
+var _cost := {}   # rank -> least pieces dug before it can come out, as buried
 var _shown := {}  # rank -> Node3D while exposed
 var _check := 0.0
 var _toast: Label
 var _toast_tween: Tween
 var _reveal := AudioStreamPlayer3D.new()
 var _take := AudioStreamPlayer.new()
-
-
-## Least rounds that must leave the heap before a key `depth` m down can be reached.
-static func min_bullets(depth: float) -> int:
-	# Funnel down to `depth` at the angle of repose: V = π·r²·D / 3 with r = D / SLOPE.
-	return int(PI * depth * depth * depth / (3.0 * PILE.SLOPE * PILE.SLOPE * PILE.BULLET_VOLUME))
 
 
 func _ready() -> void:
@@ -102,43 +97,59 @@ func _on_layout(seed: int) -> void:
 	_shown.clear()
 	_pos.clear()
 	_depth.clear()
+	_cost.clear()
 	GameState.key_states.clear()
 	_bury()
 
 
-## Where each key is, deepest first so the rare ones get the thick middle of the heap.
+## Where each key is: commonest first, each costing more than the one before. A spot in its
+## tier's band, then the depth there whose cone holds the key's cost (cost grows with depth).
 func _bury() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _seed
 	var placed: Array[Vector3] = []
-	var depths: Array[float] = []
-	var prev := 0.0
-	for i in KEYS.size():  # depths in rank order, never shallower than the rank before
-		prev = maxf(DEPTHS[i] * (1.0 + rng.randf_range(-JITTER, JITTER)), prev + 0.005)
-		depths.append(prev)
-	var centre := _pile.global_position
-	for i in range(KEYS.size() - 1, -1, -1):
-		var d := depths[i]
-		var ring: Array = RING[KEYS[i][1]]
-		var spot := Vector3.INF
-		for attempt in 400:
-			var a := rng.randf() * TAU
-			var r := sqrt(lerpf(ring[0] * ring[0], ring[1] * ring[1], rng.randf()))  # even over the ring's area
-			var p := centre + Vector3(cos(a) * r, 0.0, sin(a) * r)
-			var top: float = _pile.surface_y(p)
-			if top - centre.y - d < FLOOR_GAP:
-				continue  # heap too thin here for this depth
-			var gap := SPACING if attempt < 300 else SPACING * 0.5
-			if placed.any(func(q: Vector3) -> bool: return Vector2(q.x - p.x, q.z - p.z).length() < gap):
+	var prev := 0
+	var cells: Vector2i = _pile.cells()
+	for i in KEYS.size():
+		var band: Array = BAND[KEYS[i][1]]
+		var want := maxi(int(COSTS[i] * (1.0 + rng.randf_range(-JITTER, JITTER))), int(prev * 1.05) + 1)
+		var best := Vector3.INF
+		var best_cost := 0
+		for attempt in TRIES:
+			var g: Vector3 = _pile.cell_world(Vector2i(rng.randi_range(1, cells.x - 2), rng.randi_range(1, cells.y - 2)))
+			var floor_y := _pile.global_position.y
+			if g.y - floor_y < band[0] or g.y - floor_y > band[1]:
 				continue
-			spot = Vector3(p.x, top - d, p.z)
+			var gap := SPACING if attempt < TRIES * 3 / 4 else SPACING * 0.5
+			if placed.any(func(q: Vector3) -> bool: return Vector2(q.x - g.x, q.z - g.z).length() < gap):
+				continue
+			var lo := floor_y + FLOOR_GAP  # deepest allowed: costs the most
+			var hi := g.y - MIN_DEPTH
+			if lo >= hi:
+				continue
+			var most: int = _pile.min_take(Vector3(g.x, lo, g.z))
+			if most < want:
+				if most > best_cost and most > prev:
+					best_cost = most
+					best = Vector3(g.x, lo, g.z)
+				continue
+			for n in 18:  # cost falls as the key comes up: find where it holds `want`
+				var mid := (lo + hi) * 0.5
+				if _pile.min_take(Vector3(g.x, mid, g.z)) >= want:
+					lo = mid
+				else:
+					hi = mid
+			best = Vector3(g.x, lo, g.z)
+			best_cost = _pile.min_take(best)
 			break
-		if spot == Vector3.INF:
-			push_error("key %d: no room %.2f m deep" % [i + 1, d])
+		if best == Vector3.INF:
+			push_error("key %d: no room for %d pieces" % [i + 1, want])
 			continue
-		placed.append(spot)
-		_pos[i + 1] = spot
-		_depth[i + 1] = d
+		placed.append(best)
+		prev = best_cost
+		_pos[i + 1] = best
+		_depth[i + 1] = _pile.surface_y(best) - best.y
+		_cost[i + 1] = best_cost
 		GameState.key_states[i + 1] = GameState.KeyState.BURIED
 
 
@@ -149,6 +160,11 @@ func key_position(rank: int) -> Vector3:
 
 func key_depth(rank: int) -> float:
 	return _depth.get(rank, 0.0)
+
+
+## Least pieces that had to leave the heap before key `rank` could come out, as it was buried.
+func key_cost(rank: int) -> int:
+	return _cost.get(rank, 0)
 
 
 func _physics_process(delta: float) -> void:

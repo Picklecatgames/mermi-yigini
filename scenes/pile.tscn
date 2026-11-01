@@ -1,10 +1,8 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/pile.gd" id="1"]
-[ext_resource type="Material" path="res://materials/pile_surface.tres" id="2"]
-[ext_resource type="PackedScene" path="res://assets/bullet/bullet_9mm_lod.glb" id="3"]
+[ext_resource type="Material" path="res://materials/scrap_heap.tres" id="2"]
 
 [node name="Pile" type="StaticBody3D" groups=["bullet_pile"]]
 script = ExtResource("1")
-bullet_scene = ExtResource("3")
-cone_material = ExtResource("2")
+heap_material = ExtResource("2")

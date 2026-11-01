@@ -14,12 +14,17 @@ signal pile_changed(count: int)
 ## Local player only; other players' state reaches their own machines over the network.
 signal carried_changed(count: int)
 ## Where bullets left the pile, so the heap can dig there (hands, robots, belts).
-signal bullets_taken(at: Vector3, count: int)
+signal bullets_taken(at: Vector3, count: int, step: int)
 ## Carried bullets thrown back out; they land as loose spill and count as pile again.
 ## They get ids first_id .. first_id + count - 1.
 signal bullets_thrown(from: Vector3, dir: Vector3, count: int, first_id: int)
 ## A loose bullet (spilled or thrown) was picked up, by id; every peer removes the same one.
 signal loose_taken(id: int)
+## Part of the scrap heap's face gives way round `cell` (pile.gd): the host decides when and how
+## big, `seed` throws the pieces that tumble off it the same way on every peer.
+signal scrap_collapse(cell: Vector2i, radius: int, seed: int, step: int)
+## The host's scrap heap clock (pile.gd step): a client's heap runs up to it and no further.
+signal heap_clock(step: int)
 signal upgraded(id: String, level: int)  # local player
 signal loaded_changed(count: int)        # local player
 ## A round left someone's gun: every peer plays the flash, shell and sound locally from this,
@@ -357,7 +362,7 @@ const OVERHEAD_LAYER := 3
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
-	&"loose_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
+	&"loose_taken", &"scrap_collapse", &"heap_clock", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
 	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down"]
@@ -990,8 +995,27 @@ func request_take_bullets(count: int, at: Vector3) -> int:
 	if taken > 0:
 		pile -= taken
 		_world(&"pile_changed", [pile])
-		_world(&"bullets_taken", [at, taken])
+		_world(&"bullets_taken", [at, taken, _heap_step()])
 	return taken
+
+
+## Host: part of the heap's face gives way (pile.gd decides it from the strain of takes on it).
+func collapse_scrap(cell: Vector2i, radius: int, seed: int) -> void:
+	if Net.is_client:
+		return
+	_world(&"scrap_collapse", [cell, radius, seed, _heap_step()])
+
+
+## Host: where the heap's clock is, for the clients' heaps to run up to (pile.gd).
+func send_heap_clock(step: int) -> void:
+	if Net.online and multiplayer.is_server():
+		_world(&"heap_clock", [step])
+
+
+## The heap's step now: heap events carry it, so every machine applies them at the same step.
+func _heap_step() -> int:
+	var heap := get_tree().get_first_node_in_group("bullet_pile")
+	return heap.step if heap else 0
 
 
 ## Player grabs bullets at `at` by hand, up to carry capacity and at most `limit`.
