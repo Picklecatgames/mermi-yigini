@@ -80,7 +80,7 @@ func _client() -> void:
 	if not await _until(func() -> bool: return gs.key_states.get(1) == gs.KeyState.TAKEN, "key 1 taken"): return
 	if not _ok(not keys._shown.has(1), "key 1 is not lying on the heap"): return
 	if not _ok(not pile._id_index.has(LOOSE) and gs._taken_loose.has(LOOSE), "loose bullet %d is gone" % LOOSE): return
-	var thrown: int = pile._spill_id.count(gs.THROWN_ID_START) + pile._spill_id.count(gs.THROWN_ID_START + 1) + pile._spill_id.count(gs.THROWN_ID_START + 2)
+	var thrown := [0, 1, 2].filter(func(n: int) -> bool: return pile.has_loose(gs.THROWN_ID_START + n)).size()
 	if not _ok(thrown == 3, "the three thrown bullets lie here too (%d)" % thrown): return
 	if not _ok(gs.fence == gs.FENCE_MAX - CLAWED and gs.fence_bays.count(gs.BAY_HP - 10) == 3,
 			"the railing is clawed down here too (%d)" % gs.fence): return

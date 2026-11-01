@@ -3,7 +3,9 @@ extends SceneTree
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/shot.gd
 ## Add `-- --gold=N` to give the local player N gold first (the desk's cash heap follows it).
 ## Add `-- --open` to finish every quest that opens something first (the bench, hopper, press drop in).
-## Add `-- --dig` to drain 3M bullets from one spot on the heap first; name shots after `--` to take only those.
+## Add `-- --dig` to drain 3M pieces from one spot at the foot of the scrap heap's face first, and
+## `--collapse` to make the face give way there just before the shots (pieces still tumbling in the
+## first); name shots after `--` to take only those.
 
 const SHOTS := {
 	"far": [Vector3(0, 1.6, 15), Vector3(0, 2.0, 0)],
@@ -47,6 +49,12 @@ const SHOTS := {
 	"stands_front": [Vector3(-14.5, 1.7, 3.0), Vector3(-23.0, 1.0, 3.0)],
 	"stands_legend": [Vector3(-17.0, 1.7, -5.0), Vector3(-23.0, 1.2, -12.0)],
 	"up": [Vector3(0.0, 1.7, 6.0), Vector3(-6.0, 9.0, -4.0)],
+	"scrap_spawn": [Vector3(8.7, 1.7, 0.0), Vector3(-6.0, 3.5, 0.0)],
+	"scrap_wide": [Vector3(12.0, 2.2, 18.0), Vector3(-8.0, 4.0, -4.0)],
+	"scrap_north": [Vector3(6.0, 1.8, -22.0), Vector3(-8.0, 4.0, -8.0)],
+	"scrap_close": [Vector3(0.5, 1.7, 3.5), Vector3(-4.0, 1.2, 1.0)],
+	"scrap_fall": [Vector3(3.0, 2.0, 7.5), Vector3(-5.0, 2.0, 1.0)],
+	"scrap_roof": [Vector3(2.0, 1.7, -3.0), Vector3(-9.0, 9.5, 0.0)],
 	"desk": [Vector3(5.0, 1.7, 22.3), Vector3(5.0, 0.9, 25.5)],
 	"cash": [Vector3(5.4, 1.45, 24.1), Vector3(5.12, 0.95, 25.45)],
 	"bulb": [Vector3(1.3, 6.2, 15.3), Vector3(0.0, 6.85, 14.0)],
@@ -95,13 +103,15 @@ func _initialize() -> void:
 		await create_timer(14.0).timeout  # the drops and their beams (reveal.gd)
 	if "--dig" in OS.get_cmdline_user_args():
 		await process_frame
-		var pile: Node3D = main.get_node("Pile")
-		var at := pile.to_global(Vector3(4.0, 0.0, 0.0))
+		var at := Vector3(-4.0, 0.0, 2.0)
 		for i in 150:
 			root.get_node("GameState").request_take_bullets(20000, at)
 			await physics_frame
 		for i in 400:
 			await physics_frame
+	if "--collapse" in OS.get_cmdline_user_args():
+		await process_frame
+		root.get_node("GameState").collapse_scrap(Vector2i(95, 120), 12, 5)
 	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return SHOTS.has(a))
 	for shot_name in (only if not only.is_empty() else SHOTS.keys()):
 		cam.look_at_from_position(SHOTS[shot_name][0], SHOTS[shot_name][1])

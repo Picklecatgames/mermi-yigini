@@ -23,9 +23,12 @@ const PORT := 24691  # not Net.PORT, so a game left running doesn't get in the w
 const LOG := "user://net_check_client.log"
 const WORLD := "user://net_check_client.json"  # what the client saw of the shared world
 ## The host digs these [at, rounds] as the client joins, near the heap's top, clear of the keys.
-const HEAP := Vector3(-9, 0, 0)  # scenes/main.tscn Pile
+const HEAP := Vector3(-9, 0, 0)  # on the scrap heap's face (scenes/main.tscn Pile at x -11.75)
 const DIGS := [[HEAP + Vector3(1.0, 0, 0.5), 3000], [HEAP + Vector3(-0.8, 0, -1.2), 5000], [HEAP + Vector3(0.3, 0, 1.6), 2000]]
 const DUG := 10_000
+## Once the client has pressed its clones (its last step against the clock), part of the face gives
+## way (pile.gd scrap_collapse: cell, radius in cells, seed): both heaps must come down the same.
+const COLLAPSE := [Vector2i(95, 120), 10, 77]
 ## The zombie the host puts up (scripts/waves.gd; added straight, it has no life to lose). The
 ## client fires at its chest from FIRE_FROM: over the railing's top rail (1.1 m, it takes rounds),
 ## not level along it.
@@ -79,6 +82,15 @@ func _host() -> void:
 		gs._melter_now(true)
 		var main_quest: Dictionary = gs.QUESTS[gs.quest_board[0]]  # finished while the client is in
 		gs.quest_add(main_quest.kind, 1 << 20, [main_quest.get("with", "")]))
+	var had_brass := [false]
+	var collapsed := [false]
+	gs.melter_changed.connect(func(_bin: int, brass: int, _ml: int, _pl: int) -> void:
+		if brass > 0:
+			had_brass[0] = true
+		elif had_brass[0]:  # the client pressed it all
+			had_brass[0] = false
+			collapsed[0] = true
+			gs.collapse_scrap(COLLAPSE[0], COLLAPSE[1], COLLAPSE[2]))
 	var shots := []
 	var rp: Node = main.get_node("RemotePlayers")
 	var paid := [gs.vault / gs.VAULT_SHARE]  # gold paid so far, by anyone (the vault takes its share of each)
@@ -122,6 +134,7 @@ func _host() -> void:
 	var cid: int = client_id[0]
 	if not _ok(cid != 0, "client connected"): return
 	if not _ok(gs.pile == gs.PILE_START - 2 - DUG, "host pile: its loose bullet, its digs, the client's grab"): return
+	if not _ok(collapsed[0], "part of the heap's face gave way while the client was in"): return
 	if not await _world_agrees(): return
 	if not _ok(shots.size() == 1 and shots[0][0] == cid, "host traced one shot, the client's"): return
 	if not _ok(shots[0][1] == main.get_node("Waves/Z%d" % ZOMBIE) and shots[0][2] == 1, "it hit the zombie for $1"): return
@@ -279,7 +292,7 @@ func _client() -> void:
 	if not _ok(gs.player().rounds.get("clone", 0) == 3, "three clones are ours"): return
 	if not await _until(func() -> bool: return gs.brass == 0, "the brass spent on the host"): return
 	var pile: Node = main.get_node("Pile")
-	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty(), "the heap to settle"): return
+	if not await _until(func() -> bool: return pile._pending.is_empty() and pile.step >= pile._host_step and not pile._any_active and pile._digs.is_empty() and not pile._any_slump, "the heap to settle"): return
 	var keys: Node = main.get_node("Keys")
 	var at := {}
 	for rank: int in keys._pos:
@@ -317,7 +330,7 @@ func _wooden(who: Node) -> bool:
 func _world_agrees() -> bool:
 	var theirs: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(WORLD))
 	var pile: Node = main.get_node("Pile")
-	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty(), "the heap to settle"): return false
+	if not await _until(func() -> bool: return pile._pending.is_empty() and pile.step >= pile._host_step and not pile._any_active and pile._digs.is_empty() and not pile._any_slump, "the heap to settle"): return false
 	var h: PackedFloat32Array = Marshalls.base64_to_raw(theirs.heights).to_float32_array()
 	var worst := 0.0
 	for k in h.size():

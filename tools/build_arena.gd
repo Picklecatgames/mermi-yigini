@@ -39,11 +39,6 @@ const HEAP := Vector3(-9.0, 0, 0)
 ## over the desk with the pistol (GUN_TABLE); the first two right behind it.
 const SPAWNS: Array[Vector3] = [Vector3(8.7, 0, -0.8), Vector3(8.7, 0, 0.8), Vector3(8.7, 0, -2.4), Vector3(8.7, 0, 2.4)]
 const GUN_TABLE := Vector3(7.3, 0, 0)  # metal_office_desk, 2 m along z, its drawer side to the spawns
-## Crate stands west of the heap, a row running north and centred on the hall: levels 1-11 on
-## stands STAND_GAP apart (1, the worst crate, on bare floor), then a gap and level 12, the final
-## crate, on the floor in a big square under two crossing stage spots. Stand tiers follow the
-## keys: 4 common, 5 rare, 2 legendary + the final. Tops climb on an ease-in curve to STAND_TOP,
-## well under the 1.6 m eye so the crate on top still shows.
 const GS := preload("res://scripts/game_state.gd")
 ## Past the firing line (2026-10-29, zombie waves: no range any more, the yard where the dead come
 ## in and are cut down): filthy concrete floor, the bare walls, a light bridge over the line, and a
@@ -68,35 +63,6 @@ const STENCIL := preload("res://assets/fonts/SairaStencilOne-Regular.ttf")  # si
 const FLICKER := preload("res://scripts/flicker_lamp.gd")
 const WORKSHOP := Vector3(10.5, 0, 26.0)  # the crew's corner (range_dressing _workshop), between the columns at x 7 and 14
 const WORKSHOP_DARK := 11.0  # m round it with the hall lamps dead, so the corner stands out lit
-const CHEST_X := -23.0  # between the heap's paint ring (x -19.6) and the west wall
-const CHEST_COUNT := 12
-const STAND_GAP := 3.0
-const FINAL_GAP := 4.5  # level 11 to level 12, room for the big square
-const FINAL_SQUARE := 4.2  # m
-const STAND_TOP := 1.1  # m, level 11's top
-const TWIN_SPOT := MODELS + "twin_spot_light/"
-const TWIN_SPOT_SCALE := 0.13  # the FBX is in decimetres: a 50 cm box
-## The floor lamp between crate n and n + 1: yaw (deg off facing its two crates), roll about its
-## length (±90: knocked over, on its back or its face, the eyes still turned onto the crates), tilt
-## (deg, one end up on rubble).
-const LAMP_POSES: Array[Vector3] = [Vector3(15, 0, 0), Vector3(-38, 0, 0), Vector3(10, 90, 0),
-	Vector3(35, 0, 7), Vector3(-12, -90, 0), Vector3(-52, 0, 0), Vector3(20, 0, -6),
-	Vector3(-25, 90, 0), Vector3(-25, 0, 0), Vector3(52, 0, 0), Vector3(-4, -90, 0)]
-## Where it stands (2026-10-26, the user: not all in one line): x off the row (+ toward the heap,
-## - behind it, near 0 in the gap between the squares), z off the middle of its two crates (toward
-## one crate's side).
-const LAMP_SPOTS: Array[Vector2] = [Vector2(1.1, 0.2), Vector2(-1.3, -0.3), Vector2(0.1, 0.1),
-	Vector2(1.4, -0.6), Vector2(-1.1, 0.5), Vector2(0.95, -1.0), Vector2(-0.2, 0.3),
-	Vector2(1.25, 0.9), Vector2(-1.4, 0.0), Vector2(0.25, -0.4), Vector2(1.0, 0.0)]
-const RARE_FROM := 4  # index of the first rare stand; legendary from LEGEND_FROM
-const LEGEND_FROM := 9
-
-
-## Where crate `i` (0 = level 1) stands: the row is centred on z = 0.
-static func chest_pos(i: int) -> Vector3:
-	var span := STAND_GAP * (CHEST_COUNT - 2) + FINAL_GAP
-	var z := span / 2.0 - STAND_GAP * mini(i, CHEST_COUNT - 2) - (FINAL_GAP if i == CHEST_COUNT - 1 else 0.0)
-	return Vector3(CHEST_X, 0, z)
 
 var arena: Node3D
 var _lamp_saved := false
@@ -113,16 +79,15 @@ func _initialize() -> void:
 	_roof()
 	_lamps()
 	_heap_spot()
-	_final_spots()
 	_upper_walls()
 	_props()
 	_dust()
 	_firing_line()
 	_range()
-	_chest_stands()
 	_markings()
 	_spawns()
 	preload("res://tools/hall_dressing.gd").new(self).build()
+	_clear_for_heap()
 	_lighten(arena, Transform3D())
 	for path in ["Roof", "Lamps", "UpperWalls", "Range/LightBridge", "Range/BayCeiling"]:
 		overhead(arena.get_node(path))
@@ -553,7 +518,7 @@ func _lamps() -> void:
 				x += LAMP_STEP
 				continue
 			var near_spot := false
-			for s in HEAP_SPOTS + [Vector3(CHEST_X, 0, -14), Vector3(CHEST_X, 0, -21)]:
+			for s in HEAP_SPOTS:
 				near_spot = near_spot or (absf(s.z - z) < 0.1 and absf(s.x - x) < 1.4)
 			near_spot = near_spot or Vector2(x - HEAP.x, z - HEAP.z).length() < LAMP_HEAP_CLEAR
 			var downrange := x > GS.FIRING_LINE_X  # cool daylight over the targets (_range)
@@ -566,8 +531,6 @@ func _lamps() -> void:
 				wear = 0 if wear < 5 else (5 if wear == 5 else 9)
 			if Vector2(x - WORKSHOP.x, z - WORKSHOP.z).length() < WORKSHOP_DARK:
 				wear = 0  # dark round the crew's corner
-			if x < CHEST_X + 4.5:
-				wear = 0  # dark over the crate row (2026-10-25, the user): only the lamps on the floor light it
 			if absf(x) < LANTERN.z and absf(z) < LANTERN.w:  # none under the glass: there the sky and its cold light are the lamp
 				x += LAMP_STEP
 				continue
@@ -741,155 +704,6 @@ func _stage_spot(spot_name: String, at: Vector3, aim: Vector3, angle: float, ene
 	add(m, head)
 
 
-## The final crate's spots: two big stage spots from the trusses either side, crossing over its
-## square, so the last crate stands in a wash of white; soft-edged, not a hard theatre ring.
-func _final_spots() -> void:
-	var target := chest_pos(CHEST_COUNT - 1) + Vector3(0, 0.6, 0)
-	for z in [-14.0, -21.0]:
-		var at := Vector3(CHEST_X, BOTTOM - CHORD / 2 - 0.05, z)
-		_stage_spot("FinalSpot%d" % int(absf(z)), at, target, 22.0, 6.0, 0.1, 1.4, 1.6)  # was 60 / 0.4: the brightest thing in the hall, lighting an empty square
-
-
-## Dust hanging in the light over crate `level`'s stand, a little more each level. `top` is the
-## stand's top, `area` the painted square's side. Soft dot sprites drawn here, no texture files.
-func _sparkle(parent: Node3D, level: int, top: float, area: float) -> void:
-	var k := float(level) / CHEST_COUNT  # 0.08 .. 1
-	var dot := GradientTexture2D.new()
-	dot.width = 64
-	dot.height = 64
-	dot.fill = GradientTexture2D.FILL_RADIAL
-	dot.fill_from = Vector2(0.5, 0.5)
-	dot.fill_to = Vector2(1.0, 0.5)
-	var g := Gradient.new()
-	g.set_color(0, Color(1, 1, 1, 1))
-	g.set_color(1, Color(1, 1, 1, 0))
-	g.add_point(0.25, Color(1, 1, 1, 0.6))
-	dot.gradient = g
-	var half := area / 2.0
-	var emitter := func(fx_name: String, amount: int, life: float, box: Vector3, centre_y: float,
-			vel: float, grav: float, size: Vector2, ramp: Gradient, additive: bool) -> void:
-		if amount <= 0:
-			return
-		var mat := ParticleProcessMaterial.new()
-		mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-		mat.emission_box_extents = box
-		mat.direction = Vector3.UP
-		mat.spread = 180.0
-		mat.initial_velocity_min = vel * 0.3
-		mat.initial_velocity_max = vel
-		mat.gravity = Vector3(0, grav, 0)
-		mat.damping_min = 0.2
-		mat.damping_max = 0.6
-		mat.scale_min = size.x
-		mat.scale_max = size.y
-		mat.angle_min = -180.0
-		mat.angle_max = 180.0
-		mat.angular_velocity_min = -90.0
-		mat.angular_velocity_max = 90.0
-		var cr := GradientTexture1D.new()
-		cr.gradient = ramp
-		mat.color_ramp = cr
-		var draw := StandardMaterial3D.new()
-		draw.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		draw.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		if additive:
-			draw.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		draw.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-		draw.billboard_keep_scale = true
-		draw.vertex_color_use_as_albedo = true
-		draw.albedo_texture = dot
-		var quad := QuadMesh.new()
-		quad.size = Vector2.ONE
-		quad.material = draw
-		var p := GPUParticles3D.new()
-		p.name = fx_name
-		p.amount = amount
-		p.lifetime = life
-		p.preprocess = life  # already in the air when the hall loads
-		p.process_material = mat
-		p.draw_pass_1 = quad
-		p.position = Vector3(0, centre_y, 0)
-		p.visibility_aabb = AABB(-box - Vector3(1, 1, 1), box * 2.0 + Vector3(2, 4, 2))
-		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add(p, parent)
-	# Dust: soft motes hanging in the stand's light.
-	var dust := Gradient.new()
-	dust.set_color(0, Color(1, 0.97, 0.9, 0))
-	dust.set_color(1, Color(1, 0.97, 0.9, 0))
-	dust.add_point(0.3, Color(1, 0.97, 0.9, 0.18))
-	dust.add_point(0.7, Color(1, 0.97, 0.9, 0.18))
-	emitter.call("Dust", int(6 + 30 * k), 9.0, Vector3(half * 0.8, 0.8, half * 0.8), top + 0.8,
-		0.05, 0.005, Vector2(0.008, 0.02), dust, false)
-
-
-## The crate's aura, an industrial one (2026-10-25, the user: an aura, but not magic): a cloud of
-## dust and powder hanging low round the stand, thicker and warmer up the row, that the floor
-## lamps' beams cut through and light from below. A FogVolume in the hall's volumetric fog, so it
-## only shows where light falls on it; `area` is the painted square's side, `top` the stand's top.
-func _haze(parent: Node3D, level: int, area: float, top: float) -> void:
-	var k := float(level) / CHEST_COUNT
-	var fog := FogMaterial.new()
-	fog.density = lerpf(0.08, 0.26, k)
-	fog.albedo = Color(0.85, 0.8, 0.7).lerp(Color(0.95, 0.78, 0.5), k)  # concrete dust, turning to brass powder
-	fog.height_falloff = 0.6  # settles toward the floor
-	fog.edge_fade = 0.8  # no box edges in the air
-	var v := FogVolume.new()
-	v.name = "Haze"
-	v.shape = RenderingServer.FOG_VOLUME_SHAPE_ELLIPSOID
-	v.size = Vector3(area * 0.95, top + 1.8, area * 0.95)
-	v.position.y = (top + 1.8) / 2.0 - 0.2
-	v.material = fog
-	add(v, parent)
-
-
-## Loose rounds round crate `level`'s stand, as if it leaks them: a few at level 1, a spill across
-## the painted square by the last ones (2026-10-25, the user: the glitter and gold flakes read as a
-## magic game). The brass catches the floor lamps, so the shine comes from the game's own stuff.
-## `area` is the square's side, `foot` the stand's half width.
-func _spilled_rounds(parent: Node3D, level: int, area: float, foot: float) -> void:
-	var scene: Node = (load("res://assets/bullet/bullet_9mm_lod.glb") as PackedScene).instantiate()
-	var mesh: Mesh = (scene.find_children("*", "MeshInstance3D", true, false)[0] as MeshInstance3D).mesh
-	scene.free()
-	var rng := RandomNumberGenerator.new()
-	rng.seed = level
-	var k := float(level) / CHEST_COUNT
-	# The glb is not in metres: bring it to the heap's round (pile.gd BULLET_LENGTH, 3x a real 9 mm), centred, its length along Y.
-	var box := mesh.get_aabb()
-	var size := preload("res://scripts/pile.gd").BULLET_LENGTH / box.get_longest_axis_size()
-	var upright := Basis() if box.size.y >= maxf(box.size.x, box.size.z) else (Basis(Vector3.RIGHT, PI / 2) if box.size.z > box.size.x else Basis(Vector3.BACK, PI / 2))
-	var unit := Transform3D(upright.scaled(Vector3.ONE * size), Vector3.ZERO) * Transform3D(Basis(), -box.get_center())
-	var radius := box.get_shortest_axis_size() * size / 2.0
-	# One merged mesh, not a MultiMesh: a headless build saves MultiMeshes without their transforms.
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var reach := area / 2.0 * 0.9
-	var spill := func(at: Vector3, lay: Basis) -> void:
-		st.append_from(mesh, 0, Transform3D(lay, at) * unit)
-	for i in int(6 + 110 * pow(k, 1.5)):
-		# Most spill out the front (+Z, toward the heap) in a fan, the rest anywhere round the foot.
-		var a := rng.randfn(0.0, 0.6) if i % 3 != 0 else rng.randf() * TAU
-		var r := lerpf(foot, reach, pow(rng.randf(), 0.9))
-		if rng.randf() < 0.08:  # one in a dozen landed standing
-			spill.call(Vector3(sin(a) * r, preload("res://scripts/pile.gd").BULLET_LENGTH / 2.0, cos(a) * r), Basis(Vector3.UP, rng.randf() * TAU))
-		else:  # on its side, any way round
-			spill.call(Vector3(sin(a) * r, radius, cos(a) * r), Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, PI / 2))
-	# From the rare crates up, a heap of them where they poured out at the stand's front.
-	if level > RARE_FROM:
-		var mound := lerpf(0.16, 0.34, k)
-		for i in int(20 + 90 * k):
-			var r := mound * sqrt(rng.randf())
-			var a := rng.randf() * TAU
-			var y := radius + 0.16 * k * (1.0 - r / mound) * rng.randf()
-			var tip := Basis(Vector3.UP, rng.randf() * TAU) * Basis(Vector3.RIGHT, PI / 2 + rng.randf_range(-0.4, 0.4))
-			spill.call(Vector3(cos(a) * r, y, foot + mound * 0.7 + sin(a) * r), tip)
-	var mi := MeshInstance3D.new()
-	mi.name = "Rounds"
-	mi.mesh = st.commit()
-	mi.material_override = mesh.surface_get_material(0)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add(mi, parent)
-
-
 ## The concrete walls stop at 4 m and the roof starts at 8-9 m; corrugated sheet closes the gap on
 ## all four sides so nothing outside shows, with a steel ledger capping the concrete.
 func _upper_walls() -> void:
@@ -1041,6 +855,35 @@ func _firing_line() -> void:
 ## A plain box mesh under `parent`.
 ## Puts everything under `node` on GS.OVERHEAD_LAYER (roof, lamps, the bay's lid and baffles):
 ## some lights reach only that layer.
+## 2026-11-01 (the user): the bullet heap and everything behind it, the crate stands with it, went;
+## the scrap heap (scripts/pile.gd) fills the west of the hall up to the roof. Whatever stood or
+## hung where it lies goes too: west of CLEAR_X, all but the decals and what is fixed on the walls
+## (stains and dressing stay). Ceiling battens go only where the heap is up at their height.
+const CLEAR_X := 1.5
+const CLEAR_LAMPS_X := -6.0
+
+
+func _clear_for_heap() -> void:
+	var gone: Array[Node] = []
+	for n in arena.get_children():
+		if n is Node3D and (n.name.begins_with("HeapSpot") or n.name == "HeapBounce") and (n as Node3D).position.x < CLEAR_X:
+			gone.append(n)
+	for path in ["Props", "Abandon"]:
+		for n in arena.get_node(path).get_children():
+			if n is Decal or not n is Node3D:
+				continue
+			var box := _aabb(n, Transform3D())
+			var c: Vector3 = box.get_center() if box.size != Vector3.ZERO else (n as Node3D).position
+			var on_wall := (c.x < -27.0 or absf(c.z) > 27.2) and not n is Light3D and c.y > 0.8
+			if c.x < CLEAR_X and not on_wall:
+				gone.append(n)
+	for n in arena.get_node("Lamps").get_children():
+		if n is Node3D and (n as Node3D).position.x < CLEAR_LAMPS_X:
+			gone.append(n)
+	for n in gone:
+		n.free()
+
+
 func overhead(node: Node) -> void:
 	if node is GeometryInstance3D:
 		(node as GeometryInstance3D).layers = 1 << (GS.OVERHEAD_LAYER - 1)
@@ -1328,229 +1171,6 @@ func _range_label(text: String, size: int, colour: Color, font: Font = null) -> 
 	return l
 
 
-## Stands for the crates (2026-10-22: stone plinths read as a museum): the army's pallets and olive
-## crates, each under a factory pendant on one strut. Common: one pallet, one crate. Rare: two
-## crates, a yellow band. Legendary: two pallets, steel corners and a hazard stripe. The final crate (12) has none: a big square on the floor
-## and two crossing stage spots. Footprint and height grow along the row. Named ChestStand1..12
-## (1 and 12 have no block); meta "height" is the top, and its Socket marker (group
-## "chest_socket", meta "level") is where that level's crate is placed.
-func _chest_stands() -> void:
-	var olive: Material = worn("plywood", "crate_olive", {"tint": Color(0.78, 0.82, 0.58), "tex_size": 0.7,
-		"cell_size": 0.5, "cell_tone": 0.12, "grime": 0.55, "grime_scale": 1.1})
-	var wood: Material = load("res://materials/env/crate_wood.tres")
-	var steel: Material = load("res://materials/env/range_steel.tres")
-	var stands := Node3D.new()
-	stands.name = "ChestStands"
-	add(stands)
-	var last := CHEST_COUNT - 2  # the last stand; the final crate has none
-	var tops: Array[float] = []
-	for i in CHEST_COUNT:
-		var t := float(i - 1) / (last - 1)  # 0 at the first stack, 1 at the last
-		var final := i == CHEST_COUNT - 1
-		var top := 0.0 if i == 0 or final else lerpf(0.25, STAND_TOP, pow(t, 1.3))
-		tops.append(top)
-		var body := StaticBody3D.new()
-		body.name = "ChestStand%d" % (i + 1)
-		body.position = chest_pos(i)
-		body.rotation.y = PI / 2  # +Z, the crate's front, faces the heap (east)
-		body.set_meta("height", top)
-		add(body, stands)
-		# Socket: where crate i + 1 goes. Its +Z is the crate's front, toward the heap.
-		var socket := Marker3D.new()
-		socket.name = "Socket"
-		socket.position.y = top
-		socket.set_meta("level", i + 1)
-		socket.add_to_group("chest_socket", true)
-		add(socket, body)
-		_sparkle(body, i + 1, top, FINAL_SQUARE if final else 2.0)
-		_spilled_rounds(body, i + 1, FINAL_SQUARE if final else 2.0, 0.9 if final else (lerpf(0.75, 0.95, t) + 0.3) / 2.0 + 0.05)
-		_haze(body, i + 1, FINAL_SQUARE if final else 2.0, top)
-		if final:
-			continue  # lit by its own two stage spots
-		if i == 0:
-			continue  # level 1 sits on the bare floor
-		var w := lerpf(0.75, 0.95, t)  # top width, the crate's footing
-		var rare := i >= RARE_FROM
-		var legend := i >= LEGEND_FROM
-		var y := 0.0
-		for k in (2 if legend else 1):  # pallets: one, two under the legendary stacks
-			y = _stand_pallet(body, y, w + 0.3, wood)
-		# The crates: one on the common stands, two (the lower one wider) from rare up.
-		var crates := 2 if rare and top - y > 0.4 else 1
-		var h := (top - y) / crates
-		for k in crates:
-			var cw := w + (0.08 if k == 0 and crates == 2 else 0.0)
-			_stand_crate(body, Vector3(cw, h, cw), y, olive, steel, rare, legend)
-			y += h
-		var cs := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = Vector3(w + 0.3, top, w + 0.3)
-		cs.shape = box
-		cs.position.y = top / 2.0
-		add(cs, body)
-	_crate_lamps(tops)
-
-
-## A timber pallet `size` m square, 14 cm high, from `y`; returns its top.
-func _stand_pallet(body: Node3D, y: float, size: float, wood: Material) -> float:
-	for k in 5:
-		block(Vector3(size, 0.022, size * 0.15), Vector3(0, y + 0.129, (k - 2) * size * 0.22), wood, body)
-	for k in 3:
-		block(Vector3(size * 0.12, 0.098, size), Vector3((k - 1) * size * 0.44, y + 0.069, 0), wood, body)
-		block(Vector3(size, 0.02, size * 0.12), Vector3(0, y + 0.01, (k - 1) * size * 0.44), wood, body)
-	return y + 0.14
-
-
-## An olive army crate `size`, standing on `y`: a lid band, rope handles; rare ones a yellow band, legendary ones steel corners and a hazard stripe.
-func _stand_crate(body: Node3D, size: Vector3, y: float, olive: Material, steel: Material, rare: bool, legend: bool) -> void:
-	block(size, Vector3(0, y + size.y / 2.0, 0), olive, body)
-	if size.y > 0.16:
-		block(Vector3(size.x + 0.02, 0.035, size.z + 0.02), Vector3(0, y + size.y - 0.03, 0), olive, body)  # lid
-	for sx in [-1.0, 1.0]:  # rope handles on the sides
-		block(Vector3(0.02, 0.03, 0.16), Vector3(sx * (size.x / 2.0 + 0.01), y + size.y * 0.6, 0), load("res://materials/env/paint_black.tres"), body)
-	var front := size.z / 2.0 + 0.002
-	if rare:
-		var band := StandardMaterial3D.new()
-		band.albedo_color = Color(0.78, 0.62, 0.12)
-		band.roughness = 0.7
-		block(Vector3(size.x, 0.05, 0.004), Vector3(0, y + size.y * 0.25, front), band, body)
-	if legend:
-		for sx in [-1.0, 1.0]:  # steel corner guards
-			for sz in [-1.0, 1.0]:
-				block(Vector3(0.05, size.y, 0.05), Vector3(sx * size.x / 2.0, y + size.y / 2.0, sz * size.z / 2.0), steel, body)
-		var stripe := _decal_tex("hazard_stripe", 256, 32, func(img: Image) -> void:
-			for py in 32:
-				for px in 256:
-					img.set_pixel(px, py, Color(0.86, 0.66, 0.08) if fposmod((px + py) / 20.0, 1.0) < 0.5 else Color(0.06, 0.06, 0.06)))
-		var hz := StandardMaterial3D.new()
-		hz.albedo_texture = stripe
-		hz.roughness = 0.7
-		block(Vector3(size.x - 0.06, 0.07, 0.004), Vector3(0, y + size.y * 0.78, front), hz, body)
-
-
-## The crates' light (2026-10-25, the user, replacing the theatre spots on a track): rusty twin
-## spot emergency lamps left on the floor round the row, one between each pair of crates,
-## one eye on each, lighting them from below. Not set out in a line: some turned, some knocked
-## over (LAMP_POSES). The tier is in the light: cold on the common crates, neutral from rare
-## up, warm on the legendary ones and the final crate (which keeps its stage spots too).
-func _crate_lamps(tops: Array[float]) -> void:
-	var lamp := _twin_spot()
-	var root := Node3D.new()
-	root.name = "CrateLamps"
-	add(root)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 25
-	var box: AABB = (lamp.body as Mesh).get_aabb()
-	var lenses := {}
-	for n in CHEST_COUNT - 1:
-		var pose: Vector3 = LAMP_POSES[n]
-		var spot_at := LAMP_SPOTS[n] + Vector2(rng.randf_range(-0.15, 0.15), rng.randf_range(-0.15, 0.15))
-		var at := Vector3(CHEST_X + spot_at.x, 0, (chest_pos(n).z + chest_pos(n + 1).z) / 2.0 + spot_at.y)
-		# Its front (+X, or the side the eyes lie on once knocked onto its back) toward its two crates.
-		var to := (chest_pos(n) + chest_pos(n + 1)) / 2.0 - at
-		var face := atan2(-to.z, to.x) + (PI if pose.y > 45.0 else 0.0)
-		var basis := Basis(Vector3.UP, face + deg_to_rad(pose.x)) * Basis(Vector3.BACK, deg_to_rad(pose.y)) * Basis(Vector3.RIGHT, deg_to_rad(pose.z))
-		var low := INF  # rest it on the floor by its lowest corner, standing or fallen
-		for k in 8:
-			low = minf(low, (basis * (box.get_endpoint(k) * TWIN_SPOT_SCALE)).y)
-		var body := StaticBody3D.new()
-		body.name = "CrateLamp%d" % (n + 1)
-		body.transform = Transform3D(basis, at - Vector3(0, low, 0))
-		add(body, root)
-		var cs := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = box.size * TWIN_SPOT_SCALE
-		cs.shape = shape
-		cs.position = box.get_center() * TWIN_SPOT_SCALE
-		add(cs, body)
-		var model := Node3D.new()
-		model.scale = Vector3.ONE * TWIN_SPOT_SCALE
-		add(model, body)
-		var mi := MeshInstance3D.new()
-		mi.mesh = lamp.body
-		add(mi, model)
-		# The eye nearer each crate looks at it (a fallen lamp has them the other way round).
-		var heads: Array = lamp.heads.duplicate()
-		heads.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return (body.transform * (a.at * TWIN_SPOT_SCALE)).z > (body.transform * (b.at * TWIN_SPOT_SCALE)).z)
-		for k in 2:
-			var head: Dictionary = heads[k]
-			var ti := n + k  # chest_pos z falls with i: the larger-z eye takes crate n
-			var target := chest_pos(ti) + Vector3(0, tops[ti] * 0.6 + 0.25, 0)  # low on the stand: the beam climbs the stack and spills on the floor before it
-			var pivot: Vector3 = body.transform * (head.at * TWIN_SPOT_SCALE)
-			var want := basis.inverse() * (target - pivot)
-			var turn := Basis(Quaternion((head.fwd as Vector3).normalized(), want.normalized()))
-			var colour := Color(1.0, 0.78, 0.45) if ti >= LEGEND_FROM else (Color(1.0, 0.93, 0.82) if ti >= RARE_FROM else Color(0.85, 0.92, 1.0))
-			if not lenses.has(colour):
-				var lens := StandardMaterial3D.new()
-				lens.albedo_texture = load(TWIN_SPOT + "heads_albedo.png")
-				lens.emission_enabled = true
-				lens.emission = colour
-				lens.emission_energy_multiplier = 1.2  # a warm glass, not a flash: higher bloomed into a blown-out star
-				lenses[colour] = lens
-			var hi := MeshInstance3D.new()
-			hi.name = "Eye%d" % (k + 1)
-			hi.mesh = head.mesh
-			hi.transform = Transform3D(turn, head.at)
-			hi.set_surface_override_material(1, lenses[colour])
-			add(hi, model)
-			var spot := SpotLight3D.new()
-			spot.name = "%s_Eye%d" % [body.name, k + 1]
-			var from: Vector3 = body.transform * ((head.at + turn * head.lens) * TWIN_SPOT_SCALE)
-			spot.transform = Transform3D(Basis.looking_at(target - from), from)
-			spot.light_color = colour
-			spot.light_energy = 4.5 if ti >= LEGEND_FROM else (3.8 if ti >= RARE_FROM else 3.2)  # half what they were: the crate fronts burnt out white
-			spot.spot_range = 7.0
-			spot.spot_angle = 34.0
-			spot.spot_angle_attenuation = 2.2  # a soft-edged wash, no hard bright core
-			spot.light_volumetric_fog_energy = 1.0  # the beams show in the crates' dust (_haze)
-			spot.shadow_enabled = false  # 22 of them; each crate already sits in its own pool
-			add(spot, root)
-
-
-## The twin spot's parts, cut from its FBX once per build and saved as meshes: the body (box, top
-## bar, the eyes' swivel posts) from its bottom centre, and the two eyes (housing, glass as
-## surface 1) round their swivels, each with `at` (its swivel), `fwd` (where it looks) and `lens`
-## (its glass from the swivel), all in model units.
-func _twin_spot() -> Dictionary:
-	var scene: Node = (load(TWIN_SPOT + "twin_spot_light.fbx") as PackedScene).instantiate()
-	var steel := StandardMaterial3D.new()
-	steel.albedo_texture = load(TWIN_SPOT + "body_albedo.png")
-	steel.normal_enabled = true
-	steel.normal_texture = load(TWIN_SPOT + "body_normal.png")
-	steel.roughness_texture = load(TWIN_SPOT + "body_rough.png")
-	steel.metallic = 1.0
-	steel.metallic_texture = load(TWIN_SPOT + "body_metal.png")
-	ResourceSaver.save(steel, TWIN_SPOT + "body.tres")
-	steel = load(TWIN_SPOT + "body.tres")
-	var centre := func(part: String) -> Vector3:
-		var mi: MeshInstance3D = scene.get_node(part)
-		var c := Vector3.ZERO
-		var v: PackedVector3Array = mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-		for p in v:
-			c += mi.transform * p
-		return c / v.size()
-	var bake := func(parts: Array, origin: Vector3, save_as: String) -> ArrayMesh:
-		var out := ArrayMesh.new()
-		for part: String in parts:
-			var mi: MeshInstance3D = scene.get_node(part)
-			var st := SurfaceTool.new()
-			st.begin(Mesh.PRIMITIVE_TRIANGLES)
-			st.append_from(mi.mesh, 0, Transform3D(Basis(), -origin) * mi.transform)
-			st.commit(out)
-			out.surface_set_material(out.get_surface_count() - 1, steel)
-		ResourceSaver.save(out, TWIN_SPOT + save_as + ".res")
-		return load(TWIN_SPOT + save_as + ".res")
-	var bottom := Vector3(-0.59, -1.004, 0.52)  # the box's bottom centre
-	var out := {"body": bake.call(["Cube_001", "Cube_003", "Cylinder_002", "Cylinder_004"], bottom, "body"), "heads": []}
-	for eye in [["Cylinder_002", "light frame", "light glass", "eye_a"], ["Cylinder_004", "light frame_001", "light glass_001", "eye_b"]]:
-		var swivel: Vector3 = centre.call(eye[0])
-		var glass: Vector3 = centre.call(eye[2])
-		out.heads.append({"mesh": bake.call([eye[1], eye[2]], swivel, eye[3]), "at": swivel - bottom,
-			"fwd": glass - centre.call(eye[1]), "lens": glass - swivel})
-	scene.free()
-	return out
-
-
 ## A steel lighting strut along z at `x`, bolted under the trusses' bottom chords from `z0` to
 ## `z1`: what the pendants hang from (2026-10-22: lamps hung on bare cords from nowhere).
 func strut(x: float, z0: float, z1: float) -> void:
@@ -1790,7 +1410,7 @@ func _aabb(n: Node, xf: Transform3D) -> AABB:
 	return out
 
 
-## Worn yellow floor paint: a keep-clear ring around the heap, walkway lines along the walls and
+## Worn yellow floor paint: walkway lines along the walls and
 ## the four spawn boxes; plus oil stains. Textures are drawn here once and saved lossless.
 func _markings() -> void:
 	var marks := Node3D.new()
@@ -1803,23 +1423,6 @@ func _markings() -> void:
 	wear.fractal_octaves = 5
 	var worn := func(x: float, y: float) -> float:  # 0..1 paint left
 		return smoothstep(-0.35, 0.15, wear.get_noise_2d(x, y))
-
-	# Ring: radius 9.6 m (heap 8.6 m + spill), 12 cm line and a thinner one 35 cm outside.
-	var ring_px := 1536
-	var ring_m := 20.4
-	var ring := _decal_tex("ring", ring_px, ring_px, func(img: Image) -> void:
-		var c := ring_px * 0.5
-		for y in ring_px:
-			for x in ring_px:
-				var r := Vector2(x - c, y - c).length() * ring_m / ring_px
-				var a := 0.0
-				if absf(r - 9.6) < 0.06:
-					a = 1.0
-				elif absf(r - 9.95) < 0.03:
-					a = 0.8
-				if a > 0.0:
-					img.set_pixel(x, y, Color(paint, a * worn.call(x * 1.0, y * 1.0))))
-	_decal(marks, ring, HEAP, 0.0, Vector3(ring_m, 1.0, ring_m))
 
 	var line := _decal_tex("line", 16, 2048, func(img: Image) -> void:
 		for y in 2048:
@@ -1839,11 +1442,6 @@ func _markings() -> void:
 					img.set_pixel(x, y, Color(paint, worn.call(x * 3.0, y * 3.0 + 400.0))))
 	for p in SPAWNS:
 		_decal(marks, box, p, 0.0, Vector3(1.6, 1.0, 1.6))
-	for i in CHEST_COUNT - 1:  # a painted square round each crate stand, clear of the widest plinth
-		_decal(marks, box, chest_pos(i), 0.0, Vector3(2.0, 0.2, 2.0))
-	# The final crate: a big square with a second one inside it, like a stage mark.
-	_decal(marks, box, chest_pos(CHEST_COUNT - 1), 0.0, Vector3(FINAL_SQUARE, 0.2, FINAL_SQUARE))
-	_decal(marks, box, chest_pos(CHEST_COUNT - 1), 0.0, Vector3(FINAL_SQUARE - 0.7, 0.2, FINAL_SQUARE - 0.7))
 
 	var spot := FastNoiseLite.new()
 	spot.seed = 5

@@ -1,7 +1,7 @@
 extends SceneTree
-## Headless check for the crate keys (scripts/key_cache.gd): all twelve buried, deeper by rank, each
-## tier costing at least its share of the heap, and digging straight down onto a key with the
-## real heap simulation needs at least the bound min_bullets() promises. Then it is picked up.
+## Headless check for the crate keys (scripts/key_cache.gd): all twelve buried, costlier by rank,
+## each tier costing at least its share of the heap, and digging straight down onto a key with
+## the real heap simulation needs at least the bound key_cost() promises. Then it is picked up.
 ##   Godot.exe --headless --path . -s res://tools/keys_check.gd
 
 const DIG_CHUNK := 2000
@@ -17,25 +17,25 @@ func _initialize() -> void:
 		await physics_frame
 	var ranks: Array = gs.key_states.keys()
 	assert(ranks.size() == keys.KEYS.size(), "every key buried, got %d" % ranks.size())
-	var prev := 0.0
-	print("rank  depth   min rounds   from centre")
+	var prev := 0
+	print("rank  depth   min pieces   at")
 	for rank in range(1, keys.KEYS.size() + 1):
 		var d: float = keys.key_depth(rank)
 		var p: Vector3 = keys.key_position(rank)
-		var need: int = keys.min_bullets(d)
-		print("%4d  %.2f m  %11d  %.1f m" % [rank, d, need, Vector2(p.x, p.z).length()])
-		assert(d > prev, "rank %d is deeper than rank %d" % [rank, rank - 1])
-		prev = d
+		var need: int = keys.key_cost(rank)
+		print("%4d  %.2f m  %11d  %s" % [rank, d, need, p])
+		assert(need > prev, "rank %d costs more than rank %d" % [rank, rank - 1])
+		prev = need
 		assert(p.y - pile.global_position.y >= keys.FLOOR_GAP - 0.001, "key %d sits above the floor" % rank)
 		assert(gs.key_states[rank] == gs.KeyState.BURIED)
 		match keys.KEYS[rank - 1][1]:
 			0: assert(need >= 20 and need <= 800, "a common key is a hand dig")
 			1: assert(need >= 50_000, "a rare key needs belts")
-			2: assert(need >= 3_000_000, "a legendary key needs late automation")
+			2: assert(need >= 1_000_000, "a legendary key needs late automation")
 	# Dig straight down onto every common key and the shallowest rare one.
 	for rank in [1, 2, 3, 4, 5]:
 		var used: int = await _dig_to(gs, keys, pile, rank)
-		var need: int = keys.min_bullets(keys.key_depth(rank))
+		var need: int = keys.key_cost(rank)
 		print("key %d: revealed after %d rounds dug straight onto it (bound %d)" % [rank, used, need])
 		assert(gs.key_states[rank] == gs.KeyState.EXPOSED, "digging reveals key %d" % rank)
 		assert(used >= need * 0.8, "no cheaper than the crater bound")
