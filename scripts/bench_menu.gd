@@ -84,6 +84,7 @@ var _parts_box: VBoxContainer
 var _pick_hint: Label
 var _cards := {}  # id -> {card, state, button, style}
 var _repair: Button  # mends the railing (GameState.request_repair_fence), its price on it
+var _revive: Array[Button] = []  # one per teammate down: "KALDIR <name> $N" (GameState.request_revive)
 
 
 func _ready() -> void:
@@ -119,6 +120,8 @@ func _ready() -> void:
 	GameState.fence_changed.connect(_refresh.unbind(1))
 	GameState.vault_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
+	for s: StringName in [&"player_downed", &"player_revived", &"wave_cue", &"player_slots"]:
+		GameState.connect(s, _refresh.unbind(1))
 
 
 ## Standing at the open bench, not busy with anything else (player.gd asks, then calls open).
@@ -477,6 +480,18 @@ func _build_ui() -> void:
 		if GameState.request_repair_fence() > 0:
 			_banner("Çit onarıldı"))
 	left.add_child(_repair)
+	# Raising a teammate who went down, once the wave is cleared (2026-10-31, the user's call: a
+	# revive point comes later; till then this row, temporary, docs/ayrintilar.md "Baygınlık").
+	for i in GameState.MAX_PLAYERS - 1:
+		var b := _gun_row("", "KALDIR")
+		b.disabled = false
+		b.visible = false
+		b.pressed.connect(func() -> void:
+			var who: int = b.get_meta("peer", 0)
+			if GameState.request_revive(who):
+				_banner(GameState.display_name(who) + " ayağa kalktı"))
+		left.add_child(b)
+		_revive.append(b)
 	# Right: gold, then the parts for the gun on the bench.
 	var right := VBoxContainer.new()
 	right.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
@@ -596,6 +611,14 @@ func _refresh() -> void:
 	var money := GameState.vault if GameState.team_vault() else float(GameState.gold)
 	_repair.text = "  ÇİT SAĞLAM" if price == 0 else "  ÇİTİ ONAR   $" + UiStyle.dotted(price)
 	_repair.disabled = price == 0 or money < GameState.FENCE_REPAIR_COST  # short of it all: as much as the money covers
+	var down: Array = GameState.everyone().filter(func(peer: int) -> bool: return peer != GameState.local_peer() and GameState.is_down(peer))
+	for i in _revive.size():
+		var b := _revive[i]
+		b.visible = i < down.size()
+		if b.visible:
+			b.set_meta("peer", down[i])
+			b.text = "  KALDIR %s   $%s" % [GameState.display_name(down[i]).to_upper(), UiStyle.dotted(GameState.revive_price())]
+			b.disabled = not GameState.revive_open() or money < GameState.revive_price()
 	for b: Button in _guns_box.get_children():
 		var on: bool = b.get_meta("id") == _on_bench
 		(b.get_theme_stylebox("normal") as StyleBoxTexture).modulate_color = ROW_ON if on else UiStyle.PLATE_GREY

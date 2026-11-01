@@ -182,6 +182,11 @@ const ADS_TIME := 0.18     # s to bring the sights up (and to drop them)
 const ADS_STEADY := 0.2    # share of sway, bob and breath left when aimed
 const ADS_RECOIL := 0.8    # share of the gun's kick when aimed (braced with both hands)
 const ADS_CLIPS := ["", "fire"]  # rest pose only: reloads and the draw drop the sights
+## Down the gun goes away: it dips around the wrist and sinks out of view, then hides;
+## the arms are one rig, so any pose that keeps them on screen leaves a hand hanging in the air.
+const LOW_ROT := Vector3(-0.5, 0.0, 0.15)  # euler (pitch, yaw, roll) at the bottom
+const LOW_POS := Vector3(0.0, -0.3, 0.05)  # m, down and a little back
+const LOW_TIME := 0.25  # s down, and back up
 const SHELL_POOL := 20
 const TINK_EVERY := Vector2i(10, 15)  # inside a burst, one shell clinks every this many
 const TINK_GAP := 1.5   # s without a shot before the next one counts as a lone shot
@@ -250,6 +255,8 @@ var _jelly_rot := Vector3.ZERO  # euler, rad
 var _jelly_rot_vel := Vector3.ZERO
 var _jelly_pos := Vector3.ZERO
 var _jelly_pos_vel := Vector3.ZERO
+var _low_lin := 0.0  # 0 up and live, 1 put away (down); linear
+var _lowered := 0.0  # the same, eased
 var _fall_speed := 0.0  # m/s down on the last airborne frame
 var aim_offset := Vector2.ZERO  # rad (yaw left, pitch up) the shot leaves the screen centre by
 var spread := 0.0  # rad, cone half-angle of the next shot
@@ -700,7 +707,12 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_since_fire += delta
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	if captured and _was_captured:
+	# Down (GameState.is_down): the gun goes away, and is only live again once it is all the way back up.
+	var lowered := GameState.is_down()
+	_low_lin = move_toward(_low_lin, 1.0 if lowered else 0.0, delta / LOW_TIME)
+	_lowered = smoothstep(0.0, 1.0, _low_lin)
+	var live := _low_lin == 0.0
+	if captured and _was_captured and live:
 		if Input.is_action_just_pressed("fire") or (Input.is_action_pressed("fire") and GameState.GUNS[maxi(gun, 0)].auto):
 			_want_fire = FIRE_BUFFER
 		# With special rounds in the pocket R is a tap or a hold: the tap reloads when let go, the
@@ -713,7 +725,7 @@ func _process(delta: float) -> void:
 				_want_reload = RELOAD_BUFFER
 			wheel_used = false
 	_was_captured = captured
-	var want_aim := captured and gun > 0 and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
+	var want_aim := captured and live and gun > 0 and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
 	if _kit.has("spin"):
 		_spin(delta, want_aim)
 	_cues()
@@ -763,7 +775,7 @@ func _wisp_follow() -> void:
 func _spin(delta: float, aim_held: bool) -> void:
 	var s: Dictionary = _kit.spin
 	var firing := _want_fire > 0.0 or Input.is_action_pressed("fire") and _was_captured
-	var turning := (firing or aim_held) and _clip in ADS_CLIPS
+	var turning := (firing or aim_held) and _clip in ADS_CLIPS and _low_lin == 0.0
 	if turning and spin == 0.0:
 		_spin_play(SPIN_START)
 	elif _spin_sound.stream == SPIN_LOOP and _spin_sound.playing and _since_fire > _interval() * 1.5:
@@ -1111,7 +1123,11 @@ func _sway_and_bob(delta: float) -> void:
 	# In the gun's own frame, around the wrist: when aimed the front post jumps above the notch.
 	var flip := Basis.from_euler(Vector3(RECOIL_PITCH, RECOIL_YAW * _kick_yaw, RECOIL_ROLL * _kick_roll) * kick)
 	var recoil := Transform3D(flip, _pivot - flip * _pivot + Vector3(0.0, RECOIL_UP, RECOIL_BACK) * kick)
-	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _ads_pos * aim + _base) * jelly * recoil
+	# Put away when down: the muzzle dips and the whole rig sinks below the screen.
+	visible = _lowered < 0.98
+	var lb := Basis.from_euler(LOW_ROT * _lowered)
+	var low := Transform3D(lb, _pivot - lb * _pivot + LOW_POS * _lowered)
+	transform = Transform3D(Basis(Quaternion.IDENTITY.slerp(_ads_rot, aim)), _ads_pos * aim + _base) * low * jelly * recoil
 
 
 ## Spring frequency: settles (to ~2%) in RECOIL_SETTLE, or before the next shot if that is sooner.
