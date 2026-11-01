@@ -6,7 +6,6 @@
 [ext_resource type="Script" uid="uid://c3qi8avw68ne" path="res://scripts/impacts.gd" id="5"]
 [ext_resource type="Script" uid="uid://jawpgbuga7s7" path="res://scripts/key_cache.gd" id="13"]
 [ext_resource type="Script" uid="uid://p8fuybjj7fx" path="res://scripts/remote_players.gd" id="14"]
-[ext_resource type="Script" uid="uid://bxkg3gqpjicie" path="res://scripts/placement.gd" id="15"]
 [ext_resource type="Script" uid="uid://0sa05q7tkj15" path="res://scripts/chests.gd" id="16"]
 [ext_resource type="Script" uid="uid://xmutge1jb124" path="res://scripts/ambience.gd" id="ambience"]
 [ext_resource type="Script" path="res://scripts/waves.gd" id="waves"]
@@ -26,9 +25,6 @@ script = ExtResource("16")
 
 [node name="Player" parent="." unique_id=5293025 instance=ExtResource("3")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
-
-[node name="Placed" type="Node3D" parent="." unique_id=1515942774]
-script = ExtResource("15")
 
 [node name="Impacts" type="Node3D" parent="." unique_id=186312426]
 script = ExtResource("5")

@@ -19,25 +19,6 @@ scale_min = 0.4
 scale_max = 1.2
 color_ramp = SubResource("dust_ramp_tex")
 
-[sub_resource type="Gradient" id="burlap_ramp"]
-offsets = PackedFloat32Array(0, 0.1, 1)
-colors = PackedColorArray(0.72, 0.64, 0.5, 1, 0.68, 0.6, 0.47, 0.9, 0.65, 0.58, 0.46, 0)
-
-[sub_resource type="GradientTexture1D" id="burlap_ramp_tex"]
-gradient = SubResource("burlap_ramp")
-
-[sub_resource type="ParticleProcessMaterial" id="burlap_process"]
-direction = Vector3(0, 1, 0)
-spread = 28.0
-initial_velocity_min = 1.0
-initial_velocity_max = 3.2
-gravity = Vector3(0, -9.8, 0)
-damping_min = 2.5
-damping_max = 5.0
-scale_min = 0.4
-scale_max = 1.2
-color_ramp = SubResource("burlap_ramp_tex")
-
 [sub_resource type="StandardMaterial3D" id="mote_mat"]
 transparency = 1
 vertex_color_use_as_albedo = true
@@ -106,31 +87,6 @@ roughness = 1.0
 material = SubResource("chip_mat")
 size = Vector3(0.008, 0.005, 0.007)
 
-[sub_resource type="ParticleProcessMaterial" id="straw_process"]
-particle_flag_rotate_y = true
-direction = Vector3(0, 1, 0)
-spread = 55.0
-initial_velocity_min = 1.0
-initial_velocity_max = 2.6
-gravity = Vector3(0, -4.0, 0)
-damping_min = 1.0
-damping_max = 2.0
-angle_min = -180.0
-angle_max = 180.0
-angular_velocity_min = -360.0
-angular_velocity_max = 360.0
-scale_min = 0.6
-scale_max = 1.4
-
-[sub_resource type="StandardMaterial3D" id="straw_mat"]
-albedo_color = Color(0.82, 0.7, 0.4, 1)
-roughness = 0.9
-cull_mode = 2
-
-[sub_resource type="BoxMesh" id="straw_mesh"]
-material = SubResource("straw_mat")
-size = Vector3(0.0015, 0.035, 0.0015)
-
 [node name="ImpactFx" type="Node3D"]
 
 [node name="Dust" type="GPUParticles3D" parent="."]
@@ -165,25 +121,3 @@ explosiveness = 1.0
 local_coords = false
 process_material = SubResource("chip_process")
 draw_pass_1 = SubResource("chip_mesh")
-
-[node name="Burlap" type="GPUParticles3D" parent="."]
-emitting = false
-amount = 40
-lifetime = 0.7
-one_shot = true
-explosiveness = 1.0
-randomness = 0.4
-local_coords = false
-cast_shadow = 0
-process_material = SubResource("burlap_process")
-draw_pass_1 = SubResource("mote_quad")
-
-[node name="Straw" type="GPUParticles3D" parent="."]
-emitting = false
-amount = 9
-lifetime = 1.4
-one_shot = true
-explosiveness = 1.0
-local_coords = false
-process_material = SubResource("straw_process")
-draw_pass_1 = SubResource("straw_mesh")

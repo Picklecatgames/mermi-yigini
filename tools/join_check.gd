@@ -2,16 +2,16 @@ extends SceneTree
 ## Headless check for joining mid-game and coming back (yol haritası 8), two processes:
 ##   Godot.exe --headless --path . -s res://tools/join_check.gd
 ## Before anyone joins, the host changes the world: digs the heap, takes a loose bullet, throws
-## three, takes a key and knocks the popper over. The client joins and must see all of it: the
-## same heights, that bullet gone, the thrown ones there, the key taken, the popper down. Then it
-## grabs bullets, leaves, joins again and must have them back in hand.
+## three, takes a key, claws the railing and fills the vault. The client joins and must see all of
+## it: the same heights, that bullet gone, the thrown ones there, the key taken, the railing and the
+## vault as the host has them. Then it grabs bullets, leaves, joins again and must have them back in hand.
 
 const PORT := 24692  # not Net.PORT or net_check's
 const LOG := "user://join_check_client.log"
 const WORLD := "user://join_check_client.json"
 const LOOSE := 7  # a starting spill bullet the host takes
-const DUMMY_AT := Vector3(22, 0, 15)   # gear the host puts up before anyone joins
-const POPPER_AT := Vector3(22, 0, 8)   # and the joiner puts up
+const CLAWED := 30  # railing points the host loses before anyone joins
+const VAULT := 200.0
 
 var gs: Node
 var net: Node
@@ -21,7 +21,6 @@ var _log: Array[String] = []
 
 func _initialize() -> void:
 	main = load("res://scenes/main.tscn").instantiate()
-	main.add_child(load("res://scenes/test_range.tscn").instantiate())  # the six fixed targets; the game starts with one dummy
 	root.add_child(main)
 	gs = root.get_node("GameState")
 	net = root.get_node("Net")
@@ -46,16 +45,8 @@ func _host() -> void:
 		if not _ok(gs.request_throw(top + Vector3(0, 1.5, 3.0), Vector3(0, 0.3, 1).normalized()) == 1, "host throws it"): return
 	var keys: Node = main.get_node("Keys")
 	if not _ok(gs.request_reveal_key(1, keys._pos[1]) and gs.request_take_key(1), "host takes key 1"): return
-	var popper: Node = main.get_node("LockedTargets/PopperNorth")
-	popper._on_cue(popper, [&"down"])
-	# Gear (yol haritası 10): buy a dummy and a popper, put the dummy up; the joiner places the popper.
-	gs.vault = 200.0
-	gs.quest_board.fill("")  # past the warmup: all the gear open
-	if not _ok(gs.request_buy_gear("dummy") and gs.request_buy_gear("popper"), "host buys a dummy and a popper"): return
-	if not _ok(not gs.request_place_gear("dummy", Vector3(10, 0, 15), -PI / 2), "no gear on the shooters' side"): return
-	if not _ok(gs.request_place_gear("dummy", DUMMY_AT, -PI / 2), "host puts the dummy up"): return
-	if not _ok(not gs.request_place_gear("popper", DUMMY_AT + Vector3(0.5, 0, 0), -PI / 2), "no gear on top of other gear"): return
-	if not _ok(main.has_node("Placed/Gear_0") and main.get_node("Placed/Gear_0").is_in_group("target"), "the dummy stands, as a target"): return
+	gs.hurt_fence(CLAWED, 5.0)
+	gs.vault = VAULT
 	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty() and pile._awake.is_empty(), "the host's heap and throw to settle"): return
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
@@ -75,8 +66,6 @@ func _host() -> void:
 	if OS.get_process_exit_code(pid) != 0:
 		return _fail("client side failed")
 	if not _ok(gs._saved.size() == 1 and gs._token_of.is_empty(), "the client's state waits under its token"): return
-	var put: Node3D = main.get_node_or_null("Placed/Gear_1")
-	if not _ok(put != null and put.global_position.distance_to(POPPER_AT) < 0.01 and gs.gear_stock.popper == 0, "the client's popper stands here too, out of the stock"): return
 	print("join_check OK")
 	quit()
 
@@ -86,17 +75,14 @@ func _client() -> void:
 	if not await _until(func() -> bool: return net.is_client and gs.synced() and gs._sent_seq > 0, "connect and hello"): return
 	var pile: Node = main.get_node("Pile")
 	var keys: Node = main.get_node("Keys")
-	var popper: Node = main.get_node("LockedTargets/PopperNorth")
 	if not await _until(func() -> bool: return gs.key_states.get(1) == gs.KeyState.TAKEN, "key 1 taken"): return
 	if not _ok(not keys._shown.has(1), "key 1 is not lying on the heap"): return
 	if not _ok(not pile._id_index.has(LOOSE) and gs._taken_loose.has(LOOSE), "loose bullet %d is gone" % LOOSE): return
 	var thrown: int = pile._spill_id.count(gs.THROWN_ID_START) + pile._spill_id.count(gs.THROWN_ID_START + 1) + pile._spill_id.count(gs.THROWN_ID_START + 2)
 	if not _ok(thrown == 3, "the three thrown bullets lie here too (%d)" % thrown): return
-	if not _ok(popper.is_down(), "the popper is down"): return
-	if not await _until(func() -> bool: return main.has_node("Placed/Gear_0"), "the host's placed dummy"): return
-	if not _ok((main.get_node("Placed/Gear_0") as Node3D).global_position.distance_to(DUMMY_AT) < 0.01 and gs.gear_stock.get("popper") == 1, "the dummy stands where the host put it; a popper in stock"): return
-	if not _ok(gs.request_place_gear("popper", POPPER_AT, -PI / 2), "we ask to put the popper up"): return
-	if not await _until(func() -> bool: return main.has_node("Placed/Gear_1"), "our popper, once the host lets it up"): return
+	if not _ok(gs.fence == gs.FENCE_MAX - CLAWED and gs.fence_wear.reduce(func(a: int, b: int) -> int: return a + b, 0) == CLAWED,
+			"the railing is clawed down here too (%d)" % gs.fence): return
+	if not _ok(is_equal_approx(gs.vault, VAULT), "the vault holds what the host's does ($%d)" % gs.vault): return
 	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty(), "the heap to settle"): return
 	var host: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(WORLD))
 	var h: PackedFloat32Array = Marshalls.base64_to_raw(host.heights).to_float32_array()

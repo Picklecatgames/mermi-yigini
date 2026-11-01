@@ -1,8 +1,0 @@
-[gd_scene format=3]
-
-[ext_resource type="Script" path="res://scripts/texas_star.gd" id="1"]
-[ext_resource type="AudioStreamRandomizer" path="res://assets/props/steel_targets/sounds/light.tres" id="2"]
-
-[node name="TexasStar" type="StaticBody3D"]
-script = ExtResource("1")
-hit_sound = ExtResource("2")

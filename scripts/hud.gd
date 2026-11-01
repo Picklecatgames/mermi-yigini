@@ -10,10 +10,10 @@ extends Control
 ## saying what to do; a done one turns green with its tick and reward and waits to be claimed at the
 ## board (E there), then folds away and the next one comes in. Kept short: the screen is for the
 ## heap. During the warmup the quest list stays away: what to do now is one key and a few words at
-## the bottom, over the guns, and the rest of the screen comes in as it is learnt (Q blinks while
-## the dummy waits to be bought); arrows point at the pistol and the heap while they are the next
-## thing. Something just opened gets a line under the heap and, like the board while a reward waits
-## there, an arrow pointing the way (Reveal). say() puts a line of story at the bottom for a while.
+## the bottom, over the guns, and the rest of the screen comes in as it is learnt; arrows point at
+## the pistol and the heap while they are the next thing. Something just opened gets a line under
+## the heap and, like the board while a reward waits there, an arrow pointing the way (Reveal).
+## say() puts a line of story at the bottom for a while.
 ## Top centre, once there are waves: the railing's life (GameState.fence), a fence and a gauge; the
 ## wave lost, the screen says so and darkens until the same wave waits again (scripts/waves.gd).
 ## Listens to GameState itself.
@@ -29,10 +29,10 @@ const HEAP_W := 200.0  # px, the heap's bar
 const MONEY := UiStyle.MONEY  # kept for older callers
 const QUEST_W := 230.0  # px, a quest's bar
 const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Yığından mermi taşı",
-	"bullets_fired": "Mermi ateşle", "hits": "Hedefe isabet", "weak_hits": "Kafa isabeti",
+	"bullets_fired": "Mermi ateşle", "hits": "Zombiye isabet", "weak_hits": "Kafa isabeti",
 	"combo": "Kombo zinciri", "crafted": "Preste pirinç işle", "bullets_melted": "Mermi erit",
 	"key_found": "Anahtar bul", "loaded": "Şarjöre mermi koy", "board_claim": "Panoya git", "bench_bought": "Tezgâhta geliştirme al",
-	"gear_bought": "Teçhizat al", "gear_placed": "Teçhizat yerleştir", "gun_taken": "Tabancayı al"}
+	"gun_taken": "Tabancayı al"}
 ## What a quest's `with`, `unlock`, part and perk are called on screen; guns use their GUNS name.
 const NAMES := {"clone": "Klon", "obur": "Obur", "sekme": "Sekme", "yanki": "Yankı",
 	"workbench": "Tezgâh", "bucket": "Kova", "blueprints": "Tarif panosu", "hand_press": "Pres",
@@ -93,7 +93,7 @@ func _ready() -> void:
 	_build_quests()
 	_build_fence()
 	add_child(StyleRank.new())  # the style rank on the left (style_rank.gd)
-	for s: StringName in [&"pile_changed", &"carried_changed", &"loaded_changed", &"gold_changed", &"vault_changed", &"specials_changed", &"placing_changed"]:
+	for s: StringName in [&"pile_changed", &"carried_changed", &"loaded_changed", &"gold_changed", &"vault_changed", &"specials_changed"]:
 		GameState.connect(s, func(_a = null) -> void: refresh())
 	GameState.upgraded.connect(refresh.unbind(2))
 	GameState.gun_changed.connect(refresh.unbind(2))
@@ -691,7 +691,6 @@ func refresh() -> void:
 		gun.get_child(1).modulate.a = 1.0 if on else 0.0  # the underline
 		gun.get_child(0).get_child(1).visible = on  # the others are only their key
 		gun.modulate.a = 1.0 if on else (0.5 if GameState.gun_open(i + 1) else 0.22)
-	_guns.get_parent().visible = not p.placing  # placement keeps its keys here
 	var can := GameState.UPGRADES.keys().any(func(id: String) -> bool:  # Q's, not the bench's
 		var costs: Array = GameState.UPGRADES[id].costs
 		if GameState.UPGRADES[id].get("bench", false):
@@ -700,7 +699,7 @@ func refresh() -> void:
 	_can_buy.visible = false
 	_test.visible = GameState.infinite_ammo
 	# The warmup opens the screen bit by bit: gold with the bench once the pistol is taken, the hand
-	# and guns once a bullet was (GameState QUESTS t00, t03).
+	# and guns once a bullet was (GameState QUESTS t00, t01).
 	_left.visible = _shown("hud_ammo")
 	_guns.visible = _shown("hud_ammo")
 	_right.visible = _shown("workbench")

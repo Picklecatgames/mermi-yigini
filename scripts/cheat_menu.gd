@@ -59,7 +59,7 @@ func _input(event: InputEvent) -> void:
 
 func toggle() -> void:
 	visible = not visible
-	var busy: bool = GameState.player().placing
+	var busy := false
 	for menu: String in ["UpgradeMenu", "BenchMenu", "BoardMenu", "MelterMenu", "PressMenu"]:  # as pause_menu.gd's _may_open
 		for n in get_tree().root.find_children(menu, "CanvasLayer", true, false):
 			busy = busy or (n as CanvasLayer).visible

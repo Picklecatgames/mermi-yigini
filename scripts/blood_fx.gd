@@ -57,8 +57,7 @@ static func wall(world: Node, at: Vector3, dir: Vector3, rng: RandomNumberGenera
 	var space := fx.get_world_3d().direct_space_state
 	var q := PhysicsRayQueryParameters3D.create(at, at + dir.normalized() * reach, WALL_MASK)
 	var hit := space.intersect_ray(q)
-	if hit.is_empty() or not hit.collider is StaticBody3D or hit.collider.has_meta("zombie") \
-			or (hit.collider as Node).is_in_group("target"):
+	if hit.is_empty() or not hit.collider is StaticBody3D or hit.collider.has_meta("zombie"):
 		return
 	var n: Vector3 = hit.normal
 	if n.y > 0.7:  # the floor: the zombie's own floor marks do that

@@ -106,14 +106,14 @@ func _initialize() -> void:
 	gs._event(&"quests_changed", [host_board, host_progress, host_ready])
 	_ok(gs.quest_board == host_board and gs.quest_progress == host_progress and Array(gs.quests_done) == host_done 		and Array(gs.quests_ready) == host_ready, "the events carry the whole board")
 
-	# The hooks: a grab, a shot, a bonus and a key each count on a quest of their kind.
+	# The hooks: a grab, a shot, a paying hit and a key each count on a quest of their kind.
 	for hook: Array in [["bullets_carried", func() -> void: gs.request_pick_up(Vector3.ZERO, 1)],
 			["bullets_fired", func() -> void:
 				gs.player().gun = 1
 				gs.player().loaded = 1
 				gs.player().cooldown = 0.0
 				gs.request_fire(Vector3(0, 50, 0), Vector3.UP)],  # into the sky: a miss still counts as fired
-			["gold_earned", func() -> void: gs.pay_bonus(gs.local_peer(), null, 1)],
+			["gold_earned", func() -> void: gs.quest_hit([], false, 1, 1)],
 			["key_found", func() -> void:
 				gs.key_states[1] = gs.KeyState.EXPOSED
 				gs.request_take_key(1)]]:

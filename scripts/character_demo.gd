@@ -5,7 +5,7 @@ extends Node3D
 ## gun, the look pitch, reloads, shots, jumps. K puts on the next character (arms and body), L opens
 ## the pick screen (character_pick.gd) as at the start, Shift+K closes it.
 
-const PEER := 990002  # nobody's id (special_demo.gd has 990001)
+const PEER := 990002  # nobody's id
 const GAP := 5.0  # m in front of us, at the start
 const NEAREST := 1.2  # m it keeps off us when we walk into the mirror
 

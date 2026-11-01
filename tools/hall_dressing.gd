@@ -9,7 +9,7 @@ extends RefCounted
 ##     battery, green exit signs.
 ##   The crew: a camp in the north-west corner (container office, desk, stove, generator), their
 ##     covered car by the jammed loading door in the south wall, cables back to the generator.
-##     The belt band east of the heap (x -3..14) and the placement zones stay clear on the floor;
+##     The belt band east of the heap (x -3..14) stays clear on the floor;
 ##     what hangs overhead goes on the overhead layer.
 
 const MODELS := "res://assets/env/models/"
@@ -722,7 +722,7 @@ func _lamp(at: Vector3, out: Vector3, colour: Color, energy: float) -> void:
 # --- overhead -----------------------------------------------------------------------------------
 
 ## The 8 m of air: cables sagging between the trusses, chain hoists left hanging. All on the
-## overhead layer (the placement view looks past it).
+## overhead layer.
 func _overhead() -> void:
 	var over := Node3D.new()
 	over.name = "Overhead"

@@ -150,8 +150,6 @@ func open() -> void:
 	_fade.tween_property(_ui, "modulate:a", 1.0, 0.35).set_delay(FLY_TIME * 0.5)
 	_show_parts(false)
 	_refresh()
-	if GameState.warming() and GameState.QUESTS[GameState.quest_board[0]].kind == "gear_bought":
-		get_parent().get_node("UpgradeMenu").open_tab.call_deferred(1)  # the warmup's dummy: straight to the gear
 
 
 func close() -> void:
@@ -464,15 +462,14 @@ func _build_ui() -> void:
 	left.add_child(_guns_box)
 	for g: Array in GUNS:
 		_guns_box.add_child(_gun_row(g[0], g[1]))
-	# What the Q menu was (scripts/upgrade_menu.gd): the player's own upgrades and the gear, opened
-	# over the bench (2026-10-28, the user's call: everything is bought here).
+	# What the Q menu was (scripts/upgrade_menu.gd): the player's own upgrades, opened over the
+	# bench (2026-10-28, the user's call: everything is bought here).
 	left.add_child(UiStyle.line(260))
-	for t: Array in [[0, "GELİŞTİRMELER"], [1, "TEÇHİZAT"]]:
-		var b := _gun_row("", t[1])
-		b.text = "  " + t[1]
-		b.disabled = false
-		b.pressed.connect(func() -> void: get_parent().get_node("UpgradeMenu").open_tab(t[0]))
-		left.add_child(b)
+	var upgrades := _gun_row("", "GELİŞTİRMELER")
+	upgrades.text = "  GELİŞTİRMELER"
+	upgrades.disabled = false
+	upgrades.pressed.connect(func() -> void: get_parent().get_node("UpgradeMenu").open_tab(0))
+	left.add_child(upgrades)
 	# The railing is mended here (2026-10-31, the user's call: at the workshop bench, not the desk).
 	_repair = _gun_row("", "ÇİTİ ONAR")
 	_repair.disabled = false

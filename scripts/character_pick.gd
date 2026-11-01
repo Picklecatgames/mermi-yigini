@@ -177,8 +177,7 @@ func _set_open(on: bool) -> void:
 		_refresh()
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif is_inside_tree():
-		var p = GameState.player()
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if p and p.placing else Input.MOUSE_MODE_CAPTURED
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 ## Whose each card is now: someone else's is shut, with their tag in their colour.

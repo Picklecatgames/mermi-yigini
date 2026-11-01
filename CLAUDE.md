@@ -4,7 +4,7 @@ Godot 4, 3D FPS, 4 kişilik co-op incremental oyun. Ortada 100M mermilik yığı
 
 ## Oyun özeti
 
-- Yığından mermi al, şarjöre koy, korkuluğun (x = 14) arkasındaki hedeflere ateş et; isabet = $ (kafa ×2). Q menüsünde kişisel geliştirmeler ve takım teçhizatı, B yerleştirme modu.
+- Yığından mermi al, şarjöre koy, korkuluğun (x = 14) ötesinden gelen zombilere ateş et; isabet = $ (kafa ×2). Tezgâhta kişisel geliştirmeler ve çit onarımı.
 - Silahlar: yumruk → Deagle → UZI (3. kasa) → Scorpion (6. kasa) → Minigun (12. kasa). 12 anahtar yığına gömülü, her biri bir kasa açar; demoda ilk 6 kasa açılır.
 - Hiçbir mekanik yığına mermi eklemez; modifiyeler yalnız gold'u çarpar.
 

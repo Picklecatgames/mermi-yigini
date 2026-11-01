@@ -46,7 +46,7 @@ func _initialize() -> void:
 			break
 		await create_timer(0.05).timeout
 	_ok(me._viewmodel.clip == "draw", "drawn with its animation (%s)" % me._viewmodel.clip)
-	_ok("t00" in gs.quests_done and gs.quest_board[0] == "t01", "the warmup moves on to buying a dummy")
+	_ok("t00" in gs.quests_done and gs.quest_board[0] == "t01", "the warmup moves on to the heap")
 	_ok(me._hud._subtitle.visible, "the heap's line is said at the bottom")
 	await create_timer(2.5).timeout
 	_ok(not is_instance_valid(table), "the desk faded out and is gone")
@@ -54,13 +54,7 @@ func _initialize() -> void:
 	await create_timer(4.0).timeout
 	_ok(gs.unlocked("workbench") and not me._hud._q.visible, "the bench is open (no Q: everything is bought there)")
 	_ok(not me._hud._sheet.visible, "the quest list waits for the board")
-	# The gear at the bench, only the straw dummy open; the gold buys exactly it, then it goes up.
-	_ok(gs.gold == gs.GEAR.dummy.cost, "we start with a dummy's price ($%d)" % gs.gold)
-	_ok(not gs.request_buy_gear("popper"), "the rest of the gear is locked")
-	_ok(gs.request_buy_gear("dummy") and gs.gold == 0 and gs.quest_board[0] == "t02", "the dummy is bought, on to placing it")
-	_ok(gs.request_place_gear("dummy", Vector3(23, 0, 0), 0.0) and gs.quest_board[0] == "t03", "placed, on to the heap")
-	if gs.player().placing:
-		gs.request_toggle_placing()
+	_ok(gs.gold == gs.START_GOLD, "we start with $%d" % gs.gold)
 	# The heap: from its foot, walk straight in for 3 s.
 	me.global_position = HEAP + Vector3(9.5, 0.2, 0.0)
 	me._yaw = PI / 2.0  # looking -x, at the middle

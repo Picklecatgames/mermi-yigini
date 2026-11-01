@@ -3,8 +3,8 @@ extends SceneTree
 ##   Godot.exe --headless --path . -s res://tools/quest_sim.gd
 ##   ... -- --sweep    tries quest_scale values for 2-4 players instead
 ##   ... -- --fit      one mid player: when each quest was pinned and done, for tuning targets
-## 1-4 bots of three skills play the demo against the real GameState: its quests, upgrades, gear,
-## pay (hit_pay) and quest hooks (quest_add, quest_hit). What the game doesn't have yet (carrying
+## 1-4 bots of three skills play the demo against the real GameState: its quests, upgrades,
+## pay (hit_pay, $1 a zombie hit before the multipliers) and quest hooks (quest_add, quest_hit). What the game doesn't have yet (carrying
 ## tools, recipes, the melter) the bots get from the tables below: the sim's own guesses until those
 ## mechanics are built. No physics: a shot hits by the bot's odds, a trip to the heap takes a time.
 ## Prints, per run: when each quest was done, when each thing opened and the longest wait between
@@ -42,14 +42,11 @@ const BLUEPRINTS := {"dual_pistol": 3, "obur": 2, "sekme": 2, "yanki": 3}  # pie
 const MELT_RATE := [20.0, 60.0]
 const MELT_GOLD := [0.2, 0.5]
 const MELT_WALK := 6.0
-## Gear the vault buys, in this order, and what a hit on it pays; the bots shoot the best one.
-const TARGETS := [["popper", 3], ["steel_rack", 4], ["plate_rack", 7], ["gold_dummy", 10], ["texas_star", 12]]
 ## Bullets off the heap by the time the bots have dug out each key (the common ones lie shallow,
 ## scripts/key_cache.gd); the sim's guess, since its bots dig nowhere in particular.
 const KEY_AT := [400, 1200, 2500, 5000, 8000, 60000, 150000]
 const DUMB_ORDER := ["gold_bonus", "range_bonus", "combo_cap", "magazine", "carry"]
 const BEHIND := 1.0  # m behind the railing they stand
-const PLACE_TIME := 12.0  # s: the heap's line, Q, buying the dummy and walking it into place
 ## Targets: main chain done in these minutes for one mid player, and at least this for four;
 ## no wait between two unlocks longer than this.
 const SOLO := Vector2(55, 65)
@@ -135,7 +132,6 @@ func _run(n: int, skill: String, rng_seed: int) -> Dictionary:
 	gs._players.clear()
 	gs.pile = gs.PILE_START
 	gs.vault = 0.0
-	gs.gear_stock = {}
 	gs.slots = {}
 	for i in n:
 		gs.slots[i + 1] = i
@@ -177,8 +173,7 @@ func _run(n: int, skill: String, rng_seed: int) -> Dictionary:
 	var rates := []  # bullets/s, per minute
 	var removed60 := 0
 	var stats := {"used": 0.0}
-	var base := [1]  # what a hit on the best target pays
-	var next_target := 0
+	var base := [1]  # what a zombie hit pays
 	var keys := 0  # found so far
 	var mains: Array = gs.QUESTS.keys().filter(func(id: String) -> bool: return gs.QUESTS[id].tier == "main")
 	while clock[0] < MINUTES * 60.0 and not (done.has(mains[-1]) and clock[0] >= 3600.0):  # at least the hour
@@ -206,10 +201,6 @@ func _run(n: int, skill: String, rng_seed: int) -> Dictionary:
 		if keys < KEY_AT.size() and gs.PILE_START - gs.pile >= KEY_AT[keys]:
 			keys += 1
 			gs.quest_add("key_found", 1)
-		if next_target < TARGETS.size() and gs.vault >= gs.GEAR[TARGETS[next_target][0]].cost:
-			gs.request_buy_gear(TARGETS[next_target][0], bots[0].peer)
-			base[0] = TARGETS[next_target][1]
-			next_target += 1
 		clock[0] += DT
 		if fmod(clock[0], 60.0) < DT * 0.5:
 			rates.append((stats.used - used_min) / 60.0)
@@ -232,10 +223,6 @@ func _act(b: Bot, t: float, base: int, stats: Dictionary, melt: Callable) -> flo
 	if not p.has_pistol:  # off the desk at the spawn first
 		gs.request_take_pistol(b.peer)
 		return RELOAD
-	if gs.quest_board[0] != "" and gs.QUESTS[gs.quest_board[0]].kind == "gear_bought":  # the warmup's dummy: Q, buy, put up
-		gs.request_buy_gear("dummy", b.peer)
-		gs.quest_add("gear_placed", 1)
-		return PLACE_TIME
 	var guns: Array = GUN_STEPS.filter(func(g: Array) -> bool: return g[1] == "" or gs.unlocked(g[1]))
 	var gun: Array = guns[-1]
 	for g: Array in guns:  # a pinned quest asks for this gun: take it, as a player would

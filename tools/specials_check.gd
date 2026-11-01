@@ -114,49 +114,6 @@ func _initialize() -> void:
 	for i in 80:
 		await physics_frame
 	assert(vm_cam.get_child_count() == before, "and gone after the scare")
-	# The test area (N): a stand-in teammate we shoot, who can shoot us.
-	for i in 600:  # back on the floor (the balloon takes ~8 s)
-		await physics_frame
-		if me.is_on_floor():
-			break
-	me._toggle_demo(true)
-	var demo: Node = me.get_parent().get_node("SpecialDemo")
-	assert(p.specials.size() == gs.SPECIALS.size() * demo.EACH, "pocket full of every special")
-	for i in 60:  # it drops onto the floor, and is drawn there
-		await physics_frame
-	var others: Node = get_first_node_in_group("remote_players")
-	var mate: Node3D = others.character(demo.PEER)
-	assert(mate != null and mate.visible, "the stand-in is drawn like a teammate")
-	var aim := func() -> Vector3:
-		return (mate.global_position + Vector3.UP * 1.0 - (me.global_position + Vector3.UP * 1.6)).normalized()
-	var mate_start: Vector3 = demo._body.global_position
-	gs.request_arm_special("punch")
-	p.cooldown = 0.0
-	assert(gs.request_fire(me.global_position + Vector3.UP * 1.6, aim.call()), "fires at the stand-in")
-	for i in 30:
-		await physics_frame
-	print("stand-in punched: %.1f m/s, %.1f m up" % [demo._shove.length(), demo._body.global_position.y - mate_start.y])
-	assert(demo._shove.length() > 10.0, "our punch round throws the stand-in")
-	for i in 150:
-		await physics_frame
-	demo._body.global_position = mate_start  # back in front of us
-	for i in 20:
-		await physics_frame
-	gs.request_arm_special("balloon")
-	p.cooldown = 0.0
-	gs.request_fire(me.global_position + Vector3.UP * 1.6, aim.call())
-	await physics_frame
-	assert(mate.get_node_or_null("Balloons") != null and demo._balloon > 0.0, "the stand-in goes up under balloons")
-	var y0 := me.global_position.y
-	gs.request_arm_special("balloon")
-	demo.shoot_us()
-	for i in 60:
-		await physics_frame
-	assert(me.global_position.y - y0 > 0.5 and p.specials.count("balloon") == demo.EACH - 1, "J: its balloon round lifts us; ours is not spent")
-	var mate_peer: int = demo.PEER
-	me._toggle_demo(false)
-	await process_frame
-	assert(others.character(mate_peer) == null, "closing it takes the stand-in away")
 	# The ammo wheel (hold R): plain round first, then each kind in the pocket; sideways picks,
 	# letting go loads it as the next shot. A new special brings up its note.
 	var wheel: Control = me._wheel
