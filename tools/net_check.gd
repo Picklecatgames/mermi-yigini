@@ -206,7 +206,7 @@ func _client() -> void:
 	# From the heap.
 	if not _ok(gs.request_pick_up(HEAP + Vector3(0, 1, 0), 1) == 1, "heap grab predicted"): return
 	if not await _until(gs.synced, "answer to the heap grab"): return
-	if not _ok(gs.carried == 1 and gs.pile == gs.PILE_START - 2 - DUG, "host agrees: in hand, pile down"): return
+	if not _ok(gs.carried == 1 and gs.pile == gs.PILE_START - 2 - DUG, "host agrees: in hand, pile down (carried %d, pile %d short)" % [gs.carried, gs.PILE_START - gs.pile]): return
 	if not _ok(gs.request_reload() == 1, "reload"): return
 	if not await _until(gs.synced, "answer to the reload"): return
 	if not _ok(gs.loaded == 1 and gs.carried == 0, "round in the gun"): return
