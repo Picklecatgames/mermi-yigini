@@ -36,6 +36,8 @@ const MODELS := {
 	&"fleshzombie": preload("res://assets/characters/zombies/fleshzombie/fleshzombie.scn"),
 	&"hazmat": preload("res://assets/characters/zombies/hazmat/hazmat.scn"),
 	&"bloater": preload("res://assets/characters/zombies/bloater/bloater.scn"),
+	&"leaper": preload("res://assets/characters/zombies/leaper/leaper.scn"),  # no legs: its tail is the right leg
+	&"spiker": preload("res://assets/characters/zombies/spiker/spiker.scn"),
 }
 ## Not Mixamo: its scene, the skeleton and the node the squash moves (paths in the scene), which bone
 ## stands in for "Head" / "Hips" in attach(), its height in m at size 1 (0: as modelled), whether it
@@ -389,12 +391,12 @@ func limb_at(at: Vector3, dir: Vector3) -> StringName:
 	return best
 
 
-## Whether `part` is still there to come off: a Mixamo rig (not a brute's legs, it has no crawl),
-## and neither it nor the limb it hangs from gone.
+## Whether `part` is still there to come off: a Mixamo rig (not a brute's legs, it has no crawl;
+## not the leaper's, it has a tail), and neither it nor the limb it hangs from gone.
 func can_lose(part: StringName) -> bool:
 	if CREATURES.has(model) or part in cuts or LOWER.get(part, &"") in cuts:
 		return false
-	return kind != &"brute" or not is_leg(part)
+	return (kind != &"brute" and model != &"leaper") or not is_leg(part)
 
 
 static func is_leg(part: StringName) -> bool:

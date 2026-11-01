@@ -213,7 +213,8 @@ const BONE_SHAPES := [
 ## Traits: armor (a round anywhere but the head does ARMOR of its damage), mask (a head shot only
 ## MASK_HEAD, never blows it off), regen (REGEN_WAIT s left alone, it heals REGEN of its life a s),
 ## rage (under RAGE_AT of its life it roars and goes RAGE × as fast, clawing one more), swarm (comes
-## as a pack, SWARM_*).
+## as a pack, SWARM_*), leap (springs the last LEAP_FROM m to the railing; a head shot in the air
+## kills), maw (the head is weak only while it roars, every MAW_EVERY s; the rest takes MAW_BODY).
 const TYPES := {
 	&"walker": {"kind": &"walker", "from": 1, "hp": 1.0, "speed": 1.0, "bite": 1, "trait": &"",
 			"looks": [[&"prisoner", 1], [&"yaku", 12], [&"parasite", 16], [&"melty", 20]]},
@@ -229,6 +230,8 @@ const TYPES := {
 	&"rager": {"kind": &"walker", "from": 11, "hp": 1.3, "speed": 1.0, "bite": 2, "trait": &"rage", "looks": [[&"warzombie", 11]]},
 	&"swarm": {"kind": &"runner", "from": 13, "hp": 0.5, "speed": 1.1, "bite": 1, "trait": &"swarm", "looks": [[&"skeletonzombie", 13]]},
 	&"blob": {"kind": &"blob", "from": 14, "hp": 1.0, "speed": 1.0, "bite": 2, "trait": &"", "looks": []},
+	&"leaper": {"kind": &"crawler", "from": 15, "hp": 0.875, "speed": 1.25, "bite": 1, "trait": &"leap", "looks": [[&"leaper", 15]]},
+	&"spiker": {"kind": &"brute", "from": 25, "hp": 2.0, "speed": 0.92, "bite": 7, "trait": &"maw", "looks": [[&"spiker", 25]]},
 }
 const BITE_GROW := 0.04
 const ARMOR := 0.4
@@ -237,6 +240,13 @@ const REGEN := 0.08
 const REGEN_WAIT := 1.5
 const RAGE_AT := 0.5
 const RAGE := 1.25  # with a screamer's rush on top, as quick as the run clips stretch
+const LEAP_FROM := 5.0  # m
+const LEAP_TIME := 0.55  # s in the air
+const LEAP_HIGH := 1.1  # m at the top of the arc
+const MAW_EVERY := 5.0  # s from one roar to the next
+const MAW_FIRST := [2.0, 4.0]  # s after it is let out
+const MAW_HEAD := 3.0  # instead of HEAD, while it roars; ×1 otherwise
+const MAW_BODY := 0.5
 ## Elite: from ELITE_FROM any one but the big ones (NO_ELITE) may come as an elite, ELITE_CHANCE then,
 ## ELITE_GROW more each wave, up to ELITE_MAX: ELITE_HP × the life, ELITE_SIZE × as big, ELITE_SPEED ×
 ## as quick, a claw more, a gold-edged bar.
@@ -247,7 +257,7 @@ const ELITE_MAX := 0.15
 const ELITE_HP := 2.0
 const ELITE_SIZE := 1.15
 const ELITE_SPEED := 1.05
-const NO_ELITE: Array[StringName] = [&"brute", &"blob", &"dog", &"swarm"]
+const NO_ELITE: Array[StringName] = [&"brute", &"blob", &"dog", &"swarm", &"spiker", &"leaper"]  # leaper: its crawl clip strides no quicker
 ## Wave n: BASE_COUNT + COUNT_GROW·(n-1) zombies; hit points ×(1 + HP_GROW·(n-1)), speed
 ## ×(1 + SPEED_GROW·(n-1)) up to SPEED_MAX. MIX: type -> its share the wave it comes (TYPES), how
 ## much the share grows each wave after, the most it gets; the rest are walkers. Shares are counted,
@@ -262,13 +272,15 @@ const SPEED_GROW := 0.02
 const SPEED_MAX := 1.2
 const MIX := {&"runner": [0.2, 0.01, 0.18], &"crawler": [0.12, 0.0, 0.1], &"armored": [0.15, 0.005, 0.13],
 		&"bloater": [0.06, 0.01, 0.08], &"masked": [0.12, 0.0, 0.1], &"regen": [0.1, 0.0, 0.1],
-		&"rager": [0.1, 0.0, 0.1], &"blob": [0.05, 0.005, 0.06]}
+		&"rager": [0.1, 0.0, 0.1], &"blob": [0.05, 0.005, 0.06], &"leaper": [0.08, 0.005, 0.12]}
 const BLOB_FROM: int = TYPES[&"blob"].from
 const SCREAMER_FROM: int = TYPES[&"screamer"].from
 const SCREAMER_GROW := 3
 const SCREAMER_MAX := 4
 const BRUTE_FROM: int = TYPES[&"brute"].from
 const BRUTE_EVERY := 5
+const SPIKER_FROM: int = TYPES[&"spiker"].from
+const SPIKER_EVERY := 10
 const DOG_FROM: int = TYPES[&"dog"].from
 const DOG_PACK := 2
 const DOG_PACK_GROW := 2
@@ -416,6 +428,7 @@ func _process(delta: float) -> void:
 			_spawn_next()
 	if phase == Phase.FIGHT:
 		_screams(delta)
+		_maws(delta)
 		_regen(delta)
 	_at_wait -= delta
 	if _at_wait <= 0.0 and Net.online:
@@ -469,10 +482,13 @@ func _plan(w: int) -> Array[StringName]:
 	_shuffle(out)
 	for i in screamers(w):  # inside the crowd, where there are others to send running
 		out.insert(_rng.randi_range(out.size() / 4, out.size() * 3 / 4), &"screamer")
-	for i in brutes(w):  # not first out of the gate
-		out.insert(_rng.randi_range(out.size() / 3, out.size()), &"brute")
+	for pair: Array in [[&"brute", brutes(w)], [&"spiker", spikers(w)]]:  # not first out of the gate
+		for i in pair[1]:
+			out.insert(_rng.randi_range(out.size() / 3, out.size()), pair[0])
 	for pack: Array in [[&"dog", dogs(w)], [&"swarm", swarm(w)]]:  # a while in, so they come at a railing that is already busy
 		var at := _rng.randi_range(out.size() / 4, out.size())
+		while at > 0 and at < out.size() and out[at - 1] == out[at] and out[at] in [&"dog", &"swarm"]:
+			at += 1  # not into the middle of the other pack
 		for i in pack[1]:
 			out.insert(at, pack[0])
 	return out
@@ -500,6 +516,10 @@ static func screamers(w: int) -> int:
 
 static func brutes(w: int) -> int:
 	return 0 if w < BRUTE_FROM else 1 + (w - BRUTE_FROM) / BRUTE_EVERY
+
+
+static func spikers(w: int) -> int:
+	return 0 if w < SPIKER_FROM else 1 + (w - SPIKER_FROM) / SPIKER_EVERY
 
 
 static func dogs(w: int) -> int:
@@ -699,6 +719,8 @@ func _on_cue(cue: Array) -> void:
 				_got_at(cue[1], cue[2])
 		&"rage":
 			_rage(cue[1])
+		&"maw":
+			_maw(cue[1])
 		&"limb":
 			var z: Dictionary = _zombies.get(cue[1], {})
 			if not z.is_empty():
@@ -917,7 +939,9 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"stagger": 0.0, "down": 0.0, "released": false, "moving": false, "hits": [], "count": 0,
 			"bar": BAR.new(), "rush": 0.0, "hold": 0.0, "zig": float(absi(seed) % 1000) / 1000.0 * TAU,
 			"cry": 0.0, "fit": -1, "type": type if type != &"" else kind, "elite": elite, "raged": false,
-			"bite": bite_of(type if type != &"" else kind, wave, elite), "calm": 0.0,
+			"bite": bite_of(type if type != &"" else kind, wave, elite), "calm": 0.0, "leap": -1.0,
+			"leap_from": Vector3.ZERO, "open": 0.0, "roar_due": false,
+			"maw": lerpf(MAW_FIRST[0], MAW_FIRST[1], float(absi(seed) % 997) / 996.0),
 			"hole": hole, "inside": inside, "heading": Vector3.ZERO, "walked": 0.0, "face": Vector3.ZERO,
 			"claws": 0, "fix": Vector3.ZERO, "prey": 0, "think": 0.0, "goal": Vector3.ZERO,
 			"swing": 0.0, "swinging": false, "seen": Vector3.INF, "seen_yaw": 0.0, "v": 0.0}
@@ -983,6 +1007,7 @@ func _set_out(z: Dictionary) -> void:
 
 
 func _walk(z: Dictionary, delta: float) -> void:
+	z.open = maxf(0.0, z.open - delta)
 	var falling: bool = z.down > 0.0  # going down on a torn leg: stumbles on a little, then crawls
 	z.down = maxf(0.0, z.down - delta)
 	if z.rush > 0.0:
@@ -1018,11 +1043,28 @@ func _walk(z: Dictionary, delta: float) -> void:
 		if z.hold <= 0.0:
 			z.body.move(_pace(z))
 		return
+	if z.leap >= 0.0 and z.leap < LEAP_TIME:  # a leaper in the air, on its arc to the railing
+		z.leap += delta
+		var s := minf(1.0, z.leap / LEAP_TIME)
+		node.global_position = (z.leap_from as Vector3).lerp(z.rail, s) + Vector3.UP * sin(PI * s) * LEAP_HIGH
+		if s >= 1.0:
+			z.path.clear()
+			node.look_at(node.global_position + Vector3.LEFT, Vector3.UP)
+			z.body.idle()
+			if phase == Phase.FIGHT:
+				_claw(z)
+		return
 	if z.body.busy():  # a one-shot plays in place: it stands for it, never slides through it
 		return
 	z.stagger = maxf(0.0, z.stagger - delta)
 	var last: bool = z.path.size() == 1
 	var through: bool = z.hole >= 0  # through a hole it walks on in, no braking
+	if last and not through and z.leap < 0.0 and to.length() < LEAP_FROM and TYPES.get(z.type, {}).get("trait", &"") == &"leap":
+		z.leap = 0.0
+		z.leap_from = node.global_position
+		node.look_at(node.global_position + to, Vector3.UP)
+		z.body.pace(_pace(z) * 2.0)  # a burst of strides in the air
+		return
 	var v: float = _pace(z) * (STAGGER_SLOW if z.stagger > 0.0 else 1.0)
 	v *= _surge(z)  # never quite in step with the next one
 	if last and not through:  # brakes into its spot instead of stopping dead from a run
@@ -1115,6 +1157,11 @@ func _claw(z: Dictionary) -> void:
 		if z.down > 0.0:  # a leg torn off at the railing: down first, then it bites from there
 			await get_tree().process_frame
 			continue
+		if z.roar_due:  # a spiker's roar came while it was clawing
+			z.roar_due = false
+			z.open = z.body.scream()
+			await get_tree().create_timer(z.open).timeout
+			continue
 		var t: float = z.body.attack()
 		await get_tree().create_timer(t * 0.5).timeout
 		if not at_it.call():
@@ -1142,9 +1189,16 @@ func _on_shot(peer: int, at: Vector3, _n: Vector3, dir: Vector3, target: Node, _
 	var t: StringName = TYPES.get(z.type, {}).get("trait", &"")
 	var dmg: float = DAMAGE.get(gun, DAMAGE_ELSE)
 	if weak:
-		dmg *= MASK_HEAD if t == &"mask" else HEAD
+		match t:
+			&"mask": dmg *= MASK_HEAD
+			&"maw": dmg *= MAW_HEAD if z.open > 0.0 else 1.0
+			_: dmg *= HEAD
+		if t == &"leap" and z.leap >= 0.0 and z.leap < LEAP_TIME:  # in the air: one round
+			dmg = maxf(dmg, _hp[z.id])
 	elif t == &"armor":
 		dmg *= ARMOR
+	elif t == &"maw":
+		dmg *= MAW_BODY
 	z.count += 1
 	if part != &"":
 		_limb_hit(z, part, dmg, _roll(z, dir))
@@ -1244,6 +1298,7 @@ func _retreat(z: Dictionary) -> void:
 	z.released = true
 	z.claws += 1
 	z.hole = -1
+	z.leap = LEAP_TIME  # a leaper in the air lands where it was going and turns from there
 	var at: Vector3 = (z.node as Node3D).global_position
 	var path := []
 	if z.inside or at.x < GAP[1]:  # inside: back out through the nearest hole
@@ -1312,6 +1367,30 @@ func _rage(id: int) -> void:
 		z.hold = z.body.scream()
 	elif not z.path.is_empty() and z.down <= 0.0 and z.hold <= 0.0:
 		z.body.move(_pace(z))
+
+
+## Host: each spiker let out counts down to its next roar; the cue makes it roar on every peer.
+func _maws(delta: float) -> void:
+	for z: Dictionary in _zombies.values():
+		if z.dead or not z.released or TYPES.get(z.type, {}).get("trait", &"") != &"maw":
+			continue
+		z.maw -= delta
+		if z.maw <= 0.0:
+			z.maw = MAW_EVERY
+			GameState.cue_wave([&"maw", z.id])
+
+
+## Every peer: a spiker roars, its head weak while it lasts: on its way it stops for it, at the
+## railing it roars before its next swing.
+func _maw(id: int) -> void:
+	var z: Dictionary = _zombies.get(id, {})
+	if z.is_empty() or z.dead:
+		return
+	if z.path.is_empty() and not z.inside:
+		z.roar_due = true
+	elif z.down <= 0.0 and z.hold <= 0.0:
+		z.hold = z.body.scream()
+		z.open = z.hold
 
 
 ## Host: each screamer on its way through the bay counts down to its next cry; the ones walking

@@ -24,10 +24,11 @@ const FPS := 30.0
 const ALBEDO_SIZE := 2048
 const NORMAL_SIZE := 1024
 ## Mixamo character (raw/chars/<file>.fbx) -> artist, for the credits in docs/ayrintilar.md.
-## hazmat and bloater are Sketchfab models on Mixamo rigs, raw/chars/<name>.glb from
+## hazmat, bloater, leaper and spiker are Sketchfab models on Mixamo rigs, raw/chars/<name>.glb from
 ## tools/sketchfab_zombies.py.
 const MODELS := ["prisoner", "copzombie", "parasite", "warzombie", "zombiegirl", "yaku", "romero",
-		"skeletonzombie", "whiteclown", "warrok", "maw", "demon", "fleshzombie", "hazmat", "bloater"]
+		"skeletonzombie", "whiteclown", "warrok", "maw", "demon", "fleshzombie", "hazmat", "bloater",
+		"leaper", "spiker"]
 ## Player characters (players/raw/chars/<file>.fbx): The Boss, Ch16 (masked), Ch32 (worker), Brute,
 ## Ch43 (chupacabra).
 const PLAYER_MODELS := ["boss", "masked", "worker", "brute", "chupacabra"]

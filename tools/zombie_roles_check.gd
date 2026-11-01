@@ -4,7 +4,7 @@ extends SceneTree
 ## running, the bloater's burst, the dog's zigzag, the waves getting harder, and every speed a kind
 ## can walk at kept within what its clips stretch to (no feet sliding over the floor); the types
 ## coming one by one (wave 1 a few of one type in one look) and their traits (armor, mask, regen,
-## rage, elites).
+## rage, elites, the leaper's leap, the spiker's roar).
 ##   Godot.exe --headless --path . -s res://tools/zombie_roles_check.gd --quit-after 100000
 
 const BODY := preload("res://scripts/zombie_body.gd")
@@ -38,6 +38,8 @@ func _initialize() -> void:
 	await _dog()
 	await _no_slide()
 	await _traits()
+	await _leaper()
+	await _spiker()
 	print("zombie_roles_check %s" % ("OK" if _fails == 0 else "FAILED (%d)" % _fails))
 	quit(1 if _fails else 0)
 
@@ -381,6 +383,60 @@ func _traits() -> void:
 		return width
 	_expect(bar_w.call(waves.hp_of(&"brute", 10)) > bar_w.call(waves.hp_of(&"walker", 10)) * 1.4 and bar_w.call(waves.hp_of(&"walker", 20)) > bar_w.call(waves.hp_of(&"walker", 1)) * 1.2,
 			"the bar grows with the life (walker 1 %.2f, walker 20 %.2f, brute 10 %.2f m)" % [bar_w.call(waves.hp_of(&"walker", 1)), bar_w.call(waves.hp_of(&"walker", 20)), bar_w.call(waves.hp_of(&"brute", 10))])
+	waves.wave = was
+	_clear()
+
+
+## The leaper springs the last LEAP_FROM m in an arc and lands on its spot; a head shot in the air
+## takes all its life, its legs (the tail) never come off.
+func _leaper() -> void:
+	gs.request_select_gun(PISTOL)
+	var was: int = waves.wave
+	waves.wave = waves.TYPES[&"leaper"].from
+	var l := _spawn(&"leaper", Vector3(waves.RAIL_X + 9.0, 0, -4))
+	l.speed = waves.STATS[&"crawler"][0] * waves.TYPES[&"leaper"].speed
+	_expect(l.body.model == &"leaper" and l.body.crawling, "the leaper comes in its own look, low (%s)" % l.body.model)
+	_expect(not l.body.can_lose(&"leg_l") and not l.body.can_lose(&"shin_r") and l.body.can_lose(&"arm_l"), "its tail never comes off, its arms do")
+	await _wait(func() -> bool: return l.leap >= 0.0, "the leap", 8.0)
+	var from := (l.node as Node3D).global_position.distance_to(l.rail)
+	var high := 0.0
+	while l.leap < waves.LEAP_TIME * 0.4:
+		await process_frame
+	high = (l.node as Node3D).global_position.y
+	await _shoot(l, l.body._bone_at("Head"), Vector3(-1, 0, 0), true)
+	_expect(from > 1.5 and from <= waves.LEAP_FROM + 0.2 and high > 0.6, "it springs from %.1f m out, %.2f m up" % [from, high])
+	_expect(l.dead, "one pistol round in the head in the air drops it")
+	var l2 := _spawn(&"leaper", Vector3(waves.RAIL_X + 9.0, 0, 4))
+	l2.speed = waves.STATS[&"crawler"][0] * waves.TYPES[&"leaper"].speed
+	await _wait(func() -> bool: return l2.path.is_empty() and not l2.dead, "the leaper at the railing", 10.0)
+	_expect((l2.node as Node3D).global_position.distance_to(l2.rail) < 0.05, "and lands on its spot")
+	waves.wave = was
+	_clear()
+
+
+## The spiker's head is weak only while it roars (every MAW_EVERY s); a body round does MAW_BODY.
+func _spiker() -> void:
+	gs.request_select_gun(DEAGLE)
+	var was: int = waves.wave
+	waves.wave = waves.TYPES[&"spiker"].from
+	var s := _spawn(&"spiker", Vector3(24, 0, -4))
+	var b := _spawn(&"brute", Vector3(24, 0, 4))
+	_expect(s.body.model == &"spiker" and s.body.height > 2.5, "the spiker in its own look, %.1f m tall" % s.body.height)
+	_expect(waves._hp_full[s.id] >= waves._hp_full[b.id] * 1.9, "twice a brute's life (%d, %d)" % [waves._hp_full[s.id], waves._hp_full[b.id]])
+	var gone := func(z: Dictionary) -> float: return waves._hp_full[z.id] - waves._hp[z.id]
+	await _shoot(s, s.body._bone_at("Spine1"), Vector3(-1, 0, 0))
+	await _shoot(b, b.body._bone_at("Spine1"), Vector3(-1, 0, 0))
+	_expect(absf(gone.call(s) - gone.call(b) * waves.MAW_BODY) < 0.5, "a body round takes %.0f of it, %.0f of a brute" % [gone.call(s), gone.call(b)])
+	var shut: float = gone.call(s)
+	await _shoot(s, s.body._bone_at("Head"), Vector3(-1, 0, 0), true)
+	var closed: float = gone.call(s) - shut
+	s.maw = 0.0  # its roar now
+	await _wait(func() -> bool: return s.open > 0.0, "the roar", 2.0)
+	_expect(s.hold > 0.0, "it stands while it roars")
+	var before: float = gone.call(s)
+	await _shoot(s, s.body._bone_at("Head"), Vector3(-1, 0, 0), true)
+	var open: float = gone.call(s) - before
+	_expect(open > closed * (waves.MAW_HEAD - 0.1), "its head: %.0f a round shut, %.0f roaring" % [closed, open])
 	waves.wave = was
 	_clear()
 
