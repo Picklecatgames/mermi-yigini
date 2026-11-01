@@ -25,3 +25,8 @@ assets/vfx/blood/raw/
 
 # Reels için eski sürümlerden çekimler
 reels/
+
+# ogutucu: Blender kaynagi ve pisirmede kullanilan ham dokular (oyuna gomulu glb girer)
+assets/props/ogutucu/raw/
+assets/props/ogutucu/doku/
+assets/props/ogutucu/doku_pisir/
