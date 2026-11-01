@@ -708,19 +708,6 @@ func _fence_now(send := false) -> void:
 	_world(&"fence_changed", [fence_bays.duplicate()])
 
 
-# --- the player-down session's (oyuncu-baygin) ----------------------------------------------------
-# Stand-ins until that branch comes in: waves.gd only calls them.
-
-## Host: a zombie's claw hit `peer` for `amount`, from `from` (where the zombie stands).
-func hurt_player(_peer: int, _amount: float, _from: Vector3) -> void:
-	pass  # baygın oturumu dolduracak
-
-
-## Whether `peer` is down (the dead leave them be).
-func is_down(_peer: int) -> bool:
-	return false  # baygın oturumu dolduracak
-
-
 ## Host (or solo): a blow from `from` takes `amount` off `peer`'s life (0: the local player); at 0
 ## they go down. Only a standing player is hurt. A client's own call is dropped.
 func hurt_player(peer: int, amount: float, from: Vector3) -> void:
