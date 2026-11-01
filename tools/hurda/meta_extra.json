@@ -1,0 +1,47 @@
+{
+ "russian_food_cans_01_salt_box": {
+  "ad": "Tuz kutusu",
+  "tur": "konserve",
+  "materyal": "karton",
+  "materyaller": "Karton"
+ },
+ "russian_food_cans_01_can_cond": {
+  "ad": "Süt konservesi"
+ },
+ "russian_food_cans_01_can_fish": {
+  "ad": "Balık konservesi"
+ },
+ "spray_paint_bottles_02_a": {
+  "ad": "Sprey boya kutusu"
+ },
+ "spray_paint_bottles_02_dented": {
+  "ad": "Ezik sprey boya kutusu"
+ },
+ "old_military_crate_a": {
+  "ad": "Eski askerî sandık"
+ },
+ "old_military_crate_b": {
+  "ad": "Eski askerî sandık (açık)"
+ },
+ "sledgehammer_01": {
+  "kutle_kg": 5
+ },
+ "rusty_sledgehammer_scan": {
+  "kutle_kg": 5
+ },
+ "truck_wheel": {
+  "kutle_kg": 90
+ },
+ "valve_wheel_scan": {
+  "kutle_kg": 8
+ },
+ "stacked_tire_01": {
+  "kutle_kg": 10
+ },
+ "metal_toolbox": {
+  "kutle_kg": 6
+ },
+ "electric_motor": {
+  "kutle_kg": 12
+ }
+}
