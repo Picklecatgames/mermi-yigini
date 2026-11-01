@@ -26,7 +26,7 @@
   "glb": "res://assets/props/hurda/ammo_box.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 2.82,
+  "kutle_kg": 5.29,
   "boyut_m": [
    0.087,
    0.177,
@@ -46,13 +46,13 @@
   "glb": "res://assets/props/hurda/bolt_cutters_01.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 8.5,
+  "kutle_kg": 8.1,
   "boyut_m": [
    0.151,
    0.803,
    0.036
   ],
-  "ucgen": 3000,
+  "ucgen": 1999,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Yann Kervran, Antanas Kep",
@@ -61,7 +61,7 @@
  },
  {
   "id": "bolts_nuts_01",
-  "ad": "Cıvata ve somunlar",
+  "ad": "Cıvata ve somunlar 1",
   "tur": "civata",
   "glb": "res://assets/props/hurda/bolts_nuts_01.glb",
   "materyal": "celik",
@@ -81,7 +81,7 @@
  },
  {
   "id": "bolts_nuts_02",
-  "ad": "Cıvata ve somunlar",
+  "ad": "Cıvata ve somunlar 2",
   "tur": "civata",
   "glb": "res://assets/props/hurda/bolts_nuts_02.glb",
   "materyal": "celik",
@@ -100,19 +100,139 @@
   "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
  },
  {
+  "id": "bolts_nuts_03",
+  "ad": "Cıvata ve somunlar 3",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_03.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.3,
+  "boyut_m": [
+   0.045,
+   0.073,
+   0.039
+  ],
+  "ucgen": 500,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
+  "id": "bolts_nuts_04",
+  "ad": "Cıvata ve somunlar 4",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_04.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.35,
+  "boyut_m": [
+   0.045,
+   0.04,
+   0.076
+  ],
+  "ucgen": 500,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
+  "id": "bolts_nuts_05",
+  "ad": "Cıvata ve somunlar 5",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_05.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.35,
+  "boyut_m": [
+   0.077,
+   0.04,
+   0.045
+  ],
+  "ucgen": 500,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
+  "id": "bolts_nuts_06",
+  "ad": "Cıvata ve somunlar 6",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_06.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.12,
+  "boyut_m": [
+   0.041,
+   0.015,
+   0.044
+  ],
+  "ucgen": 304,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
+  "id": "bolts_nuts_07",
+  "ad": "Cıvata ve somunlar 7",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_07.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.11,
+  "boyut_m": [
+   0.044,
+   0.015,
+   0.039
+  ],
+  "ucgen": 304,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
+  "id": "bolts_nuts_08",
+  "ad": "Cıvata ve somunlar 8",
+  "tur": "civata",
+  "glb": "res://assets/props/hurda/bolts_nuts_08.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.13,
+  "boyut_m": [
+   0.04,
+   0.015,
+   0.044
+  ],
+  "ucgen": 304,
+  "set": "bolts_nuts",
+  "kaynak": "Sketchfab",
+  "yazar": "SAIRUS_creative",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/bolts-and-nuts-a7b0477b8d774449b30da896033c6060"
+ },
+ {
   "id": "boombox",
   "ad": "Teyp",
   "tur": "elektronik",
   "glb": "res://assets/props/hurda/boombox.glb",
   "materyal": "bakir",
   "materyaller": "Bakır, plastik",
-  "kutle_kg": 31.56,
+  "kutle_kg": 9.82,
   "boyut_m": [
    0.723,
    0.47,
-   0.186
+   0.187
   ],
-  "ucgen": 3000,
+  "ucgen": 1999,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Thomas Paul Mouilleron",
@@ -126,18 +246,18 @@
   "glb": "res://assets/props/hurda/camshaft_scan.glb",
   "materyal": "celik",
   "materyaller": "Dövme çelik",
-  "kutle_kg": 0.66,
+  "kutle_kg": 0.75,
   "boyut_m": [
    0.03,
    0.03,
    0.45
   ],
-  "ucgen": 1999,
+  "ucgen": 1499,
   "set": null,
   "kaynak": "Sketchfab",
   "yazar": "IU Indianapolis University Library",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-1f1c66b214834f9887aab1ecb3111149"
+  "url": "https://sketchfab.com/3d-models/1f1c66b214834f9887aab1ecb3111149"
  },
  {
   "id": "can_rusted",
@@ -161,12 +281,12 @@
  },
  {
   "id": "cardboard_box_01",
-  "ad": "Karton kutu seti",
+  "ad": "Karton kutu seti 1",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/cardboard_box_01.glb",
   "materyal": "karton",
   "materyaller": "Karton",
-  "kutle_kg": 2.48,
+  "kutle_kg": 4.65,
   "boyut_m": [
    0.222,
    0.27,
@@ -181,12 +301,12 @@
  },
  {
   "id": "cardboard_box_02",
-  "ad": "Karton kutu seti",
+  "ad": "Karton kutu seti 2",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/cardboard_box_02.glb",
   "materyal": "karton",
   "materyaller": "Karton",
-  "kutle_kg": 0.62,
+  "kutle_kg": 1.16,
   "boyut_m": [
    0.299,
    0.19,
@@ -201,16 +321,36 @@
  },
  {
   "id": "cardboard_box_03",
-  "ad": "Karton kutu seti",
+  "ad": "Karton kutu seti 3",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/cardboard_box_03.glb",
   "materyal": "karton",
   "materyaller": "Karton",
-  "kutle_kg": 1.61,
+  "kutle_kg": 3.02,
   "boyut_m": [
    0.29,
    0.29,
    0.29
+  ],
+  "ucgen": 108,
+  "set": "cardboard_box",
+  "kaynak": "Sketchfab",
+  "yazar": "NotAnotherApocalypticCo.",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/set-of-cardboard-boxes-8986ba512f704ac5b253286a0d1ad8bb"
+ },
+ {
+  "id": "cardboard_box_04",
+  "ad": "Karton kutu seti 4",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/cardboard_box_04.glb",
+  "materyal": "karton",
+  "materyaller": "Karton",
+  "kutle_kg": 4.72,
+  "boyut_m": [
+   0.489,
+   0.29,
+   0.448
   ],
   "ucgen": 108,
   "set": "cardboard_box",
@@ -266,13 +406,13 @@
   "glb": "res://assets/props/hurda/coil_spring.glb",
   "materyal": "celik",
   "materyaller": "Yay çeliği",
-  "kutle_kg": 1.69,
+  "kutle_kg": 1.77,
   "boyut_m": [
    0.105,
    0.25,
    0.105
   ],
-  "ucgen": 3000,
+  "ucgen": 2000,
   "set": null,
   "kaynak": "Sketchfab",
   "yazar": "VR DESIGNER",
@@ -286,13 +426,13 @@
   "glb": "res://assets/props/hurda/combination_wrench.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 0.81,
+  "kutle_kg": 0.74,
   "boyut_m": [
    0.057,
    0.022,
    0.337
   ],
-  "ucgen": 1986,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "BKS",
@@ -306,18 +446,18 @@
   "glb": "res://assets/props/hurda/copper_pipe_section.glb",
   "materyal": "bakir",
   "materyaller": "Bakır",
-  "kutle_kg": 2.5,
+  "kutle_kg": 2.51,
   "boyut_m": [
-   0.06,
+   0.059,
    0.122,
    0.5
   ],
-  "ucgen": 1999,
+  "ucgen": 1499,
   "set": null,
   "kaynak": "Sketchfab",
   "yazar": "pixol3d",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-91807ce330af449bbd3c59b5ede8ce67"
+  "url": "https://sketchfab.com/3d-models/91807ce330af449bbd3c59b5ede8ce67"
  },
  {
   "id": "cross_pein_hammer",
@@ -326,13 +466,13 @@
   "glb": "res://assets/props/hurda/cross_pein_hammer.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 1.19,
+  "kutle_kg": 1.25,
   "boyut_m": [
    0.099,
    0.3,
    0.024
   ],
-  "ucgen": 2000,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Tics",
@@ -346,13 +486,13 @@
   "glb": "res://assets/props/hurda/crowbar_01.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 3.43,
+  "kutle_kg": 3.54,
   "boyut_m": [
    0.04,
    0.555,
    0.128
   ],
-  "ucgen": 1998,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Alexander Otterbeck",
@@ -361,7 +501,7 @@
  },
  {
   "id": "crumpled_can_01",
-  "ad": "Ezik kutular",
+  "ad": "Ezik kutular 1",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/crumpled_can_01.glb",
   "materyal": "aluminyum",
@@ -373,6 +513,46 @@
    0.082
   ],
   "ucgen": 172,
+  "set": "crumpled_can",
+  "kaynak": "Sketchfab",
+  "yazar": "Sunbox Games",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/cans-dirty-and-crumpled-3-piece-set-5f4c354cf4474c58bad147b346399a5f"
+ },
+ {
+  "id": "crumpled_can_02",
+  "ad": "Ezik kutular 2",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/crumpled_can_02.glb",
+  "materyal": "aluminyum",
+  "materyaller": "Alüminyum",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.151,
+   0.067,
+   0.116
+  ],
+  "ucgen": 156,
+  "set": "crumpled_can",
+  "kaynak": "Sketchfab",
+  "yazar": "Sunbox Games",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/cans-dirty-and-crumpled-3-piece-set-5f4c354cf4474c58bad147b346399a5f"
+ },
+ {
+  "id": "crumpled_can_03",
+  "ad": "Ezik kutular 3",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/crumpled_can_03.glb",
+  "materyal": "aluminyum",
+  "materyaller": "Alüminyum",
+  "kutle_kg": 0.14,
+  "boyut_m": [
+   0.103,
+   0.222,
+   0.108
+  ],
+  "ucgen": 284,
   "set": "crumpled_can",
   "kaynak": "Sketchfab",
   "yazar": "Sunbox Games",
@@ -397,27 +577,107 @@
   "kaynak": "Sketchfab",
   "yazar": "Sousinho",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-51e709ee7f624316a5ef886b58429abc"
+  "url": "https://sketchfab.com/3d-models/51e709ee7f624316a5ef886b58429abc"
  },
  {
   "id": "dirty_tire_01",
-  "ad": "Kirli eski lastikler",
+  "ad": "Kirli eski lastikler 1",
   "tur": "jant",
   "glb": "res://assets/props/hurda/dirty_tire_01.glb",
-  "materyal": "celik",
+  "materyal": "kaucuk",
   "materyaller": "Kauçuk, çelik tel",
-  "kutle_kg": 39.33,
+  "kutle_kg": 12.58,
   "boyut_m": [
    0.606,
    0.199,
    0.62
   ],
-  "ucgen": 2816,
+  "ucgen": 2000,
   "set": "dirty_tire",
   "kaynak": "Sketchfab",
   "yazar": "chrisg4919",
   "lisans": "CC-BY 4.0",
   "url": "https://sketchfab.com/3d-models/dirty-old-tires-3ac31ac8a2cf4b7187b4d1b95d2aeea0"
+ },
+ {
+  "id": "dirty_tire_02",
+  "ad": "Kirli eski lastikler 2",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/dirty_tire_02.glb",
+  "materyal": "kaucuk",
+  "materyaller": "Kauçuk, çelik tel",
+  "kutle_kg": 13.16,
+  "boyut_m": [
+   0.618,
+   0.202,
+   0.62
+  ],
+  "ucgen": 2000,
+  "set": "dirty_tire",
+  "kaynak": "Sketchfab",
+  "yazar": "chrisg4919",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dirty-old-tires-3ac31ac8a2cf4b7187b4d1b95d2aeea0"
+ },
+ {
+  "id": "dirty_tire_03",
+  "ad": "Kirli eski lastikler 3",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/dirty_tire_03.glb",
+  "materyal": "kaucuk",
+  "materyaller": "Kauçuk, çelik tel",
+  "kutle_kg": 12.89,
+  "boyut_m": [
+   0.62,
+   0.201,
+   0.609
+  ],
+  "ucgen": 2000,
+  "set": "dirty_tire",
+  "kaynak": "Sketchfab",
+  "yazar": "chrisg4919",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dirty-old-tires-3ac31ac8a2cf4b7187b4d1b95d2aeea0"
+ },
+ {
+  "id": "dirty_tire_04",
+  "ad": "Kirli eski lastikler 4",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/dirty_tire_04.glb",
+  "materyal": "kaucuk",
+  "materyaller": "Kauçuk, çelik tel",
+  "kutle_kg": 13.46,
+  "boyut_m": [
+   0.316,
+   0.62,
+   0.604
+  ],
+  "ucgen": 2000,
+  "set": "dirty_tire",
+  "kaynak": "Sketchfab",
+  "yazar": "chrisg4919",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dirty-old-tires-3ac31ac8a2cf4b7187b4d1b95d2aeea0"
+ },
+ {
+  "id": "electric_motor",
+  "ad": "Elektrik motoru",
+  "tur": "motor",
+  "glb": "res://assets/props/hurda/electric_motor.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır sargı, dökme demir",
+  "kutle_kg": 12,
+  "boyut_m": [
+   0.19,
+   0.205,
+   0.244
+  ],
+  "ucgen": 1199,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Scarecrow_original",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/electric-motor-66b2ea9eb6e5468d91d814395036a537"
  },
  {
   "id": "gate_latch_01",
@@ -440,19 +700,379 @@
   "url": "https://polyhaven.com/a/gate_latch_01"
  },
  {
+  "id": "grenade_launcher",
+  "ad": "Post-apo bombaatar",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/grenade_launcher.glb",
+  "materyal": "celik",
+  "materyaller": "Ağır",
+  "kutle_kg": 6.06,
+  "boyut_m": [
+   0.297,
+   0.333,
+   0.8
+  ],
+  "ucgen": 2499,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Daniils Bobers",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/post-apocalyptic-grenade-launcher-ol-loudmouth-a6d47b3fc3d549f7a4b34e1634912df2"
+ },
+ {
+  "id": "hand_made_pistol",
+  "ad": "El yapımı tabanca",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/hand_made_pistol.glb",
+  "materyal": "celik",
+  "materyaller": "Tabanca",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.021,
+   0.131,
+   0.2
+  ],
+  "ucgen": 2499,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Lyndschoko",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/hand-made-pistol-1e83dccd8d6e43a183fe48410750dfb4"
+ },
+ {
+  "id": "homemade_gun",
+  "ad": "El yapımı tüfek",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/homemade_gun.glb",
+  "materyal": "celik",
+  "materyaller": "Tüfek",
+  "kutle_kg": 2.37,
+  "boyut_m": [
+   0.089,
+   0.252,
+   0.997
+  ],
+  "ucgen": 2485,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "thethieme",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/homemade-gun-25bca56161fd42f9b165590607d20570"
+ },
+ {
+  "id": "homemade_smg",
+  "ad": "El yapımı SMG",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/homemade_smg.glb",
+  "materyal": "celik",
+  "materyaller": "SMG",
+  "kutle_kg": 1.55,
+  "boyut_m": [
+   0.111,
+   0.297,
+   0.6
+  ],
+  "ucgen": 2499,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "veter12131",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/homemade-smg-7663ba7c28294519813fab77855b7c22"
+ },
+ {
+  "id": "horse_shoe",
+  "ad": "Nal",
+  "tur": "zincir",
+  "glb": "res://assets/props/hurda/horse_shoe.glb",
+  "materyal": "demir",
+  "materyaller": "Demir",
+  "kutle_kg": 0.25,
+  "boyut_m": [
+   0.125,
+   0.01,
+   0.14
+  ],
+  "ucgen": 972,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "GetDeadEntertainment",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/17d5d6160f3f4b5abe6a6915b7f8db4f"
+ },
+ {
+  "id": "iron_chain",
+  "ad": "Demir zincir",
+  "tur": "zincir",
+  "glb": "res://assets/props/hurda/iron_chain.glb",
+  "materyal": "demir",
+  "materyaller": "Demir",
+  "kutle_kg": 3.26,
+  "boyut_m": [
+   0.284,
+   0.6,
+   0.066
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "mrkamyar",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/fccedd90e6f54e6398e2746fbc0e492e"
+ },
+ {
+  "id": "iron_valve_wheel",
+  "ad": "Demir vana çarkı",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/iron_valve_wheel.glb",
+  "materyal": "dokme_demir",
+  "materyaller": "Dökme demir",
+  "kutle_kg": 6.33,
+  "boyut_m": [
+   0.121,
+   0.25,
+   0.25
+  ],
+  "ucgen": 852,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Luke.G",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/8ec3518543b74d229725783e7d725c11"
+ },
+ {
+  "id": "jerry_can_01",
+  "ad": "Bidonlar 1",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/jerry_can_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 6.62,
+  "boyut_m": [
+   0.343,
+   0.47,
+   0.163
+  ],
+  "ucgen": 1182,
+  "set": "jerry_can",
+  "kaynak": "Sketchfab",
+  "yazar": "Liam3D",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/01fea903b3464194a4d0eec7d9a1a5d1"
+ },
+ {
+  "id": "jerry_can_02",
+  "ad": "Bidonlar 2",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/jerry_can_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 6.62,
+  "boyut_m": [
+   0.343,
+   0.47,
+   0.163
+  ],
+  "ucgen": 1182,
+  "set": "jerry_can",
+  "kaynak": "Sketchfab",
+  "yazar": "Liam3D",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/01fea903b3464194a4d0eec7d9a1a5d1"
+ },
+ {
+  "id": "jerry_can_03",
+  "ad": "Bidonlar 3",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/jerry_can_03.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 6.62,
+  "boyut_m": [
+   0.343,
+   0.47,
+   0.163
+  ],
+  "ucgen": 1182,
+  "set": "jerry_can",
+  "kaynak": "Sketchfab",
+  "yazar": "Liam3D",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/01fea903b3464194a4d0eec7d9a1a5d1"
+ },
+ {
+  "id": "jerry_can_04",
+  "ad": "Bidonlar 4",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/jerry_can_04.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 6.62,
+  "boyut_m": [
+   0.343,
+   0.47,
+   0.163
+  ],
+  "ucgen": 1182,
+  "set": "jerry_can",
+  "kaynak": "Sketchfab",
+  "yazar": "Liam3D",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/01fea903b3464194a4d0eec7d9a1a5d1"
+ },
+ {
+  "id": "junk_magnum",
+  "ad": "Hurda magnum",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/junk_magnum.glb",
+  "materyal": "celik",
+  "materyaller": "Tabanca",
+  "kutle_kg": 0.24,
+  "boyut_m": [
+   0.35,
+   0.184,
+   0.054
+  ],
+  "ucgen": 2494,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "DalmauArt",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/junk-magnum-0eeef6740e14490e978778f78eabe5ec"
+ },
+ {
+  "id": "junk_scrap_01",
+  "ad": "Hurda ve döküntü paketi 1",
+  "tur": "sac",
+  "glb": "res://assets/props/hurda/junk_scrap_01.glb",
+  "materyal": "demir",
+  "materyaller": "Demir, çelik",
+  "kutle_kg": 8.66,
+  "boyut_m": [
+   0.656,
+   0.113,
+   0.649
+  ],
+  "ucgen": 104,
+  "set": "junk_scrap",
+  "kaynak": "Sketchfab",
+  "yazar": "EldersCrawler",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/junk-and-scraps-package-c4615266a450432b899ace6230c0ce95"
+ },
+ {
+  "id": "junk_scrap_02",
+  "ad": "Hurda ve döküntü paketi 2",
+  "tur": "sac",
+  "glb": "res://assets/props/hurda/junk_scrap_02.glb",
+  "materyal": "demir",
+  "materyaller": "Demir, çelik",
+  "kutle_kg": 0.37,
+  "boyut_m": [
+   0.725,
+   0.102,
+   0.093
+  ],
+  "ucgen": 20,
+  "set": "junk_scrap",
+  "kaynak": "Sketchfab",
+  "yazar": "EldersCrawler",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/junk-and-scraps-package-c4615266a450432b899ace6230c0ce95"
+ },
+ {
+  "id": "junk_scrap_03",
+  "ad": "Hurda ve döküntü paketi 3",
+  "tur": "sac",
+  "glb": "res://assets/props/hurda/junk_scrap_03.glb",
+  "materyal": "demir",
+  "materyaller": "Demir, çelik",
+  "kutle_kg": 1.0,
+  "boyut_m": [
+   0.376,
+   0.154,
+   0.645
+  ],
+  "ucgen": 68,
+  "set": "junk_scrap",
+  "kaynak": "Sketchfab",
+  "yazar": "EldersCrawler",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/junk-and-scraps-package-c4615266a450432b899ace6230c0ce95"
+ },
+ {
+  "id": "junk_scrap_04",
+  "ad": "Hurda ve döküntü paketi 4",
+  "tur": "sac",
+  "glb": "res://assets/props/hurda/junk_scrap_04.glb",
+  "materyal": "ahsap",
+  "materyaller": "Demir, çelik",
+  "kutle_kg": 0.09,
+  "boyut_m": [
+   0.645,
+   0.105,
+   1.014
+  ],
+  "ucgen": 86,
+  "set": "junk_scrap",
+  "kaynak": "Sketchfab",
+  "yazar": "EldersCrawler",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/junk-and-scraps-package-c4615266a450432b899ace6230c0ce95"
+ },
+ {
+  "id": "junk_scrap_05",
+  "ad": "Hurda ve döküntü paketi 5",
+  "tur": "sac",
+  "glb": "res://assets/props/hurda/junk_scrap_05.glb",
+  "materyal": "demir",
+  "materyaller": "Demir, çelik",
+  "kutle_kg": 1.0,
+  "boyut_m": [
+   0.463,
+   0.049,
+   0.6
+  ],
+  "ucgen": 384,
+  "set": "junk_scrap",
+  "kaynak": "Sketchfab",
+  "yazar": "EldersCrawler",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/junk-and-scraps-package-c4615266a450432b899ace6230c0ce95"
+ },
+ {
+  "id": "junk_scrap_06",
+  "ad": "Hurda ve döküntü paketi 6",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/junk_scrap_06.glb",
+  "materyal": "kaucuk",
+  "materyaller": "Demir, çelik",
+  "kutle_kg": 7.29,
+  "boyut_m": [
+   0.605,
+   0.309,
+   0.606
+  ],
+  "ucgen": 192,
+  "set": "junk_scrap",
+  "kaynak": "Sketchfab",
+  "yazar": "EldersCrawler",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/junk-and-scraps-package-c4615266a450432b899ace6230c0ce95"
+ },
+ {
   "id": "metal_jerrycan",
   "ad": "Metal bidon",
   "tur": "kap",
   "glb": "res://assets/props/hurda/metal_jerrycan.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 8.38,
+  "kutle_kg": 6.35,
   "boyut_m": [
    0.35,
    0.455,
    0.172
   ],
-  "ucgen": 2000,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Sean Buckley",
@@ -466,13 +1086,13 @@
   "glb": "res://assets/props/hurda/metal_jerrycan_green.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 7.99,
+  "kutle_kg": 8.13,
   "boyut_m": [
    0.361,
    0.5,
    0.171
   ],
-  "ucgen": 2000,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Ulan Cabanilla",
@@ -500,24 +1120,104 @@
   "url": "https://polyhaven.com/a/metal_jug"
  },
  {
+  "id": "metal_paint_can",
+  "ad": "Metal boya kutusu",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/metal_paint_can.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 1.42,
+  "boyut_m": [
+   0.18,
+   0.16,
+   0.163
+  ],
+  "ucgen": 464,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "TheoClarke",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/f5d97bc88d99451c87665ddb1edd4292"
+ },
+ {
+  "id": "metal_sheet",
+  "ad": "Metal saç",
+  "tur": "sac",
+  "glb": "res://assets/props/hurda/metal_sheet.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 3.14,
+  "boyut_m": [
+   0.6,
+   0.598,
+   0.025
+  ],
+  "ucgen": 1500,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Heisenberg",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/metal-sheet-b1994c52bdb94556b9af1c31a244e81a"
+ },
+ {
   "id": "metal_toolbox",
   "ad": "Metal alet kutusu",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/metal_toolbox.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 15.59,
+  "kutle_kg": 6,
   "boyut_m": [
    0.4,
    0.305,
    0.271
   ],
-  "ucgen": 2000,
+  "ucgen": 1499,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Mateusz Sadek",
   "lisans": "CC0",
   "url": "https://polyhaven.com/a/metal_toolbox"
+ },
+ {
+  "id": "motor_oil_tin",
+  "ad": "Eski motor yağı tenekesi",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/motor_oil_tin.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.46,
+  "boyut_m": [
+   0.144,
+   0.194,
+   0.075
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "VladIG_CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/0b69e10add604138a3abfddc55c2b5be"
+ },
+ {
+  "id": "muddy_tire_01",
+  "ad": "Çamurlu eski lastikler 1",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/muddy_tire_01.glb",
+  "materyal": "kaucuk",
+  "materyaller": "Kauçuk, çelik tel",
+  "kutle_kg": 8.9,
+  "boyut_m": [
+   0.31,
+   0.282,
+   0.62
+  ],
+  "ucgen": 2000,
+  "set": "muddy_tire",
+  "kaynak": "Sketchfab",
+  "yazar": "Berk Gedik",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-tires-dirt-low-poly-1929673829054c2b8085d743e652acab"
  },
  {
   "id": "oil_tin",
@@ -540,19 +1240,99 @@
   "url": "https://polyhaven.com/a/oil_tin"
  },
  {
+  "id": "old_ammo_crate",
+  "ad": "Eski cephane sandığı",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/old_ammo_crate.glb",
+  "materyal": "ahsap",
+  "materyaller": "Ahşap, çelik",
+  "kutle_kg": 3.0,
+  "boyut_m": [
+   0.6,
+   0.233,
+   0.21
+  ],
+  "ucgen": 1102,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "SuperMopsek",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-ammo-crate-6a834e917e4f4194a29e9f66e6915d8a"
+ },
+ {
+  "id": "old_faucet",
+  "ad": "Eski musluk",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_faucet.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç",
+  "kutle_kg": 0.43,
+  "boyut_m": [
+   0.051,
+   0.106,
+   0.2
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "rengokukyojuro",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/3a7ff8c34baa4caaa6098ee8ad447679"
+ },
+ {
+  "id": "old_hammer",
+  "ad": "Eski çekiç",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/old_hammer.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 2.71,
+  "boyut_m": [
+   0.32,
+   0.197,
+   0.05
+  ],
+  "ucgen": 1370,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Ole Gunnar Isager",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/a3d7bc18e2004488a1ae4b89e35d4212"
+ },
+ {
+  "id": "old_key",
+  "ad": "Eski anahtar",
+  "tur": "zincir",
+  "glb": "res://assets/props/hurda/old_key.glb",
+  "materyal": "demir",
+  "materyaller": "Demir",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.08,
+   0.028,
+   0.006
+  ],
+  "ucgen": 498,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Meerschaum Digital",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dcf61f79745b47778ad10aa28199df50"
+ },
+ {
   "id": "old_military_crate_a",
   "ad": "Eski askerî sandık",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/old_military_crate_a.glb",
-  "materyal": "celik",
+  "materyal": "ahsap",
   "materyaller": "Ahşap, çelik",
-  "kutle_kg": 73.76,
+  "kutle_kg": 11.18,
   "boyut_m": [
-   0.816,
+   0.815,
    0.3,
    0.538
   ],
-  "ucgen": 2999,
+  "ucgen": 1998,
   "set": "old_military_crate",
   "kaynak": "Poly Haven",
   "yazar": "Jack Mava",
@@ -564,15 +1344,15 @@
   "ad": "Eski askerî sandık (açık)",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/old_military_crate_b.glb",
-  "materyal": "celik",
+  "materyal": "ahsap",
   "materyaller": "Ahşap, çelik",
-  "kutle_kg": 101.22,
+  "kutle_kg": 17.22,
   "boyut_m": [
    0.816,
-   0.258,
-   0.975
+   0.259,
+   0.974
   ],
-  "ucgen": 2999,
+  "ucgen": 1999,
   "set": "old_military_crate",
   "kaynak": "Poly Haven",
   "yazar": "Jack Mava",
@@ -580,24 +1360,424 @@
   "url": "https://polyhaven.com/a/old_military_crate"
  },
  {
+  "id": "old_padlock",
+  "ad": "Eski asma kilit",
+  "tur": "zincir",
+  "glb": "res://assets/props/hurda/old_padlock.glb",
+  "materyal": "demir",
+  "materyaller": "Demir, pirinç",
+  "kutle_kg": 0.1,
+  "boyut_m": [
+   0.15,
+   0.09,
+   0.017
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Tymon Ostrowski",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/1353b1c48f7548908b086dea7411575d"
+ },
+ {
+  "id": "old_pipe_01",
+  "ad": "Eski boru paketi 1",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 3.76,
+  "boyut_m": [
+   0.211,
+   0.211,
+   0.084
+  ],
+  "ucgen": 1200,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_02",
+  "ad": "Eski boru paketi 2",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 1.4,
+  "boyut_m": [
+   0.148,
+   0.148,
+   0.084
+  ],
+  "ucgen": 1200,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_03",
+  "ad": "Eski boru paketi 3",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_03.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 2.21,
+  "boyut_m": [
+   0.211,
+   0.148,
+   0.084
+  ],
+  "ucgen": 1152,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_04",
+  "ad": "Eski boru paketi 4",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_04.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 0.55,
+  "boyut_m": [
+   0.105,
+   0.084,
+   0.084
+  ],
+  "ucgen": 512,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_05",
+  "ad": "Eski boru paketi 5",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_05.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 1.35,
+  "boyut_m": [
+   0.259,
+   0.084,
+   0.084
+  ],
+  "ucgen": 512,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_06",
+  "ad": "Eski boru paketi 6",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_06.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 2.88,
+  "boyut_m": [
+   0.551,
+   0.084,
+   0.084
+  ],
+  "ucgen": 512,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_07",
+  "ad": "Eski boru paketi 7",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_07.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.015,
+   0.084,
+   0.084
+  ],
+  "ucgen": 500,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_08",
+  "ad": "Eski boru paketi 8",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_08.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 3.34,
+  "boyut_m": [
+   0.199,
+   0.187,
+   0.084
+  ],
+  "ucgen": 1200,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_09",
+  "ad": "Eski boru paketi 9",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_09.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 0.92,
+  "boyut_m": [
+   0.164,
+   0.084,
+   0.164
+  ],
+  "ucgen": 1200,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_10",
+  "ad": "Eski boru paketi 10",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_10.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 0.12,
+  "boyut_m": [
+   0.084,
+   0.039,
+   0.085
+  ],
+  "ucgen": 500,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_11",
+  "ad": "Eski boru paketi 11",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_11.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 0.22,
+  "boyut_m": [
+   0.13,
+   0.027,
+   0.083
+  ],
+  "ucgen": 376,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_pipe_12",
+  "ad": "Eski boru paketi 12",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/old_pipe_12.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, bakır",
+  "kutle_kg": 0.09,
+  "boyut_m": [
+   0.084,
+   0.03,
+   0.084
+  ],
+  "ucgen": 499,
+  "set": "old_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Alex Krush",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-pipes-bundle-modular-industrial-pack-fbe3129ea77243ca92c8219f269ac5cf"
+ },
+ {
+  "id": "old_screwdriver_01",
+  "ad": "Eski tornavidalar 1",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/old_screwdriver_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.16,
+  "boyut_m": [
+   0.026,
+   0.026,
+   0.22
+  ],
+  "ucgen": 618,
+  "set": "old_screwdriver",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/3d79e901c80d459da8d4484e51c75fd5"
+ },
+ {
+  "id": "old_screwdriver_02",
+  "ad": "Eski tornavidalar 2",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/old_screwdriver_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.15,
+  "boyut_m": [
+   0.024,
+   0.024,
+   0.22
+  ],
+  "ucgen": 752,
+  "set": "old_screwdriver",
+  "kaynak": "Sketchfab",
+  "yazar": "TwilightFox",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/3d79e901c80d459da8d4484e51c75fd5"
+ },
+ {
   "id": "old_tyre",
   "ad": "Eski lastik",
   "tur": "jant",
   "glb": "res://assets/props/hurda/old_tyre.glb",
-  "materyal": "celik",
+  "materyal": "kaucuk",
   "materyaller": "Kauçuk, çelik tel",
-  "kutle_kg": 34.24,
+  "kutle_kg": 10.84,
   "boyut_m": [
    0.6,
    0.6,
    0.165
   ],
-  "ucgen": 2880,
+  "ucgen": 1998,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "MP",
   "lisans": "CC0",
   "url": "https://polyhaven.com/a/old_tyre"
+ },
+ {
+  "id": "old_wrench_scan",
+  "ad": "Eski anahtar (tarama)",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/old_wrench_scan.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.49,
+  "boyut_m": [
+   0.061,
+   0.023,
+   0.25
+  ],
+  "ucgen": 1360,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "sixonetwo",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/1bf090bbd2b944928898c92e1d47a984"
+ },
+ {
+  "id": "paint_can_01",
+  "ad": "Boya ve vernik kutuları 1",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/paint_can_01.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.69,
+  "boyut_m": [
+   0.151,
+   0.129,
+   0.15
+  ],
+  "ucgen": 176,
+  "set": "paint_can",
+  "kaynak": "Sketchfab",
+  "yazar": "hoxsvl",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/30d6217c24064fbc9f07782a739c083d"
+ },
+ {
+  "id": "paint_can_02",
+  "ad": "Boya ve vernik kutuları 2",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/paint_can_02.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.71,
+  "boyut_m": [
+   0.155,
+   0.135,
+   0.155
+  ],
+  "ucgen": 332,
+  "set": "paint_can",
+  "kaynak": "Sketchfab",
+  "yazar": "hoxsvl",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/30d6217c24064fbc9f07782a739c083d"
+ },
+ {
+  "id": "paint_can_03",
+  "ad": "Boya ve vernik kutuları 3",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/paint_can_03.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.39,
+  "boyut_m": [
+   0.105,
+   0.142,
+   0.105
+  ],
+  "ucgen": 374,
+  "set": "paint_can",
+  "kaynak": "Sketchfab",
+  "yazar": "hoxsvl",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/30d6217c24064fbc9f07782a739c083d"
+ },
+ {
+  "id": "pipe_valve_scan",
+  "ad": "Boru vanası (tarama)",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/pipe_valve_scan.glb",
+  "materyal": "dokme_demir",
+  "materyaller": "Dökme demir, pirinç",
+  "kutle_kg": 2.23,
+  "boyut_m": [
+   0.269,
+   0.245,
+   0.109
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "grafi",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/5b8d5bb5ecdd4d8a80f71eabd4d08249"
  },
  {
   "id": "pipe_wrench",
@@ -606,18 +1786,38 @@
   "glb": "res://assets/props/hurda/pipe_wrench.glb",
   "materyal": "dokme_demir",
   "materyaller": "Dökme demir",
-  "kutle_kg": 1.83,
+  "kutle_kg": 1.32,
   "boyut_m": [
-   0.084,
+   0.083,
    0.405,
    0.034
   ],
-  "ucgen": 1999,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Will Evarts",
   "lisans": "CC0",
   "url": "https://polyhaven.com/a/pipe_wrench"
+ },
+ {
+  "id": "pipe_wrench_2",
+  "ad": "Boru anahtarı 2",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/pipe_wrench_2.glb",
+  "materyal": "dokme_demir",
+  "materyaller": "Dökme demir",
+  "kutle_kg": 2.44,
+  "boyut_m": [
+   0.108,
+   0.441,
+   0.051
+  ],
+  "ucgen": 1500,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "RienceCG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9877bc3a66ed4c8fa29588c1d48316b3"
  },
  {
   "id": "plastic_crate_03",
@@ -626,13 +1826,13 @@
   "glb": "res://assets/props/hurda/plastic_crate_03.glb",
   "materyal": "plastik",
   "materyaller": "Plastik",
-  "kutle_kg": 2.4,
+  "kutle_kg": 4.64,
   "boyut_m": [
-   0.483,
+   0.485,
    0.265,
-   0.265
+   0.266
   ],
-  "ucgen": 4050,
+  "ucgen": 3947,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Pacific Penguin",
@@ -658,6 +1858,46 @@
   "yazar": "PierreB3D",
   "lisans": "CC0",
   "url": "https://polyhaven.com/a/pliers"
+ },
+ {
+  "id": "post_apo_smg",
+  "ad": "Post-apo SMG",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/post_apo_smg.glb",
+  "materyal": "celik",
+  "materyaller": "SMG",
+  "kutle_kg": 0.74,
+  "boyut_m": [
+   0.061,
+   0.222,
+   0.6
+  ],
+  "ucgen": 2492,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Alexander Kirby",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/post-apocalyptic-smg-2affecbe2fac483c98459846b5104942"
+ },
+ {
+  "id": "pressure_gauge",
+  "ad": "Manometre",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/pressure_gauge.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, cam",
+  "kutle_kg": 0.48,
+  "boyut_m": [
+   0.098,
+   0.097,
+   0.1
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "takeboncog",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/95cf5b63b15549a2a173bb480577b6a9"
  },
  {
   "id": "ratchet_wrench",
@@ -686,7 +1926,7 @@
   "glb": "res://assets/props/hurda/retro_multimeter.glb",
   "materyal": "bakir",
   "materyaller": "Bakır, plastik",
-  "kutle_kg": 4.47,
+  "kutle_kg": 1.4,
   "boyut_m": [
    0.216,
    0.278,
@@ -760,19 +2000,59 @@
   "url": "https://polyhaven.com/a/russian_food_cans_01"
  },
  {
+  "id": "rusted_bucket",
+  "ad": "Paslı kova",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/rusted_bucket.glb",
+  "materyal": "celik",
+  "materyaller": "Galvaniz çelik",
+  "kutle_kg": 1.48,
+  "boyut_m": [
+   0.265,
+   0.3,
+   0.266
+  ],
+  "ucgen": 1500,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Coozy",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-rusted-bucket-v3-ca0755cc9e2d4dfd920e51b6ca9e1243"
+ },
+ {
+  "id": "rusted_copper_gear",
+  "ad": "Paslı bakır dişli",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/rusted_copper_gear.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır, pirinç",
+  "kutle_kg": 2.74,
+  "boyut_m": [
+   0.201,
+   0.024,
+   0.2
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Henri Hanot",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/rusted-copper-gear-75d1f09e810d44dab830c563b77973a2"
+ },
+ {
   "id": "rusted_hacksaw",
   "ad": "Paslı demir testeresi",
   "tur": "alet",
   "glb": "res://assets/props/hurda/rusted_hacksaw.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 2.87,
+  "kutle_kg": 2.1,
   "boyut_m": [
-   0.496,
+   0.497,
    0.109,
    0.033
   ],
-  "ucgen": 1999,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Dabou Master",
@@ -786,13 +2066,13 @@
   "glb": "res://assets/props/hurda/rusted_spade_01.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 15.66,
+  "kutle_kg": 15.63,
   "boyut_m": [
    0.168,
    1.101,
    0.046
   ],
-  "ucgen": 2999,
+  "ucgen": 1999,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Blemonade",
@@ -806,13 +2086,13 @@
   "glb": "res://assets/props/hurda/rusted_wheel_rim_01.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 8.97,
+  "kutle_kg": 8.95,
   "boyut_m": [
-   0.403,
-   0.396,
+   0.404,
+   0.397,
    0.154
   ],
-  "ucgen": 2000,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "John Hutcheson",
@@ -826,13 +2106,13 @@
   "glb": "res://assets/props/hurda/rusted_wheel_rim_02.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 5.0,
+  "kutle_kg": 4.98,
   "boyut_m": [
    0.336,
-   0.338,
+   0.339,
    0.121
   ],
-  "ucgen": 2000,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "John Hutcheson",
@@ -840,19 +2120,59 @@
   "url": "https://polyhaven.com/a/rusted_wheel_rim_02"
  },
  {
+  "id": "rusty_can",
+  "ad": "Paslı kutu",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/rusty_can.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.11,
+  "boyut_m": [
+   0.12,
+   0.042,
+   0.12
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Apofex",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/6f429979e45441e195432729e2c15a8c"
+ },
+ {
+  "id": "rusty_chain_01",
+  "ad": "Paslı zincirler 1",
+  "tur": "zincir",
+  "glb": "res://assets/props/hurda/rusty_chain_01.glb",
+  "materyal": "demir",
+  "materyaller": "Demir",
+  "kutle_kg": 1.37,
+  "boyut_m": [
+   0.5,
+   0.052,
+   0.165
+  ],
+  "ucgen": 1500,
+  "set": "rusty_chain",
+  "kaynak": "Sketchfab",
+  "yazar": "amanda_98",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/rusty-chains-be9648f8e0324bbd967c10b44007bee1"
+ },
+ {
   "id": "rusty_gears_01",
-  "ad": "Paslı dişliler",
+  "ad": "Paslı dişliler 1",
   "tur": "disli",
   "glb": "res://assets/props/hurda/rusty_gears_01.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 4.19,
+  "kutle_kg": 4.23,
   "boyut_m": [
    0.288,
    0.31,
    0.014
   ],
-  "ucgen": 1651,
+  "ucgen": 1500,
   "set": "rusty_gears",
   "kaynak": "Sketchfab",
   "yazar": "ayumi ikeda",
@@ -861,7 +2181,7 @@
  },
  {
   "id": "rusty_gears_02",
-  "ad": "Paslı dişliler",
+  "ad": "Paslı dişliler 2",
   "tur": "disli",
   "glb": "res://assets/props/hurda/rusty_gears_02.glb",
   "materyal": "celik",
@@ -881,7 +2201,7 @@
  },
  {
   "id": "rusty_gears_03",
-  "ad": "Paslı dişliler",
+  "ad": "Paslı dişliler 3",
   "tur": "disli",
   "glb": "res://assets/props/hurda/rusty_gears_03.glb",
   "materyal": "celik",
@@ -898,6 +2218,606 @@
   "yazar": "ayumi ikeda",
   "lisans": "CC-BY 4.0",
   "url": "https://sketchfab.com/3d-models/rusty-gears-10e4ab22490f470aaf91498199ec17d9"
+ },
+ {
+  "id": "rusty_pipe_01",
+  "ad": "Paslı borular 1",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.043,
+   0.029,
+   0.043
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_02",
+  "ad": "Paslı borular 2",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.043,
+   0.029,
+   0.043
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_03",
+  "ad": "Paslı borular 3",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_03.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.056,
+   0.02,
+   0.056
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_07",
+  "ad": "Paslı borular 7",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_07.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.039,
+   0.038,
+   0.038
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_08",
+  "ad": "Paslı borular 8",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_08.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.048,
+   0.033,
+   0.037
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_09",
+  "ad": "Paslı borular 9",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_09.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.038,
+   0.029,
+   0.048
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_10",
+  "ad": "Paslı borular 10",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_10.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.038,
+   0.029,
+   0.057
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_11",
+  "ad": "Paslı borular 11",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_11.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.048,
+   0.029,
+   0.048
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_12",
+  "ad": "Paslı borular 12",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_12.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.039,
+   0.038,
+   0.048
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_13",
+  "ad": "Paslı borular 13",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_13.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.048,
+   0.039,
+   0.048
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_14",
+  "ad": "Paslı borular 14",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_14.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.048,
+   0.048,
+   0.048
+  ],
+  "ucgen": 499,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_16",
+  "ad": "Paslı borular 16",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_16.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.073,
+   0.029,
+   0.073
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_17",
+  "ad": "Paslı borular 17",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_17.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.2,
+  "boyut_m": [
+   0.112,
+   0.029,
+   0.112
+  ],
+  "ucgen": 1199,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_18",
+  "ad": "Paslı borular 18",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_18.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.038,
+   0.015,
+   0.038
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_20",
+  "ad": "Paslı borular 20",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_20.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.029,
+   0.029,
+   0.048
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_21",
+  "ad": "Paslı borular 21",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_21.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.029,
+   0.029,
+   0.06
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_22",
+  "ad": "Paslı borular 22",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_22.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.029,
+   0.029,
+   0.084
+  ],
+  "ucgen": 499,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_23",
+  "ad": "Paslı borular 23",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_23.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.029,
+   0.029,
+   0.108
+  ],
+  "ucgen": 1200,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_24",
+  "ad": "Paslı borular 24",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_24.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.08,
+  "boyut_m": [
+   0.029,
+   0.029,
+   0.132
+  ],
+  "ucgen": 1200,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pipe_25",
+  "ad": "Paslı borular 25",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/rusty_pipe_25.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.076,
+   0.029,
+   0.04
+  ],
+  "ucgen": 500,
+  "set": "rusty_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/23f2e48cb60541cba8529499749ec9df"
+ },
+ {
+  "id": "rusty_pliers",
+  "ad": "Paslı pense",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/rusty_pliers.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.69,
+  "boyut_m": [
+   0.119,
+   0.067,
+   0.2
+  ],
+  "ucgen": 1199,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "PabloDebusschere",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/31b548d29667417382b2ab02ff7581d7"
+ },
+ {
+  "id": "rusty_sardine_can",
+  "ad": "Paslı sardalya kutusu",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/rusty_sardine_can.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.15,
+  "boyut_m": [
+   0.11,
+   0.075,
+   0.106
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Coozy",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/rusty-can-of-sardines-af964af1c58840c1baf3cc0dd8cd987d"
+ },
+ {
+  "id": "rusty_sledgehammer_scan",
+  "ad": "Paslı balyoz (tarama)",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/rusty_sledgehammer_scan.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 5,
+  "boyut_m": [
+   0.65,
+   0.9,
+   0.478
+  ],
+  "ucgen": 1999,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "sixonetwo",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/0d4f90b84b1f43ac9ade0eda770a1626"
+ },
+ {
+  "id": "rusty_spark_plug",
+  "ad": "Paslı buji",
+  "tur": "motor",
+  "glb": "res://assets/props/hurda/rusty_spark_plug.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, seramik, bakır",
+  "kutle_kg": 0.11,
+  "boyut_m": [
+   0.028,
+   0.104,
+   0.033
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "VladIG_CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/d634946e2ae3431aaee4d1e9b61f26ea"
+ },
+ {
+  "id": "rusty_tin_can_scan",
+  "ad": "Paslı teneke (tarama)",
+  "tur": "konserve",
+  "glb": "res://assets/props/hurda/rusty_tin_can_scan.glb",
+  "materyal": "teneke",
+  "materyaller": "Teneke",
+  "kutle_kg": 0.61,
+  "boyut_m": [
+   0.198,
+   0.182,
+   0.152
+  ],
+  "ucgen": 1198,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Saulius.Zaura",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/69455297cdd546bfa316227f9f9a08c2"
+ },
+ {
+  "id": "rusty_wrench",
+  "ad": "Paslı anahtar",
+  "tur": "alet",
+  "glb": "res://assets/props/hurda/rusty_wrench.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.13,
+  "boyut_m": [
+   0.2,
+   0.04,
+   0.008
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "cc03d.com",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/used-old-rusty-wrench-cc0-900caf6a14b64468ae7633e08cd74cbd"
+ },
+ {
+  "id": "saw_blade",
+  "ad": "Daire testere bıçağı 2",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/saw_blade.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.62,
+  "boyut_m": [
+   0.25,
+   0.25,
+   0.004
+  ],
+  "ucgen": 1200,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "kai9987kai",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/98d471f4e3ec40ec97703867e04a0a61"
+ },
+ {
+  "id": "scrap_gatling",
+  "ad": "Hurda gatling",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/scrap_gatling.glb",
+  "materyal": "celik",
+  "materyaller": "Minigun",
+  "kutle_kg": 50.44,
+  "boyut_m": [
+   1.2,
+   0.638,
+   0.539
+  ],
+  "ucgen": 2929,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "HippoStance",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/scrap-gatling-gun-c213d60d40da4f5d83c43ec198734a89"
+ },
+ {
+  "id": "scrap_gun",
+  "ad": "Hurda silah",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/scrap_gun.glb",
+  "materyal": "celik",
+  "materyaller": "Tüfek",
+  "kutle_kg": 1.59,
+  "boyut_m": [
+   0.067,
+   0.254,
+   0.9
+  ],
+  "ucgen": 2500,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "ns8",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/scrap-gun-game-ready-free-download-61b72a1ae7424e4d8cce540e829f0787"
+ },
+ {
+  "id": "scrap_smg",
+  "ad": "Hurda SMG",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/scrap_smg.glb",
+  "materyal": "celik",
+  "materyaller": "SMG",
+  "kutle_kg": 1.51,
+  "boyut_m": [
+   0.08,
+   0.318,
+   0.6
+  ],
+  "ucgen": 2499,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Thomas_Crozelon",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/submachine-gun-scrap-gun-93341754878049ef85784ef37ad5104d"
  },
  {
   "id": "screwdriver",
@@ -926,18 +2846,398 @@
   "glb": "res://assets/props/hurda/sledgehammer_01.glb",
   "materyal": "celik",
   "materyaller": "Çelik",
-  "kutle_kg": 33.44,
+  "kutle_kg": 5,
   "boyut_m": [
    0.208,
    1.006,
    0.09
   ],
-  "ucgen": 2596,
+  "ucgen": 2000,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Dylan Guzman",
   "lisans": "CC0",
   "url": "https://polyhaven.com/a/sledgehammer_01"
+ },
+ {
+  "id": "small_copper_pipe_01",
+  "ad": "Küçük bakır borular 1",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_01.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.034,
+   0.022,
+   0.034
+  ],
+  "ucgen": 498,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_03",
+  "ad": "Küçük bakır borular 3",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_03.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.059,
+   0.022,
+   0.059
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_05",
+  "ad": "Küçük bakır borular 5",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_05.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.06
+  ],
+  "ucgen": 240,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_06",
+  "ad": "Küçük bakır borular 6",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_06.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.13
+  ],
+  "ucgen": 336,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_07",
+  "ad": "Küçük bakır borular 7",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_07.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.19
+  ],
+  "ucgen": 336,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_08",
+  "ad": "Küçük bakır borular 8",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_08.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.033,
+   0.022,
+   0.044
+  ],
+  "ucgen": 498,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_09",
+  "ad": "Küçük bakır borular 9",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_09.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.045,
+   0.022,
+   0.044
+  ],
+  "ucgen": 498,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_11",
+  "ad": "Küçük bakır borular 11",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_11.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.061,
+   0.022,
+   0.038
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_12",
+  "ad": "Küçük bakır borular 12",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_12.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.105,
+   0.039,
+   0.02
+  ],
+  "ucgen": 1200,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_13",
+  "ad": "Küçük bakır borular 13",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_13.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.09,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.25
+  ],
+  "ucgen": 336,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_14",
+  "ad": "Küçük bakır borular 14",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_14.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.04,
+   0.022,
+   0.04
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_15",
+  "ad": "Küçük bakır borular 15",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_15.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.033,
+   0.033,
+   0.044
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_16",
+  "ad": "Küçük bakır borular 16",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_16.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.045,
+   0.033,
+   0.044
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_17",
+  "ad": "Küçük bakır borular 17",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_17.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.045,
+   0.045,
+   0.044
+  ],
+  "ucgen": 498,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_18",
+  "ad": "Küçük bakır borular 18",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_18.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.033,
+   0.033,
+   0.033
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_19",
+  "ad": "Küçük bakır borular 19",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_19.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.059,
+   0.021,
+   0.074
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_23",
+  "ad": "Küçük bakır borular 23",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_23.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.046,
+   0.011,
+   0.046
+  ],
+  "ucgen": 378,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_24",
+  "ad": "Küçük bakır borular 24",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_24.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.073,
+   0.053,
+   0.023
+  ],
+  "ucgen": 499,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
+ },
+ {
+  "id": "small_copper_pipe_25",
+  "ad": "Küçük bakır borular 25",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_copper_pipe_25.glb",
+  "materyal": "bakir",
+  "materyaller": "Bakır",
+  "kutle_kg": 0.08,
+  "boyut_m": [
+   0.05,
+   0.058,
+   0.042
+  ],
+  "ucgen": 500,
+  "set": "small_copper_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/02a9298f15bf452993a60b155d29b532"
  },
  {
   "id": "small_lpg_tank",
@@ -946,13 +3246,13 @@
   "glb": "res://assets/props/hurda/small_lpg_tank.glb",
   "materyal": "celik",
   "materyaller": "Çelik, pirinç vana",
-  "kutle_kg": 17.53,
+  "kutle_kg": 17.67,
   "boyut_m": [
-   0.411,
+   0.41,
    0.642,
    0.409
   ],
-  "ucgen": 3000,
+  "ucgen": 1998,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Ulan Cabanilla",
@@ -964,9 +3264,9 @@
   "ad": "Küçük yağdanlık",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/small_oil_can_01.glb",
-  "materyal": "pirinc",
+  "materyal": "teneke",
   "materyaller": "Teneke, pirinç",
-  "kutle_kg": 0.54,
+  "kutle_kg": 0.5,
   "boyut_m": [
    0.266,
    0.237,
@@ -980,8 +3280,408 @@
   "url": "https://polyhaven.com/a/small_oil_can_01"
  },
  {
+  "id": "small_steel_pipe_01",
+  "ad": "Küçük çelik borular 1",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.034,
+   0.022,
+   0.034
+  ],
+  "ucgen": 498,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_03",
+  "ad": "Küçük çelik borular 3",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_03.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.059,
+   0.022,
+   0.059
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_05",
+  "ad": "Küçük çelik borular 5",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_05.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.06
+  ],
+  "ucgen": 240,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_06",
+  "ad": "Küçük çelik borular 6",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_06.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.13
+  ],
+  "ucgen": 336,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_07",
+  "ad": "Küçük çelik borular 7",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_07.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.19
+  ],
+  "ucgen": 336,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_08",
+  "ad": "Küçük çelik borular 8",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_08.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.033,
+   0.022,
+   0.044
+  ],
+  "ucgen": 498,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_09",
+  "ad": "Küçük çelik borular 9",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_09.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.045,
+   0.022,
+   0.044
+  ],
+  "ucgen": 498,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_11",
+  "ad": "Küçük çelik borular 11",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_11.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.061,
+   0.022,
+   0.038
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_12",
+  "ad": "Küçük çelik borular 12",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_12.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.105,
+   0.039,
+   0.02
+  ],
+  "ucgen": 1200,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_13",
+  "ad": "Küçük çelik borular 13",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_13.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.02,
+   0.02,
+   0.25
+  ],
+  "ucgen": 336,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_14",
+  "ad": "Küçük çelik borular 14",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_14.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.04,
+   0.022,
+   0.04
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_15",
+  "ad": "Küçük çelik borular 15",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_15.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.03,
+  "boyut_m": [
+   0.033,
+   0.033,
+   0.044
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_16",
+  "ad": "Küçük çelik borular 16",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_16.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.045,
+   0.033,
+   0.044
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_17",
+  "ad": "Küçük çelik borular 17",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_17.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.045,
+   0.045,
+   0.044
+  ],
+  "ucgen": 498,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_18",
+  "ad": "Küçük çelik borular 18",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_18.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.033,
+   0.033,
+   0.033
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_19",
+  "ad": "Küçük çelik borular 19",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_19.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.059,
+   0.021,
+   0.074
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_23",
+  "ad": "Küçük çelik borular 23",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_23.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.02,
+  "boyut_m": [
+   0.046,
+   0.011,
+   0.046
+  ],
+  "ucgen": 378,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_24",
+  "ad": "Küçük çelik borular 24",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_24.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.05,
+  "boyut_m": [
+   0.073,
+   0.053,
+   0.023
+  ],
+  "ucgen": 499,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "small_steel_pipe_25",
+  "ad": "Küçük çelik borular 25",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/small_steel_pipe_25.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.05,
+   0.058,
+   0.042
+  ],
+  "ucgen": 500,
+  "set": "small_steel_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "Osian CG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/dfd00922dc0c4f0997febc73a5785fd1"
+ },
+ {
+  "id": "soviet_fuel_canister",
+  "ad": "Paslı yakıt bidonu",
+  "tur": "kap",
+  "glb": "res://assets/props/hurda/soviet_fuel_canister.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 7.76,
+  "boyut_m": [
+   0.154,
+   0.5,
+   0.372
+  ],
+  "ucgen": 1499,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "olegolegperepelica",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/old-rusty-soviet-fuel-canister-a2e479f5114246bda975afaa827081d1"
+ },
+ {
   "id": "soviet_tin_can_01",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 1",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_01.glb",
   "materyal": "teneke",
@@ -997,11 +3697,11 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
  },
  {
   "id": "soviet_tin_can_02",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 2",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_02.glb",
   "materyal": "teneke",
@@ -1017,11 +3717,11 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
  },
  {
   "id": "soviet_tin_can_03",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 3",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_03.glb",
   "materyal": "teneke",
@@ -1037,11 +3737,11 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
  },
  {
   "id": "soviet_tin_can_04",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 4",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_04.glb",
   "materyal": "teneke",
@@ -1057,11 +3757,11 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
  },
  {
   "id": "soviet_tin_can_05",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 5",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_05.glb",
   "materyal": "teneke",
@@ -1077,11 +3777,11 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
  },
  {
   "id": "soviet_tin_can_06",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 6",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_06.glb",
   "materyal": "teneke",
@@ -1097,11 +3797,11 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
  },
  {
   "id": "soviet_tin_can_07",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 7",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_07.glb",
   "materyal": "teneke",
@@ -1117,11 +3817,11 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
  },
  {
   "id": "soviet_tin_can_08",
-  "ad": "Eski konserveler (süt, et, balık)",
+  "ad": "Eski konserveler (süt, et, balık) 8",
   "tur": "konserve",
   "glb": "res://assets/props/hurda/soviet_tin_can_08.glb",
   "materyal": "teneke",
@@ -1137,7 +3837,27 @@
   "kaynak": "Sketchfab",
   "yazar": "TwilightFox",
   "lisans": "CC-BY 4.0",
-  "url": "https://sketchfab.com/3d-models/none-70a8473dd5ef4431a9184b75d09f0747"
+  "url": "https://sketchfab.com/3d-models/70a8473dd5ef4431a9184b75d09f0747"
+ },
+ {
+  "id": "spark_plug",
+  "ad": "Buji",
+  "tur": "motor",
+  "glb": "res://assets/props/hurda/spark_plug.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, seramik, bakır",
+  "kutle_kg": 0.04,
+  "boyut_m": [
+   0.019,
+   0.089,
+   0.021
+  ],
+  "ucgen": 500,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Vaughan.Staehr",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/306c0031ba8445a79897fa060791758a"
  },
  {
   "id": "spray_paint_bottles_02_a",
@@ -1180,6 +3900,846 @@
   "url": "https://polyhaven.com/a/spray_paint_bottles_02"
  },
  {
+  "id": "stacked_tire_01",
+  "ad": "Üst üste eski lastikler 1",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/stacked_tire_01.glb",
+  "materyal": "kaucuk",
+  "materyaller": "Kauçuk, çelik tel",
+  "kutle_kg": 10,
+  "boyut_m": [
+   0.531,
+   0.62,
+   0.53
+  ],
+  "ucgen": 2000,
+  "set": "stacked_tire",
+  "kaynak": "Sketchfab",
+  "yazar": "ZiemniaQ",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/f9d64bd1fdde49fe8571f83f59114663"
+ },
+ {
+  "id": "steampunk_gear_01",
+  "ad": "Dişli paketi 1",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_01.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.63,
+  "boyut_m": [
+   0.159,
+   0.007,
+   0.159
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_02",
+  "ad": "Dişli paketi 2",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_02.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.8,
+  "boyut_m": [
+   0.151,
+   0.009,
+   0.151
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_03",
+  "ad": "Dişli paketi 3",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_03.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.65,
+  "boyut_m": [
+   0.151,
+   0.01,
+   0.151
+  ],
+  "ucgen": 1182,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_04",
+  "ad": "Dişli paketi 4",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_04.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 1.26,
+  "boyut_m": [
+   0.176,
+   0.013,
+   0.176
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_05",
+  "ad": "Dişli paketi 5",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_05.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.69,
+  "boyut_m": [
+   0.155,
+   0.006,
+   0.156
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_06",
+  "ad": "Dişli paketi 6",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_06.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.96,
+  "boyut_m": [
+   0.138,
+   0.013,
+   0.138
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_07",
+  "ad": "Dişli paketi 7",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_07.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.79,
+  "boyut_m": [
+   0.142,
+   0.015,
+   0.142
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_08",
+  "ad": "Dişli paketi 8",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_08.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 1.32,
+  "boyut_m": [
+   0.147,
+   0.014,
+   0.147
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_09",
+  "ad": "Dişli paketi 9",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_09.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 1.05,
+  "boyut_m": [
+   0.151,
+   0.009,
+   0.151
+  ],
+  "ucgen": 1199,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_10",
+  "ad": "Dişli paketi 10",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_10.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.84,
+  "boyut_m": [
+   0.152,
+   0.008,
+   0.152
+  ],
+  "ucgen": 1096,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_11",
+  "ad": "Dişli paketi 11",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_11.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.88,
+  "boyut_m": [
+   0.16,
+   0.008,
+   0.16
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_12",
+  "ad": "Dişli paketi 12",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_12.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.81,
+  "boyut_m": [
+   0.151,
+   0.009,
+   0.151
+  ],
+  "ucgen": 1199,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_13",
+  "ad": "Dişli paketi 13",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_13.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 1.04,
+  "boyut_m": [
+   0.156,
+   0.01,
+   0.156
+  ],
+  "ucgen": 816,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_14",
+  "ad": "Dişli paketi 14",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_14.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.98,
+  "boyut_m": [
+   0.164,
+   0.008,
+   0.164
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_15",
+  "ad": "Dişli paketi 15",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_15.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 1.36,
+  "boyut_m": [
+   0.17,
+   0.011,
+   0.17
+  ],
+  "ucgen": 1199,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_16",
+  "ad": "Dişli paketi 16",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_16.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.99,
+  "boyut_m": [
+   0.164,
+   0.014,
+   0.164
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_17",
+  "ad": "Dişli paketi 17",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_17.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 1.38,
+  "boyut_m": [
+   0.153,
+   0.013,
+   0.154
+  ],
+  "ucgen": 884,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_18",
+  "ad": "Dişli paketi 18",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_18.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.8,
+  "boyut_m": [
+   0.154,
+   0.008,
+   0.154
+  ],
+  "ucgen": 1148,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_19",
+  "ad": "Dişli paketi 19",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_19.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 1.38,
+  "boyut_m": [
+   0.153,
+   0.013,
+   0.153
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "steampunk_gear_20",
+  "ad": "Dişli paketi 20",
+  "tur": "disli",
+  "glb": "res://assets/props/hurda/steampunk_gear_20.glb",
+  "materyal": "pirinc",
+  "materyaller": "Pirinç, çelik",
+  "kutle_kg": 0.56,
+  "boyut_m": [
+   0.155,
+   0.01,
+   0.155
+  ],
+  "ucgen": 1200,
+  "set": "steampunk_gear",
+  "kaynak": "Sketchfab",
+  "yazar": "KapetS",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/free-lowpoly-steampunk-gears-pack-249b36110c7f42158d6420c17e5e6f76"
+ },
+ {
+  "id": "stylized_pipe_01",
+  "ad": "Stilize boru seti 1",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_01.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.67,
+  "boyut_m": [
+   0.086,
+   0.128,
+   0.083
+  ],
+  "ucgen": 154,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_02",
+  "ad": "Stilize boru seti 2",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_02.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.47,
+  "boyut_m": [
+   0.09,
+   0.048,
+   0.183
+  ],
+  "ucgen": 160,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_03",
+  "ad": "Stilize boru seti 3",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_03.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.11,
+  "boyut_m": [
+   0.028,
+   0.064,
+   0.101
+  ],
+  "ucgen": 128,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_04",
+  "ad": "Stilize boru seti 4",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_04.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.21,
+  "boyut_m": [
+   0.038,
+   0.047,
+   0.16
+  ],
+  "ucgen": 60,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_05",
+  "ad": "Stilize boru seti 5",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_05.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.2,
+  "boyut_m": [
+   0.03,
+   0.102,
+   0.102
+  ],
+  "ucgen": 396,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_06",
+  "ad": "Stilize boru seti 6",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_06.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 1.6,
+  "boyut_m": [
+   0.122,
+   0.16,
+   0.122
+  ],
+  "ucgen": 108,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_07",
+  "ad": "Stilize boru seti 7",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_07.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 2.44,
+  "boyut_m": [
+   0.083,
+   0.202,
+   0.202
+  ],
+  "ucgen": 144,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_08",
+  "ad": "Stilize boru seti 8",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_08.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 1.19,
+  "boyut_m": [
+   0.083,
+   0.138,
+   0.138
+  ],
+  "ucgen": 96,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_09",
+  "ad": "Stilize boru seti 9",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_09.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.5,
+  "boyut_m": [
+   0.191,
+   0.021,
+   0.191
+  ],
+  "ucgen": 300,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_10",
+  "ad": "Stilize boru seti 10",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_10.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 1.2,
+  "boyut_m": [
+   0.083,
+   0.16,
+   0.122
+  ],
+  "ucgen": 72,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_11",
+  "ad": "Stilize boru seti 11",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_11.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 1.62,
+  "boyut_m": [
+   0.083,
+   0.16,
+   0.16
+  ],
+  "ucgen": 96,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_12",
+  "ad": "Stilize boru seti 12",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_12.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.52,
+  "boyut_m": [
+   0.083,
+   0.08,
+   0.083
+  ],
+  "ucgen": 24,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_13",
+  "ad": "Stilize boru seti 13",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_13.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.41,
+  "boyut_m": [
+   0.125,
+   0.032,
+   0.125
+  ],
+  "ucgen": 48,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_14",
+  "ad": "Stilize boru seti 14",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_14.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.16,
+  "boyut_m": [
+   0.083,
+   0.032,
+   0.083
+  ],
+  "ucgen": 120,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_15",
+  "ad": "Stilize boru seti 15",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_15.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.017,
+   0.083,
+   0.083
+  ],
+  "ucgen": 58,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_16",
+  "ad": "Stilize boru seti 16",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_16.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.083,
+   0.017,
+   0.083
+  ],
+  "ucgen": 58,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_17",
+  "ad": "Stilize boru seti 17",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_17.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.083,
+   0.017,
+   0.083
+  ],
+  "ucgen": 58,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_18",
+  "ad": "Stilize boru seti 18",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_18.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.06,
+  "boyut_m": [
+   0.083,
+   0.083,
+   0.017
+  ],
+  "ucgen": 58,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_19",
+  "ad": "Stilize boru seti 19",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_19.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.083,
+   0.017,
+   0.083
+  ],
+  "ucgen": 58,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_pipe_20",
+  "ad": "Stilize boru seti 20",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/stylized_pipe_20.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik",
+  "kutle_kg": 0.07,
+  "boyut_m": [
+   0.083,
+   0.083,
+   0.017
+  ],
+  "ucgen": 58,
+  "set": "stylized_pipe",
+  "kaynak": "Sketchfab",
+  "yazar": "sysoev.a",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/9e0523694b3842c4b044db8aec8c1d66"
+ },
+ {
+  "id": "stylized_shotgun",
+  "ad": "Stilize post-apo pompalı",
+  "tur": "silah",
+  "glb": "res://assets/props/hurda/stylized_shotgun.glb",
+  "materyal": "celik",
+  "materyaller": "Tüfek",
+  "kutle_kg": 9.09,
+  "boyut_m": [
+   0.218,
+   0.48,
+   1.0
+  ],
+  "ucgen": 2500,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Agata Wilczek",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/795eebabaf394b68aff8b5114a539f0d"
+ },
+ {
   "id": "tongue_groove_pliers",
   "ad": "Kanallı pense",
   "tur": "alet",
@@ -1200,19 +4760,59 @@
   "url": "https://polyhaven.com/a/tongue_groove_pliers"
  },
  {
+  "id": "truck_wheel",
+  "ad": "Kamyon tekeri, paslı jant",
+  "tur": "jant",
+  "glb": "res://assets/props/hurda/truck_wheel.glb",
+  "materyal": "celik",
+  "materyaller": "Çelik, kauçuk",
+  "kutle_kg": 90,
+  "boyut_m": [
+   0.924,
+   1.002,
+   0.847
+  ],
+  "ucgen": 1999,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "Оrрндп ЯТG",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/truck-wheel-with-rusty-rim-87533e4208a247c9bccee1999c772a12"
+ },
+ {
+  "id": "valve_wheel_scan",
+  "ad": "Vana çarkı (tarama)",
+  "tur": "boru",
+  "glb": "res://assets/props/hurda/valve_wheel_scan.glb",
+  "materyal": "dokme_demir",
+  "materyaller": "Dökme demir",
+  "kutle_kg": 8,
+  "boyut_m": [
+   0.299,
+   0.833,
+   0.299
+  ],
+  "ucgen": 2000,
+  "set": null,
+  "kaynak": "Sketchfab",
+  "yazar": "grafi",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/0264beb63c214817be93b57b23b6e6b3"
+ },
+ {
   "id": "vintage_flashlight",
   "ad": "Eski el feneri",
   "tur": "elektronik",
   "glb": "res://assets/props/hurda/vintage_flashlight.glb",
   "materyal": "pirinc",
   "materyaller": "Pirinç, cam",
-  "kutle_kg": 2.5,
+  "kutle_kg": 0.75,
   "boyut_m": [
    0.096,
    0.144,
    0.305
   ],
-  "ucgen": 2000,
+  "ucgen": 1499,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Omar M. El-Safy",
@@ -1226,13 +4826,13 @@
   "glb": "res://assets/props/hurda/watering_can_metal_01.glb",
   "materyal": "celik",
   "materyaller": "Galvaniz çelik",
-  "kutle_kg": 1.49,
+  "kutle_kg": 2.04,
   "boyut_m": [
    0.191,
    0.197,
    0.452
   ],
-  "ucgen": 1999,
+  "ucgen": 1500,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Charles Nderitu",
@@ -1240,19 +4840,79 @@
   "url": "https://polyhaven.com/a/watering_can_metal_01"
  },
  {
+  "id": "wooden_box_01",
+  "ad": "Ahşap kutular 1",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/wooden_box_01.glb",
+  "materyal": "ahsap",
+  "materyaller": "Ahşap",
+  "kutle_kg": 1.64,
+  "boyut_m": [
+   0.263,
+   0.272,
+   0.249
+  ],
+  "ucgen": 799,
+  "set": "wooden_box",
+  "kaynak": "Sketchfab",
+  "yazar": "MaX3Dd",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/wooden-boxes-ddecbe4586594bddb4822a90c0cba222"
+ },
+ {
+  "id": "wooden_box_02",
+  "ad": "Ahşap kutular 2",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/wooden_box_02.glb",
+  "materyal": "ahsap",
+  "materyaller": "Ahşap",
+  "kutle_kg": 2.24,
+  "boyut_m": [
+   0.264,
+   0.276,
+   0.338
+  ],
+  "ucgen": 1500,
+  "set": "wooden_box",
+  "kaynak": "Sketchfab",
+  "yazar": "MaX3Dd",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/wooden-boxes-ddecbe4586594bddb4822a90c0cba222"
+ },
+ {
+  "id": "wooden_box_03",
+  "ad": "Ahşap kutular 3",
+  "tur": "sandik",
+  "glb": "res://assets/props/hurda/wooden_box_03.glb",
+  "materyal": "ahsap",
+  "materyaller": "Ahşap",
+  "kutle_kg": 7.29,
+  "boyut_m": [
+   0.311,
+   0.621,
+   0.336
+  ],
+  "ucgen": 1758,
+  "set": "wooden_box",
+  "kaynak": "Sketchfab",
+  "yazar": "MaX3Dd",
+  "lisans": "CC-BY 4.0",
+  "url": "https://sketchfab.com/3d-models/wooden-boxes-ddecbe4586594bddb4822a90c0cba222"
+ },
+ {
   "id": "wooden_crate_01",
   "ad": "Ahşap sandık",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/wooden_crate_01.glb",
-  "materyal": "demir",
+  "materyal": "ahsap",
   "materyaller": "Ahşap, demir çivi",
-  "kutle_kg": 96.34,
+  "kutle_kg": 16.81,
   "boyut_m": [
-   0.824,
+   0.825,
    0.349,
    0.409
   ],
-  "ucgen": 3000,
+  "ucgen": 2000,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "James Ray Cock",
@@ -1264,15 +4924,15 @@
   "ad": "Ahşap sandık 2",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/wooden_crate_02.glb",
-  "materyal": "demir",
+  "materyal": "ahsap",
   "materyaller": "Ahşap, demir çivi",
-  "kutle_kg": 251.21,
+  "kutle_kg": 29.56,
   "boyut_m": [
    0.529,
    0.464,
    1.166
   ],
-  "ucgen": 3000,
+  "ucgen": 2000,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "James Ray Cock, Jurita Burger",
@@ -1284,15 +4944,15 @@
   "ad": "Ahşap askerî sandık",
   "tur": "sandik",
   "glb": "res://assets/props/hurda/wooden_military_crate.glb",
-  "materyal": "celik",
+  "materyal": "ahsap",
   "materyaller": "Ahşap, çelik",
-  "kutle_kg": 269.67,
+  "kutle_kg": 25.98,
   "boyut_m": [
    1.241,
    0.464,
-   0.519
+   0.518
   ],
-  "ucgen": 2999,
+  "ucgen": 2000,
   "set": null,
   "kaynak": "Poly Haven",
   "yazar": "Prabhjinder Singh",
