@@ -3,16 +3,17 @@ extends SceneTree
 ##   Godot.exe --headless --path . -s res://tools/waves_check.gd --quit-after 600
 ## Alone first, at TIME_SCALE: the lever starts wave 1 (lever down, alarms lit, gates open, the dead
 ## walk out), we shoot every one of them through GameState and the wave clears: gates shut, lever
-## up, wave 2 waits. Wave 2 is left alone: the dead claw the railing down and the wave is lost
-## (GameState.fence), wave 2 waits again with nobody left and the railing patched up a little. Wave 2 once more, every zombie put down in
+## up, wave 2 waits. Wave 2 is left alone: the dead claw a bay down (GameState.fence_bays), come in
+## through the hole and claw at us; everyone down (GameState.all_down) the wave is lost, wave 2 waits
+## again with nobody left and the holes patched up. Wave 2 once more, every zombie put down in
 ## the pens before the gates are wide (it must still clear). Then dogs and blobs (_new_kinds). Then online: the host pulls wave 3;
 ## the client, in a solo wave of its own, joins mid-wave, drops its own dead and gets the host's
 ## phase and zombies under the same paths, shoots them down through the host, sees the next wave
 ## waiting and pulls the lever itself. Last, the client loses the host: the wave starts over there.
 ## The client aims some rounds at legs and arms; the limbs torn off each zombie by the time it dies
 ## must be the same on both machines (CUTS: the client's, read back by the host).
-## Throughout, on both machines: no zombie still standing ever leaves the floor unless the railing
-## fell (a lost wave, shown as one) or the session was reset (_watch_wipes; the dead ones used to
+## Throughout, on both machines: no zombie still standing ever leaves the floor unless the wave
+## was lost (shown as one) or the session was reset (_watch_wipes; the dead ones used to
 ## vanish without a word when the old temporary railing ran out).
 
 const PORT := 24693
@@ -106,17 +107,24 @@ func _host() -> void:
 	if not _ok(not waves._lit and waves._status.text == "HAZIR", "lights off, the sign says HAZIR"): return
 	if not await _until(func() -> bool: return waves._number.text == "02", "the sign to flip to 02"): return
 	if not await _until(func() -> bool: return gate.position.distance_to(shut) < 0.01, "the gates to shut"): return
-	# Wave 2 alone: the railing goes and the wave is lost.
+	# Wave 2 alone: a bay goes, they come in and claw at us; everyone down, the wave is lost.
 	gs.request_pull_lever()
 	var size: int = waves.BASE_COUNT + waves.COUNT_GROW
 	if not _ok(waves.left == size, "wave 2 is %d strong (%d)" % [size, waves.left]): return
 	var bites := [0]
-	gs.fence_changed.connect(func(_hp: int, _wear: Array) -> void: bites[0] += 1)
-	if not await _until(func() -> bool: return waves.phase == waves.Phase.FAILED, "the railing to fall", 120.0): return
-	if not _ok(bites[0] > 0 and waves.fence == 0 and waves._status.text == "ÇİT YIKILDI", "it fell bite by bite and the sign says so"): return
+	gs.fence_changed.connect(func(_bays: Array) -> void: bites[0] += 1)
+	var swung := [false]
+	gs.wave_cue.connect(func(cue: Array) -> void:
+		if cue[0] == &"swing":
+			swung[0] = true)
+	if not await _until(func() -> bool: return gs.fence_holes() > 0, "a bay to come down", 120.0): return
+	if not _ok(bites[0] > 0 and waves._status.text.contains("DELİK"), "it came down bite by bite and the sign says so (\"%s\")" % waves._status.text): return
+	if not await _until(func() -> bool: return swung[0], "one to come in and claw at us", 120.0): return
+	gs.all_down.emit()
+	if not _ok(waves.phase == waves.Phase.FAILED and waves._status.text == "HERKES DÜŞTÜ", "everyone down: lost, the sign says so"): return
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the lost wave to wait again"): return
 	await process_frame
-	if not _ok(waves.wave == 2 and gs.fence == gs.FENCE_PATCH and waves._zombies.is_empty(), "wave 2 again, the railing patched up, nobody left"): return
+	if not _ok(waves.wave == 2 and gs.fence_holes() == 0 and waves._zombies.is_empty(), "wave 2 again, the holes patched up, nobody left"): return
 	gs.mend_fence(gs.FENCE_MAX)  # the rest of the check wants a whole railing
 	# Wave 2 again, all of it shot in the pens before the fight is called: it clears anyway.
 	gs.request_pull_lever()

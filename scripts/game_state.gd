@@ -73,9 +73,11 @@ signal quest_done(id: String, gold: int)
 signal wave_cue(cue: Array)
 ## Host only: someone pulled the wave lever (scripts/waves.gd decides whether a wave starts).
 signal lever_pulled(peer: int)
-## The railing's hit points and how worn each of its bays is (FENCE_BAYS, points clawed off there;
-## they add up to FENCE_MAX - hp). Host's, told to everyone (scripts/fence.gd shows it).
-signal fence_changed(hp: int, wear: Array)
+## The railing's bays: what is left of each (FENCE_BAYS, from -z to +z, BAY_HP whole, 0 torn down
+## and open). Host's, told to everyone (scripts/fence.gd shows it, waves.gd sends the dead through).
+signal fence_changed(bays: Array)
+## The player-down session's (oyuncu-baygin): every player standing is down, the wave is lost.
+signal all_down  # baygın oturumu dolduracak
 
 const PILE_START := 100_000_000
 const MAX_PLAYERS := 4
@@ -272,15 +274,16 @@ const MELTER_POS := Vector3(10.24, 0.0, 27.15)  # tools/range_dressing.gd _works
 const PRESS_POS := Vector3(11.34, 0.0, 27.53)  # on the bench's low stand
 const LEVER_POS := Vector3(8.2, 0.0, -27.6)  # the wave lever on the north wall (tools/zombie_bay.gd _lever)
 const STATION_REACH := 2.0  # m from its middle, feet
-## The railing's life (docs/ayrintilar.md "Çit", 2026-10-30, the user's call: the fence has hit
-## points, at 0 the wave is lost, in co-op too, and it is mended at the workshop bench). The dead claw it down
-## (scripts/waves.gd STATS: per claw, by kind); it is mended at the workshop bench for gold (bench_menu.gd).
-## It doesn't heal between waves; a lost wave leaves it patched up to FENCE_PATCH for free.
-## Numbers are mine, not the user's.
-const FENCE_MAX := 100
+## The railing's bays (docs/ayrintilar.md "Çit", 2026-10-31, the user's call: no one life for the
+## whole fence; each bay has its own, a bay clawed through comes down and the dead walk in through
+## the hole; it is mended at the workshop bench, bay by bay). The dead claw it down (scripts/waves.gd
+## STATS: per claw, by kind); mended for gold (bench_menu.gd), never on its own between waves; a lost
+## wave patches every bay up to BAY_PATCH for free. Numbers are mine, not the user's.
+const BAY_HP := 12
 const FENCE_BAYS := 20  # between the railing's 21 posts (tools/build_arena.gd _firing_line)
+const FENCE_MAX := BAY_HP * FENCE_BAYS  # every bay whole
 const FENCE_SPAN := 27.5  # ± along z, its end posts
-const FENCE_PATCH := 25
+const BAY_PATCH := 4
 const FENCE_REPAIR_COST := 3  # gold a point
 const FENCE_SEND := 0.25  # s between the host's updates of the clawing to clients
 const REPAIR_POS := Vector3(12.2, 0.0, 26.85)  # in front of the workshop bench (tools/range_dressing.gd _workshop)
@@ -389,8 +392,13 @@ var press_level := 0
 var _melt_part := 0.0  # host: the round melting now, how far
 var _melter_wait := 0.0  # host: s until clients hear of the melting again
 var _melter_news := false  # host: something changed since they last did
-var fence := FENCE_MAX
-var fence_wear: Array[int] = []  # per FENCE_BAYS bay, from -z to +z
+var fence_bays: Array[int] = []  # per FENCE_BAYS bay, from -z to +z: what is left of it
+var fence: int:  # what is left of them all (checks, the repair price; nothing shows it)
+	get:
+		var n := 0
+		for hp in fence_bays:
+			n += hp
+		return n
 var _fence_wait := 0.0  # host: s until clients hear of the clawing again
 var _fence_news := false
 
@@ -445,7 +453,8 @@ func mag_capacity_of(peer: int) -> int:
 
 func _ready() -> void:
 	_reset_quests()  # Net isn't in the tree yet; a joiner gets the host's board on joining
-	fence_wear.resize(FENCE_BAYS)
+	fence_bays.resize(FENCE_BAYS)
+	fence_bays.fill(BAY_HP)
 	# Someone joined: they get the world as it is now, in one go, before any later event.
 	multiplayer.peer_connected.connect(func(id: int) -> void:
 		if multiplayer.is_server():
@@ -453,7 +462,7 @@ func _ready() -> void:
 			_event.rpc_id(id, &"key_layout", [key_seed])
 			_event.rpc_id(id, &"vault_changed", [vault])
 			_event.rpc_id(id, &"melter_changed", [melt_bin, brass, melt_level, press_level])
-			_event.rpc_id(id, &"fence_changed", [fence, fence_wear])
+			_event.rpc_id(id, &"fence_changed", [fence_bays])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
 				_event.rpc_id(id, &"quest_done", [q, 0])
 			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress, quests_ready])
@@ -553,37 +562,71 @@ func _melter_now(send := false) -> void:
 	_world(&"melter_changed", args)
 
 
-## Host (or solo): a claw took `amount` off the railing at `along` (z). Clients hear of it at most
-## every FENCE_SEND; the last point at once. A client's own call is dropped.
+## The bay `along` (z) falls in.
+static func bay_at(along: float) -> int:
+	return clampi(floori((along + FENCE_SPAN) / (FENCE_SPAN * 2.0) * FENCE_BAYS), 0, FENCE_BAYS - 1)
+
+
+## The middle of bay `b` along the railing (z).
+static func bay_mid(b: int) -> float:
+	return -FENCE_SPAN + (b + 0.5) * FENCE_SPAN * 2.0 / FENCE_BAYS
+
+
+## Bay `b` is torn down: the dead walk through it.
+func bay_open(b: int) -> bool:
+	return b >= 0 and b < fence_bays.size() and fence_bays[b] <= 0
+
+
+## How many bays are torn down / hurt (torn down ones too).
+func fence_holes() -> int:
+	return fence_bays.count(0)
+
+
+func fence_hurt() -> int:
+	return fence_bays.filter(func(hp: int) -> bool: return hp < BAY_HP).size()
+
+
+## Host (or solo): a claw took `amount` off the bay at `along` (z); none of it goes past a bay
+## already down. Clients hear of it at most every FENCE_SEND; a bay coming down at once. A
+## client's own call is dropped.
 func hurt_fence(amount: int, along: float) -> void:
-	if Net.is_client or fence <= 0 or amount <= 0:
+	var bay := bay_at(along)
+	if Net.is_client or amount <= 0 or fence_bays[bay] <= 0:
 		return
-	amount = mini(amount, fence)
-	fence -= amount
-	var bay := clampi(floori((along + FENCE_SPAN) / (FENCE_SPAN * 2.0) * FENCE_BAYS), 0, FENCE_BAYS - 1)
-	fence_wear[bay] += amount
-	_fence_now(fence == 0)
+	fence_bays[bay] -= mini(amount, fence_bays[bay])
+	_fence_now(fence_bays[bay] == 0)
 
 
-## Host (or solo): `amount` points back on the railing, free (a lost wave's patch). The worst bays
-## are mended first.
+## Host (or solo): `amount` points back on the railing, free or paid for: the worst bay first, up
+## to whole, then the next worst.
 func mend_fence(amount: int) -> void:
 	if Net.is_client:
 		return
-	amount = mini(amount, FENCE_MAX - fence)
-	fence += amount
-	for i in amount:
+	while amount > 0:
 		var worst := 0
 		for b in FENCE_BAYS:
-			if fence_wear[b] > fence_wear[worst]:
+			if fence_bays[b] < fence_bays[worst]:
 				worst = b
-		fence_wear[worst] -= 1
+		if fence_bays[worst] >= BAY_HP:
+			break
+		var n := mini(amount, BAY_HP - fence_bays[worst])
+		fence_bays[worst] += n
+		amount -= n
+	_fence_now(true)
+
+
+## Host (or solo): a lost wave's free patch: every bay up to BAY_PATCH at least, the holes shut.
+func patch_fence() -> void:
+	if Net.is_client:
+		return
+	for b in FENCE_BAYS:
+		fence_bays[b] = maxi(fence_bays[b], BAY_PATCH)
 	_fence_now(true)
 
 
 ## Mends the railing from the workshop bench (bench_menu.gd), as much of it as the money covers
-## (FENCE_REPAIR_COST a point), during a wave too: from the vault in co-op, alone from one's own
-## gold. Returns the points mended (a client's guess; fence_changed says what came of it).
+## (FENCE_REPAIR_COST a point), worst bay first, during a wave too: from the vault in co-op, alone
+## from one's own gold. Returns the points mended (a client's guess; fence_changed says what came of it).
 func request_repair_fence(peer := 0) -> int:
 	var p := player(peer)
 	var slack := 0.0 if _is_local(peer) else 1.0
@@ -612,12 +655,25 @@ func fence_repair_price() -> int:
 ## Host: the railing changed. Here at once; to clients now if `send`, else at most every FENCE_SEND.
 func _fence_now(send := false) -> void:
 	if not send:
-		fence_changed.emit(fence, fence_wear)
+		fence_changed.emit(fence_bays)
 		_fence_news = true
 		return
 	_fence_news = false
 	_fence_wait = FENCE_SEND
-	_world(&"fence_changed", [fence, fence_wear.duplicate()])
+	_world(&"fence_changed", [fence_bays.duplicate()])
+
+
+# --- the player-down session's (oyuncu-baygin) ----------------------------------------------------
+# Stand-ins until that branch comes in: waves.gd only calls them.
+
+## Host: a zombie's claw hit `peer` for `amount`, from `from` (where the zombie stands).
+func hurt_player(_peer: int, _amount: float, _from: Vector3) -> void:
+	pass  # baygın oturumu dolduracak
+
+
+## Whether `peer` is down (the dead leave them be).
+func is_down(_peer: int) -> bool:
+	return false  # baygın oturumu dolduracak
 
 
 ## Feet within reach of a station (MELTER_POS, PRESS_POS). The host allows a metre more for
@@ -1479,8 +1535,7 @@ func _event(event: StringName, args: Array) -> void:
 		&"vault_changed":
 			vault = args[0]
 		&"fence_changed":
-			fence = args[0]
-			fence_wear.assign(args[1])
+			fence_bays.assign(args[0])
 		&"melter_changed":
 			melt_bin = args[0]
 			brass = args[1]

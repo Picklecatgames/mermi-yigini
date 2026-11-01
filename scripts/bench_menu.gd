@@ -116,7 +116,7 @@ func _ready() -> void:
 		_sfx.append(p)
 	_build_ui()
 	GameState.gold_changed.connect(_refresh.unbind(1))
-	GameState.fence_changed.connect(_refresh.unbind(2))
+	GameState.fence_changed.connect(_refresh.unbind(1))
 	GameState.vault_changed.connect(_refresh.unbind(1))
 	GameState.upgraded.connect(_refresh.unbind(2))
 
