@@ -1024,7 +1024,7 @@ func _walk(z: Dictionary, delta: float) -> void:
 	var last: bool = z.path.size() == 1
 	var through: bool = z.hole >= 0  # through a hole it walks on in, no braking
 	var v: float = _pace(z) * (STAGGER_SLOW if z.stagger > 0.0 else 1.0)
-	v *= 1.0 + SURGE * sin(z.walked * 0.8 + z.zig * 1.7)  # never quite in step with the next one
+	v *= _surge(z)  # never quite in step with the next one
 	if last and not through:  # brakes into its spot instead of stopping dead from a run
 		v *= clampf(to.length() / BRAKE, BRAKE_MIN, 1.0)
 	z.body.pace(v)  # the stride keeps up with the floor
@@ -1095,6 +1095,11 @@ func _turn_to(node: Node3D, dir: Vector3, most: float) -> void:
 	now.y = 0.0
 	var turn := clampf(now.signed_angle_to(dir, Vector3.UP), -most, most)
 	node.global_rotation.y += turn
+
+
+## Its pace rising and falling as it walks (by SURGE), the same on every peer.
+func _surge(z: Dictionary) -> float:
+	return 1.0 + SURGE * sin(z.walked * 0.8 + z.zig * 1.7)
 
 
 ## How fast it goes now: its own speed, more while a screamer's cry drives it.

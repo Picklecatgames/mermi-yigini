@@ -249,13 +249,13 @@ func _screamer() -> void:
 			cries.append(cue)
 	gs.wave_cue.connect(watch)
 	await process_frame
-	var slow: float = near.body._ap.speed_scale
+	var slow: float = near.body._ap.speed_scale / waves._surge(near)  # its pace's own rise and fall left out
 	await _wait(func() -> bool: return not cries.is_empty(), "the screamer to cry", 8.0)
 	await process_frame
 	gs.wave_cue.disconnect(watch)
 	_expect(cries.size() == 1 and cries[0][1] == s.id and near.id in cries[0][2] and not far.id in cries[0][2], "it cried, for the one near it only (%s)" % [cries])
 	_expect(near.rush > 0.0 and far.rush <= 0.0 and waves._pace(near) > near.speed * 1.1, "the near one runs faster")
-	_expect(near.body._ap.speed_scale > slow * 1.1, "its stride quickens with it (%.2f -> %.2f, %s, rush %.1f, busy %s)" % [slow, near.body._ap.speed_scale, near.body._ap.current_animation, near.rush, near.body.busy()])
+	_expect(near.body._ap.speed_scale / waves._surge(near) > slow * 1.1, "its stride quickens with it (%.2f -> %.2f, %s, rush %.1f, busy %s)" % [slow, near.body._ap.speed_scale, near.body._ap.current_animation, near.rush, near.body.busy()])
 	_expect(s.hold > 0.0, "the screamer stands while it cries")
 	var x0: float = (near.node as Node3D).global_position.x
 	var t := 1.0
