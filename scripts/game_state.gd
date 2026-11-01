@@ -287,9 +287,16 @@ const STATION_REACH := 2.0  # m from its middle, feet
 ## STATS: per claw, by kind); mended for gold (bench_menu.gd), never on its own between waves; a lost
 ## wave patches every bay up to BAY_PATCH for free. Numbers are mine, not the user's.
 const BAY_HP := 12
-const FENCE_BAYS := 20  # between the railing's 21 posts (tools/build_arena.gd _firing_line)
+## The railing's build, read from here alone (2026-11-01, the user: "çiti ileride hem görsel hem
+## yapısal bir değişikliğe ve level sistemine göre çeşitlendireceğiz"; how is not settled yet): its
+## kind, its height (the posts' tops), its rails' heights (m, the middle of each), their square
+## section, how many bays (between bays + 1 posts) and the end posts' ± z. tools/build_arena.gd
+## builds it from this, scripts/fence.gd reads the rails off the built one, and the ones that go over
+## or under it (waves.gd cross_of) measure it by fence_top() and fence_gap().
+const FENCE := {"kind": &"rail", "height": 1.1, "rails": [1.075, 0.55], "bar": 0.05, "bays": 20, "span": 27.5}
+const FENCE_BAYS: int = FENCE.bays
 const FENCE_MAX := BAY_HP * FENCE_BAYS  # every bay whole
-const FENCE_SPAN := 27.5  # ± along z, its end posts
+const FENCE_SPAN: float = FENCE.span  # ± along z, its end posts
 const BAY_PATCH := 4
 const FENCE_REPAIR_COST := 3  # gold a point
 const FENCE_SEND := 0.25  # s between the host's updates of the clawing to clients
@@ -615,6 +622,16 @@ static func bay_at(along: float) -> int:
 ## The middle of bay `b` along the railing (z).
 static func bay_mid(b: int) -> float:
 	return -FENCE_SPAN + (b + 0.5) * FENCE_SPAN * 2.0 / FENCE_BAYS
+
+
+## The railing's top (m): its highest rail's upper face, or the posts' tops if higher.
+static func fence_top() -> float:
+	return maxf(FENCE.height, (FENCE.rails as Array).max() + FENCE.bar * 0.5)
+
+
+## The room under its lowest rail (m), floor to the rail's lower face.
+static func fence_gap() -> float:
+	return (FENCE.rails as Array).min() - FENCE.bar * 0.5
 
 
 ## Bay `b` is torn down: the dead walk through it.
@@ -1216,9 +1233,10 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var weak := false
 	var chain := 0
 	# Pays only from the shooter's side of the firing line, at a target on the far side.
-	# A zombie counts by where it stands: one leaning over the railing still pays where its head reaches.
-	var past: float = (target as Node3D).global_position.x if target.has_meta("zombie") else hit.position.x
-	if target.is_in_group("target") and from.x <= FIRING_LINE_X and past > FIRING_LINE_X:
+	# A zombie counts wherever it is: leaning over the railing, or come over, under or through it
+	# (waves.gd) to our side; it could not be killed there otherwise.
+	var zombie := target.has_meta("zombie")
+	if target.is_in_group("target") and from.x <= FIRING_LINE_X and (zombie or hit.position.x > FIRING_LINE_X):
 		var shape: Node = target.shape_owner_get_owner(target.shape_find_owner(hit.shape))
 		weak = shape.is_in_group("weak_spot")
 		var cap := upgrade_value("combo_cap", peer)

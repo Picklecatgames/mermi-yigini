@@ -9,8 +9,11 @@ extends SceneTree
 ## price on it); a mended hole shuts. A wave with a hole: the dead outside make for it, walk in,
 ## go for the player standing and claw them; everyone down (GameState.all_down), the wave is lost:
 ## the sign and the screen say so, then the same wave waits with the holes patched and nobody left.
+## Over and under (waves.gd cross_of): with every bay standing a vaulter springs over and claws at
+## us, a creeper crawls under, a walker on its belly claws at the railing; no bay comes down for it.
 ## Online: a joiner gets the bays as they are, every claw reaches it bay by bay, its repair at the
-## bench is paid from the vault on the host, a hole on the host is a hole there, the ones inside
+## bench is paid from the vault on the host, a vaulter comes down on the same spot there, a hole on
+## the host is a hole there, the ones inside
 ## follow the host's, and a wave lost on the host is lost on the client at the same moment, patched
 ## the same.
 
@@ -117,6 +120,50 @@ func _host() -> void:
 	if not _ok(not is_instance_valid(get_first_node_in_group("gun_table")), "the desk at the spawns is gone once its pistol is"): return
 	await create_timer(1.5).timeout
 	if not _ok(fence._posts[12].transform.basis.y.is_equal_approx(Vector3.UP) and fence._shown[12] == 0.0, "the bay stands straight again"): return
+	# Over and under, every bay standing: a vaulter springs over and claws at us, a creeper crawls
+	# under, a walker that lost a leg claws at the railing from the floor.
+	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
+	me.reset_physics_interpolation()
+	await create_timer(0.3).timeout
+	Engine.time_scale = TIME_SCALE
+	var clawed := {}
+	gs.wave_cue.connect(func(cue: Array) -> void:
+		if cue[0] == &"swing":
+			clawed[cue[1]] = true)
+	gs.request_pull_lever()
+	me.global_position = Vector3(9.0, 0.1, -12.0)
+	me.reset_physics_interpolation()
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "the fight"): return
+	var v := _front(&"vaulter")
+	var c := _front(&"creeper")
+	var w := _front(&"walker")
+	gs.cue_wave([&"limb", w.id, &"leg_l", 0])
+	if not await _until(func() -> bool: return v.cross == &"air", "the vaulter's spring", 60.0): return
+	if not await _until(func() -> bool: return v.inside, "the vaulter over", 10.0): return
+	var v_at: Vector3 = (v.node as Node3D).global_position
+	if not _ok(v_at.x < waves.GAP[0] and v_at.y == 0.0 and gs.fence_holes() == 0, "the vaulter came over a bay still standing (x %.2f)" % v_at.x): return
+	if not await _until(func() -> bool: return clawed.has(v.id), "the vaulter to claw at us", 60.0): return
+	if not _ok(v.prey == gs.local_peer(), "it went for us"): return
+	gs.player().loaded = 12
+	gs.player().cooldown = 0.0
+	var life: int = waves._hp[v.id]
+	var eye: Vector3 = me.global_position + Vector3.UP * gs.EYE
+	var fired: bool = gs.request_fire(eye, (v.body._bone_at("Spine1") - eye).normalized())
+	await process_frame
+	if not _ok(fired and waves._hp.get(v.id, 0) < life, "a round at it on our side hurts it (%d of %d left)" % [waves._hp.get(v.id, 0), life]): return
+	if not await _until(func() -> bool: return c.inside, "the creeper under", 90.0): return
+	var c_at: Vector3 = (c.node as Node3D).global_position
+	if not _ok(c_at.x < waves.GAP[0] and gs.fence_holes() == 0, "the creeper came under (x %.2f)" % c_at.x): return
+	if not await _until(func() -> bool: return w.path.is_empty() and not w.dead, "the walker on its belly at the railing", 60.0): return
+	await create_timer(2.0).timeout
+	if not _ok(not w.inside and w.cross == &"" and w.body.crawling and (w.node as Node3D).global_position.x > waves.GAP[1], "the walker on its belly claws at it, never under"): return
+	gs.all_down.emit()
+	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY, "the lost wave to wait again"): return
+	await process_frame
+	if not _ok(waves._zombies.is_empty(), "the ones that came over and under gone with the lost wave"): return
+	if not await _until(func() -> bool: return not hud._lost.visible, "the screen to clear"): return
+	Engine.time_scale = 1.0
+	gs.mend_fence(gs.FENCE_MAX)
 	# A wave with a hole in bay 10: the dead make for it, come in and claw at us.
 	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
 	me.reset_physics_interpolation()
@@ -181,9 +228,9 @@ func _online() -> void:
 		await create_timer(0.05).timeout
 	if not await _until(func() -> bool: return gs.fence == gs.FENCE_MAX, "the client's repair", 30.0): return
 	if not _ok(is_equal_approx(gs.vault, 1000.0 - 16 * gs.FENCE_REPAIR_COST), "paid from the vault ($%d left)" % gs.vault): return
-	# A hole here is a hole there; a wave through it, lost here, is lost there.
+	# A vaulter over a bay still standing: down on the same spot on both machines. Then a hole here
+	# is a hole there; a wave through it, lost here, is lost there.
 	await create_timer(0.5).timeout
-	gs.hurt_fence(gs.BAY_HP, _bay_z(9))
 	var me: Node3D = main.get_node("Player")
 	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
 	me.reset_physics_interpolation()
@@ -192,6 +239,11 @@ func _online() -> void:
 	me.global_position = Vector3(9.0, 0.1, -12.0)
 	me.reset_physics_interpolation()
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.FIGHT, "the fight"): return
+	var v := _front(&"vaulter")
+	if not await _until(func() -> bool: return v.inside, "the vaulter over", 60.0): return
+	var vault_to: Vector3 = v.cross_to
+	await create_timer(1.0).timeout
+	gs.hurt_fence(gs.BAY_HP, _bay_z(9))
 	if not await _until(func() -> bool: return waves._zombies.values().filter(func(z: Dictionary) -> bool: return z.inside).size() >= 2, "two to come in", 90.0): return
 	await create_timer(3.0).timeout  # the client sees them in and follows them a while
 	gs.all_down.emit()
@@ -210,6 +262,9 @@ func _online() -> void:
 	if not _ok(seen is Dictionary and absf(seen.failed_at - failed_at[0]) < 0.5, "the client lost it at the same moment (%.2f s apart)" % absf(seen.get("failed_at", 0.0) - failed_at[0])): return
 	var theirs: Array = (seen.bays as Array).map(func(w: float) -> int: return int(w))  # JSON reads numbers as floats
 	if not _ok(theirs == Array(gs.fence_bays), "the same railing on both machines (%s)" % [seen.bays]): return
+	var vault: Array = seen.get("vault", [])
+	if not _ok(vault.size() == 2 and Vector2(vault[0], vault[1]).distance_to(Vector2(vault_to.x, vault_to.z)) < 0.3,
+			"the client's vaulter sprang and came down where the host's did (%s, %s)" % [vault, vault_to]): return
 	print("fence_check OK")
 	quit()
 
@@ -226,6 +281,16 @@ func _client() -> void:
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout  # our pose reaches the host
 	if not _ok(gs.request_repair_fence() == 16, "we ask to mend 16 points"): return
+	var vault := {}  # the host's vaulter as this machine shows it: in the air, then where it came down
+	process_frame.connect(func() -> void:
+		for z: Dictionary in waves._zombies.values():
+			if z.type != &"vaulter" or z.dead:
+				continue
+			if z.cross == &"air":
+				vault.air = true
+			elif vault.get("air", false) and not vault.has("at") and z.inside:
+				var at: Vector3 = (z.node as Node3D).global_position
+				vault.at = [at.x, at.z])
 	if not await _until(func() -> bool: return gs.fence == gs.FENCE_MAX and is_equal_approx(gs.vault, 1000.0 - 16 * gs.FENCE_REPAIR_COST), "the host's mend"): return
 	if not await _until(func() -> bool: return gs.bay_open(9), "the host's hole in bay 9"): return
 	await create_timer(0.2).timeout
@@ -247,12 +312,20 @@ func _client() -> void:
 	await process_frame
 	if not _ok(waves.wave == 1 and gs.fence_holes() == 0 and waves._zombies.is_empty(), "wave 1 again, patched, nobody left"): return
 	seen.bays = gs.fence_bays
+	seen.vault = vault.get("at", [])
 	var f := FileAccess.open(SEEN, FileAccess.WRITE)
 	f.store_string(JSON.stringify(seen))
 	f.close()
 	_log.append("fence_check client OK")
 	_write_log()
 	quit()
+
+
+## Host: one of `type` out of a pen now, ahead of the wave's own.
+func _front(type: StringName) -> Dictionary:
+	waves._queue.push_front(type)
+	waves._spawn_next()
+	return waves._zombies[waves._next_id - 1]
 
 
 ## A body walking along x through the middle of bay `b` meets the railing's wall.

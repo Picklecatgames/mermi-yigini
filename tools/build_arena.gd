@@ -998,7 +998,9 @@ func _dust() -> void:
 ## posts and rails themselves (FiringLineBars, on the rail layer the shot trace sees).
 func _firing_line() -> void:
 	const RUN := 55.4  # m, between the inner wall faces
-	const HEIGHT := 1.1
+	var fence: Dictionary = GS.FENCE  # its build: height, rails, bays (game_state.gd)
+	var height: float = fence.height
+	var bar: float = fence.bar
 	var x: float = GS.FIRING_LINE_X
 	var body := StaticBody3D.new()
 	body.name = "FiringLine"
@@ -1029,12 +1031,13 @@ func _firing_line() -> void:
 		add(m, body)
 		if mat == paint:  # the posts and rails take rounds; their feet sit flat on the floor
 			collide(size, at, bars)
-	for rail_y in [HEIGHT - 0.025, 0.55]:
-		box.call(Vector3(0.05, 0.05, RUN), Vector3(x, rail_y, 0), paint)
-	var posts := 21
-	for i in posts:
-		var z := -RUN / 2.0 + 0.2 + i * (RUN - 0.4) / (posts - 1)
-		box.call(Vector3(0.06, HEIGHT, 0.06), Vector3(x, HEIGHT / 2.0, z), paint)
+	for rail_y: float in fence.rails:
+		box.call(Vector3(bar, bar, RUN), Vector3(x, rail_y, 0), paint)
+	var span: float = fence.span
+	var bays: int = fence.bays
+	for i in bays + 1:
+		var z := -span + i * span * 2.0 / bays
+		box.call(Vector3(0.06, height, 0.06), Vector3(x, height / 2.0, z), paint)
 		box.call(Vector3(0.16, 0.012, 0.16), Vector3(x, 0.006, z), steel)
 
 

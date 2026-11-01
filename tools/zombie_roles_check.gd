@@ -4,7 +4,8 @@ extends SceneTree
 ## running, the bloater's burst, the dog's zigzag, the waves getting harder, and every speed a kind
 ## can walk at kept within what its clips stretch to (no feet sliding over the floor); the types
 ## coming one by one (wave 1 a few of one type in one look) and their traits (armor, mask, regen,
-## rage, elites, the leaper's leap, the spiker's roar).
+## rage, elites, the leaper's leap, the spiker's roar, the vaulter over the railing and the creeper
+## under it).
 ##   Godot.exe --headless --path . -s res://tools/zombie_roles_check.gd --quit-after 100000
 
 const BODY := preload("res://scripts/zombie_body.gd")
@@ -40,6 +41,8 @@ func _initialize() -> void:
 	await _traits()
 	await _leaper()
 	await _spiker()
+	await _vaulter()
+	await _creeper()
 	print("zombie_roles_check %s" % ("OK" if _fails == 0 else "FAILED (%d)" % _fails))
 	quit(1 if _fails else 0)
 
@@ -169,7 +172,7 @@ func _spawn(kind: StringName, at: Vector3) -> Dictionary:
 	waves.phase = ph
 	var z: Dictionary = waves._zombies[waves._next_id - 1]
 	(z.node as Node3D).global_position = at
-	z.rail = Vector3(waves.RAIL_X, 0.0, at.z)
+	z.rail = Vector3(z.rail.x, 0.0, at.z)
 	(z.node as Node3D).look_at(at + Vector3.LEFT, Vector3.UP)
 	z.speed = waves.STATS[z.kind][0]
 	z.path = [z.rail]
@@ -437,6 +440,93 @@ func _spiker() -> void:
 	await _shoot(s, s.body._bone_at("Head"), Vector3(-1, 0, 0), true)
 	var open: float = gone.call(s) - before
 	_expect(open > closed * (waves.MAW_HEAD - 0.1), "its head: %.0f a round shut, %.0f roaring" % [closed, open])
+	waves.wave = was
+	_clear()
+
+
+## The vaulter at its spot on a bay still standing crouches (a hit there sends it back into the
+## crouch), springs over clear of the top rail and comes down on our side, inside; shot in the air
+## before the railing it falls back on its own side, gets up and goes again; a leg gone in the
+## crouch, it claws from the floor instead.
+func _vaulter() -> void:
+	gs.request_select_gun(PISTOL)
+	var was: int = waves.wave
+	waves.wave = waves.TYPES[&"vaulter"].from
+	var v := _plain(&"vaulter", Vector3(waves.RAIL_X + 6.0, 0, -6))
+	_expect(v.body.model == &"yaku", "the vaulter comes in its own look (%s)" % v.body.model)
+	await _wait(func() -> bool: return v.cross == &"wind", "the vaulter's crouch", 8.0)
+	_expect(gs.fence_bays[gs.bay_at(-6.0)] == gs.BAY_HP, "at a bay still standing")
+	var spot := (v.node as Node3D).global_position
+	await create_timer(0.35).timeout
+	_expect(v.cross == &"wind" and (v.node as Node3D).global_position.distance_to(spot) < 0.05, "it crouches on its spot a while (%.2f s so far)" % v.cross_t)
+	await _shoot(v, v.body._bone_at("Spine1"), Vector3(-1, 0, 0))
+	_expect(v.cross == &"wind" and v.cross_t < 0.05, "a hit in the crouch sends it back into it")
+	await _wait(func() -> bool: return v.cross == &"air", "the spring", 4.0)
+	var over := 0.0  # its lowest bone over the railing's line
+	while v.cross == &"air":
+		await process_frame
+		if absf((v.node as Node3D).global_position.x - gs.FIRING_LINE_X) < 0.15:
+			var low := INF
+			for b in ["LeftFoot", "RightFoot", "LeftLeg", "RightLeg", "Hips"]:
+				low = minf(low, v.body._bone_at(b).y)
+			over = maxf(over, low)
+	_expect(over > gs.fence_top(), "over the railing its feet clear the top rail (%.2f m, the top %.2f)" % [over, gs.fence_top()])
+	_expect(v.inside and (v.node as Node3D).global_position.x <= waves.VAULT_TO + 0.05 and (v.node as Node3D).global_position.y == 0.0,
+			"down on our side, inside (x %.2f)" % (v.node as Node3D).global_position.x)
+	var f := _plain(&"vaulter", Vector3(waves.RAIL_X + 6.0, 0, 6))
+	await _wait(func() -> bool: return f.cross == &"air", "the second spring", 10.0)
+	await _wait(func() -> bool: return f.cross_t > f.cross_air * 0.2, "it to rise", 1.0)
+	var high := (f.node as Node3D).global_position.y
+	await _shoot(f, f.body._bone_at("Spine1"), Vector3(-1, 0, 0))
+	_expect(f.cross == &"fall" and high > 0.1, "shot in the air (%.2f m up), it falls" % high)
+	await _wait(func() -> bool: return f.cross == &"lie", "it to land", 2.0)
+	var down := (f.node as Node3D).global_position
+	_expect(down.y == 0.0 and down.x > waves.GAP[1] and not f.inside, "on the floor, back on its own side (x %.2f)" % down.x)
+	await _wait(func() -> bool: return f.cross == &"wind", "it to get up and go again", 8.0)
+	var c := _plain(&"vaulter", Vector3(waves.RAIL_X + 6.0, 0, 12))
+	await _wait(func() -> bool: return c.cross == &"wind", "the third crouch", 8.0)
+	gs.cue_wave([&"limb", c.id, &"leg_l", 0])
+	_expect(c.cross == &"" and c.body.crawling, "a leg gone in the crouch: no spring")
+	await create_timer(5.0).timeout
+	_expect(not c.inside and c.cross == &"" and (c.node as Node3D).global_position.x > waves.GAP[1] and c.body._ap.current_animation.begins_with("floor_bite"),
+			"it bites at the railing from the floor (%s)" % c.body._ap.current_animation)
+	waves.wave = was
+	_clear()
+
+
+## The creeper lies down at its spot and crawls under the bottom rail, low the whole way and still
+## taking rounds, gets up on our side and is inside. A walker that lost a leg and a crawler, both
+## on their bellies, claw at the railing and never go under.
+func _creeper() -> void:
+	gs.request_select_gun(PISTOL)
+	var was: int = waves.wave
+	waves.wave = waves.TYPES[&"creeper"].from
+	var c := _plain(&"creeper", Vector3(waves.RAIL_X + 6.0, 0, -8))
+	var w := _plain(&"walker", Vector3(waves.RAIL_X + 4.0, 0, 3))
+	var r := _plain(&"crawler", Vector3(waves.RAIL_X + 4.0, 0, 9))
+	gs.cue_wave([&"limb", w.id, &"leg_r", 0])
+	_expect(c.body.model == &"parasite", "the creeper comes in its own look (%s)" % c.body.model)
+	await _wait(func() -> bool: return c.cross == &"duck", "the creeper lying down", 8.0)
+	await _wait(func() -> bool: return c.cross == &"creep", "the crawl under", 4.0)
+	var high := 0.0  # its highest bone while under the railing
+	var hit := false
+	var life: int = waves._hp[c.id]
+	while c.cross == &"creep":
+		await process_frame
+		var x := (c.node as Node3D).global_position.x
+		for b in ["Head", "Neck", "Spine2", "Hips", "LeftShoulder", "RightShoulder"]:
+			var at: Vector3 = c.body._bone_at(b)
+			if absf(at.x - gs.FIRING_LINE_X) < 0.3:
+				high = maxf(high, at.y)
+		if not hit and x < gs.FIRING_LINE_X + 0.3:
+			hit = true
+			await _shoot(c, c.body._bone_at("Spine1"), Vector3(1, -0.2, 0))
+	_expect(high > 0.0 and high + 0.12 < gs.fence_gap(), "under the rail it keeps low (%.2f m at most, the rail's underside %.2f)" % [high, gs.fence_gap()])
+	_expect(hit and waves._hp[c.id] < life, "and takes rounds on the way (%d of %d left)" % [waves._hp.get(c.id, 0), life])
+	await _wait(func() -> bool: return c.inside, "it to be through", 8.0)
+	_expect((c.node as Node3D).global_position.x <= waves.CREEP_TO + 0.05 and not c.body.crawling, "through, it stands up on our side")
+	_expect(not w.inside and w.cross == &"" and w.body.crawling and not r.inside and r.cross == &"" and w.path.is_empty() and r.path.is_empty(),
+			"a walker on its belly and a crawler claw at the railing, never under")
 	waves.wave = was
 	_clear()
 
