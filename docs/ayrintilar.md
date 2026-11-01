@@ -80,6 +80,7 @@ Oyun steril ve tekdüze görünüyor; mekân post-apokaliptik bir hurdalık kale
 - Hurdada çeşitlilik çok olmalı ("çöp çeşitliliğini arttır").
 - Paslı, hafif karikatürize görünümlü asetler de alınabilir (kullanıcı: "paslı hafif karikatürize bir görünüm verecek şeyleri de indir"); gerçekçi PBR tek seçenek değil. Aset indirmeye izin var.
 - **Hurda elle toplanabilir boyutta (aynı gün):** kullanıcının sözleri: "böyle büyük şeylere gerek yok, ben daha elle toplanabilir dişliler, yaylar, borular, konserveler, jantlar, zincirler vs.; gemi ne alaka, araba, depo falan bunlar çok büyük." Araba, kamyon, tekne, konteyner, depo tankı gibi büyük hurda yok; toplanan hurda dişli, yay, boru, konserve, jant, zincir ve benzeri el boyu parçalar.
+- **Setler parça parça eklenir (aynı gün):** kullanıcı: "bunun gibi birleşik sistemleri ayrı parçalar haline koyup oyuna ekle, tek halinde ekleme." Birden çok nesne içeren bir model (dişli takımı, boru paketi, konserve seti, lastik yığını, cıvata seti, kutu seti…) oyuna tek parça girmez; her parça ayrı bir hurda olarak ayrılır (Blender'da nesnelere ya da kopuk mesh adalarına göre bölünür, dokusu ortak kalır). Galeride bu setlerin notunda "set: parça parça eklenecek" yazar (22 aday).
 
 **Öneriler (benim, kural değil):**
 - **Türler:** dişli ve testere bıçağı, yay, boru ve vana, konserve ve teneke, jant ve lastik, zincir ve kilit, cıvata ve rulman, motor parçası (buji, filtre, eksantrik), alet, bidon ve kova, küçük elektronik, saç parçası. Aralarda sandık ve kutu.
