@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless check of the start (2026-10-28): we stand between the heap and the railing facing the
 ## heap, the desk with the pistol in front of us; E on it draws the pistol empty and the desk fades
-## out. Then the heap's sides: walking into it climbs, no snagging (player.gd floor_max_angle).
+## out. Then the heap: walking into it goes up its foot and stands on the scrap, never sunk in.
 ##   Godot.exe --headless --path . -s res://tools/table_check.gd
 
 const HEAP := Vector3(-9.0, 0, 0)
@@ -63,7 +63,11 @@ func _initialize() -> void:
 	Input.action_press("move_forward")
 	await create_timer(3.0).timeout
 	Input.action_release("move_forward")
-	_ok(me.global_position.y > 2.0, "walking into the heap climbs it (%.1f m up, %.1f m in)" % [me.global_position.y, 9.5 - (me.global_position.x - HEAP.x)])
+	# The scrap heap (2026-11-01) is locked up to 61°: we go up its foot and stop at the face, on the
+	# scrap, never sunk into it.
+	var on: float = main.get_node("Pile").surface_y(me.global_position)
+	_ok(me.global_position.y > 0.3 and absf(me.global_position.y - on) < 0.3,
+		"walking into the heap goes up its foot and stands on the scrap (%.1f m up, the scrap %.1f m, %.1f m in)" % [me.global_position.y, on, 9.5 - (me.global_position.x - HEAP.x)])
 	print("table_check ", "FAILED" if _fail else "OK")
 	quit(1 if _fail else 0)
 
