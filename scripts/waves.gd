@@ -1644,18 +1644,18 @@ func _bake_nav() -> void:
 	var map := get_world_3d().navigation_map
 	mesh.cell_size = NavigationServer3D.map_get_cell_size(map)
 	mesh.cell_height = NavigationServer3D.map_get_cell_height(map)
-	mesh.agent_radius = 0.45
-	mesh.agent_height = 1.7
-	mesh.agent_max_climb = 0.35
+	mesh.agent_radius = 0.5  # (whole cells, or the baker rounds them and says so)
+	mesh.agent_height = 1.75
+	mesh.agent_max_climb = 0.25
 	mesh.agent_max_slope = 30.0  # the heap's sides are no floor
 	mesh.filter_baking_aabb = AABB(Vector3(-30.0, -1.0, -29.0), Vector3(30.0 + GameState.FIRING_LINE_X + 0.5, 5.0, 58.0))
 	var source := NavigationMeshSourceGeometryData3D.new()
 	NavigationServer3D.parse_source_geometry_data(mesh, source, get_parent())
 	# The floor's collider is a plane the parser can't take: laid in as a mesh of its own.
-	var floor := PlaneMesh.new()
 	var box := mesh.filter_baking_aabb
-	floor.size = Vector2(box.size.x, box.size.z)
-	source.add_mesh(floor, Transform3D(Basis(), Vector3(box.get_center().x, 0.0, box.get_center().z)))
+	var a := Vector3(box.position.x, 0.0, box.position.z)
+	var b := Vector3(box.end.x, 0.0, box.end.z)
+	source.add_faces(PackedVector3Array([a, Vector3(b.x, 0.0, a.z), b, a, b, Vector3(a.x, 0.0, b.z)]), Transform3D())
 	NavigationServer3D.bake_from_source_geometry_data_async(mesh, source, func() -> void:
 		if is_instance_valid(_nav):
 			_nav.navigation_mesh = mesh)
