@@ -10,7 +10,7 @@ const PORT := 24692  # not Net.PORT or net_check's
 const LOG := "user://join_check_client.log"
 const WORLD := "user://join_check_client.json"
 const LOOSE := 7  # a starting spill bullet the host takes
-const CLAWED := 30  # railing points the host loses before anyone joins
+const CLAWED := 30  # railing points the host loses before anyone joins: 10 off three bays, one torn down
 const VAULT := 200.0
 
 var gs: Node
@@ -45,7 +45,9 @@ func _host() -> void:
 		if not _ok(gs.request_throw(top + Vector3(0, 1.5, 3.0), Vector3(0, 0.3, 1).normalized()) == 1, "host throws it"): return
 	var keys: Node = main.get_node("Keys")
 	if not _ok(gs.request_reveal_key(1, keys._pos[1]) and gs.request_take_key(1), "host takes key 1"): return
-	gs.hurt_fence(CLAWED, 5.0)
+	gs.hurt_fence(10, -5.0)
+	gs.hurt_fence(10, 0.0)
+	gs.hurt_fence(10, 5.0)
 	gs.vault = VAULT
 	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty() and pile._awake.is_empty(), "the host's heap and throw to settle"): return
 
@@ -80,7 +82,7 @@ func _client() -> void:
 	if not _ok(not pile._id_index.has(LOOSE) and gs._taken_loose.has(LOOSE), "loose bullet %d is gone" % LOOSE): return
 	var thrown: int = pile._spill_id.count(gs.THROWN_ID_START) + pile._spill_id.count(gs.THROWN_ID_START + 1) + pile._spill_id.count(gs.THROWN_ID_START + 2)
 	if not _ok(thrown == 3, "the three thrown bullets lie here too (%d)" % thrown): return
-	if not _ok(gs.fence == gs.FENCE_MAX - CLAWED and gs.fence_wear.reduce(func(a: int, b: int) -> int: return a + b, 0) == CLAWED,
+	if not _ok(gs.fence == gs.FENCE_MAX - CLAWED and gs.fence_bays.count(gs.BAY_HP - 10) == 3,
 			"the railing is clawed down here too (%d)" % gs.fence): return
 	if not _ok(is_equal_approx(gs.vault, VAULT), "the vault holds what the host's does ($%d)" % gs.vault): return
 	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty(), "the heap to settle"): return
