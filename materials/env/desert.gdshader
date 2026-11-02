@@ -17,7 +17,7 @@ uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_e
 uniform float sand_size = 4.0;    // m per texture repeat
 uniform float earth_size = 6.0;
 uniform float gravel_size = 3.0;
-uniform vec4 pad = vec4(-28.0, -24.0, 36.0, 24.0);  // the concrete (x0, z0, x1, z1): gravel round it
+uniform vec4 pad = vec4(-26.0, -14.0, 26.0, 14.0);  // the concrete (x0, z0, x1, z1): gravel round it
 uniform float gravel_reach = 9.0;  // m out from the pad's edge
 uniform vec3 sand_tint : source_color = vec3(1.0, 0.86, 0.66);
 uniform vec3 earth_tint : source_color = vec3(0.86, 0.72, 0.56);

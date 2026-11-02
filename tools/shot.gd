@@ -10,8 +10,11 @@ extends SceneTree
 const SHOTS := {
 	"ws_front": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],  # build_world.gd: the workshop from the yard
 	"ws_in": [Vector3(8.6, 1.7, -3.6), Vector3(2.5, 1.1, 1.5)],
-	"ws_wide": [Vector3(34.0, 6.0, 22.0), Vector3(4.0, 1.0, -2.0)],
+	"ws_wide": [Vector3(44.0, 9.0, 26.0), Vector3(4.0, 1.0, -2.0)],
+	"overview": [Vector3(80.0, 45.0, 0.0), Vector3(0.0, 0.0, 0.0)],
 	"desert": [Vector3(18.0, 1.7, 4.0), Vector3(80.0, 2.0, 40.0)],
+	"forest_edge": [Vector3(30.0, 1.7, 8.0), Vector3(90.0, 3.0, 25.0)],
+	"forest_in": [Vector3(75.0, 1.9, 30.0), Vector3(100.0, 2.0, 55.0)],
 	"desert_back": [Vector3(10.0, 2.5, 18.0), Vector3(-80.0, 4.0, 50.0)],
 	"far": [Vector3(0, 1.6, 15), Vector3(0, 2.0, 0)],
 	"mid": [Vector3(0, 1.6, 10.5), Vector3(0, 1.0, 6.0)],
