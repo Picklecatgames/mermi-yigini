@@ -53,7 +53,8 @@ func _dig_to(gs: Node, keys: Node3D, pile: Node3D, rank: int) -> int:
 	var used := 0
 	while gs.key_states[rank] == gs.KeyState.BURIED and used < 2_000_000:
 		var at := Vector3(p.x, pile.surface_y(p), p.z)
-		used += gs.request_take_bullets(DIG_CHUNK if used >= 20_000 else 50, at)
+		# 50 at a time took the check past five minutes: the common keys need tens of thousands.
+		used += gs.request_take_bullets(DIG_CHUNK if used >= 20_000 else (500 if used >= 500 else 50), at)
 		for f in 400:  # until the dig is done and the slides have stopped
 			await physics_frame
 			if pile._digs.is_empty() and not pile._any_active:

@@ -116,6 +116,7 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 		var at := Vector3(-5.0 + (k % 5) * 0.25, 0.0, -18.0 + (k / 5) * 0.25)
 		var ray := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 12.0, at + Vector3.DOWN)
 		ray.collision_mask = pile.SCRAP_LAYER | 1
+		ray.exclude = [pile.get_rid()]  # as the player's reach ray: past the raised walking surface
 		var h := space.intersect_ray(ray)
 		if not h.is_empty() and pile._rid_slot.has(h.rid):
 			on_piece += 1
@@ -130,32 +131,39 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 	var y: float = (pile.global_transform * pile._slot_at(s)).origin.y
 	print("aimed at piece %d (%s), %.2f m up, the heap %.2f m there" % [s, pile._slot_part[s], y, pile.surface_y(hit.position)])
 	var v0 := _volume(pile)
+	var opened := 0
 	for n in 5:
 		gs.player().carried = 0
+		var before: Dictionary = pile._id_index.duplicate()
+		var was: Vector3 = (pile._id_index[id][3] as Transform3D).origin if pile._id_index.has(id) else pile._slot_at(pile._slot_of_id(id)).origin
 		assert(gs.request_pick_up_loose(id) == 1, "piece %d is taken" % n)
 		for f in 3:
 			await physics_frame
 		assert(not pile.has_loose(id), "and gone")
-		# What shows there next: the piece that lay under it, or (where what is above slid into
-		# the gap and covered it) a new one in the face's own slot.
+		# What shows there next: a piece the face was settled with that lay buried under it, laid
+		# open where it lies; past those, one made under it.
 		var under := -1
 		var where := Transform3D()
 		for other: int in pile._id_index:
-			if pile.is_heap_id(other) and pile._slot_of_id(other) == s and other != id:
+			if before.has(other):
+				continue
+			var t: Transform3D = pile._id_index[other][3]
+			if under < 0 or t.origin.distance_to(was) < where.origin.distance_to(was):
 				under = other
-				where = pile._id_index[other][3]
-		if under < 0 and pile._slot_id[s] >= 0 and pile._slot_id[s] != id:
-			under = pile._slot_id[s]
-			where = pile._slot_at(s)
+				where = t
+			if other >= pile.HIDDEN_ID_START and other < pile.EXTRA_ID_START:
+				opened += 1
 		assert(under >= 0 and pile.has_loose(under), "the next piece shows")
 		var at: float = (pile.global_transform * where).origin.y
-		print("piece %d taken at %.2f m; the next one at %.2f m (%s)" % [n, y, at, "under it" if pile._id_index.has(under) else "slid over it"])
+		print("piece %d taken at %.2f m; the next one at %.2f m (%s)" % [n, y, at, "buried under it" if under >= pile.HIDDEN_ID_START and under < pile.EXTRA_ID_START else "made under it"])
 		# A thin piece leaves little room: the next layer starts right there, never floating up.
 		assert(at < y + 0.15 and at > pile.surface_y(pile.global_transform * where.origin) - 0.05, "lying on the heap where the taken one was")
 		id = under
 		y = at
 	assert(_volume(pile) < v0, "their room dug out of the heap")
+	assert(opened > 0, "under the face lie the pieces it was settled with, laid open by the takes")
 	pile.highlight(Vector3.ZERO, false)
+	await _wake(gs, pile)
 	# One that tumbled off the face earlier lies on the heap as a loose piece of its own: dig the
 	# heap out from under it and it falls, and can still be picked up.
 	id = -1
@@ -178,6 +186,47 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 	assert(fell, "with the heap gone from under it, it falls")
 	assert(pile.has_loose(id), "and is still there to pick up (%s)" % ("lying" if pile._id_index.has(id) else "moving"))
 	print(("dug out from under, it fell and lies at %.2f m" % (pile.global_transform * pile._id_index[id][3]).origin.y) if pile._id_index.has(id) else "dug out from under, it is still rolling")
+	gs.player().carried = 0
+
+
+## Take a piece another one rests on (the user, 2026-11-02: take from under and what is over it
+## moves): that one lets go, falls as a body into the room left, and comes to rest, still there to
+## pick up.
+func _wake(gs: Node, pile: Node3D) -> void:
+	var space := pile.get_world_3d().direct_space_state
+	var lower := -1
+	var upper := -1
+	for s in range(0, pile._slot_part.size(), 7):  # a look over the face, not every slot
+		if pile._slot_id[s] < 0 or not pile._slot_rid[s].is_valid():
+			continue
+		var t: Transform3D = pile._slot_at(s)
+		if pile._height_at(t.origin) < 0.5:
+			continue
+		var q := PhysicsShapeQueryParameters3D.new()
+		q.shape = pile._part_hull[pile._slot_part[s]]
+		q.transform = pile.global_transform * t * pile._part_hull_at[pile._slot_part[s]]
+		q.margin = pile.WAKE_MARGIN
+		q.collision_mask = pile.SCRAP_LAYER
+		for h in space.intersect_shape(q, 16):
+			if pile._rid_slot.has(h.rid) and pile._slot_at(pile._rid_slot[h.rid]).origin.y > t.origin.y + 0.03:
+				lower = s
+				upper = pile._rid_slot[h.rid]
+				break
+		if lower >= 0:
+			break
+	assert(lower >= 0, "somewhere on the face one piece rests on another")
+	var up_id: int = pile._slot_id[upper]
+	var up_y: float = pile._slot_at(upper).origin.y
+	gs.player().carried = 0
+	assert(gs.request_pick_up_loose(pile._slot_id[lower]) == 1, "the one under is taken")
+	await physics_frame
+	assert(pile._moving(up_id) != null, "the one resting on it lets go and falls")
+	for f in 300:
+		await physics_frame
+		if pile._id_index.has(up_id):
+			break
+	assert(pile._id_index.has(up_id), "and comes to rest, there to pick up")
+	print("took the piece under another: it fell %.2f m and lies there" % (up_y - (pile._id_index[up_id][3] as Transform3D).origin.y))
 	gs.player().carried = 0
 
 

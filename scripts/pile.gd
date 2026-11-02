@@ -179,6 +179,23 @@ var _gone := {}                  # heap id -> [part, local transform] taken, unt
 var _on_heap := {}               # cell key -> loose ids lying on the heap there (they sink or fall with it)
 var _marked_loose := -1          # loose id under a crosshair, drawn by _mark_mi
 const UNDER_DROP := 0.6          # of a taken piece's thickness, the one under it lies lower
+## The pieces the face was settled with that lie buried under the ones that show
+## (data/scrap_face.json "hidden"): kept as data, not drawn and with no body, until a take lays
+## one open. It is then a loose piece, id HIDDEN_ID_START + its index. Past them the heap goes on
+## with pieces made as they are dug to, EXTRA_ID_START + how many so far.
+const HIDDEN_ID_START := HEAP_ID_START + (1 << 40)
+const EXTRA_ID_START := HEAP_ID_START + (1 << 41)
+const OPEN_REACH := 0.08         # m past touching a taken piece a buried one is laid open
+## A taken piece lets go of what rested on it: those turn into bodies and fall into the room it
+## left, and what rested on them too, this many deep.
+const WAKE_DEPTH := 2
+const WAKE_MARGIN := 0.03        # m round a taken piece's hull: what touches it rested on it
+var _hid_part := PackedInt32Array()
+var _hid_xform: Array[Transform3D] = []  # as settled; origin.y is its lift over the surface
+var _hid_cell := {}              # cell index -> buried pieces' indices there
+var _hid_left := PackedInt32Array()  # per cell: buried pieces not laid open yet
+var _hid_open := {}              # buried piece index -> true once laid open
+var _extra_born := 0
 const BURY := 0.02               # m the heap rises over a loose piece's top before it is inside it
 const FALL := 0.05               # m the heap drops under a loose piece's bottom before it falls
 # Loose pieces: numbered, lying still as bare static bodies, one MultiMesh per part.
@@ -229,7 +246,10 @@ func _ready() -> void:
 	plane.subdivide_width = GRID_X - 2
 	plane.subdivide_depth = GRID_Z - 2
 	plane.material = heap_material
+	# Never drawn, only its shadow (the user, 2026-11-02: the "mud" under the scrap never shows):
+	# the light stays out of the heap's inside.
 	var heap := MeshInstance3D.new()
+	heap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 	heap.mesh = plane
 	heap.custom_aabb = AABB(Vector3(-GRID_X * CELL * 0.5, -0.1, -GRID_Z * CELL * 0.5), Vector3(GRID_X * CELL, LANTERN_TOP + 0.5, GRID_Z * CELL))
 	add_child(heap)
@@ -484,8 +504,10 @@ func _build_surface() -> void:
 		per_part.append([])
 	var cell_slots := {}  # cell index -> Array of [part, index]
 	var face: Variant = JSON.parse_string(FileAccess.get_file_as_string(FACE_FILE)) if FileAccess.file_exists(FACE_FILE) else null
+	_hid_left.resize(GRID_X * GRID_Z)
 	if face is Dictionary and int(face.heights) == hash(_h):
 		_lay_settled(face.pieces, per_part, cell_slots)
+		_bury_settled(face.get("hidden", []))
 	else:
 		push_warning("data/scrap_face.json is missing or was settled on another heap shape: run tools/build_scrap_face.gd")
 		_lay_one_by_one(per_part, cell_slots)
@@ -516,6 +538,28 @@ func _lay_settled(pieces: Array, per_part: Array[Array], cell_slots: Dictionary)
 		var list: Array = cell_slots.get(k, [])
 		list.append([part, idx])
 		cell_slots[k] = list
+
+
+## The settled pieces buried under the face, kept as data until a take lays them open.
+func _bury_settled(pieces: Array) -> void:
+	var by_id := {}
+	for i in _part_info.size():
+		by_id[_part_info[i].id] = i
+	for e: Array in pieces:
+		if not by_id.has(e[0]):
+			continue
+		var o := Vector3(e[1], e[2], e[3])
+		var cell := _cell_of(o)
+		if not _in_grid(cell):
+			continue
+		var k := cell.y * GRID_X + cell.x
+		var h := _hid_part.size()
+		_hid_part.append(by_id[e[0]])
+		_hid_xform.append(Transform3D(Basis(Quaternion(e[4], e[5], e[6], e[7])), o))
+		var list: Array = _hid_cell.get(k, [])
+		list.append(h)
+		_hid_cell[k] = list
+		_hid_left[k] += 1
 
 
 ## Without the settled face: every cell of the face that shows gets pieces until their footprints cover it
@@ -790,20 +834,121 @@ func _dig_under(id: int) -> void:
 		return  # a joiner: the host's snapshot already holds what came of it
 	var part: int = rec[0]
 	var t: Transform3D = rec[1]
-	var s := _slot_of_id(id)
 	var size := _part_size[part]
 	var cell := _cell_of(t.origin).clamp(Vector2i.ZERO, Vector2i(GRID_X - 1, GRID_Z - 1))
 	# Its room: the box it filled, shared out over the pieces lying on top of one another there.
 	_digs.append([cell, size.x * size.y * size.z / cover / (CELL * CELL)])
 	if _height_at(t.origin) < 0.05:
 		return  # it lay on the floor: nothing under it
-	_slot_born[s] += 1
+	# What it covered shows, then what rested on it falls into the room it left (onto those).
+	var opened := _lay_open(part, t)
+	_wake_over(part, t, WAKE_DEPTH)
+	if opened > 0 or _buried_round(cell) > 0:
+		return  # more of the settled face under it, to be laid open by the next takes
+	# Under the settled face the heap goes on: a piece made where this one lay, a little lower.
+	var new_id := 0
+	if id < HIDDEN_ID_START:
+		var s := _slot_of_id(id)
+		_slot_born[s] += 1
+		new_id = _heap_id(s, _slot_born[s])
+	else:
+		_extra_born += 1
+		new_id = EXTRA_ID_START + _extra_born
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(id)
 	var under := _pick_part(rng.randf(), true)
 	var at := t.origin + Vector3(rng.randf_range(-0.04, 0.04), 0.0, rng.randf_range(-0.04, 0.04))
 	at.y -= size[size.min_axis_index()] * UNDER_DROP
-	_add_loose(_heap_id(s, _slot_born[s]), under, _lay(under, at, rng))
+	_add_loose(new_id, under, _lay(under, at, rng))
+
+
+## Buried piece `h` where it lies now (local, at the box centre, riding the surface).
+func _hid_at(h: int) -> Transform3D:
+	var t := _hid_xform[h]
+	t.origin.y += _height_smooth(t.origin)
+	return t
+
+
+## Buried pieces not laid open yet in the cells round `cell`.
+func _buried_round(cell: Vector2i) -> int:
+	var n := 0
+	for j in range(cell.y - 1, cell.y + 2):
+		for i in range(cell.x - 1, cell.x + 2):
+			if _in_grid(Vector2i(i, j)):
+				n += _hid_left[j * GRID_X + i]
+	return n
+
+
+## Lays open the buried pieces piece `part` at `t` (local) lay on or against: each one turns into
+## a loose piece where it lies. Returns how many.
+func _lay_open(part: int, t: Transform3D) -> int:
+	var reach := _part_size[part].length() * 0.5 + OPEN_REACH
+	var c := _cell_of(t.origin)
+	var r := ceili((reach + 0.3) / CELL)
+	var n := 0
+	for j in range(c.y - r, c.y + r + 1):
+		for i in range(c.x - r, c.x + r + 1):
+			if not _in_grid(Vector2i(i, j)):
+				continue
+			var key := j * GRID_X + i
+			for h: int in _hid_cell.get(key, []):
+				if _hid_open.has(h):
+					continue
+				var ht := _hid_at(h)
+				# Over a piece that showed nothing lay buried, or a ray would have found it.
+				if ht.origin.y > t.origin.y + 0.05 or ht.origin.distance_to(t.origin) > reach + _part_size[_hid_part[h]].length() * 0.5:
+					continue
+				_hid_open[h] = true
+				_hid_left[key] -= 1
+				_add_loose(HIDDEN_ID_START + h, _hid_part[h], ht)
+				n += 1
+	return n
+
+
+## What rested on piece `part` at `t` (local), just taken, lets go: each piece touching it from
+## above turns into a body and falls into the room it left, and what rested on those, `depth` deep.
+## Local visuals like the tumbling ones: where they come to rest can differ a little between peers.
+func _wake_over(part: int, t: Transform3D, depth: int) -> void:
+	if depth <= 0 or _debris.size() >= MAX_DEBRIS:
+		return
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = _part_hull[part]
+	q.transform = global_transform * t * _part_hull_at[part]
+	q.margin = WAKE_MARGIN
+	q.collision_mask = SCRAP_LAYER
+	for hit in get_world_3d().direct_space_state.intersect_shape(q, 16):
+		var rid: RID = hit.rid
+		var wt: Transform3D
+		var wpart := -1
+		var wid := -1
+		if _rid_slot.has(rid):
+			var s: int = _rid_slot[rid]
+			wt = _slot_at(s)
+			if wt.origin.y <= t.origin.y:
+				continue  # beside it or under it: it didn't rest on this one
+			wpart = _slot_part[s]
+			wid = _slot_id[s]
+			_clear_slot(s)
+		elif _spill_index.has(rid):
+			wid = _spill_index[rid]
+			var rec: Array = _id_index[wid]
+			wt = rec[3]
+			if wt.origin.y <= t.origin.y:
+				continue
+			wpart = rec[0]
+			_remove_loose(wid)
+		else:
+			continue
+		var body := _make_body(wpart, global_transform * wt)
+		# Only the pieces round it hold it: the walkers' raised surface would throw it up.
+		body.collision_mask = SCRAP_LAYER
+		body.set_meta("id", wid)
+		body.set_meta("since", -1.0)
+		body.set_meta("soft", true)
+		_debris.append(body)
+		if _debris.size() >= MAX_DEBRIS:
+			return
+		_wake_over(wpart, wt, depth - 1)
 
 
 ## A resting transform for `part` at local point `p` on the heap's face: widest side down along
@@ -954,7 +1099,7 @@ func snapshot() -> Array:
 		if body.has_meta("id") and body.get_meta("id") >= GameState.THROWN_ID_START:
 			var t := global_transform.affine_inverse() * body.global_transform
 			thrown.append([body.get_meta("id"), body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin)])
-	return [_h, _active, _digs, _surface_removed, thrown, _slump, step, _slot_born, _slot_id]
+	return [_h, _active, _digs, _surface_removed, thrown, _slump, step, _slot_born, _slot_id, _hid_open, _extra_born]
 
 
 ## Joiner: takes the host's snapshot() over the starting heap this machine built.
@@ -968,6 +1113,12 @@ func restore(snap: Array) -> void:
 		_clear_slot(s)
 		_surface_removed[s] = snap[3][s]
 	_slot_id = snap[8]
+	for h: int in snap[9]:  # laid open on the host: what is left of them comes with the thrown ones
+		if not _hid_open.has(h):
+			_hid_open[h] = true
+			var c := _cell_of(_hid_xform[h].origin)
+			_hid_left[c.y * GRID_X + c.x] -= 1
+	_extra_born = snap[10]
 	for b: Array in snap[4]:
 		if not _id_index.has(b[0]):
 			_add_loose(b[0], b[1], b[2])
@@ -1109,6 +1260,16 @@ func _update_debris(delta: float) -> void:
 			var d := body.global_position - mid
 			if absf(d.y) < 1.0 and Vector2(d.x, d.z).length() < SHOVE_REACH and v.length() > 0.8 and w.has_method("shove"):
 				w.shove(Vector3(v.x, 0.0, v.z) * SHOVE_SHARE)
+		if body.has_meta("soft"):
+			# One let go by a take has only the pieces round it to hold it: reaching the heap's own
+			# surface it comes to rest there (nothing that shows lies under it).
+			var local := to_local(body.global_position)
+			var floor_y := _height_smooth(local)
+			if local.y < floor_y:
+				body.global_position += global_basis.y * (floor_y - local.y)
+				_settle(body)
+				_debris.remove_at(i)
+				continue
 		var since: float = body.get_meta("since")
 		if body.sleeping or (v.length() < 0.05 and body.angular_velocity.length() < 0.2):
 			body.set_meta("since", 0.0 if since < 0.0 else since + delta)
@@ -1387,7 +1548,8 @@ func _update_surface_pieces(area: Rect2i) -> void:
 				var y := lerpf(lerpf(h[k], h[k + 1], f.x), lerpf(h[k + GRID_X], h[k + GRID_X + 1], f.x), f.y)
 				if _surface_removed.has(s):
 					# Dug on down, or covered by what slid: the next piece of the heap shows there.
-					if absf(y - _surface_removed[s]) < RESURFACE or y < 0.03:
+					# Not while settled pieces lie buried there: those show as they are laid open.
+					if absf(y - _surface_removed[s]) < RESURFACE or y < 0.03 or _hid_left[key] > 0:
 						continue
 					_surface_removed.erase(s)
 					_slot_born[s] += 1

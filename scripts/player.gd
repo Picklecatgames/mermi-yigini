@@ -191,6 +191,7 @@ var _steered := false  # the view is being turned for us: the mouse waits
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	add_to_group("walker")  # kicks loose bullets around (Pile)
+	_reach_past_pile.call_deferred()
 	# The heap stands at 45° and its height field's diagonals reach ~55°: at the default 45° those
 	# faces were walls and we snagged on its sides.
 	floor_max_angle = deg_to_rad(60.0)
@@ -927,6 +928,14 @@ func _looking_at_pile() -> bool:
 
 func _pile() -> Node:
 	return get_tree().get_first_node_in_group("bullet_pile")
+
+
+## The heap's own collision is raised to the pieces' middle for walking on: the reach ray stopped
+## on it over half the pieces. Only the pieces are aimed at.
+func _reach_past_pile() -> void:
+	var pile := _pile()
+	if pile is CollisionObject3D:
+		_reach.add_exception(pile)
 
 
 ## One bullet flies from where it was grabbed into the hand and appears there as it lands.

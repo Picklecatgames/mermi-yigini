@@ -10,8 +10,10 @@ extends SceneTree
 ## Chunks two apart settle at once. As soon as a group is down, rays from outside find its pieces
 ## that show; the buried ones leave the physics server (it holds only so many bodies, project
 ## setting jolt_physics_3d/limits/max_bodies: past it later chunks find no room and stay bare).
-## Only the pieces that show at the end are written, to data/scrap_face.json:
-##   {"heights": hash of the heap's starting heights, "pieces": [[id, x, lift, z, qx, qy, qz, qw], ...]}
+## The pieces that show at the end are written to data/scrap_face.json, and the buried ones under
+## them apart (the heap draws those only once a take lays them open):
+##   {"heights": hash of the heap's starting heights, "pieces": [[id, x, lift, z, qx, qy, qz, qw], ...],
+##    "hidden": [the same, ...]}
 ## x, z in the heap's own space, lift over its surface there, at each piece's box centre.
 ##   Godot.exe --headless --path . --fixed-fps 60 -s res://tools/build_scrap_face.gd
 
@@ -117,21 +119,30 @@ func _initialize() -> void:
 	seen = _seen(Rect2i(0, 0, _pile.GRID_X, _pile.GRID_Z))
 	print("%d slivers left out" % slivers)
 	var out := []
+	var hidden := []
 	var kinds := {}
-	for i: int in seen:
-		var t: Transform3D = _xform[i]
-		var q := t.basis.get_rotation_quaternion()
-		out.append([_pile._part_info[_part[i]].id, snappedf(t.origin.x, 0.001), snappedf(t.origin.y - _pile._height_smooth(t.origin), 0.001),
-			snappedf(t.origin.z, 0.001), snappedf(q.x, 0.0001), snappedf(q.y, 0.0001), snappedf(q.z, 0.0001), snappedf(q.w, 0.0001)])
-		var tur: String = _pile._part_info[_part[i]].tur
-		kinds[tur] = kinds.get(tur, 0) + 1
+	for i in _part.size():
+		if _xform[i].origin.y < -0.5:
+			continue
+		(out if seen.has(i) else hidden).append(_entry(i))
+		if seen.has(i):
+			var tur: String = _pile._part_info[_part[i]].tur
+			kinds[tur] = kinds.get(tur, 0) + 1
 	DirAccess.make_dir_recursive_absolute(OUT.get_base_dir())
 	var f := FileAccess.open(OUT, FileAccess.WRITE)
-	f.store_string(JSON.stringify({"heights": hash(_pile._h), "pieces": out}))
+	f.store_string(JSON.stringify({"heights": hash(_pile._h), "pieces": out, "hidden": hidden}))
 	print("shown by kind: ", kinds)
 	_holes()
-	print("%d of %d pieces show; saved %s (%d s)" % [out.size(), _part.size(), ProjectSettings.globalize_path(OUT), (Time.get_ticks_msec() - t0) / 1000])
+	print("%d of %d pieces show, %d lie under them; saved %s (%d s)" % [out.size(), _part.size(), hidden.size(), ProjectSettings.globalize_path(OUT), (Time.get_ticks_msec() - t0) / 1000])
 	quit()
+
+
+## Piece `i` as the file has it: [id, x, lift, z, qx, qy, qz, qw].
+func _entry(i: int) -> Array:
+	var t: Transform3D = _xform[i]
+	var q := t.basis.get_rotation_quaternion()
+	return [_pile._part_info[_part[i]].id, snappedf(t.origin.x, 0.001), snappedf(t.origin.y - _pile._height_smooth(t.origin), 0.001),
+		snappedf(t.origin.z, 0.001), snappedf(q.x, 0.0001), snappedf(q.y, 0.0001), snappedf(q.z, 0.0001), snappedf(q.w, 0.0001)]
 
 
 ## The face cells of the chunk at cell (cx, cz).

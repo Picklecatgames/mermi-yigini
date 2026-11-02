@@ -1,13 +1,12 @@
 shader_type spatial;
 render_mode unshaded;
 
-// The scrap heap's surface under its pieces (scripts/pile.gd). It must never be seen, only the
-// scrap (the user, 2026-11-02). Pieces lie on it several deep and tools/build_scrap_face.gd fills
-// the gaps; it is drawn sunk under where they lie and unlit, so what a last chink shows is the
-// deep shadow between pieces, never a lit smooth slope, and the thin skirt at the foot, where
-// pieces don't stay, sinks under the floor. Collision is the heap's real height, not this.
+// The scrap heap's surface under its pieces (scripts/pile.gd). It is never drawn (the user,
+// 2026-11-02: only scrap shows, the "mud" under it never): pile.gd renders it as a shadow caster
+// only, so the light stays out of the heap's inside and a chink between pieces looks into the
+// dark between them. Sunk a little under where the pieces lie, so they don't shadow themselves
+// on it. Collision is the heap's real height, not this.
 
-uniform vec3 shade = vec3(0.006, 0.0045, 0.0035);
 uniform float sink = 0.15;  // m under the heap's real height
 
 // Heap shape: height per cell, written by pile.gd as scrap is taken and slopes slide.
@@ -31,5 +30,5 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = shade;
+	ALBEDO = vec3(0.0);
 }
