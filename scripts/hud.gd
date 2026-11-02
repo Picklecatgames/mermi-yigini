@@ -54,6 +54,7 @@ var _mag_caption: Label
 var _mag: Label
 var _mag_of: Label
 var _hand: Label
+var _scrap: Label  # scrap in hand, small, bottom middle
 var _gold: Label
 var _vault: Label
 var _brass: Label  # the team's brass from the hopper (GameState.brass), once it is open
@@ -403,6 +404,9 @@ func _build_middle() -> void:
 	_special_row.add_child(_special)
 	_special_hint = UiStyle.hint("R", "")
 	_special_row.add_child(_special_hint)
+	_scrap = UiStyle.label("", 14, UiStyle.MEDIUM, UiStyle.DIM)
+	_scrap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(_scrap)
 	_guns = HBoxContainer.new()
 	_guns.alignment = BoxContainer.ALIGNMENT_CENTER
 	_guns.add_theme_constant_override("separation", 26)
@@ -631,6 +635,8 @@ func refresh() -> void:
 	_mag_of.text = "/%d" % (GameState.carry_capacity if p.gun == 0 else GameState.mag_capacity)
 	_hand.text = "%d/%d" % [GameState.carried, GameState.carry_capacity]
 	_hand.get_parent().visible = p.gun != 0
+	_scrap.text = "%d/%d hurda" % [GameState.carried, GameState.carry_capacity]
+	_scrap.visible = GameState.carried > 0
 	_mag.add_theme_color_override("font_color", UiStyle.WARN if p.gun != 0 and GameState.loaded == 0 else UiStyle.WHITE)
 	_gold.text = "$" + UiStyle.dotted(GameState.gold)
 	_vault.text = "Takım $" + UiStyle.dotted(floori(GameState.vault))
