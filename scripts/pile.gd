@@ -806,6 +806,33 @@ func _moving(id: int) -> RigidBody3D:
 	return null
 
 
+## What the piece a ray hit looks like, for player.gd's hand: [mesh, its box centre in the mesh,
+## its size, the box centre's world transform]; [] if the ray hit no piece.
+func piece_look(collider: Object, rid: RID) -> Array:
+	var part := -1
+	var t := Transform3D()
+	if _rid_slot.has(rid):
+		var s: int = _rid_slot[rid]
+		part = _slot_part[s]
+		t = global_transform * _slot_at(s)
+	elif _spill_index.has(rid):
+		var rec: Array = _id_index[_spill_index[rid]]
+		part = rec[0]
+		t = global_transform * (rec[3] as Transform3D)
+	elif collider is RigidBody3D and collider.has_meta("part"):
+		part = collider.get_meta("part")
+		t = (collider as RigidBody3D).global_transform
+	if part < 0:
+		return []
+	return [_part_mesh[part], _part_mid[part], _part_size[part], t]
+
+
+## A random piece's look, for a hand whose pieces we never saw taken (a rejoin): see piece_look.
+func any_look() -> Array:
+	var part := _pick_part(randf(), true)
+	return [_part_mesh[part], _part_mid[part], _part_size[part], Transform3D()]
+
+
 ## A piece is picked up, everywhere at once: what it was and where it lay stays in _gone until
 ## heap_piece_taken (heap pieces) digs out its room and shows the one under it.
 func _on_loose_taken(id: int) -> void:

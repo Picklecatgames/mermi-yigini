@@ -16,7 +16,7 @@ const GUN_SOUNDS := ["ShotSound", "DrySound", "SlideSound", "MagSound", "Tink"] 
 const ACTIONS := [
 	["move_forward", "İleri"], ["move_back", "Geri"], ["move_left", "Sola"], ["move_right", "Sağa"],
 	["jump", "Zıpla"], ["sprint", "Koş"], ["crouch", "Eğil"], ["fire", "Ateş et"], ["aim", "Nişan al"],
-	["reload", "Şarjör / mermi çarkı"], ["pick_up", "Yığından mermi al"], ["throw", "Mermi fırlat"],
+	["reload", "Şarjör / mermi çarkı"], ["pick_up", "Hurda al"], ["throw", "Hurda fırlat"],
 ]
 const PRESETS := ["Düşük", "Orta", "Yüksek", "Ultra"]
 const PRESET_VALUES := [  # what each preset sets; anything else changed by hand makes it "Özel"

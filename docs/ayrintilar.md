@@ -161,8 +161,8 @@ Görevler HUD'a taşınınca panonun işi kalmamıştı. Karar: **ödül panodan
 | | Görev | Ne olur | Açılan HUD |
 |---|---|---|---|
 | t00 | Tabancayı al | masadaki tabanca ışıl ışıl yanıp söner, üstünde ok; alınca altta 5 sn bir giriş metni (eskisi yığına göreydi, yeniden yazılacak) | yazı bitince altın ve Q |
-| t01 | Yığından mermi al (eski, hurdalıkta değişecek) | yığının üstünde ok | el ve silahlar |
-| t02 | Tabancayı doldur | R | — |
+| t01 | Hurda topla | hurda dağının üstünde "Hurda" oku; E ile alınan parça küçülüp ekranın alt ortasına gelir, silah iner | el ve silahlar |
+| t02 | Hurdadan mermi yap | R elde tutulan hurdayı şarjöre doldurur (öğütücü çalışana kadar mermi buradan gelir); ipucu "Hurdayı mermiye çevir" | — |
 | t03 | Görevlerine bak | panoda ok; E panonun ekranını açar (ana görev, yan görevler, ödüller, açtıkları), $10 | sağ üstte görev listesi, 4 yan slot |
 
 Sonra m01 başlar. Yan görev kartları isim değil ne yapılacağını yazar ("Kombo zinciri 5").

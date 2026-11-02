@@ -216,10 +216,10 @@ const QUEST_SLOTS := ["main", "easy", "medium", "medium", "hard"]
 const QUESTS := {
 	"t00": {"tier": "main", "warmup": true, "name": "Tabancayı al", "kind": "gun_taken", "target": 1,
 		"unlock": "workbench", "hint": ["E", "Masadaki tabancayı al"], "reward": {}},  # the bench drops in, gold shows
-	"t01": {"tier": "main", "warmup": true, "name": "Yığından mermi al", "kind": "bullets_carried", "target": 1,
-		"unlock": "hud_ammo", "hint": ["E", "Yığından bir mermi al"], "reward": {}},  # the hand holds 1 at first
-	"t02": {"tier": "main", "warmup": true, "name": "Tabancayı doldur", "kind": "loaded", "target": 1,
-		"hint": ["R", "Şarjörü doldur"], "reward": {}},
+	"t01": {"tier": "main", "warmup": true, "name": "Hurda topla", "kind": "bullets_carried", "target": 1,
+		"unlock": "hud_ammo", "hint": ["E", "Dağdan bir parça hurda al"], "reward": {}},  # the hand holds 1 at first
+	"t02": {"tier": "main", "warmup": true, "name": "Hurdadan mermi yap", "kind": "loaded", "target": 1,
+		"hint": ["R", "Hurdayı mermiye çevir"], "reward": {}},
 	"t03": {"tier": "main", "warmup": true, "name": "Görevlerine bak", "kind": "board_claim", "target": 1,
 		"unlock": "board", "hint": ["E", "Görevlerine panodan bak"], "reward": {"gold": 10}},
 	# The bench is open from the pistol on (t00); a couple of quests, then the first thing on it.

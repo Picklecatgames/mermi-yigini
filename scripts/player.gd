@@ -65,10 +65,13 @@ const SCREAM_RUSH := 0.05  # s: the face lands as the sound's first full blast d
 const SCREAM_HOLD := 0.9  # s: until the scream starts to die down
 const SCREAM_DB := 7.6  # the recording is at full scale already; the master limiter catches the rest
 const SPECIAL_SOUND := "res://assets/sounds/specials/%s.wav"  # per SPECIALS id
-const GRAB_TIME := 0.25  # s for one bullet to fly into the hand
+const GRAB_TIME := 0.25  # s for one piece to fly into the hand
 const GRAB_GAP := 0.08   # s between bullets of one grab
-const PILE_BULLET_SCALE := 0.03  # matches the pile look; shrinks to hand size in flight
-const BULLET := preload("res://assets/bullet/bullet_9mm.glb")
+## Scrap carried: the pieces themselves, shrunk, in a row low in the middle of the view (the gun
+## goes down while there is any, viewmodel.gd stowed).
+const SCRAP_HAND_POS := Vector3(0.0, -0.15, -0.4)
+const SCRAP_IN_HAND := 0.055  # m, a piece in hand at its longest
+const SCRAP_STEP := 0.05      # m between pieces in the row
 const CASE := preload("res://assets/bullet/bullet_case.glb")  # special rounds: case + TipSocket
 const GRAB_REPEAT := 0.02  # s between grabs while E is held
 const FLY_POOL := 16       # bullets in flight at most: GRAB_TIME / GRAB_REPEAT plus slack
@@ -125,8 +128,10 @@ var _shake_t := 0.0
 var _shake_noise := FastNoiseLite.new()
 var _punch := 0.0  # deg off the fov
 var _punch_vel := 0.0
-var _fly: Array[Node3D] = []
+var _fly: Array[MeshInstance3D] = []
 var _next_fly := 0
+var _scrap_hand: Node3D  # the scrap carried, shrunk (SCRAP_HAND_POS)
+var _scrap_looks: Array[Array] = []  # pile.gd piece_look of the first HAND_MAX pieces carried
 var _vm_env: Environment
 var _hip_fov := 75.0
 var _zoom := 1.0
@@ -174,7 +179,6 @@ var _melt_hint: Control  # at the hopper with rounds in the hand (E pours them i
 var _hopper_hint: Control  # at the hopper, the hand empty (E shows how it melts)
 var _press_hint: Control  # at the press (E makes rounds)
 var _lever_hint: Control  # at the wave lever with a wave waiting (E pulls it, scripts/waves.gd)
-var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
 var _table_hint: Control  # looking at the desk at the spawn with the pistol on it (E takes it)
 var _hud: Control
 ## The pistol taken in the warmup, the view turns to the heap while the line about it is said.
@@ -211,7 +215,7 @@ func _ready() -> void:
 	_hud = HUD.new()
 	$HUD.add_child(_hud)
 	_prompt.queue_free()
-	_grab_hint = _crosshair_hint(UiStyle.hint("E", "Basılı tut: mermi al"))
+	_grab_hint = _crosshair_hint(UiStyle.hint("E", "Basılı tut: hurda al"))
 	_full_hint = _crosshair_hint(UiStyle.hint("G", "Elin dolu: fırlat"))
 	_board_hint = _crosshair_hint(UiStyle.hint("E", "Görev panosu"))
 	_bench_hint = _crosshair_hint(UiStyle.hint("E", "Tezgâh: silahını geliştir"))
@@ -225,7 +229,6 @@ func _ready() -> void:
 	add_child(_press)
 	add_child(_pick)
 	_make_laser_dot()
-	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
@@ -243,8 +246,12 @@ func _ready() -> void:
 	GameState.gun_changed.connect(func(peer: int, gun: int) -> void:
 		if peer == GameState.local_peer():
 			_viewmodel.equip(gun))
+	_scrap_hand = Node3D.new()
+	_scrap_hand.position = SCRAP_HAND_POS
+	_camera.add_child(_scrap_hand)
 	for i in FLY_POOL:
-		var b: Node3D = BULLET.instantiate()
+		var b := MeshInstance3D.new()
+		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		b.visible = false
 		b.top_level = true
 		b.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF  # tweened per frame
@@ -590,7 +597,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			"lever":
 				GameState.request_pull_lever()
 	elif event.is_action_pressed("throw"):
-		GameState.request_throw(_hand.global_position, -_camera.global_basis.z)
+		GameState.request_throw(_scrap_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
 		_toggle_mirror(not event.shift_pressed)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
@@ -831,10 +838,15 @@ func _physics_process(delta: float) -> void:
 		var at := _reach.get_collision_point()
 		var shown_before := mini(GameState.carried, HAND_MAX)
 		# A loose bullet goes by its id, so every peer removes the same one; else it is the heap.
-		var id: int = _pile().loose_id(_reach.get_collider(), _reach.get_collider_rid())
+		var id: int = heap.loose_id(_reach.get_collider(), _reach.get_collider_rid())
+		var look: Array = heap.piece_look(_reach.get_collider(), _reach.get_collider_rid())
 		var got := GameState.request_pick_up_loose(id) if id >= 0 else GameState.request_pick_up(at, 1)
 		if got > 0:
-			_fly_to_hand(at, shown_before)
+			if look.is_empty():
+				look = heap.any_look()
+				look[3] = Transform3D(Basis(), at)
+			_fly_to_hand(look, shown_before)
+	_viewmodel.stowed = GameState.carried > 0
 
 	var room := GameState.carried < GameState.carry_capacity
 	_grab_hint.visible = looking and room
@@ -849,8 +861,6 @@ func _physics_process(delta: float) -> void:
 	_press_hint.visible = station == "press"
 	_lever_hint.visible = station == "lever"
 	var p := GameState.player()
-	_reload_hint.visible = not looking and station == "" and p.gun != 0 and GameState.loaded == 0 \
-		and GameState.carried > 0
 	_table_hint.visible = _looking_at_table()
 	if p.has_pistol:  # taken here, or on record from before a rejoin
 		get_tree().call_group("gun_table", "fade")
@@ -938,23 +948,33 @@ func _reach_past_pile() -> void:
 		_reach.add_exception(pile)
 
 
-## One bullet flies from where it was grabbed into the hand and appears there as it lands.
-## Flyers come from a small pool: grabbing at 50/s used to load and free a scene every grab.
-func _fly_to_hand(from: Vector3, shown_before: int) -> void:
+## The piece `look` (pile.gd piece_look) flies from where it lay into the hand, shrinking on the
+## way, and appears in the row as it lands. Flyers come from a small pool: grabbing at 50/s used to
+## load and free a scene every grab.
+func _fly_to_hand(look: Array, shown_before: int) -> void:
 	_set_hand_count(shown_before)
+	var slot := mini(shown_before, HAND_MAX - 1)
+	if shown_before < HAND_MAX:
+		_scrap_looks.resize(mini(_scrap_looks.size(), shown_before))
+		while _scrap_looks.size() < shown_before:
+			_scrap_looks.append(_pile().any_look())
+		_scrap_looks.append(look)
 	var b := _fly[_next_fly]
 	_next_fly = (_next_fly + 1) % FLY_POOL
 	var old: Tween = b.get_meta("tween") if b.has_meta("tween") else null
 	if old and old.is_valid():
 		old.kill()  # pool wrapped around: the oldest flyer just lands now
+	b.mesh = look[0]
 	b.visible = true
-	var start := from + Vector3(randf_range(-0.06, 0.06), 0.0, randf_range(-0.06, 0.06))
-	var q0 := Quaternion.from_euler(Vector3(randf() * TAU, randf() * TAU, randf() * TAU))
+	var mid: Vector3 = look[1]
+	var start: Transform3D = look[3]
+	var small := _scrap_scale(look)
+	var q0 := start.basis.get_rotation_quaternion()
 	var fly := func(f: float) -> void:
-		var to := _hand.global_transform
-		var pos := start.lerp(to.origin, f) + Vector3.UP * sin(f * PI) * 0.3
+		var to := _scrap_hand.global_transform * _scrap_slot(slot, slot + 1)
+		var pos := start.origin.lerp(to.origin, f) + Vector3.UP * sin(f * PI) * 0.3
 		var rot := Basis(q0.slerp(to.basis.get_rotation_quaternion(), f))
-		b.global_transform = Transform3D(rot.scaled(Vector3.ONE * lerpf(PILE_BULLET_SCALE, to.basis.get_scale().x, f)), pos)
+		b.global_transform = Transform3D(rot.scaled(Vector3.ONE * lerpf(1.0, small, f)), pos).translated_local(-mid)
 	fly.call(0.0)
 	var t := b.create_tween()
 	b.set_meta("tween", t)
@@ -964,12 +984,43 @@ func _fly_to_hand(from: Vector3, shown_before: int) -> void:
 		_set_hand_count(mini(shown_before + 1, GameState.carried)))
 
 
-## Shows `n` plain bullets side by side in the hand, after the special rounds in the pocket: those
-## bigger, their faces turned to our eye, the loaded one standing up out of the row. Copies the
-## first round as needed.
+## Where piece `i` of a scrap row of `n` sits, its box centre in _scrap_hand: side by side across
+## the middle, each turned its own way so the row doesn't look stamped.
+func _scrap_slot(i: int, n: int) -> Transform3D:
+	var tilt := Vector3(0.6 + 0.3 * sin(i * 1.7), i * 1.3, 0.4 * cos(i * 2.1))
+	return Transform3D(Basis.from_euler(tilt), Vector3((i - (n - 1) * 0.5) * SCRAP_STEP, 0.0, 0.0))
+
+
+## How much piece `look` shrinks in the hand: to SCRAP_IN_HAND at its longest.
+func _scrap_scale(look: Array) -> float:
+	var size: Vector3 = look[2]
+	return SCRAP_IN_HAND / maxf(size[size.max_axis_index()], 0.001)
+
+
+## Shows `n` scrap pieces in the row, and the special rounds in the pocket in the other hand: those
+## their faces turned to our eye, the loaded one standing up out of the row. Copies the first
+## round as needed.
 func _set_hand_count(n: int) -> void:
+	n = mini(n, HAND_MAX)
+	_scrap_looks.resize(mini(_scrap_looks.size(), GameState.carried))
+	var heap := _pile()
+	while _scrap_looks.size() < n and heap:  # carried pieces we never saw taken (a rejoin)
+		_scrap_looks.append(heap.any_look())
+	n = mini(n, _scrap_looks.size())
+	while _scrap_hand.get_child_count() < n:
+		var mi := MeshInstance3D.new()
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_scrap_hand.add_child(mi)
+	for i in _scrap_hand.get_child_count():
+		var mi := _scrap_hand.get_child(i) as MeshInstance3D
+		mi.visible = i < n
+		if i < n:
+			var look: Array = _scrap_looks[i]
+			var t := _scrap_slot(i, n)
+			mi.mesh = look[0]
+			mi.transform = Transform3D(t.basis.scaled(Vector3.ONE * _scrap_scale(look)), t.origin).translated_local(-look[1])
 	var p := GameState.player()
-	n = mini(n + p.specials.size(), HAND_MAX)
+	n = mini(p.specials.size(), HAND_MAX)
 	var first := _hand.get_child(0) as Node3D
 	while _hand.get_child_count() < n:
 		_hand.add_child(first.duplicate())

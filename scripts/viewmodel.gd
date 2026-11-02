@@ -255,6 +255,7 @@ var _jelly_rot := Vector3.ZERO  # euler, rad
 var _jelly_rot_vel := Vector3.ZERO
 var _jelly_pos := Vector3.ZERO
 var _jelly_pos_vel := Vector3.ZERO
+var stowed := false  # scrap in hand (player.gd): the gun goes down out of view
 var _low_lin := 0.0  # 0 up and live, 1 put away (down); linear
 var _lowered := 0.0  # the same, eased
 var _fall_speed := 0.0  # m/s down on the last airborne frame
@@ -707,11 +708,14 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_since_fire += delta
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	# Down (GameState.is_down): the gun goes away, and is only live again once it is all the way back up.
-	var lowered := GameState.is_down()
+	# Down (GameState.is_down) or scrap in hand (stowed): the gun goes away, and is only live again
+	# once it is all the way back up. With scrap in hand R still loads the gun from it.
+	var lowered := GameState.is_down() or stowed
 	_low_lin = move_toward(_low_lin, 1.0 if lowered else 0.0, delta / LOW_TIME)
 	_lowered = smoothstep(0.0, 1.0, _low_lin)
 	var live := _low_lin == 0.0
+	if captured and _was_captured and stowed and not GameState.is_down() and Input.is_action_just_pressed("reload"):
+		_want_reload = RELOAD_BUFFER
 	if captured and _was_captured and live:
 		if Input.is_action_just_pressed("fire") or (Input.is_action_pressed("fire") and GameState.GUNS[maxi(gun, 0)].auto):
 			_want_fire = FIRE_BUFFER
