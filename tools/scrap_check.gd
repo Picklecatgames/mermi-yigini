@@ -47,9 +47,9 @@ func _initialize() -> void:
 	var above_h: float = h[above.y * gx + above.x]
 	print("digging at %s (%.2f m up), %.2f m above it at the start" % [at, at.y, above_h])
 
-	# A player standing in front of the foot, in the way of what comes down.
+	# A player standing in the hole as it is dug, in the way of what comes down its sides.
 	var pl: CharacterBody3D = main.get_node("Player")
-	pl.global_position = at + Vector3(1.6, 0, 0)
+	pl.global_position = at + Vector3(0.5, 0, 0)
 	pl.global_position.y = pile.surface_y(pl.global_position) + 0.05
 	var shoved := 0.0
 	var taken := 0

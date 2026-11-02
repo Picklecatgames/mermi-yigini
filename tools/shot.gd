@@ -57,6 +57,8 @@ const SHOTS := {
 	"scrap_macro": [Vector3(0.5, 1.3, 2.0), Vector3(-2.5, 0.5, 1.0)],
 	"scrap_touch": [Vector3(-1.2, 1.4, 1.6), Vector3(-3.0, 0.9, 1.0)],
 	"scrap_roof":[Vector3(2.0, 1.7, -3.0), Vector3(-9.0, 9.5, 0.0)],
+	"pit_rim": [Vector3(0.5, 1.7, 12.5), Vector3(-12.0, -0.5, 0.0)],  # the scrap pit from its south-east corner
+	"pit_ladder": [Vector3(1.0, 1.7, 2.5), Vector3(-2.6, -1.5, -0.5)],  # the east side's gap and ladder down
 	"desk": [Vector3(5.0, 1.7, 22.3), Vector3(5.0, 0.9, 25.5)],
 	"ogutucu": [Vector3(1.1, 1.7, 18.8), Vector3(4.5, 0.8, 21.0)],
 	"ogutucu_yakin": [Vector3(3.0, 1.7, 20.6), Vector3(4.2, 0.95, 21.3)],

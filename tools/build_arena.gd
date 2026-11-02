@@ -312,6 +312,63 @@ func _pit(body: StaticBody3D) -> void:
 		collide(w[0], w[1], body)
 	# Its bottom, under all the scrap.
 	collide(Vector3(pit.size.x, 1.0, pit.size.y), Vector3(c.x, -depth - 0.5, c.y), body)
+	_pit_rim()
+
+
+const CUKUR := "res://assets/props/cukur/"
+const RIM_DECK := 2.0     # m of steel decking round the pit's rim
+const LADDER_AT := 9.5    # m along each side, from its start: the gap in the railing and the ladder down
+const LADDER_STEP := 3.0  # kafesli_merdiven_3m stacks every 3 m
+
+
+## Round the pit's rim (2026-11-02, the user: "so we don't fall in: an industrial fence, ladders and
+## a steel floor"; the pieces are assets/props/cukur/, laid out here by me): diamond-plate decking
+## RIM_DECK wide, the yellow pipe railing on the edge with a gap in the middle of each side, and a
+## caged ladder down the wall from each gap to the pit's bottom.
+func _pit_rim() -> void:
+	var rim := Node3D.new()
+	rim.name = "PitRim"
+	add(rim)
+	var pit := _pit_rect()
+	# Each side runs clockwise seen from above, so its local +Z points into the pit.
+	var sides := [[Vector3(pit.position.x, 0, pit.position.y), Vector3.RIGHT],
+		[Vector3(pit.end.x, 0, pit.position.y), Vector3.BACK],
+		[Vector3(pit.end.x, 0, pit.end.y), Vector3.LEFT],
+		[Vector3(pit.position.x, 0, pit.end.y), Vector3.FORWARD]]
+	for side: Array in sides:
+		var start: Vector3 = side[0]
+		var dir: Vector3 = side[1]
+		var b := Basis(Vector3.UP, atan2(-dir.z, dir.x))
+		var run := pit.size.x
+		# Decking: 2 x 1 m plates along the side, two rows out from the edge, the corner square too.
+		for row in int(RIM_DECK):
+			var plate := 0.0
+			while plate < run + RIM_DECK - 0.01:
+				var at := start + dir * (plate + 1.0) - b.z * (row + 0.5)
+				_cukur("zemin_baklava_2x1", Transform3D(b, at + Vector3.UP * 0.001), rim)
+				plate += 2.0
+		# Railing on the edge, its posts on the wall's top: 2 m runs with a 1 m gap at LADDER_AT.
+		var edge := start - b.z * 0.07
+		for span in [Vector2(0.0, LADDER_AT - 0.5), Vector2(LADDER_AT + 0.5, run)]:
+			var x: float = span.x
+			while x < span.y - 0.01:  # each piece has its post at its start; the run ends on a lone post
+				var two: bool = x + 2.0 <= span.y + 0.01
+				_cukur("korkuluk_2m" if two else "korkuluk_1m", Transform3D(b, edge + dir * x), rim)
+				x += 2.0 if two else 1.0
+			_cukur("korkuluk_direk", Transform3D(b, edge + dir * span.y), rim)
+		# The ladder: off the wall into the pit, its top bent over onto the decking, down to the bottom.
+		var foot := start + dir * LADDER_AT + b.z * 0.2
+		_cukur("kafesli_merdiven_cikis", Transform3D(b, foot), rim)
+		var y := -1.5 - LADDER_STEP
+		while y > -PIT_DEPTH - 0.01:
+			_cukur("kafesli_merdiven_3m", Transform3D(b, foot + Vector3.UP * y), rim)
+			y -= LADDER_STEP
+
+
+func _cukur(piece: String, xf: Transform3D, parent: Node) -> void:
+	var n: Node3D = (load(CUKUR + piece + ".gltf") as PackedScene).instantiate()
+	n.transform = xf
+	add(n, parent)
 
 
 func _walls() -> void:
