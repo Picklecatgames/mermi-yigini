@@ -527,6 +527,7 @@ func _show_hint(id: String) -> void:
 	if _hint.get_meta("for", "") == id:
 		return
 	_hint.set_meta("for", id)
+	_hint.set_meta("gun", not hint.is_empty() and hint[0] == "R")  # hidden while the gun is away
 	for n in _hint.get_children():
 		n.queue_free()
 	_hint.visible = not hint.is_empty() and not _subtitle.visible
@@ -668,8 +669,12 @@ func refresh() -> void:
 	_test.visible = GameState.infinite_ammo
 	# The warmup opens the screen bit by bit: gold with the bench once the pistol is taken, the hand
 	# and guns once a bullet was (GameState QUESTS t00, t01).
-	_left.visible = _shown("hud_ammo")
-	_guns.visible = _shown("hud_ammo")
+	# Scrap in hand puts the gun away (viewmodel.gd stowed): nothing about it shows till it is back.
+	var stowed := GameState.carried > 0
+	_left.visible = _shown("hud_ammo") and not stowed
+	_guns.visible = _shown("hud_ammo") and not stowed
+	_special_row.visible = _special_row.visible and not stowed
+	_hint.modulate.a = 0.0 if stowed and _hint.get_meta("gun", false) else 1.0
 	_right.visible = _shown("workbench")
 
 

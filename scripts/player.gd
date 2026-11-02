@@ -179,7 +179,6 @@ var _melt_hint: Control  # at the hopper with rounds in the hand (E pours them i
 var _hopper_hint: Control  # at the hopper, the hand empty (E shows how it melts)
 var _press_hint: Control  # at the press (E makes rounds)
 var _lever_hint: Control  # at the wave lever with a wave waiting (E pulls it, scripts/waves.gd)
-var _reload_hint: Control  # a gun drawn, its magazine empty, rounds in the hand
 var _table_hint: Control  # looking at the desk at the spawn with the pistol on it (E takes it)
 var _hud: Control
 ## The pistol taken in the warmup, the view turns to the heap while the line about it is said.
@@ -229,7 +228,6 @@ func _ready() -> void:
 	add_child(_press)
 	add_child(_pick)
 	_make_laser_dot()
-	_reload_hint = _crosshair_hint(UiStyle.hint("R", "Şarjör boş: doldur"))
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
 	_setup_viewmodel_world()
 	_viewmodel.setup(self)
@@ -862,8 +860,6 @@ func _physics_process(delta: float) -> void:
 	_press_hint.visible = station == "press"
 	_lever_hint.visible = station == "lever"
 	var p := GameState.player()
-	_reload_hint.visible = not looking and station == "" and p.gun != 0 and GameState.loaded == 0 \
-		and GameState.carried > 0
 	_table_hint.visible = _looking_at_table()
 	if p.has_pistol:  # taken here, or on record from before a rejoin
 		get_tree().call_group("gun_table", "fade")
