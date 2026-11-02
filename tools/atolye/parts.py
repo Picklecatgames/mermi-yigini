@@ -10,7 +10,7 @@ os.makedirs(OUT, exist_ok=True); os.makedirs(STATS, exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 # anahtar: Poly Haven doku öneki (diff / nor_gl / arm, 2k)
-MATS = {'ahsap': 'fine_grained_wood', 'pas': 'rusty_metal_02'}
+MATS = {'ahsap': 'fine_grained_wood', 'pas': 'rusty_metal_02', 'pas_kaba': 'rust_coarse_01', 'yesil_pas': 'green_metal_rust'}
 
 
 def material(key):
@@ -51,9 +51,9 @@ def box(bm, mn, mx):
         bm.faces.new([vs[i] for i in q])
 
 
-def finish(pid, bm, mat, hull_boxes, smooth=False):
+def finish(pid, bm, mat, hull_boxes, smooth=False, uv_scale=1.0):
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    box_uv(bm)
+    box_uv(bm, uv_scale)
     me = bpy.data.meshes.new(pid); bm.to_mesh(me); bm.free()
     me.materials.append(material(mat))
     for p in me.polygons: p.use_smooth = smooth
@@ -116,7 +116,7 @@ def gutter(pid, length, r=0.065, t=0.002, seg=10):
     finish(pid, bm, 'pas', [((-length / 2, -r, 0), (length / 2, r, r))])
 
 
-def corrugated(pid, length, width, pitch=0.076, depth=0.018, t=0.0008):
+def corrugated(pid, length, width, mat='pas_kaba', pitch=0.076, depth=0.018, t=0.0008):
     # dalgalar X boyunca (eğimden aşağı akar), genişlik Y boyunca; iki yüzlü ince sac
     bm = bmesh.new()
     n = int(round(width / pitch)) * 8
@@ -132,7 +132,7 @@ def corrugated(pid, length, width, pitch=0.076, depth=0.018, t=0.0008):
     for i in range(n):
         bm.faces.new((t0[i], t0[i + 1], t1[i + 1], t1[i]))
         bm.faces.new((b0[i], b1[i], b1[i + 1], b0[i + 1]))
-    finish(pid, bm, 'pas', [((-length / 2, -width / 2, 0), (length / 2, width / 2, depth + t))], smooth=True)
+    finish(pid, bm, mat, [((-length / 2, -width / 2, 0), (length / 2, width / 2, depth + t))], smooth=True, uv_scale=0.5)
 
 
 def pallet(pid):
@@ -153,6 +153,8 @@ beam('ahsap_asik_4m', 4.0, 0.06, 0.08, 'ahsap')
 post('celik_direk_3m', 0.10, 3.0, 'pas', plate=(0.24, 0.012))
 beam('celik_kare_profil_4m', 4.0, 0.08, 0.08, 'pas')
 gutter('oluk_2m', 2.0)
-corrugated('oluklu_sac_2x1m', 2.0, 1.0)
-corrugated('oluklu_sac_3x1m', 3.0, 1.0)
+corrugated('oluklu_sac_pasli_2x1m', 2.0, 1.0)
+corrugated('oluklu_sac_pasli_3x1m', 3.0, 1.0)
+corrugated('oluklu_sac_yesil_2x1m', 2.0, 1.0, 'yesil_pas')
+corrugated('oluklu_sac_galvaniz_2x1m', 2.0, 1.0, 'pas')
 pallet('palet')

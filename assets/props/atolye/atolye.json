@@ -290,7 +290,7 @@
   "carpisma": "box",
   "kaynak": "kendi modelim (tools/atolye/parts.py)"
  },
- "yapi/oluklu_sac_2x1m.gltf": {
+ "yapi/oluklu_sac_galvaniz_2x1m.gltf": {
   "ucgen": 416,
   "boyut_m": [
    2.0,
@@ -300,10 +300,30 @@
   "carpisma": "box",
   "kaynak": "kendi modelim (tools/atolye/parts.py)"
  },
- "yapi/oluklu_sac_3x1m.gltf": {
+ "yapi/oluklu_sac_pasli_2x1m.gltf": {
+  "ucgen": 416,
+  "boyut_m": [
+   2.0,
+   0.019,
+   1.0
+  ],
+  "carpisma": "box",
+  "kaynak": "kendi modelim (tools/atolye/parts.py)"
+ },
+ "yapi/oluklu_sac_pasli_3x1m.gltf": {
   "ucgen": 416,
   "boyut_m": [
    3.0,
+   0.019,
+   1.0
+  ],
+  "carpisma": "box",
+  "kaynak": "kendi modelim (tools/atolye/parts.py)"
+ },
+ "yapi/oluklu_sac_yesil_2x1m.gltf": {
+  "ucgen": 416,
+  "boyut_m": [
+   2.0,
    0.019,
    1.0
   ],
@@ -319,5 +339,35 @@
   ],
   "carpisma": "box",
   "kaynak": "kendi modelim (tools/atolye/parts.py)"
+ },
+ "yapi/sac_cit_a.gltf": {
+  "ucgen": 7792,
+  "boyut_m": [
+   3.478,
+   2.346,
+   0.115
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), dokular Poly Haven rust_coarse_01, green_metal_rust, rusty_painted_metal, rusty_metal_02, fine_grained_wood, CC0"
+ },
+ "yapi/sac_cit_b.gltf": {
+  "ucgen": 7792,
+  "boyut_m": [
+   3.306,
+   2.266,
+   0.121
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), dokular Poly Haven rust_coarse_01, green_metal_rust, rusty_painted_metal, rusty_metal_02, fine_grained_wood, CC0"
+ },
+ "yapi/sac_cit_c.gltf": {
+  "ucgen": 9088,
+  "boyut_m": [
+   3.674,
+   2.581,
+   0.116
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), dokular Poly Haven rust_coarse_01, green_metal_rust, rusty_painted_metal, rusty_metal_02, fine_grained_wood, CC0"
  }
 }

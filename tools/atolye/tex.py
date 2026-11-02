@@ -20,6 +20,18 @@ TEX = {
     'ground110': ('acg', 'Ground110', 2.0),
     'asphalt026c': ('acg', 'Asphalt026C', 2.0),
     'rubber004': ('acg', 'Rubber004', 1.0),
+    # çöl ve atölye betonu (2026-11-02 kararı: dışarısı çöl gibi wasteland, atölye ve çevresi beton)
+    'red_sand': ('pht', 'red_sand', 3.0),
+    'sandy_gravel_02': ('pht', 'sandy_gravel_02', 2.5),
+    'mud_cracked_dry_03': ('pht', 'mud_cracked_dry_03', 1.5),
+    'mud_cracked_dry_riverbed_002': ('pht', 'mud_cracked_dry_riverbed_002', 2.0),
+    'sandstone_cracks': ('pht', 'sandstone_cracks', 2.0),
+    'ground097': ('acg', 'Ground097', 2.0),
+    'ground096a': ('acg', 'Ground096A', 2.0),
+    'cracked_concrete': ('pht', 'cracked_concrete', 2.0),
+    'concrete_floor_damaged_01': ('pht', 'concrete_floor_damaged_01', 5.0),
+    'concrete_floor_02': ('pht', 'concrete_floor_02', 2.0),
+    'damaged_concrete_floor_02': ('pht', 'damaged_concrete_floor_02', 3.5),
 }
 
 

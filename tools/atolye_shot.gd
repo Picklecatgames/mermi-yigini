@@ -2,16 +2,18 @@ extends SceneTree
 ## Açık alan ve atölye asetlerini yan yana dizip fotoğraflar, her birinin ölçüsünü ve çarpışmasını yazar:
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1600x900 -s res://tools/atolye_shot.gd
 ## user://atolye_<klasör>.png her aset klasörü için, user://atolye_dokular.png zemin dokuları,
-## user://atolye_gok_<hdri>.png gökyüzleri.
+## user://atolye_gok_<hdri>.png gökyüzleri. "-- ad1 ad2" verilirse yalnız o asetleri yakından çeker (user://atolye_secim.png).
 
 const DIRS := [
 	"res://assets/env/acik_alan/kayalar", "res://assets/env/acik_alan/bitkiler", "res://assets/env/acik_alan/ufuk",
+	"res://assets/env/acik_alan/yiginlar", "res://assets/env/acik_alan/kum_tepeleri",
 	"res://assets/props/atolye/yapi", "res://assets/props/atolye/ic",
 ]
 const TEX := "res://assets/env/acik_alan/dokular"
 const SKIES := [
 	"kloofendal_48d_partly_cloudy_puresky_4k", "mud_road_puresky_2k", "wasteland_clouds_puresky_4k",
-	"kloppenheim_02_puresky_4k", "qwantani_moonrise_puresky_2k",
+	"kloppenheim_02_puresky_4k", "qwantani_moonrise_puresky_2k", "quarry_01_puresky_4k",
+	"mpumalanga_veld_puresky_4k", "lonely_road_afternoon_puresky_4k", "qwantani_dusk_2_puresky_2k",
 ]
 
 var _env: WorldEnvironment
@@ -39,17 +41,28 @@ func _initialize() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(400, 400)
 	ground.mesh = pm
-	ground.material_override = load(TEX + "/dry_ground_rocks/dry_ground_rocks.tres")
+	ground.material_override = load(TEX + "/ground097/ground097.tres")
 	world.add_child(ground)
 	await process_frame
 
-	for d: String in DIRS:
+	var only := OS.get_cmdline_user_args()
+	for d: String in (["secim"] if only else DIRS):
 		var row := Node3D.new()
 		world.add_child(row)
 		var x := 0.0
 		var hmax := 0.0
-		for f: String in _gltfs(d):
-			var inst: Node3D = load(d + "/" + f).instantiate()
+		var files: Array[String] = []
+		if only:
+			for dd: String in DIRS:
+				for f in _gltfs(dd):
+					if f.get_basename() in only:
+						files.append(dd + "/" + f)
+		else:
+			for f in _gltfs(d):
+				files.append(d + "/" + f)
+		for path: String in files:
+			var f := path.get_file()
+			var inst: Node3D = load(path).instantiate()
 			row.add_child(inst)
 			var box := _aabb(inst)
 			inst.position.x = x - box.position.x
@@ -70,6 +83,9 @@ func _initialize() -> void:
 		await _settle(12)
 		_save("atolye_" + d.get_file())
 		row.queue_free()
+	if only:
+		quit()
+		return
 
 	# zemin dokuları: 4 m'lik kareler
 	var tiles := Node3D.new()

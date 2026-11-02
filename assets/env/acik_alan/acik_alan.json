@@ -142,6 +142,39 @@
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_boulder_05, CC0"
  },
+ "kayalar/kaya_kumesi_8m.gltf": {
+  "ucgen": 11999,
+  "kaynak_ucgen": 94369,
+  "carpisma": "convex",
+  "boyut_m": [
+   8.278,
+   4.965,
+   4.388
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_cliff_01, CC0"
+ },
+ "kayalar/kaya_orta.gltf": {
+  "ucgen": 3000,
+  "kaynak_ucgen": 109114,
+  "carpisma": "convex",
+  "boyut_m": [
+   0.672,
+   0.651,
+   1.208
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_boulder_06, CC0"
+ },
+ "kayalar/kaya_sirti_20m.gltf": {
+  "ucgen": 15998,
+  "kaynak_ucgen": 194080,
+  "carpisma": "convex",
+  "boyut_m": [
+   20.221,
+   7.189,
+   6.609
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_cliff_02, CC0"
+ },
  "kayalar/kaya_sivri.gltf": {
   "ucgen": 4000,
   "kaynak_ucgen": 14844,
@@ -163,5 +196,126 @@
    1.233
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_boulder_02, CC0"
+ },
+ "kayalar/kaya_yuksek.gltf": {
+  "ucgen": 5999,
+  "kaynak_ucgen": 64826,
+  "carpisma": "convex",
+  "boyut_m": [
+   2.403,
+   1.476,
+   3.071
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_boulder_03, CC0"
+ },
+ "kum_tepeleri/kum_tepesi_buyuk.gltf": {
+  "ucgen": 18432,
+  "boyut_m": [
+   80.0,
+   10.233,
+   60.0
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), doku ambientCG Ground097, CC0"
+ },
+ "kum_tepeleri/kum_tepesi_kucuk.gltf": {
+  "ucgen": 10368,
+  "boyut_m": [
+   24.0,
+   2.515,
+   18.0
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), doku ambientCG Ground097, CC0"
+ },
+ "kum_tepeleri/kum_tepesi_orta.gltf": {
+  "ucgen": 10368,
+  "boyut_m": [
+   45.0,
+   5.178,
+   32.0
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), doku ambientCG Ground097, CC0"
+ },
+ "kum_tepeleri/kum_tepesi_uzun.gltf": {
+  "ucgen": 10368,
+  "boyut_m": [
+   60.0,
+   4.055,
+   26.0
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), doku ambientCG Ground097, CC0"
+ },
+ "yiginlar/lastik_kulesi.gltf": {
+  "ucgen": 14400,
+  "boyut_m": [
+   0.635,
+   0.81,
+   0.662
+  ],
+  "carpisma": "convex",
+  "kaynak": "Poly Haven old_tyre, CC0; dizilim benim"
+ },
+ "yiginlar/lastik_yigini.gltf": {
+  "ucgen": 23040,
+  "boyut_m": [
+   1.519,
+   0.618,
+   1.312
+  ],
+  "carpisma": "convex",
+  "kaynak": "Poly Haven old_tyre, CC0; dizilim benim"
+ },
+ "yiginlar/varil_boyali.gltf": {
+  "ucgen": 768,
+  "boyut_m": [
+   0.609,
+   0.88,
+   0.609
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), dokular Poly Haven green_metal_rust, rust_coarse_01, rusty_painted_metal, CC0"
+ },
+ "yiginlar/varil_pasli.gltf": {
+  "ucgen": 768,
+  "boyut_m": [
+   0.609,
+   0.88,
+   0.609
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), dokular Poly Haven green_metal_rust, rust_coarse_01, rusty_painted_metal, CC0"
+ },
+ "yiginlar/varil_sirasi.gltf": {
+  "ucgen": 2304,
+  "boyut_m": [
+   1.629,
+   0.966,
+   1.014
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim, Poly Haven pas dokuları, CC0"
+ },
+ "yiginlar/varil_yesil.gltf": {
+  "ucgen": 768,
+  "boyut_m": [
+   0.609,
+   0.88,
+   0.609
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim (tools/atolye/wasteland.py), dokular Poly Haven green_metal_rust, rust_coarse_01, rusty_painted_metal, CC0"
+ },
+ "yiginlar/varil_yigini.gltf": {
+  "ucgen": 3840,
+  "boyut_m": [
+   1.555,
+   1.772,
+   1.154
+  ],
+  "carpisma": "convex",
+  "kaynak": "kendi modelim, Poly Haven pas dokuları, CC0"
  }
 }

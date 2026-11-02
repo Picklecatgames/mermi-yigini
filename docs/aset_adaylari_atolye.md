@@ -72,6 +72,63 @@ Not: tek başına 3 m'de tekrar edince `dry_ground_rocks`'ta uzakta bant görün
 | ○ | Electric pole | DJMaesen https://sketchfab.com/3d-models/19be5e32d7a44fcf8c6eb4f83e17bd25 | CC-BY 4.0 | 1.718 | Tek direk, yedek |
 | ○ | modular_electricity_poles, concrete_road_barrier_02 | Poly Haven | CC0 | 200 bin / 42 bin | Ağır ama CC0; yedek |
 
+## 1b. Çöl wasteland (2026-11-02 kararı: atölye ve çevresi beton, dışarısı Mad Max tarzı seyrek ağaçlı çöl)
+
+### Çöl ve beton dokuları → `assets/env/acik_alan/dokular/`
+
+| | Ad | Kaynak | Lisans | Neden |
+|---|---|---|---|---|
+| ✔ | `ground097` | ambientCG https://ambientcg.com/a/Ground097 | CC0 | Sıcak renkli, rüzgâr dalgalı çöl kumu; kum tepelerinin dokusu |
+| ✔ | `ground096a` | ambientCG https://ambientcg.com/a/Ground096A | CC0 | Açık renkli dalgalı kum |
+| ✔ | `red_sand` | Poly Haven https://polyhaven.com/a/red_sand | CC0 | Kızıl çöl kumu |
+| ✔ | `sandy_gravel_02` | Poly Haven https://polyhaven.com/a/sandy_gravel_02 | CC0 | Sıcak, düz kumlu toprak; kumla toprak arası geçiş |
+| ✔ | `mud_cracked_dry_03` | Poly Haven https://polyhaven.com/a/mud_cracked_dry_03 | CC0 | Kurumuş, iri çatlaklı açık toprak |
+| ✔ | `mud_cracked_dry_riverbed_002` | Poly Haven https://polyhaven.com/a/mud_cracked_dry_riverbed_002 | CC0 | Kurumuş dere yatağı, koyu ince çatlaklar |
+| ✔ | `sandstone_cracks` | Poly Haven https://polyhaven.com/a/sandstone_cracks | CC0 | Sarı, çatlak sert toprak |
+| ✔ | `cracked_concrete` | Poly Haven https://polyhaven.com/a/cracked_concrete | CC0 | Belirgin çatlaklı dış mekân betonu |
+| ✔ | `concrete_floor_damaged_01` | Poly Haven https://polyhaven.com/a/concrete_floor_damaged_01 | CC0 | Lekeli, yamalı, 5 m'lik büyük levha |
+| ✔ | `concrete_floor_02` | Poly Haven https://polyhaven.com/a/concrete_floor_02 | CC0 | Lekeli, aşınmış beton |
+| ✔ | `damaged_concrete_floor_02` | Poly Haven https://polyhaven.com/a/damaged_concrete_floor_02 | CC0 | Koyu, kirli beton; atölyenin altı |
+| ○ | `aerial_sand`, `coast_sand_04`, `cracked_red_ground`, `dry_mud_field_001`, `concrete_floor_worn_001`, `concrete_panels`, `damaged_concrete_floor` | Poly Haven | CC0 | Yedek |
+| ○ | Ground096B, Ground093C, Ground095A | ambientCG | CC0 | Yedek kum |
+
+### Çöl gökyüzü → `assets/env/hdri/`
+
+| | Dosya | Kaynak | Lisans | Ne için |
+|---|---|---|---|---|
+| ✔ | `quarry_01_puresky_4k.hdr` | https://polyhaven.com/a/quarry_01_puresky (Sergej Majboroda, Jarod Guest) | CC0 | Açık, sıcak gün batımı |
+| ✔ | `mpumalanga_veld_puresky_4k.hdr` | https://polyhaven.com/a/mpumalanga_veld_puresky (Greg Zaal, Jarod Guest) | CC0 | Bozkırda açık gün batımı |
+| ✔ | `lonely_road_afternoon_puresky_4k.hdr` | https://polyhaven.com/a/lonely_road_afternoon_puresky (Dimitrios Savva, Jarod Guest) | CC0 | Sıcak öğleden sonra |
+| ✔ | `qwantani_dusk_2_puresky_2k.hdr` | https://polyhaven.com/a/qwantani_dusk_2_puresky (Greg Zaal, Jarod Guest) | CC0 | Puslu alacakaranlık |
+| ○ | `syferfontein_1d_clear_puresky`, `drakensberg_solitary_mountain_puresky`, `industrial_sunset_02_puresky` | Poly Haven | CC0 | Yedek |
+
+Pure-sky HDRI'larda toz yok; tozlu hava sis ve hacim sisiyle verilmeli. En puslu olanlar `qwantani_dusk_2` ve `mud_road`.
+
+### Kum tepeleri ve büyük kayalar → `assets/env/acik_alan/kum_tepeleri/`, `kayalar/`
+
+| | Ad | Kaynak | Lisans | Üçgen | Boyut | Neden |
+|---|---|---|---|---|---|---|
+| ✔ | `kum_tepesi_kucuk/orta/buyuk/uzun` | kendi modelim (`wasteland.py`), doku Ground097 | CC0 | 10.368–18.432 | 24×2,5×18 – 80×10×60 m | Barkan biçimi: rüzgâr yüzü yatık, arkası dik, iki yana boynuzlu; kenarlar 5 cm yere gömülü |
+| ✔ | `kaya_sirti_20m` | Poly Haven namaqualand_cliff_02 | CC0 | 16.000 / 194.080 | 20,2 × 7,2 × 6,6 | Ufukta kaya sırtı |
+| ✔ | `kaya_kumesi_8m` | Poly Haven namaqualand_cliff_01 | CC0 | 12.000 / 94.369 | 8,3 × 5,0 × 4,4 | Üst üste binmiş kaya kümesi |
+| ✔ | `kaya_yuksek` | Poly Haven namaqualand_boulder_03 | CC0 | 6.000 / 64.826 | 2,4 × 1,5 × 3,1 | |
+| ✔ | `kaya_orta` | Poly Haven namaqualand_boulder_06 | CC0 | 3.000 / 109.114 | 0,7 × 0,65 × 1,2 | |
+
+### Mad Max hurdası → `assets/env/acik_alan/yiginlar/`, `enkaz/`
+
+| | Ad | Kaynak | Lisans | Üçgen | Boyut | Neden |
+|---|---|---|---|---|---|---|
+| ✔ | `varil_yesil`, `varil_pasli`, `varil_boyali` | kendi modelim (`wasteland.py`), dokular Poly Haven green_metal_rust, rust_coarse_01, rusty_painted_metal | CC0 | 768 | Ø 0,61 × 0,88 | 200 litrelik, çemberli, hafif ezik paslı varil (projedekiler mavi ve temiz) |
+| ✔ | `varil_yigini`, `varil_sirasi` | aynı variller | CC0 | 3.840 / 2.304 | | Üst üste ve yatık variller |
+| ✔ | `lastik_kulesi`, `lastik_yigini` | Poly Haven old_tyre (projede), dizilim benim | CC0 | 14.400 / 23.040 | | Beşli lastik kulesi; yayvan yığın ve yaslanmış lastik |
+| SF | Abandoned Generic Sedan 1 / 2 | Rashad Ibrahimli https://sketchfab.com/3d-models/6a2169dafc254f399387a679305bb1bf, https://sketchfab.com/3d-models/db2df46c49f9441286c84c66208ef7ac | CC-BY 4.0 | 9.597 / 16.487 | | Markasız, paslı, tekerleksiz sedan enkazı |
+| SF | Dead Trees Demo | Quadra3D https://sketchfab.com/3d-models/9bdd36641ef541adb51f0d01ddb07b2c | CC-BY 4.0 | 232.924 (40 ağaç) | | Seyrek ölü ağaçlar; birkaçı seçilip bölünecek |
+| SF | Old tree | evolveduk https://sketchfab.com/3d-models/3cb4d59eb4844dc4802480e9ee53785e | CC-BY 4.0 | 8.107 | | Kurumuş yaşlı ağaç |
+| SF | Desert tree Skeleton | iGauravRajput https://sketchfab.com/3d-models/b47825ecb8a049d78be9bd07f49a7d5d | CC-BY 4.0 | 1,3 M → 15 bin | | Çöl ağacı iskeleti |
+| ○ | Old Rusty Yellow Cabriolet | PolarNick239 | CC-BY 4.0 | 832.970 | | Tarama, çok ağır, üstünde grafiti |
+| ○ | PSX Dead Tree Pack, Dead Tree - PS1 | FlunkedPunk, Wersaus33 | CC-BY 4.0 | | | PS1 tarzı, gerçekçi değil |
+| – | covered_car, rusted_wheel_rim_01/02, old_tyre | projede `assets/env/models/` | CC0 | | | Brandalı araba, jant, lastik |
+
 ## 2. Atölye yapısı → `assets/props/atolye/yapi/`
 
 | | Ad | Kaynak | Lisans | Üçgen | Boyut | Neden |
@@ -80,7 +137,8 @@ Not: tek başına 3 m'de tekrar edince `dry_ground_rocks`'ta uzakta bant görün
 | ✔ | `ahsap_kiris_4m`, `ahsap_asik_4m` | aynı | CC0 | 12 | 4 m; 8×16 ve 6×8 cm | Direk üstü kiriş ve çatı aşığı |
 | ✔ | `celik_direk_3m` | kendi modelim, doku Poly Haven rusty_metal_02 | CC0 | 36 | 10 cm kare profil, taban/tepe plakalı | Çelik seçenek |
 | ✔ | `celik_kare_profil_4m` | aynı | CC0 | 12 | 8 cm kare profil | Çelik kiriş/aşık |
-| ✔ | `oluklu_sac_2x1m`, `oluklu_sac_3x1m` | kendi modelim, doku rusty_metal_02 | CC0 | 416 | 76 mm adım, 18 mm dalga | Tek eğimli çatı sacları, gerçek dalga geometrisi |
+| ✔ | `oluklu_sac_pasli_2x1m`, `_pasli_3x1m`, `_yesil_2x1m`, `_galvaniz_2x1m` | kendi modelim, dokular Poly Haven rust_coarse_01, green_metal_rust, rusty_metal_02 | CC0 | 416 | 76 mm adım, 18 mm dalga | Tek eğimli çatı sacları, gerçek dalga geometrisi |
+| ✔ | `sac_cit_a/b/c` | kendi modelim (`wasteland.py`), dört pas dokusu + ahşap direk | CC0 | 7.800–9.100 | 2,9–3,7 × 2,3–2,6 m | Hurdadan çit: iki direğe dikilmiş, üst üste binen, eğri, her biri başka paslı sac |
 | ✔ | `oluk_2m` | kendi modelim, doku rusty_metal_02 | CC0 | 84 | Ø 13 cm yarım boru | Çatı kenarı yağmur oluğu |
 | ✔ | `palet` | kendi modelim, doku fine_grained_wood | CC0 | 204 | 1,20 × 0,144 × 0,80 (EUR) | Atölye zemini, istif |
 | SF | Rusted corrugated panels | Sousinho https://sketchfab.com/3d-models/ea06568a9e304ecc806cb7cb0552e269 | CC-BY 4.0 | 6.732 (3 panel) | | Kırmızı, paslı, yeşil eğri büküntülü sac; hurdadan yama çatı ve duvar |

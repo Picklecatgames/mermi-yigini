@@ -15,6 +15,10 @@ ph = {
     'namaqualand_boulder_02': dict(max_tex=2048, out='kayalar', pieces=[dict(id='kaya_yassi', tris=5000)]),
     'namaqualand_boulder_04': dict(max_tex=2048, out='kayalar', pieces=[dict(id='kaya_buyuk', tris=6000)]),
     'namaqualand_boulder_05': dict(out='kayalar', pieces=[dict(id='kaya_kucuk', tris=3000)]),
+    'namaqualand_boulder_03': dict(out='kayalar', pieces=[dict(id='kaya_yuksek', tris=6000)]),
+    'namaqualand_boulder_06': dict(out='kayalar', pieces=[dict(id='kaya_orta', tris=3000)]),
+    'namaqualand_cliff_01': dict(max_tex=2048, out='kayalar', pieces=[dict(id='kaya_kumesi_8m', tris=12000)]),
+    'namaqualand_cliff_02': dict(max_tex=2048, out='kayalar', pieces=[dict(id='kaya_sirti_20m', tris=16000)]),
     'rock_07': dict(out='kayalar', size=1.6, pieces=[dict(id='kaya_sivri', tris=4000)]),
     'dead_tree_trunk_02': dict(max_tex=2048, out='bitkiler', pieces=[dict(id='devrik_kutuk', tris=8000)]),
     'dead_quiver_trunk': dict(out='bitkiler', pieces=[dict(id='olu_govde', tris=6000)]),
@@ -49,6 +53,12 @@ sf = {
     '690edb7d64b84df7bfeee3b54746d6eb': dict(out='ufuk', kaynak='tobiasherbers, Ruined buildings pack, CC-BY 4.0'),
     'a76b68b838424a89b7db8a38f4c3d546': dict(out='ufuk', kaynak='Caboose3d, Telephone Poles, CC-BY 4.0'),
     'a1959927a98e4752bdb01b6e1f7f7d26': dict(out='ufuk', kaynak='olegolegperepelica, Abandoned Garage Block Rusty Ruined, CC-BY 4.0', pieces=[dict(id='yikik_garajlar', tris=8000)]),
+    # çöl wasteland: araç enkazı ve ölü ağaçlar
+    '6a2169dafc254f399387a679305bb1bf': dict(out='enkaz', kaynak='Rashad Ibrahimli, Abandoned Generic Sedan 1, CC-BY 4.0', pieces=[dict(id='sedan_enkazi_1', tris=10000)]),
+    'db2df46c49f9441286c84c66208ef7ac': dict(out='enkaz', kaynak='Rashad Ibrahimli, Abandoned Generic Sedan 2, CC-BY 4.0', pieces=[dict(id='sedan_enkazi_2', tris=12000)]),
+    '3cb4d59eb4844dc4802480e9ee53785e': dict(out='bitkiler', hull='none', kaynak='evolveduk, Old tree, CC-BY 4.0', pieces=[dict(id='olu_agac_yasli')]),
+    '9bdd36641ef541adb51f0d01ddb07b2c': dict(out='bitkiler', hull='none', kaynak='Quadra3D, Dead Trees Demo, CC-BY 4.0'),
+    'b47825ecb8a049d78be9bd07f49a7d5d': dict(out='bitkiler', hull='none', kaynak='iGauravRajput, Desert tree Skeleton, CC-BY 4.0', pieces=[dict(id='olu_col_agaci', tris=15000)]),
     # atölye içi
     '9fbc30ba31a546fe9370e6de2dcc0707': dict(out='ic', kaynak='Oliver Triplett, Old Work Bench, CC-BY 4.0'),
     '9634d6a81a494925a909512c8048f446': dict(out='ic', kaynak='JJ Chalupnik, Workbench, CC-BY 4.0'),
@@ -62,7 +72,7 @@ extra = json.load(open(os.path.join(S, 'sf_extra.json'), encoding='utf8')) if os
 
 
 def outdir(k):
-    return os.path.join(ENV if k in ('kayalar', 'bitkiler', 'ufuk') else ATL, k)
+    return os.path.join(ENV if k in ('kayalar', 'bitkiler', 'ufuk', 'enkaz') else ATL, k)
 
 
 n = 0
