@@ -824,7 +824,7 @@ func _physics_process(delta: float) -> void:
 	var looking := _looking_at_pile()
 	var heap := _pile()
 	if heap:  # the piece E would take, outlined
-		heap.highlight(_reach.get_collision_point(), looking and _reach.get_collider() == heap)
+		heap.highlight(_reach.get_collision_point(), looking, _reach.get_collider_rid())
 	if Input.is_action_pressed("pick_up") and _grab_timer <= 0.0 and looking and not _hands_busy():
 		_grab_timer = GRAB_REPEAT
 		var at := _reach.get_collision_point()

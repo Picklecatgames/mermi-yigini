@@ -96,8 +96,79 @@ func _initialize() -> void:
 	var gone: float = taken * pile.unit
 	print("volume %.3f -> %.3f m³, %.3f taken" % [v0, v1, gone])
 	assert(absf((v0 - v1) - gone) < 0.02, "nothing made or lost but what was taken")
+	await _pieces(gs, pile)
 	print("scrap_check OK")
 	quit()
+
+
+## Every piece of the heap is its own (2026-11-02): a ray onto a face piece hits that piece, it
+## is outlined and taken by its id; the one under it shows, lower, and is taken the same way;
+## dig the heap away under one and it falls, still there to pick up.
+func _pieces(gs: Node, pile: Node3D) -> void:
+	# Looking down onto the face a little way up it, toward the north wall: away from where the
+	# rest of this check digs.
+	var space := pile.get_world_3d().direct_space_state
+	var ray := PhysicsRayQueryParameters3D.create(Vector3(-5.0, 12.0, -18.0), Vector3(-5.0, -1.0, -18.0))
+	ray.collision_mask = pile.SCRAP_LAYER | 1
+	var hit := space.intersect_ray(ray)
+	assert(not hit.is_empty() and pile._rid_slot.has(hit.rid), "aimed at the heap, a piece is hit, not the heap under it")
+	var s: int = pile._rid_slot[hit.rid]
+	assert(pile.is_grabbable(hit.collider, hit.rid, hit.position) and pile.loose_id(hit.collider, hit.rid) == pile._slot_id[s], "that piece is the one taken")
+	pile.highlight(hit.position, true, hit.rid)
+	assert(pile._marked == s and pile._mark_mi.visible, "and outlined")
+	var id: int = pile._slot_id[s]
+	var y: float = (pile.global_transform * pile._slot_at(s)).origin.y
+	print("aimed at piece %d (%s), %.2f m up, the heap %.2f m there" % [s, pile._slot_part[s], y, pile.surface_y(hit.position)])
+	var v0 := _volume(pile)
+	for n in 5:
+		gs.player().carried = 0
+		assert(gs.request_pick_up_loose(id) == 1, "piece %d is taken" % n)
+		for f in 3:
+			await physics_frame
+		assert(not pile.has_loose(id), "and gone")
+		# What shows there next: the piece that lay under it, or (where what is above slid into
+		# the gap and covered it) a new one in the face's own slot.
+		var under := -1
+		var where := Transform3D()
+		for other: int in pile._id_index:
+			if pile.is_heap_id(other) and pile._slot_of_id(other) == s and other != id:
+				under = other
+				where = pile._id_index[other][3]
+		if under < 0 and pile._slot_id[s] >= 0 and pile._slot_id[s] != id:
+			under = pile._slot_id[s]
+			where = pile._slot_at(s)
+		assert(under >= 0 and pile.has_loose(under), "the next piece shows")
+		var at: float = (pile.global_transform * where).origin.y
+		print("piece %d taken at %.2f m; the next one at %.2f m (%s)" % [n, y, at, "under it" if pile._id_index.has(under) else "slid over it"])
+		# A thin piece leaves little room: the next layer starts right there, never floating up.
+		assert(at < y + 0.15 and at > pile.surface_y(pile.global_transform * where.origin) - 0.05, "lying on the heap where the taken one was")
+		id = under
+		y = at
+	assert(_volume(pile) < v0, "their room dug out of the heap")
+	pile.highlight(Vector3.ZERO, false)
+	# One that tumbled off the face earlier lies on the heap as a loose piece of its own: dig the
+	# heap out from under it and it falls, and can still be picked up.
+	id = -1
+	for other: int in pile._id_index:
+		if pile.is_heap_id(other) and pile._height_at(pile._id_index[other][3].origin) > 0.3:
+			id = other
+			break
+	assert(id >= 0, "pieces off the fallen face lie on the heap, each its own")
+	var local: Vector3 = pile._id_index[id][3].origin
+	for n in 40:
+		gs.request_take_bullets(4000, pile.global_transform * local)
+		await physics_frame
+	var fell := false
+	for f in 240:
+		await physics_frame
+		if pile._moving(id) != null:
+			fell = true
+		if fell and pile._id_index.has(id):
+			break
+	assert(fell, "with the heap gone from under it, it falls")
+	assert(pile.has_loose(id), "and is still there to pick up (%s)" % ("lying" if pile._id_index.has(id) else "moving"))
+	print(("dug out from under, it fell and lies at %.2f m" % (pile.global_transform * pile._id_index[id][3]).origin.y) if pile._id_index.has(id) else "dug out from under, it is still rolling")
+	gs.player().carried = 0
 
 
 func _volume(pile: Node) -> float:

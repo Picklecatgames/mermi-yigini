@@ -25,6 +25,9 @@ signal loose_taken(id: int)
 signal scrap_collapse(cell: Vector2i, radius: int, seed: int, step: int)
 ## The host's scrap heap clock (pile.gd step): a client's heap runs up to it and no further.
 signal heap_clock(step: int)
+## A piece of the scrap heap itself (pile.gd heap ids) was taken: at heap step `step` every peer
+## digs out its room and shows the piece under it. Comes right after its loose_taken.
+signal heap_piece_taken(id: int, step: int)
 signal upgraded(id: String, level: int)  # local player
 signal loaded_changed(count: int)        # local player
 ## A round left someone's gun: every peer plays the flash, shell and sound locally from this,
@@ -362,7 +365,7 @@ const OVERHEAD_LAYER := 3
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.
 const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_thrown",
-	&"loose_taken", &"scrap_collapse", &"heap_clock", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
+	&"loose_taken", &"scrap_collapse", &"heap_clock", &"heap_piece_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
 	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down"]
@@ -1087,7 +1090,10 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 	_world(&"pile_changed", [pile])
 	_set_carried(peer, p.carried + 1 - _roll_specials(peer, 1))
 	_world(&"loose_taken", [id])
-	if id < THROWN_ID_START:  # off the heap only: throwing and re-picking a hand would farm it
+	var off_heap: bool = heap != null and heap.is_heap_id(id)
+	if off_heap:
+		_world(&"heap_piece_taken", [id, _heap_step()])
+	if id < THROWN_ID_START or off_heap:  # off the heap only: throwing and re-picking a hand would farm it
 		quest_add("bullets_carried", 1)
 	return 1
 

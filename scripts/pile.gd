@@ -39,8 +39,6 @@ const CHUNK := 32
 const CHUNKS_X := (GRID_X - 2) / CHUNK + 1
 const CHUNKS_Z := (GRID_Z - 2) / CHUNK + 1
 const REDRAW_STEP := 0.002    # m a cell drifts before the pieces on it are moved
-const GRAB_DEPTH := 0.05      # m of heap under the crosshair before E grabs from it
-const SURFACE_GRAB := 0.35    # m around a heap take to pick the drawn piece from
 ## The pieces: the prepared scrap (id, glb, tur, kutle_kg, boyut_m...; each glb a mesh with its
 ## base at y = 0 and one convex collision).
 const PARTS_FILE := "res://assets/props/hurda/hurda.json"
@@ -48,6 +46,12 @@ const PARTS_FILE := "res://assets/props/hurda/hurda.json"
 ## many pieces the kind has): small metal most, crates few. Guns (tur "silah") stay out: they would read as weapons to pick up.
 const KIND_WEIGHT := {"disli": 1.0, "yay": 1.0, "civata": 1.0, "zincir": 0.8, "boru": 0.8, "sac": 0.7,
 	"alet": 0.7, "konserve": 0.6, "motor": 0.4, "elektronik": 0.3, "kap": 0.25, "jant": 0.22, "sandik": 0.1}
+## Pieces left whole from a set (2026-11-02, the user: the stacked tyres look silly in the heap).
+const NOT_IN_HEAP := ["stacked_tire_01", "muddy_tire_01", "truck_wheel"]
+const MAX_SHARE := 0.015
+## Each copy of a model a little darker or more rust-brown than the next, so repeats don't match.
+const TONE := Vector2(0.72, 1.05)
+const RUST_TINT := Color(0.86, 0.74, 0.62)
 ## The roof (tools/build_arena.gd): a 6° pitch from 8.8 m at the eaves, and the glass lantern over
 ## the middle, 11.6 m to the top of its walls. The heap is packed up to just under them.
 const EAVE := 8.8
@@ -65,8 +69,7 @@ const BULLET_LAYER := SCRAP_LAYER  # the old name (player.gd's reach ray masks i
 const WAKE_RADIUS := 0.45     # m round a walker's feet where resting pieces turn into bodies
 const WAKE_SPEED := 0.5       # m/s, slower walkers don't kick anything
 const MAX_AWAKE := 48         # kicked loose pieces at once
-const MAX_DEBRIS := 90        # pieces tumbling off a face, or lying where they stopped
-const DEBRIS_LIFE := 40.0     # s a stopped piece lies before it sinks into the heap
+const MAX_DEBRIS := 90        # pieces tumbling off a face or falling from where they lay
 const SHOVE_REACH := 0.7      # m from a walker's middle a moving piece shoves them
 const SHOVE_SHARE := 0.8      # of the piece's speed
 const POUR_SHOVE := 9.0       # m/s per m/s the surface under a walker rises
@@ -82,6 +85,7 @@ const SLUMP_RADIUS := Vector2(1.8, 3.6)  # m, the host rolls a face's size betwe
 ## piece its own): this many times over by their footprints, at most MAX_PER_CELL to a cell.
 @export var cover := 1.3
 const MAX_PER_CELL := 6
+const TOP_LAYER := 6          # pieces to a cell lying on top; the rest lie a layer down
 const SURFACE_MIN := 0.025   # m: only crumbs smaller than this stay off the face (the user: nuts and bolts too)
 const LOW_TRIS := 150         # surface pieces are drawn from a lighter copy of their part
 ## Loose pieces on the floor round the foot, thinning out with distance.
@@ -118,8 +122,7 @@ var _part_low: Array[Mesh] = []     # LOW_TRIS copy, for the thousands on the su
 var _part_foot := PackedFloat32Array()  # m², lying on its widest side
 var _mark_mi := MeshInstance3D.new()  # the piece under a player's crosshair, outlined (highlight())
 var _marked := -1
-var _part_shape: Array[BoxShape3D] = []  # resting loose pieces: cheap boxes
-var _part_hull: Array[Shape3D] = []     # moving ones: the glb's own convex hull, so wheels roll
+var _part_hull: Array[Shape3D] = []     # the glb's own convex hull: aimed at, it is the piece; wheels roll
 var _part_hull_at: Array[Transform3D] = []  # the hull relative to the box centre
 var _part_mass := PackedFloat32Array()
 var _part_pick := PackedFloat32Array()  # running weight, for picking a part by a random number
@@ -134,6 +137,22 @@ var _slot_f := PackedVector2Array()    # bilinear weights toward +x and +z
 var _slot_xform: Array[Transform3D] = []  # as placed; origin.y is its lift over the surface
 var _surface_removed := {}       # slot -> surface height there when it was picked off or fell
 const RESURFACE := 0.06          # m the surface moves on from there before another piece shows in its slot
+## Every piece of the heap is a body of its own, picked up by id (GameState loose ids): the drawn
+## one in slot s, and every piece born there after it (shown under a taken one, or back in the
+## slot when the surface moves on), is HEAP_ID_START + born * slot count + s.
+const HEAP_ID_START := 1 << 32
+var _slot_rid: Array[RID] = []   # per slot: its static body (layer SCRAP_LAYER), empty while gone
+var _rid_slot := {}              # body -> slot
+var _slot_body_y := PackedFloat32Array()  # per slot: the surface height its body was last put at
+const BODY_STEP := 0.01          # m a slot drifts before its body follows (moving thousands costs)
+var _slot_born := PackedInt32Array()  # per slot: pieces born there so far
+var _slot_id := PackedInt64Array()    # per slot: the drawn piece's id, -1 while it is gone
+var _gone := {}                  # heap id -> [part, local transform] taken, until heap_piece_taken digs under it
+var _on_heap := {}               # cell key -> loose ids lying on the heap there (they sink or fall with it)
+var _marked_loose := -1          # loose id under a crosshair, drawn by _mark_mi
+const UNDER_DROP := 0.6          # of a taken piece's thickness, the one under it lies lower
+const BURY := 0.02               # m the heap rises over a loose piece's top before it is inside it
+const FALL := 0.05               # m the heap drops under a loose piece's bottom before it falls
 # Loose pieces: numbered, lying still as bare static bodies, one MultiMesh per part.
 var _spill: Array[MultiMeshInstance3D] = []
 var _part_slots: Array[Array] = []  # per part: loose id in each instance slot
@@ -218,6 +237,7 @@ func _ready() -> void:
 	GameState.bullets_taken.connect(_on_bullets_taken)
 	GameState.bullets_thrown.connect(_on_bullets_thrown)
 	GameState.loose_taken.connect(_on_loose_taken)
+	GameState.heap_piece_taken.connect(_on_heap_piece_taken)
 	GameState.scrap_collapse.connect(_on_collapse)
 	GameState.heap_clock.connect(func(s: int) -> void: _host_step = maxi(_host_step, s))
 	GameState.pile_changed.connect(func(count: int) -> void: visible = count > 0)
@@ -227,7 +247,7 @@ func _ready() -> void:
 func _load_parts() -> void:
 	var list: Array = []
 	for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(PARTS_FILE)):
-		if KIND_WEIGHT.has(p.tur):
+		if KIND_WEIGHT.has(p.tur) and p.id not in NOT_IN_HEAP:
 			p.glb = PARTS_FILE.get_base_dir().path_join(p.glb.get_file())
 			list.append(p)
 	var in_kind := {}
@@ -235,7 +255,7 @@ func _load_parts() -> void:
 		in_kind[p.tur] = in_kind.get(p.tur, 0) + 1
 	for p: Dictionary in list:  # all at once, on the loader's threads: one by one took 1.4 s
 		ResourceLoader.load_threaded_request(p.glb)
-	var total := 0.0
+	var weight := PackedFloat32Array()
 	for p: Dictionary in list:
 		var glb: Node = (ResourceLoader.load_threaded_get(p.glb) as PackedScene).instantiate()
 		var mi: MeshInstance3D = glb.find_children("*", "MeshInstance3D", true, false)[0]
@@ -250,19 +270,23 @@ func _load_parts() -> void:
 		var box: AABB = mesh.get_aabb()
 		_part_size.append(box.size)
 		_part_mid.append(box.get_center())
-		var shape := BoxShape3D.new()
-		shape.size = box.size.max(Vector3.ONE * 0.02)
-		_part_shape.append(shape)
 		var dims := [box.size.x, box.size.y, box.size.z]
 		dims.sort()
 		_part_foot.append(dims[1] * dims[2])
 		# A kind's share grows with the root of its count: 96 pipe pieces don't bury the one spring.
-		total += KIND_WEIGHT[p.tur] / sqrt(in_kind[p.tur])
-		_part_pick.append(total)
+		weight.append(KIND_WEIGHT[p.tur] / sqrt(in_kind[p.tur]))
+	# No one model more than MAX_SHARE of the heap: the one spring was every thirtieth piece.
+	var sum := 0.0
+	for w in weight:
+		sum += w
+	var total := 0.0
 	var face := 0.0
-	for i in _part_pick.size():
+	for i in weight.size():
+		var w := minf(weight[i], sum * MAX_SHARE)
+		total += w
+		_part_pick.append(total)
 		if _part_size[i][_part_size[i].max_axis_index()] >= SURFACE_MIN:
-			face += _part_pick[i] - (_part_pick[i - 1] if i > 0 else 0.0)
+			face += w
 		_face_pick.append(face)
 	for i in _part_pick.size():
 		_part_pick[i] /= total
@@ -311,6 +335,61 @@ func _low_poly(mesh: Mesh) -> Mesh:
 ## The mesh's own transform for a piece whose box centre is at `t`.
 func _drawn(part: int, t: Transform3D) -> Transform3D:
 	return t.translated_local(-_part_mid[part])
+
+
+## Whether loose id `id` is a piece of the heap itself (GameState then digs under it).
+func is_heap_id(id: int) -> bool:
+	return id >= HEAP_ID_START
+
+
+func _heap_id(s: int, born: int) -> int:
+	return HEAP_ID_START + born * _slot_part.size() + s
+
+
+func _slot_of_id(id: int) -> int:
+	return (id - HEAP_ID_START) % _slot_part.size()
+
+
+## Slot `s`'s body to `t` (local, at the box centre), made the first time; `t` null takes it out.
+func _set_slot_body(s: int, t: Variant) -> void:
+	var rid := _slot_rid[s]
+	if t == null:
+		if rid.is_valid():
+			_rid_slot.erase(rid)
+			PhysicsServer3D.free_rid(rid)
+			_slot_rid[s] = RID()
+		return
+	if not rid.is_valid():
+		rid = PhysicsServer3D.body_create()
+		PhysicsServer3D.body_set_mode(rid, PhysicsServer3D.BODY_MODE_STATIC)
+		var part := _slot_part[s]
+		PhysicsServer3D.body_add_shape(rid, _part_hull[part].get_rid(), _part_hull_at[part])
+		PhysicsServer3D.body_set_collision_layer(rid, SCRAP_LAYER)
+		PhysicsServer3D.body_set_collision_mask(rid, 0)
+		PhysicsServer3D.body_attach_object_instance_id(rid, get_instance_id())
+		PhysicsServer3D.body_set_space(rid, get_world_3d().space)
+		_slot_rid[s] = rid
+		_rid_slot[rid] = s
+	PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_TRANSFORM, global_transform * (t as Transform3D))
+
+
+## Slot `s`'s piece goes (taken, or tumbling off as a body): not drawn, no body, no id; the next
+## one shows there once the surface has moved on (RESURFACE).
+func _clear_slot(s: int) -> void:
+	_surface_removed[s] = _height_smooth(_slot_xform[s].origin)
+	_surface[_slot_part[s]].multimesh.set_instance_transform(_slot_index[s], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	_set_slot_body(s, null)
+	_slot_id[s] = -1
+	if s == _marked:
+		_marked = -1
+		_mark_mi.visible = false
+
+
+## Slot `s` as it lies now (local, at the box centre, riding the surface).
+func _slot_at(s: int) -> Transform3D:
+	var t := _slot_xform[s]
+	t.origin.y += _height_smooth(t.origin)
+	return t
 
 
 func _pick_part(r: float, on_face := false) -> int:
@@ -393,8 +472,9 @@ func _build_surface() -> void:
 				var up := Basis(Quaternion(Vector3.UP, n))
 				var b := up * tumble * Basis(Vector3.UP, rng.randf() * TAU) * lay
 				var o := _cell_pos(cell) + Vector3(rng.randf_range(-0.5, 0.5) * CELL, 0.0, rng.randf_range(-0.5, 0.5) * CELL)
-				# A quarter sunk at most: hooked into what is under it, its shape still all there to see.
-				o.y = s[thin] * rng.randf_range(0.25, 0.5)
+				# The first few a quarter sunk at most, their shape all there to see; the rest a layer
+				# down between them, so through every gap shows another piece, never the heap's surface.
+				o.y = s[thin] * (rng.randf_range(0.25, 0.5) if count <= TOP_LAYER else rng.randf_range(-0.25, 0.1))
 				var idx: int = per_part[part].size()
 				per_part[part].append(Transform3D(b, o))
 				var list: Array = cell_slots.get(k, [])
@@ -403,10 +483,14 @@ func _build_surface() -> void:
 	for p in _part_mesh.size():
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
 		mm.mesh = _part_low[p]
 		mm.instance_count = per_part[p].size()
+		for i in mm.instance_count:
+			mm.set_instance_color(i, _tone(p * 100003 + i))
 		var node := MultiMeshInstance3D.new()
 		node.multimesh = mm
+		node.material_override = _toned(p)
 		# Only the big ones cast: thousands of tools in every cascade cost more than they show.
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if _part_size[p].length() > 0.9 else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(node)
@@ -426,6 +510,13 @@ func _build_surface() -> void:
 			_slot_f.append(Vector2(clampf(u - ci, 0.0, 1.0), clampf(v - cj, 0.0, 1.0)))
 			_slot_xform.append(t)
 	_cell_first[GRID_X * GRID_Z] = _slot_part.size()
+	var slots := _slot_part.size()
+	_slot_rid.resize(slots)
+	_slot_body_y.resize(slots)
+	_slot_born.resize(slots)
+	_slot_id.resize(slots)
+	for s in slots:
+		_slot_id[s] = _heap_id(s, 0)
 	_mark(_redraw, Rect2i(0, 0, GRID_X, GRID_Z))
 	_update_surface_pieces(Rect2i(0, 0, GRID_X, GRID_Z))
 	_redraw.fill(Rect2i())
@@ -437,11 +528,13 @@ func _build_spill() -> void:
 	for p in _part_mesh.size():
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.use_colors = true
 		mm.mesh = _part_mesh[p]
 		mm.instance_count = 16
 		mm.visible_instance_count = 0
 		var node := MultiMeshInstance3D.new()
 		node.multimesh = mm
+		node.material_override = _toned(p)
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(node)
 		_spill.append(node)
@@ -474,7 +567,7 @@ func rest_on(p: Vector3, part: int, yaw: float) -> Transform3D:
 func _add_loose(id: int, part: int, t: Transform3D) -> void:
 	var rid := PhysicsServer3D.body_create()
 	PhysicsServer3D.body_set_mode(rid, PhysicsServer3D.BODY_MODE_STATIC)
-	PhysicsServer3D.body_add_shape(rid, _part_shape[part].get_rid())
+	PhysicsServer3D.body_add_shape(rid, _part_hull[part].get_rid(), _part_hull_at[part])  # its own shape: aimed at, it is the piece
 	PhysicsServer3D.body_set_collision_layer(rid, SCRAP_LAYER)
 	PhysicsServer3D.body_set_collision_mask(rid, 0)
 	PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_TRANSFORM, global_transform * t)
@@ -485,11 +578,19 @@ func _add_loose(id: int, part: int, t: Transform3D) -> void:
 		mm.instance_count = slots.size() * 2
 		for s in slots.size():
 			mm.set_instance_transform(s, _drawn(part, _id_index[slots[s]][3]))
+			mm.set_instance_color(s, _tone(slots[s]))
 	mm.set_instance_transform(slots.size(), _drawn(part, t))
+	mm.set_instance_color(slots.size(), _tone(id))
 	_id_index[id] = [part, slots.size(), rid, t]
 	_spill_index[rid] = id
 	slots.append(id)
 	mm.visible_instance_count = slots.size()
+	var c := _cell_of(t.origin)
+	if _in_grid(c):
+		var key := c.y * GRID_X + c.x
+		var here: Array = _on_heap.get(key, [])
+		here.append(id)
+		_on_heap[key] = here
 
 
 ## Swap-remove so each part's drawn instances stay packed at the front.
@@ -503,96 +604,152 @@ func _remove_loose(id: int) -> void:
 		slots[rec[1]] = moved
 		_id_index[moved][1] = rec[1]
 		mm.set_instance_transform(rec[1], _drawn(rec[0], _id_index[moved][3]))
+		mm.set_instance_color(rec[1], _tone(moved))
 	slots.resize(last)
 	mm.visible_instance_count = last
+	var c := _cell_of(rec[3].origin)
+	var key := c.y * GRID_X + c.x
+	if _on_heap.has(key):
+		_on_heap[key].erase(id)
+		if _on_heap[key].is_empty():
+			_on_heap.erase(key)
 	_spill_index.erase(rec[2])
 	PhysicsServer3D.free_rid(rec[2])
 	_id_index.erase(id)
 
 
-## True if a ray hit at `at` on `collider` / `rid` is scrap: a loose piece, or the heap where it
-## is at least a piece deep (the height field runs flat over the floor in front of it).
-func is_grabbable(collider: Object, rid: RID, at: Vector3) -> bool:
-	if collider == self:
-		return _height_at(to_local(at)) > GRAB_DEPTH
-	return _spill_index.has(rid) or (collider is RigidBody3D and _awake.has(collider))
+## True if a ray hit on `collider` / `rid` is a piece of scrap: one on the heap's face, one lying
+## loose, or one moving. The heap's own surface between them is not: only pieces are taken.
+func is_grabbable(collider: Object, rid: RID, _at: Vector3) -> bool:
+	return loose_id(collider, rid) >= 0
 
 
-## Whether the loose piece `id` is lying here (not yet picked up).
+## Whether the piece `id` is here to be picked up: on the face, lying loose, or moving.
 func has_loose(id: int) -> bool:
-	return _id_index.has(id)
+	if _id_index.has(id) or _moving(id) != null:
+		return true
+	if is_heap_id(id):
+		var s := _slot_of_id(id)
+		return _slot_id[s] == id and _slot_rid[s].is_valid()
+	return false
 
 
-## Id of the loose piece a ray hit (resting or moving), or -1 if it hit something else.
+## Id of the piece a ray hit (on the face, resting or moving), or -1 if it hit something else.
 func loose_id(collider: Object, rid: RID) -> int:
+	if _rid_slot.has(rid):
+		return _slot_id[_rid_slot[rid]]
 	if _spill_index.has(rid):
 		return _spill_index[rid]
-	if collider is RigidBody3D and _awake.has(collider):
+	if collider is RigidBody3D and (_awake.has(collider) or _debris.has(collider)) and collider.has_meta("id"):
 		return collider.get_meta("id")
 	return -1
 
 
+## The moving body of piece `id` (kicked, or tumbling off the face), or null.
+func _moving(id: int) -> RigidBody3D:
+	for list: Array in [_awake, _debris]:
+		for body in list:
+			if body.has_meta("id") and body.get_meta("id") == id:
+				return body
+	return null
+
+
+## A piece is picked up, everywhere at once: what it was and where it lay stays in _gone until
+## heap_piece_taken (heap pieces) digs out its room and shows the one under it.
 func _on_loose_taken(id: int) -> void:
+	if id == _marked_loose:
+		highlight(Vector3.ZERO, false)
 	if _id_index.has(id):
+		var rec: Array = _id_index[id]
+		_gone[id] = [rec[0], rec[3]]
 		_remove_loose(id)
-		return
-	for body in _awake:
-		if body.get_meta("id") == id:
+	elif is_heap_id(id) and _slot_id[_slot_of_id(id)] == id:
+		var s := _slot_of_id(id)
+		_gone[id] = [_slot_part[s], _slot_at(s)]
+		_clear_slot(s)
+	else:
+		var body := _moving(id)
+		if body:
+			var t := global_transform.affine_inverse() * body.global_transform
+			_gone[id] = [body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin)]
 			_awake.erase(body)
+			_debris.erase(body)
 			body.queue_free()
-			return
+	if not is_heap_id(id):
+		_gone.erase(id)
 
 
-## The drawn piece nearest to local point `local` within SURFACE_GRAB, or -1.
-func _nearest_slot(local: Vector3) -> int:
-	var cell := _cell_of(local)
-	var best := -1
-	var best_d := SURFACE_GRAB
-	for dj in range(-1, 2):
-		for di in range(-1, 2):
-			var c := cell + Vector2i(di, dj)
-			if not _in_grid(c):
-				continue
-			var key := c.y * GRID_X + c.x
-			for s in range(_cell_first[key], _cell_first[key + 1]):
-				if _surface_removed.has(s):
-					continue
-				var pos := _slot_xform[s].origin
-				pos.y += _height_smooth(pos)
-				if pos.distance_to(local) < best_d:
-					best_d = pos.distance_to(local)
-					best = s
-	return best
+## A heap piece was taken (the host's call, at heap step `at_step`): its room in the heap is dug
+## out, and the piece that lay under it shows, lower by part of its thickness.
+func _on_heap_piece_taken(id: int, at_step: int) -> void:
+	_at_step(at_step, _dig_under.bind(id))
 
 
-## Hides the drawn piece nearest to a heap take, so the one looked at is the one that goes.
-func _take_surface_near(local: Vector3) -> void:
-	var best := _nearest_slot(local)
-	if best >= 0:
-		if best == _marked:
-			highlight(Vector3.ZERO, false)
-		_surface_removed[best] = _height_smooth(_slot_xform[best].origin)
-		_surface[_slot_part[best]].multimesh.set_instance_transform(_slot_index[best], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+func _dig_under(id: int) -> void:
+	var rec: Array = _gone.get(id, [])
+	_gone.erase(id)
+	if rec.is_empty():
+		return  # a joiner: the host's snapshot already holds what came of it
+	var part: int = rec[0]
+	var t: Transform3D = rec[1]
+	var s := _slot_of_id(id)
+	var size := _part_size[part]
+	var cell := _cell_of(t.origin).clamp(Vector2i.ZERO, Vector2i(GRID_X - 1, GRID_Z - 1))
+	# Its room: the box it filled, shared out over the pieces lying on top of one another there.
+	_digs.append([cell, size.x * size.y * size.z / cover / (CELL * CELL)])
+	if _height_at(t.origin) < 0.05:
+		return  # it lay on the floor: nothing under it
+	_slot_born[s] += 1
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(id)
+	var under := _pick_part(rng.randf(), true)
+	var at := t.origin + Vector3(rng.randf_range(-0.04, 0.04), 0.0, rng.randf_range(-0.04, 0.04))
+	at.y -= size[size.min_axis_index()] * UNDER_DROP
+	_add_loose(_heap_id(s, _slot_born[s]), under, _lay(under, at, rng))
 
 
-## The piece a player looks at on the heap at world point `at`: drawn in full with an outline,
-## the one E takes. `on` false clears it. Local: each machine marks its own player's.
-func highlight(at: Vector3, on: bool) -> void:
-	var s := _nearest_slot(to_local(at)) if on else -1
-	if s == _marked:
+## A resting transform for `part` at local point `p` on the heap's face: widest side down along
+## the slope, tumbled, a quarter sunk at most into what is under it.
+func _lay(part: int, p: Vector3, rng: RandomNumberGenerator) -> Transform3D:
+	var s := _part_size[part]
+	var thin := 0 if s.x <= s.y and s.x <= s.z else (1 if s.y <= s.z else 2)
+	var lay := Basis()
+	if thin == 0:
+		lay = Basis(Vector3.BACK, PI * 0.5)
+	elif thin == 2:
+		lay = Basis(Vector3.RIGHT, PI * 0.5)
+	var n := _cell_normal(_cell_of(p).clamp(Vector2i.ONE, Vector2i(GRID_X - 2, GRID_Z - 2)))
+	var tumble := Basis(Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized(), rng.randf_range(0.0, 0.7))
+	var b := Basis(Quaternion(Vector3.UP, n)) * tumble * Basis(Vector3.UP, rng.randf() * TAU) * lay
+	p.y = maxf(p.y, _height_smooth(p)) + s[thin] * rng.randf_range(0.25, 0.5)
+	return Transform3D(b, p)
+
+
+## The piece a player looks at (the body `rid` the crosshair's ray hit): drawn in full with an
+## outline, the one E takes. `on` false clears it. Local: each machine marks its own player's.
+func highlight(_at: Vector3, on: bool, rid := RID()) -> void:
+	var s: int = _rid_slot.get(rid, -1) if on else -1
+	var id: int = _spill_index.get(rid, -1) if on else -1
+	if s == _marked and id == _marked_loose:
 		return
 	if _marked >= 0 and not _surface_removed.has(_marked):
 		_redraw_slot(_marked)
+	if _marked_loose >= 0 and _id_index.has(_marked_loose):
+		var was: Array = _id_index[_marked_loose]
+		_spill[was[0]].multimesh.set_instance_transform(was[1], _drawn(was[0], was[3]))
 	_marked = s
-	_mark_mi.visible = s >= 0
-	if s < 0:
-		return
-	var p := _slot_part[s]
-	var t := _slot_xform[s]
-	t.origin.y += _height_smooth(t.origin)
-	_mark_mi.mesh = _part_mesh[p]
-	_mark_mi.transform = _drawn(p, t)
-	_surface[p].multimesh.set_instance_transform(_slot_index[s], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	_marked_loose = id
+	_mark_mi.visible = s >= 0 or id >= 0
+	if s >= 0:
+		var p := _slot_part[s]
+		_mark_mi.mesh = _part_mesh[p]
+		_mark_mi.transform = _drawn(p, _slot_at(s))
+		_surface[p].multimesh.set_instance_transform(_slot_index[s], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	elif id >= 0:
+		var rec: Array = _id_index[id]
+		_mark_mi.mesh = _part_mesh[rec[0]]
+		_mark_mi.transform = _drawn(rec[0], rec[3])
+		_spill[rec[0]].multimesh.set_instance_transform(rec[1], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
 
 
 func _redraw_slot(s: int) -> void:
@@ -691,15 +848,15 @@ func _spawn_loose(id: int, part: int, t: Transform3D, velocity: Vector3) -> void
 ## picked off, and thrown pieces with where they lie. Pieces taken from the starting spill come
 ## separately (GameState's taken ids).
 func snapshot() -> Array:
-	var thrown := []
+	var thrown := []  # thrown pieces and the heap's own that lie loose (shown under a taken one, fallen)
 	for id: int in _id_index:
 		if id >= GameState.THROWN_ID_START:
 			thrown.append([id, _id_index[id][0], _id_index[id][3]])
-	for body in _awake:
-		if body.get_meta("id") >= GameState.THROWN_ID_START:
+	for body: RigidBody3D in _awake + _debris:
+		if body.has_meta("id") and body.get_meta("id") >= GameState.THROWN_ID_START:
 			var t := global_transform.affine_inverse() * body.global_transform
 			thrown.append([body.get_meta("id"), body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin)])
-	return [_h, _active, _digs, _surface_removed, thrown, _slump, step]
+	return [_h, _active, _digs, _surface_removed, thrown, _slump, step, _slot_born, _slot_id]
 
 
 ## Joiner: takes the host's snapshot() over the starting heap this machine built.
@@ -708,17 +865,18 @@ func restore(snap: Array) -> void:
 	_active.assign(snap[1])
 	_any_active = _active.any(func(r: Rect2i) -> bool: return r.has_area())
 	_digs = snap[2]
+	_slot_born = snap[7]
 	for s: int in snap[3]:
+		_clear_slot(s)
 		_surface_removed[s] = snap[3][s]
-		_surface[_slot_part[s]].multimesh.set_instance_transform(_slot_index[s], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+	_slot_id = snap[8]
 	for b: Array in snap[4]:
 		if not _id_index.has(b[0]):
 			_add_loose(b[0], b[1], b[2])
-	if snap.size() > 5:
-		_slump = snap[5]
-		_any_slump = _slump.has(1)
-		step = snap[6]
-		_host_step = step
+	_slump = snap[5]
+	_any_slump = _slump.has(1)
+	step = snap[6]
+	_host_step = step
 	_mark(_dirty, Rect2i(0, 0, GRID_X, GRID_Z))
 	_any_dirty = true
 
@@ -726,13 +884,14 @@ func restore(snap: Array) -> void:
 func _exit_tree() -> void:
 	for rec: Array in _id_index.values():
 		PhysicsServer3D.free_rid(rec[2])
+	for rid: RID in _rid_slot:
+		PhysicsServer3D.free_rid(rid)
 
 
-## Pieces out of the heap at `at`, starting with the drawn one nearest to it.
+## Scrap dug out of the heap in bulk at `at` (tools, the old count): the surface comes down there
+## and the pieces on it ride it down.
 func _on_bullets_taken(at: Vector3, count: int, at_step: int) -> void:
 	var local := to_local(at)
-	for n in mini(count, 4):
-		_take_surface_near(local)
 	var cell := _cell_of(local).clamp(Vector2i.ZERO, Vector2i(GRID_X - 1, GRID_Z - 1))
 	_at_step(at_step, func() -> void: _digs.append([cell, count * unit / (CELL * CELL)]))
 	if not Net.is_client:
@@ -811,7 +970,7 @@ func _tumble(cell: Vector2i, top: Vector2, radius: int, seed: int) -> void:
 	rng.seed = seed
 	var want := mini(rng.randi_range(18, 36) + radius, MAX_DEBRIS)
 	while _debris.size() + want > MAX_DEBRIS and not _debris.is_empty():
-		_debris.pop_front().queue_free()
+		_settle(_debris.pop_front())  # the oldest stop where they are
 	var fall := (Vector2(cell) - top).normalized()
 	for n in want * 4:
 		if want <= 0:
@@ -825,13 +984,13 @@ func _tumble(cell: Vector2i, top: Vector2, radius: int, seed: int) -> void:
 		if s1 == s0:
 			continue
 		var s := s0 + rng.randi() % (s1 - s0)
-		if _surface_removed.has(s):
+		if _slot_id[s] < 0:
 			continue
-		_surface_removed[s] = _height_smooth(_slot_xform[s].origin)
-		var t := _slot_xform[s]
-		t.origin.y += _height_smooth(t.origin) + 0.05
-		_surface[_slot_part[s]].multimesh.set_instance_transform(_slot_index[s], Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+		var t := _slot_at(s)
+		t.origin.y += 0.05
 		var body := _make_body(_slot_part[s], global_transform * t)
+		body.set_meta("id", _slot_id[s])  # the same piece, picked up the same way while it rolls
+		_clear_slot(s)
 		var speed := rng.randf_range(1.0, 3.5)
 		body.linear_velocity = global_basis * Vector3(fall.x * speed, rng.randf_range(-0.5, 1.0), fall.y * speed)
 		body.angular_velocity = Vector3(rng.randf_range(-6, 6), rng.randf_range(-6, 6), rng.randf_range(-6, 6))
@@ -840,36 +999,35 @@ func _tumble(cell: Vector2i, top: Vector2, radius: int, seed: int) -> void:
 		want -= 1
 
 
-## Tumbling pieces shove walkers they hit; stopped ones freeze where they lie and, after a while
-## or once the heap has buried them, go back into it.
+## Tumbling pieces shove walkers they hit; once still, each lies where it stopped as a loose
+## piece of its own (its id kept), which sinks into the heap or falls again as the heap moves.
 func _update_debris(delta: float) -> void:
 	var walkers := get_tree().get_nodes_in_group("walker")
 	for i in range(_debris.size() - 1, -1, -1):
 		var body := _debris[i]
 		var v := body.linear_velocity
-		if not body.freeze:
-			for w: Node3D in walkers:
-				var mid := w.global_position + Vector3.UP * 0.9
-				var d := body.global_position - mid
-				if absf(d.y) < 1.0 and Vector2(d.x, d.z).length() < SHOVE_REACH and v.length() > 0.8 and w.has_method("shove"):
-					w.shove(Vector3(v.x, 0.0, v.z) * SHOVE_SHARE)
-			if body.sleeping or (v.length() < 0.05 and body.angular_velocity.length() < 0.2):
-				var since: float = body.get_meta("since")
-				body.set_meta("since", 0.0 if since < 0.0 else since + delta)
-				if since > 0.5:
-					body.freeze = true
-			else:
-				body.set_meta("since", -1.0)
-			continue
-		var since: float = body.get_meta("since") + delta
-		body.set_meta("since", since)
-		var local := to_local(body.global_position)
-		if since > DEBRIS_LIFE or _height_smooth(local) > local.y + 0.05:
-			body.queue_free()
-			_debris.remove_at(i)
-		elif _height_smooth(local) < local.y - 0.4:
-			body.freeze = false  # dug out from under it
+		for w: Node3D in walkers:
+			var mid := w.global_position + Vector3.UP * 0.9
+			var d := body.global_position - mid
+			if absf(d.y) < 1.0 and Vector2(d.x, d.z).length() < SHOVE_REACH and v.length() > 0.8 and w.has_method("shove"):
+				w.shove(Vector3(v.x, 0.0, v.z) * SHOVE_SHARE)
+		var since: float = body.get_meta("since")
+		if body.sleeping or (v.length() < 0.05 and body.angular_velocity.length() < 0.2):
+			body.set_meta("since", 0.0 if since < 0.0 else since + delta)
+		else:
 			body.set_meta("since", -1.0)
+		if since > 0.5:
+			_settle(body)
+			_debris.remove_at(i)
+
+
+## A moving piece comes to rest: it lies there as a loose piece with its id (bodies only while
+## they move).
+func _settle(body: RigidBody3D) -> void:
+	var t := global_transform.affine_inverse() * body.global_transform
+	if body.has_meta("id") and not _id_index.has(body.get_meta("id")):
+		_add_loose(body.get_meta("id"), body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin))
+	body.queue_free()
 
 
 ## Where the heap rises under a walker (a slump pouring onto them) it shoves them off down the
@@ -1091,6 +1249,29 @@ func _update_cells(area: Rect2i) -> void:
 			if absf(h - _drawn_h[key]) >= REDRAW_STEP:
 				_drawn_h[key] = h
 				_mark(_redraw, Rect2i(i - 1, j - 1, 3, 3))
+			if _on_heap.has(key):
+				_loose_follow(key)
+
+
+## Loose pieces lying on the heap at cell `key` go with it: where it rises over one, that one is
+## inside the heap now; where it drops away under one, that one falls.
+func _loose_follow(key: int) -> void:
+	for id: int in _on_heap[key].duplicate():
+		var rec: Array = _id_index[id]
+		var part: int = rec[0]
+		var t: Transform3D = rec[3]
+		var y := _height_smooth(t.origin)
+		var half := _part_size[part][_part_size[part].min_axis_index()] * 0.5
+		if y > t.origin.y + half + BURY:  # covered over: what slid onto it shows its own pieces
+			_remove_loose(id)
+		elif y < t.origin.y - half - FALL:
+			_remove_loose(id)
+			while _debris.size() >= MAX_DEBRIS:
+				_settle(_debris.pop_front())
+			var body := _make_body(part, global_transform * t)
+			body.set_meta("id", id)
+			body.set_meta("since", -1.0)
+			_debris.append(body)
 
 
 ## Keeps surface pieces riding the cells in `area` (they sink with it, deeper into one another);
@@ -1108,14 +1289,20 @@ func _update_surface_pieces(area: Rect2i) -> void:
 				var y := lerpf(lerpf(h[k], h[k + 1], f.x), lerpf(h[k + GRID_X], h[k + GRID_X + 1], f.x), f.y)
 				if _surface_removed.has(s):
 					# Dug on down, or covered by what slid: the next piece of the heap shows there.
-					if absf(y - _surface_removed[s]) < RESURFACE:
+					if absf(y - _surface_removed[s]) < RESURFACE or y < 0.03:
 						continue
 					_surface_removed.erase(s)
-				var t := _slot_xform[s]
-				t.origin.y += y
-				t = _drawn(_slot_part[s], t)
-				if y < 0.03:
+					_slot_born[s] += 1
+					_slot_id[s] = _heap_id(s, _slot_born[s])
+				var c := _slot_xform[s]
+				c.origin.y += y
+				var t := _drawn(_slot_part[s], c)
+				if y < 0.03:  # the heap is gone from under it
 					t.basis = Basis.from_scale(Vector3.ZERO)
+					_set_slot_body(s, null)
+				elif absf(y - _slot_body_y[s]) > BODY_STEP or not _slot_rid[s].is_valid():
+					_slot_body_y[s] = y
+					_set_slot_body(s, c)
 				_surface[_slot_part[s]].multimesh.set_instance_transform(_slot_index[s], t)
 
 
@@ -1207,5 +1394,22 @@ func _cell_normal(c: Vector2i) -> Vector3:
 
 
 ## 0..1 from an id, the same on every peer.
+## A copy's tone from `key`: darker or lighter, a little more or less rust-brown.
+static func _tone(key: int) -> Color:
+	var c := Color.WHITE.lerp(RUST_TINT, _hash01(key * 31 + 7)) * lerpf(TONE.x, TONE.y, _hash01(key))
+	c.a = 1.0
+	return c
+
+
+## Part `p`'s material, taking each copy's tone (MultiMesh colours) on its colour.
+func _toned(p: int) -> Material:
+	var m := _part_mesh[p].surface_get_material(0)
+	if not m is BaseMaterial3D:
+		return null
+	var out := m.duplicate() as BaseMaterial3D
+	out.vertex_color_use_as_albedo = true
+	return out
+
+
 static func _hash01(id: int) -> float:
 	return float(hash(id) & 0xFFFF) / 65536.0
