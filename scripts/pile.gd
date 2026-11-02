@@ -46,22 +46,17 @@ const PARTS_FILE := "res://assets/props/hurda/hurda.json"
 ## many pieces the kind has): small metal most, crates few. Guns (tur "silah") stay out: they would read as weapons to pick up.
 const KIND_WEIGHT := {"disli": 1.0, "yay": 1.0, "civata": 1.0, "zincir": 0.8, "boru": 0.8, "sac": 0.7,
 	"alet": 0.7, "konserve": 0.6, "motor": 0.4, "elektronik": 0.3, "kap": 0.25, "jant": 0.22, "sandik": 0.1}
-## The face is real pieces dropped onto this heap and settled (tools/build_scrap_face.gd,
-## data/scrap_face.json), each 2 m stretch from one zone: steel and iron, brass and copper, or all
-## of it. Zones keep to wide stretches of the face, as sorted scrap does (the user's pictures, 2026-11-02).
-const ZONES := {
-	"celik": {"mats": ["celik", "dokme_demir", "demir"], "kinds": ["disli", "yay", "civata", "zincir", "sac", "alet", "boru", "motor"]},
-	"sari": {"mats": ["pirinc", "bakir"], "kinds": []},
-	"karisik": {"mats": [], "kinds": []}}
-const FACE_FILE := "res://data/scrap_face.json"  # the face settled for real (tools/build_scrap_face.gd)
-const ZONE_FREQ := 0.07       # wide stretches: a zone runs some 10 m along the face
-const ZONE_CUT := Vector2(-0.2, 0.25)  # noise under x: steel; over y: brass and copper; between: all of it
+## The face is real pieces dropped onto this heap and settled, big ones under, small ones in the
+## gaps (tools/build_scrap_face.gd picks them; data/scrap_face.json).
+const FACE_FILE := "res://data/scrap_face.json"
 ## Pieces left whole from a set (2026-11-02, the user: the stacked tyres look silly in the heap).
 const NOT_IN_HEAP := ["stacked_tire_01", "muddy_tire_01", "truck_wheel"]
 const MAX_SHARE := 0.015
-## Each copy of a model a little darker or more rust-brown than the next, so repeats don't match.
-const TONE := Vector2(0.72, 1.05)
+## Each copy of a model a little darker or more rust-brown than the next, so repeats don't match;
+## only a little, or neighbours flicker light and dark and the face reads as noise.
+const TONE := Vector2(0.84, 1.02)
 const RUST_TINT := Color(0.86, 0.74, 0.62)
+const RUST_SHARE := 0.6
 ## The roof (tools/build_arena.gd): a 6° pitch from 8.8 m at the eaves, and the glass lantern over
 ## the middle, 11.6 m to the top of its walls. The heap is packed up to just under them.
 const EAVE := 8.8
@@ -1480,7 +1475,7 @@ func _cell_normal(c: Vector2i) -> Vector3:
 ## 0..1 from an id, the same on every peer.
 ## A copy's tone from `key`: darker or lighter, a little more or less rust-brown.
 static func _tone(key: int) -> Color:
-	var c := Color.WHITE.lerp(RUST_TINT, _hash01(key * 31 + 7)) * lerpf(TONE.x, TONE.y, _hash01(key))
+	var c := Color.WHITE.lerp(RUST_TINT, _hash01(key * 31 + 7) * RUST_SHARE) * lerpf(TONE.x, TONE.y, _hash01(key))
 	c.a = 1.0
 	return c
 

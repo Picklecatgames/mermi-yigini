@@ -4,7 +4,8 @@ shader_type spatial;
 // pieces lie on it several deep. Where a gap still shows it, it is plain deep shadow, no texture
 // (the user, 2026-11-02: only pieces, each its own).
 
-uniform float shade = 0.012;
+// Rust-brown, not black: a gap between pieces reads as deep shadow in the scrap, not a hole.
+uniform vec3 shade = vec3(0.026, 0.017, 0.011);
 
 // Heap shape: height per cell, written by pile.gd as scrap is taken and slopes slide.
 uniform sampler2D height_field : filter_nearest;
@@ -29,7 +30,7 @@ void vertex() {
 }
 
 void fragment() {
-	ALBEDO = vec3(shade);
+	ALBEDO = shade;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
 	AO = 0.0;

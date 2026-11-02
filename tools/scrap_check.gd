@@ -106,12 +106,21 @@ func _initialize() -> void:
 ## dig the heap away under one and it falls, still there to pick up.
 func _pieces(gs: Node, pile: Node3D) -> void:
 	# Looking down onto the face a little way up it, toward the north wall: away from where the
-	# rest of this check digs.
+	# rest of this check digs. A few percent of the face shows between its pieces, so 25 rays over
+	# a metre: nearly all hit a piece, and the first that does goes on.
 	var space := pile.get_world_3d().direct_space_state
-	var ray := PhysicsRayQueryParameters3D.create(Vector3(-5.0, 12.0, -18.0), Vector3(-5.0, -1.0, -18.0))
-	ray.collision_mask = pile.SCRAP_LAYER | 1
-	var hit := space.intersect_ray(ray)
-	assert(not hit.is_empty() and pile._rid_slot.has(hit.rid), "aimed at the heap, a piece is hit, not the heap under it")
+	var hit := {}
+	var on_piece := 0
+	for k in 25:
+		var at := Vector3(-5.0 + (k % 5) * 0.25, 0.0, -18.0 + (k / 5) * 0.25)
+		var ray := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 12.0, at + Vector3.DOWN)
+		ray.collision_mask = pile.SCRAP_LAYER | 1
+		var h := space.intersect_ray(ray)
+		if not h.is_empty() and pile._rid_slot.has(h.rid):
+			on_piece += 1
+			if hit.is_empty():
+				hit = h
+	assert(on_piece >= 20, "aimed at the heap, a piece is hit, not the heap under it (%d of 25)" % on_piece)
 	var s: int = pile._rid_slot[hit.rid]
 	assert(pile.is_grabbable(hit.collider, hit.rid, hit.position) and pile.loose_id(hit.collider, hit.rid) == pile._slot_id[s], "that piece is the one taken")
 	pile.highlight(hit.position, true, hit.rid)

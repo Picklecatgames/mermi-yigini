@@ -1,33 +1,70 @@
 extends SceneTree
 ## Settles the scrap heap's face for real: builds the heap's shape (scripts/pile.gd, no pieces),
-## then over it, CHUNK metres at a time, drops real pieces and lets them come to rest. Gravity
+## then over it, CHUNK cells at a time, drops real pieces and lets them come to rest. Gravity
 ## pulls each chunk's pieces onto the face along its normal, so they lie on a 61° face as on the
-## floor; pieces settled in chunks before are solid, so nothing ends up inside anything else.
-## Chunks two apart settle at once. Then rays from outside find the pieces that show; only those
+## floor; pieces settled before are solid, so nothing ends up inside anything else.
+## Each chunk is laid as a scrap heap builds up: the big flat and long pieces first (sheet, pipe,
+## rims, crates), then the hand-sized ones over them, last the small ones that run into the gaps.
+## Pieces lie down flat-ish onto the face, as dumped scrap does, not on end. The mix shifts slowly
+## along the face (brass and copper thicker in places), with no edges between stretches.
+## Chunks two apart settle at once. As soon as a group is down, rays from outside find its pieces
+## that show; the buried ones leave the physics server (it holds 65 536 bodies: before, the
+## later half of the chunks found no room and stayed bare). Only the pieces that show at the end
 ## are written, to data/scrap_face.json:
 ##   {"heights": hash of the heap's starting heights, "pieces": [[id, x, lift, z, qx, qy, qz, qw], ...]}
 ## x, z in the heap's own space, lift over its surface there, at each piece's box centre.
 ##   Godot.exe --headless --path . --fixed-fps 60 -s res://tools/build_scrap_face.gd
 
 const CHUNK := 8          # cells (2 m) a chunk
-const LAYERS := 6.0       # a chunk's true area covered this many times over by footprints: no gap down to the surface
-const BATCH := 70         # pieces per drop into a chunk
-const DROP_FRAMES := 25
-const SETTLE_FRAMES := 240
+const BATCH := 60         # pieces per drop into a chunk
+const DROP_FRAMES := 20
+const SETTLE_FRAMES := 180
 const GROUP := 10         # chunks settling at once
 const LAYER := 1 << 6     # physics layer of the settling pieces
 const RAYS := 4           # per cell side
+const REACH := 4          # cells round a group its rays come from (a leaning ray travels ~1 m sideways)
+const MIN_HITS := 2       # rays a piece must catch to be kept: a sliver in a gap costs a whole piece to draw
 const OUT := "res://data/scrap_face.json"
+## The layers, bottom up: which pieces (by their longest side, m), how many times their footprints
+## cover the chunk's true area, how far they may tip off lying flat (rad), and how much of each
+## kind (by area covered, not by count). The hand-sized pieces fill, the big sheets, pipes and
+## rims lie over them and show most, the small ones are a sprinkling in the gaps: a face of
+## many same-sized small pieces reads as noise.
+const LAYERS := [
+	{"size": Vector2(0.15, 0.4), "cover": 1.8, "tilt": 0.5,
+		"kinds": {"boru": 2.2, "disli": 1.5, "sac": 1.3, "alet": 0.7, "zincir": 1.0, "motor": 1.0, "konserve": 0.6, "yay": 0.45,
+			"jant": 0.6, "kap": 0.3, "sandik": 0.2, "elektronik": 0.2}},
+	{"size": Vector2(0.4, 9.0), "cover": 1.8, "tilt": 0.3,
+		"kinds": {"sac": 3.0, "boru": 2.4, "jant": 1.0, "kap": 0.6, "alet": 0.25, "zincir": 0.6, "sandik": 0.4, "disli": 0.5, "elektronik": 0.1}},
+	{"size": Vector2(0.0, 0.15), "cover": 0.1, "tilt": 0.8,
+		"kinds": {"disli": 2.0, "civata": 1.5, "boru": 1.5, "zincir": 1.0, "yay": 0.6, "motor": 0.8, "konserve": 0.5, "alet": 0.5}},
+]
+## Not on the face: card and plastic read as rubbish, not scrap metal; tyres, brought down to the
+## face's light copies, come out square.
+const OFF_FACE := ["karton", "plastik", "kaucuk"]
+## A kind with few models in a layer gets less of its share, or its one model repeats all over the
+## face (a single motor was every tenth piece): full share from this many models.
+const KIND_MODELS := 4.0
+## A model heavier than this (triangles in the face's light copy) turns up that much less often:
+## the face draws ~40 000 pieces, and some light copies keep 1 500 triangles.
+const TRIS_EASY := 400.0
+const BRASS := ["pirinc", "bakir"]
+const BRASS_FREQ := 0.06    # the brass-and-copper share drifts over some 15 m of face
+const BRASS_RANGE := Vector2(0.25, 2.5)  # times its plain weight, where the drift is lowest and highest
 
 var _pile
 var _to_world: Transform3D  # the heap's space to the hall's
 var _space: PhysicsDirectSpaceState3D
 var _rng := RandomNumberGenerator.new()
-var _zone_noise := FastNoiseLite.new()
-var _zone_parts := {}
-# Settled pieces: part, transform (heap space), static body.
+var _brass_noise := FastNoiseLite.new()
+var _layer_parts := []  # per layer: {kind: [part, ...]}
+var _layer_kind_foot := []  # per layer: {kind: mean footprint}
+var _layer_kind_share := []  # per layer: {kind: its weight to be picked}
+var _part_cost := {}  # part -> how much less often it is picked for its triangles
+# Settled pieces: part, transform (heap space), body (an invalid RID once buried and let go).
 var _part := PackedInt32Array()
 var _xform: Array[Transform3D] = []
+var _rid: Array[RID] = []
 var _rid_piece := {}
 
 
@@ -44,10 +81,9 @@ func _initialize() -> void:
 	_to_world = _pile.global_transform
 	_space = _pile.get_world_3d().direct_space_state
 	_rng.seed = 5
-	_zone_noise.seed = 11
-	_zone_noise.frequency = _pile.ZONE_FREQ
-	for zone: String in _pile.ZONES:
-		_zone_parts[zone] = _parts(zone)
+	_brass_noise.seed = 11
+	_brass_noise.frequency = BRASS_FREQ
+	_sort_parts()
 	await physics_frame
 	var chunks := []
 	for cz in range(0, _pile.GRID_Z, CHUNK):
@@ -59,19 +95,34 @@ func _initialize() -> void:
 	for parity in [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1)]:
 		var batch := chunks.filter(func(c: Vector2i) -> bool: return (c.x / CHUNK) % 2 == parity.x and (c.y / CHUNK) % 2 == parity.y)
 		for g in range(0, batch.size(), GROUP):
-			await _settle(batch.slice(g, g + GROUP))
-			done += mini(GROUP, batch.size() - g)
-			print("%d / %d chunks, %d pieces (%d s)" % [done, chunks.size(), _part.size(), (Time.get_ticks_msec() - t0) / 1000])
-	var seen := _seen()
+			var group := batch.slice(g, g + GROUP)
+			await _settle(group)
+			var bodies := _bury(group)
+			done += group.size()
+			print("%d / %d chunks, %d pieces, %d bodies (%d s)" % [done, chunks.size(), _part.size(), bodies, (Time.get_ticks_msec() - t0) / 1000])
+	var seen := _seen(Rect2i(0, 0, _pile.GRID_X, _pile.GRID_Z))
+	var slivers := 0
+	for i: int in seen.keys():
+		if seen[i] < MIN_HITS:
+			seen.erase(i)
+			_rid_piece.erase(_rid[i])
+			PhysicsServer3D.free_rid(_rid[i])
+			slivers += 1
+	print("%d slivers left out" % slivers)
 	var out := []
+	var kinds := {}
 	for i: int in seen:
 		var t: Transform3D = _xform[i]
 		var q := t.basis.get_rotation_quaternion()
 		out.append([_pile._part_info[_part[i]].id, snappedf(t.origin.x, 0.001), snappedf(t.origin.y - _pile._height_smooth(t.origin), 0.001),
 			snappedf(t.origin.z, 0.001), snappedf(q.x, 0.0001), snappedf(q.y, 0.0001), snappedf(q.z, 0.0001), snappedf(q.w, 0.0001)])
+		var tur: String = _pile._part_info[_part[i]].tur
+		kinds[tur] = kinds.get(tur, 0) + 1
 	DirAccess.make_dir_recursive_absolute(OUT.get_base_dir())
 	var f := FileAccess.open(OUT, FileAccess.WRITE)
 	f.store_string(JSON.stringify({"heights": hash(_pile._h), "pieces": out}))
+	print("shown by kind: ", kinds)
+	_holes()
 	print("%d of %d pieces show; saved %s (%d s)" % [out.size(), _part.size(), ProjectSettings.globalize_path(OUT), (Time.get_ticks_msec() - t0) / 1000])
 	quit()
 
@@ -86,82 +137,141 @@ func _cells(cx: int, cz: int) -> Array:
 	return list
 
 
-## The parts zone `zone` lays, with their weights in the heap.
-func _parts(zone: String) -> Array:
-	var mats: Array = _pile.ZONES[zone].mats
-	var kinds: Array = _pile.ZONES[zone].kinds
-	var list := []
+## The heap's parts sorted into the layers by size and kind.
+func _sort_parts() -> void:
+	for layer: Dictionary in LAYERS:
+		var by_kind := {}
+		var foot := {}
+		for i in _pile._part_info.size():
+			var info: Dictionary = _pile._part_info[i]
+			var s: Vector3 = _pile._part_size[i]
+			var longest := s[s.max_axis_index()]
+			if longest < _pile.SURFACE_MIN or longest < layer.size.x or longest >= layer.size.y:
+				continue
+			if info.materyal in OFF_FACE or not layer.kinds.has(info.tur):
+				continue
+			by_kind[info.tur] = by_kind.get(info.tur, []) + [i]
+			foot[info.tur] = foot.get(info.tur, 0.0) + _pile._part_foot[i]
+		var share := {}
+		for kind: String in by_kind:
+			foot[kind] /= by_kind[kind].size()
+			share[kind] = layer.kinds[kind] / foot[kind] * minf(1.0, by_kind[kind].size() / KIND_MODELS)
+		_layer_parts.append(by_kind)
+		_layer_kind_foot.append(foot)
+		_layer_kind_share.append(share)
 	for i in _pile._part_info.size():
-		var s: Vector3 = _pile._part_size[i]
-		if s[s.max_axis_index()] < _pile.SURFACE_MIN:
-			continue
-		if not mats.is_empty() and not mats.has(_pile._part_info[i].materyal):
-			continue
-		if not kinds.is_empty() and not kinds.has(_pile._part_info[i].tur):
-			continue
-		list.append([i, _pile._part_pick[i] - (_pile._part_pick[i - 1] if i > 0 else 0.0)])
-	return list
+		var m: Mesh = _pile._part_low[i]
+		var tris := 0
+		for s in m.get_surface_count():
+			tris += m.surface_get_array_index_len(s) / 3
+		_part_cost[i] = minf(1.0, TRIS_EASY / tris)
 
 
-func _pick(zone: String) -> int:
-	var parts: Array = _zone_parts[zone]
+## A part for layer `l` at `at` (heap space): the kind by its share of the area, then a part of
+## that kind, light ones more likely, brass and copper more or less as the mix drifts along the face.
+func _pick(l: int, at: Vector3) -> int:
+	var by_kind: Dictionary = _layer_parts[l]
+	var shares: Dictionary = _layer_kind_share[l]
 	var total := 0.0
-	for p: Array in parts:
-		total += p[1]
+	for k: String in by_kind:
+		total += shares[k]
 	var r := _rng.randf() * total
-	for p: Array in parts:
-		r -= p[1]
+	var kind: String = by_kind.keys()[-1]
+	for k: String in by_kind:
+		r -= shares[k]
 		if r <= 0.0:
-			return p[0]
-	return parts[-1][0]
+			kind = k
+			break
+	var parts: Array = by_kind[kind]
+	var brass := lerpf(BRASS_RANGE.x, BRASS_RANGE.y, clampf(_brass_noise.get_noise_2d(at.x, at.z) * 1.4 + 0.5, 0.0, 1.0))
+	var weights := []
+	var sum := 0.0
+	for p: int in parts:
+		var w: float = (brass if _pile._part_info[p].materyal in BRASS else 1.0) * _part_cost[p]
+		weights.append(w)
+		sum += w
+	r = _rng.randf() * sum
+	for i in parts.size():
+		r -= weights[i]
+		if r <= 0.0:
+			return parts[i]
+	return parts[-1]
 
 
-## Drops pieces onto each chunk in `group` until its face is covered LAYERS deep, lets them come
-## to rest, and keeps them as solid static bodies.
+## Lays each chunk in `group` layer by layer: drops a layer's pieces until they cover the chunk as
+## the layer asks, lets them come to rest, and keeps them as solid static bodies for the next.
 func _settle(group: Array) -> void:
 	var jobs := []
 	for c: Vector2i in group:
 		var cells := _cells(c.x, c.y)
-		var n := Vector3.ZERO
 		var area := 0.0
 		for cell: Vector2i in cells:
-			var cn: Vector3 = _pile._cell_normal(cell)
-			n += cn
-			area += _pile.CELL * _pile.CELL / maxf(cn.y, 0.25)
-		var mid: Vector3 = _pile._cell_pos(c + Vector2i.ONE * (CHUNK / 2))
-		var v := _zone_noise.get_noise_2d(mid.x, mid.z)
-		var zone: String = "celik" if v < _pile.ZONE_CUT.x else ("sari" if v > _pile.ZONE_CUT.y else "karisik")
-		jobs.append({"cells": cells, "n": n.normalized(), "want": area * LAYERS, "zone": zone, "bodies": []})
-	var dropping := true
-	while dropping:
-		dropping = false
+			area += _pile.CELL * _pile.CELL / maxf(_pile._cell_normal(cell).y, 0.25)
+		jobs.append({"cells": cells, "area": area})
+	for l in LAYERS.size():
+		var bodies := []
 		for job: Dictionary in jobs:
-			if job.want <= 0.0:
-				continue
-			dropping = true
-			for k in BATCH:
-				var part := _pick(job.zone)
-				job.want -= _pile._part_foot[part]
-				var cell: Vector2i = job.cells[_rng.randi() % job.cells.size()]
-				var at: Vector3 = _pile._cell_pos(cell) + Vector3(_rng.randf_range(-0.5, 0.5), 0.0, _rng.randf_range(-0.5, 0.5)) * _pile.CELL
-				at.y = _pile._height_smooth(at)
-				# Born clear of everything: over the top of what has piled up there already.
-				var probe := PhysicsRayQueryParameters3D.create(_to_world * (at + job.n * 4.0), _to_world * at)
-				probe.collision_mask = 1 | LAYER
-				var hit := _space.intersect_ray(probe)
-				if not hit.is_empty():
-					at = _to_world.affine_inverse() * hit.position
-				at += job.n * (_pile._part_size[part].length() * 0.5 + _rng.randf_range(0.15, 0.6))
-				job.bodies.append(_body(part, _to_world * Transform3D(Basis(Quaternion.from_euler(Vector3(_rng.randf() * TAU, _rng.randf() * TAU, _rng.randf() * TAU))), at), _to_world.basis * job.n))
-		for f in DROP_FRAMES:
+			job.want = job.area * LAYERS[l].cover
+		var dropping := true
+		while dropping:
+			dropping = false
+			for job: Dictionary in jobs:
+				if job.want <= 0.0:
+					continue
+				dropping = true
+				for k in BATCH:
+					var cell: Vector2i = job.cells[_rng.randi() % job.cells.size()]
+					var at: Vector3 = _pile._cell_pos(cell) + Vector3(_rng.randf_range(-0.5, 0.5), 0.0, _rng.randf_range(-0.5, 0.5)) * _pile.CELL
+					var part := _pick(l, at)
+					job.want -= _pile._part_foot[part]
+					at.y = _pile._height_smooth(at)
+					# Each piece pulled onto the face where it lands, not along the chunk's mean:
+					# where a chunk spans a ridge or a gully, one side would shed its pieces.
+					var n := _normal_round(cell)
+					# Born clear of everything: over the top of what has piled up there already.
+					var probe := PhysicsRayQueryParameters3D.create(_to_world * (at + n * 4.0), _to_world * at)
+					probe.collision_mask = 1 | LAYER
+					var hit := _space.intersect_ray(probe)
+					if not hit.is_empty():
+						at = _to_world.affine_inverse() * hit.position
+					var s: Vector3 = _pile._part_size[part]
+					at += n * (s.length() * 0.5 + _rng.randf_range(0.05, 0.25))
+					bodies.append(_body(part, _to_world * Transform3D(_lying(part, n, LAYERS[l].tilt), at), _to_world.basis * n))
+					if job.want <= 0.0:
+						break
+			for f in DROP_FRAMES:
+				await physics_frame
+		for f in SETTLE_FRAMES:
 			await physics_frame
-	for f in SETTLE_FRAMES:
-		await physics_frame
-		if f % 30 == 29 and jobs.all(func(job: Dictionary) -> bool: return job.bodies.all(func(b: RigidBody3D) -> bool: return b.sleeping or b.linear_velocity.length() < 0.03)):
-			break
-	for job: Dictionary in jobs:
-		for body: RigidBody3D in job.bodies:
+			if f % 30 == 29 and bodies.all(func(b: RigidBody3D) -> bool: return b.sleeping or b.linear_velocity.length() < 0.03):
+				break
+		for body: RigidBody3D in bodies:
 			_keep(body)
+
+
+## The face's normal round `cell`, over a metre: the lumps of single cells smoothed out.
+func _normal_round(cell: Vector2i) -> Vector3:
+	var n := Vector3.ZERO
+	for j in range(-2, 3):
+		for i in range(-2, 3):
+			var c := cell + Vector2i(i, j)
+			if c.x >= 1 and c.y >= 1 and c.x < _pile.GRID_X - 1 and c.y < _pile.GRID_Z - 1:
+				n += _pile._cell_normal(c)
+	return n.normalized()
+
+
+## `part` lying on its widest side on a face with normal `n`, tipped up to `tilt` rad and turned
+## any way about the normal.
+func _lying(part: int, n: Vector3, tilt: float) -> Basis:
+	var s: Vector3 = _pile._part_size[part]
+	var thin := s.min_axis_index()
+	var lay := Basis()
+	if thin == 0:
+		lay = Basis(Vector3.BACK, PI * 0.5)
+	elif thin == 2:
+		lay = Basis(Vector3.RIGHT, PI * 0.5)
+	var tip := Basis(Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)).normalized(), _rng.randf() * tilt)
+	return Basis(Quaternion(Vector3.UP, n)) * tip * Basis(Vector3.UP, _rng.randf() * TAU) * lay
 
 
 func _body(part: int, t: Transform3D, n: Vector3) -> RigidBody3D:
@@ -170,7 +280,7 @@ func _body(part: int, t: Transform3D, n: Vector3) -> RigidBody3D:
 	body.gravity_scale = 0.0
 	body.constant_force = -n * 9.8 * body.mass  # down onto the face, whatever its slope
 	body.linear_damp = 0.3
-	body.angular_damp = 0.6
+	body.angular_damp = 0.8
 	body.physics_material_override = PhysicsMaterial.new()
 	body.physics_material_override.friction = 0.9
 	body.physics_material_override.bounce = 0.05
@@ -186,7 +296,7 @@ func _body(part: int, t: Transform3D, n: Vector3) -> RigidBody3D:
 	return body
 
 
-## A piece at rest stays as a bare static body the next chunks' pieces land on.
+## A piece at rest stays as a bare static body the next pieces land on.
 func _keep(body: RigidBody3D) -> void:
 	var part: int = body.get_meta("part")
 	var t := Transform3D(body.global_transform.basis.orthonormalized(), body.global_transform.origin)
@@ -203,16 +313,68 @@ func _keep(body: RigidBody3D) -> void:
 	_rid_piece[rid] = _part.size()
 	_part.append(part)
 	_xform.append(_to_world.affine_inverse() * t)  # kept in the heap's space
+	_rid.append(rid)
 
 
-## Pieces a ray from outside reaches: RAYS × RAYS rays a cell, straight in along the face's
-## normal and leaning four ways.
-func _seen() -> Dictionary:
+## Lets go of the bodies no ray from outside reaches, in `group`'s chunks and the ones round them
+## (their pieces spilled over the edges): more pieces only cover them further, so they never show,
+## and what lands later lands on the ones that do. Returns the bodies left.
+func _bury(group: Array) -> int:
+	var areas := group.map(func(c: Vector2i) -> Rect2i: return Rect2i(c, Vector2i.ONE * CHUNK).grow(CHUNK))
+	var seen := {}
+	for area: Rect2i in areas:
+		seen.merge(_seen(area.grow(REACH)))
+	for i in _part.size():
+		if not _rid[i].is_valid() or seen.has(i):
+			continue
+		var cell: Vector2i = _pile._cell_of(_xform[i].origin)
+		if not areas.any(func(a: Rect2i) -> bool: return a.has_point(cell)):
+			continue
+		_rid_piece.erase(_rid[i])
+		PhysicsServer3D.free_rid(_rid[i])
+		_rid[i] = RID()
+	return _rid_piece.size()
+
+
+## How much of the face shows bare between the pieces: the share of straight-in rays that reach
+## the heap's surface, overall and as a map (user://scrap_face_holes.png, a pixel a cell, white bare).
+func _holes() -> void:
+	var img := Image.create(_pile.GRID_X, _pile.GRID_Z, false, Image.FORMAT_L8)
+	var ray := PhysicsRayQueryParameters3D.new()
+	ray.collision_mask = 1 | LAYER
+	var rays := 0
+	var bare := 0
+	for j in range(1, _pile.GRID_Z - 1):
+		for i in range(1, _pile.GRID_X - 1):
+			if not _pile._face_cell(j * _pile.GRID_X + i):
+				continue
+			var cell := Vector2i(i, j)
+			var n: Vector3 = _pile._cell_normal(cell)
+			var miss := 0
+			for b in RAYS:
+				for a in RAYS:
+					var at: Vector3 = _pile._cell_pos(cell) + Vector3((a + 0.5) / RAYS - 0.5, 0.0, (b + 0.5) / RAYS - 0.5) * _pile.CELL
+					at.y = _pile._height_smooth(at)
+					ray.from = _to_world * (at + n * 3.0)
+					ray.to = _to_world * (at - n * 0.3)
+					var hit := _space.intersect_ray(ray)
+					if hit.is_empty() or not _rid_piece.has(hit.rid):
+						miss += 1
+			rays += RAYS * RAYS
+			bare += miss
+			img.set_pixel(i, j, Color.from_hsv(0, 0, float(miss) / (RAYS * RAYS)))
+	img.save_png("user://scrap_face_holes.png")
+	print("bare face: %.1f%% of straight-in rays" % (100.0 * bare / rays))
+
+
+## Pieces a ray from outside reaches over the cells in `area`, with how many rays reach each:
+## RAYS × RAYS rays a cell, straight in along the face's normal and leaning four ways.
+func _seen(area: Rect2i) -> Dictionary:
 	var seen := {}
 	var ray := PhysicsRayQueryParameters3D.new()
 	ray.collision_mask = LAYER
-	for j in range(1, _pile.GRID_Z - 1):
-		for i in range(1, _pile.GRID_X - 1):
+	for j in range(maxi(area.position.y, 1), mini(area.end.y, _pile.GRID_Z - 1)):
+		for i in range(maxi(area.position.x, 1), mini(area.end.x, _pile.GRID_X - 1)):
 			if not _pile._face_cell(j * _pile.GRID_X + i):
 				continue
 			var cell := Vector2i(i, j)
@@ -229,5 +391,5 @@ func _seen() -> Dictionary:
 						ray.to = _to_world * at - dir * 0.3
 						var hit := _space.intersect_ray(ray)
 						if not hit.is_empty() and _rid_piece.has(hit.rid):
-							seen[_rid_piece[hit.rid]] = true
+							seen[_rid_piece[hit.rid]] = seen.get(_rid_piece[hit.rid], 0) + 1
 	return seen
