@@ -46,6 +46,16 @@ const PARTS_FILE := "res://assets/props/hurda/hurda.json"
 ## many pieces the kind has): small metal most, crates few. Guns (tur "silah") stay out: they would read as weapons to pick up.
 const KIND_WEIGHT := {"disli": 1.0, "yay": 1.0, "civata": 1.0, "zincir": 0.8, "boru": 0.8, "sac": 0.7,
 	"alet": 0.7, "konserve": 0.6, "motor": 0.4, "elektronik": 0.3, "kap": 0.25, "jant": 0.22, "sandik": 0.1}
+## The face is real pieces dropped onto this heap and settled (tools/build_scrap_face.gd,
+## data/scrap_face.json), each 2 m stretch from one zone: steel and iron, brass and copper, or all
+## of it. Zones keep to wide stretches of the face, as sorted scrap does (the user's pictures, 2026-11-02).
+const ZONES := {
+	"celik": {"mats": ["celik", "dokme_demir", "demir"], "kinds": ["disli", "yay", "civata", "zincir", "sac", "alet", "boru", "motor"]},
+	"sari": {"mats": ["pirinc", "bakir"], "kinds": []},
+	"karisik": {"mats": [], "kinds": []}}
+const FACE_FILE := "res://data/scrap_face.json"  # the face settled for real (tools/build_scrap_face.gd)
+const ZONE_FREQ := 0.07       # wide stretches: a zone runs some 10 m along the face
+const ZONE_CUT := Vector2(-0.2, 0.25)  # noise under x: steel; over y: brass and copper; between: all of it
 ## Pieces left whole from a set (2026-11-02, the user: the stacked tyres look silly in the heap).
 const NOT_IN_HEAP := ["stacked_tire_01", "muddy_tire_01", "truck_wheel"]
 const MAX_SHARE := 0.015
@@ -91,6 +101,8 @@ const LOW_TRIS := 150         # surface pieces are drawn from a lighter copy of 
 ## Loose pieces on the floor round the foot, thinning out with distance.
 @export var spill_pieces := 700
 @export var spill_reach := 2.2  # m past the foot
+## False: only the heap's shape and collision, no pieces (tools/build_scrap_face.gd settles them).
+var with_pieces := true
 
 var _h := PackedFloat32Array()   # height per cell, row j = +z, column i = +x
 var _ceil := PackedFloat32Array()  # roof height per cell: the heap never reaches over it
@@ -115,6 +127,7 @@ var _digs := []                  # [cell: Vector2i, height-metres still to remov
 var _dig_w := PackedFloat64Array()
 var _noise := FastNoiseLite.new()
 # Parts: one entry per piece in hurda.json that goes into the heap.
+var _part_info: Array[Dictionary] = []  # its hurda.json row (id, materyal, tur...)
 var _part_mesh: Array[Mesh] = []
 var _part_size: Array[Vector3] = []
 var _part_mid: Array[Vector3] = []  # the mesh's box centre: pieces are placed and collide by it
@@ -144,7 +157,9 @@ const HEAP_ID_START := 1 << 32
 var _slot_rid: Array[RID] = []   # per slot: its static body (layer SCRAP_LAYER), empty while gone
 var _rid_slot := {}              # body -> slot
 var _slot_body_y := PackedFloat32Array()  # per slot: the surface height its body was last put at
-const BODY_STEP := 0.01          # m a slot drifts before its body follows (moving thousands costs)
+var _pad := PackedFloat32Array()  # per cell: how high its pieces rise over it (walkers' collision)
+const MAX_PAD := 0.6
+const BODY_STEP := 0.01         # m a slot drifts before its body follows (moving thousands costs)
 var _slot_born := PackedInt32Array()  # per slot: pieces born there so far
 var _slot_id := PackedInt64Array()    # per slot: the drawn piece's id, -1 while it is gone
 var _gone := {}                  # heap id -> [part, local transform] taken, until heap_piece_taken digs under it
@@ -222,6 +237,8 @@ func _ready() -> void:
 	_chunk_dirty.fill(1)
 	_drawn_h = _h.duplicate()
 	_update_shape()
+	if not with_pieces:
+		return
 
 	_build_surface()
 	_build_spill()
@@ -257,6 +274,7 @@ func _load_parts() -> void:
 		ResourceLoader.load_threaded_request(p.glb)
 	var weight := PackedFloat32Array()
 	for p: Dictionary in list:
+		_part_info.append(p)
 		var glb: Node = (ResourceLoader.load_threaded_get(p.glb) as PackedScene).instantiate()
 		var mi: MeshInstance3D = glb.find_children("*", "MeshInstance3D", true, false)[0]
 		var mesh: Mesh = mi.mesh
@@ -437,16 +455,54 @@ static func ceiling_at(x: float, z: float) -> float:
 	return EAVE + (HALF_SPAN - absf(x)) * PITCH - ROOF_GAP
 
 
-## Surface pieces: every cell of the face that shows gets pieces until their footprints cover it
-## `cover` times over (its true area: more where it's steep). Each lies on its widest side along
-## the slope, tumbled and sunk into the ones round it.
+## Surface pieces: the face as it was settled (data/scrap_face.json), or, without it, laid
+## pieces one by one. Each piece is a slot: its place over the surface, riding it.
 func _build_surface() -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 1
 	var per_part: Array[Array] = []  # plain Arrays while filling: packed arrays in an Array copy on access
 	for p in _part_mesh.size():
 		per_part.append([])
 	var cell_slots := {}  # cell index -> Array of [part, index]
+	var face: Variant = JSON.parse_string(FileAccess.get_file_as_string(FACE_FILE)) if FileAccess.file_exists(FACE_FILE) else null
+	if face is Dictionary and int(face.heights) == hash(_h):
+		_lay_settled(face.pieces, per_part, cell_slots)
+	else:
+		push_warning("data/scrap_face.json is missing or was settled on another heap shape: run tools/build_scrap_face.gd")
+		_lay_one_by_one(per_part, cell_slots)
+	_make_slots(per_part, cell_slots)
+
+
+func _face_cell(k: int) -> bool:
+	return _h[k] >= 0.03 and _h[k] <= _ceil[k] - 0.3  # not bare floor; pressed into the roof nobody sees it
+
+
+## The face as tools/build_scrap_face.gd settled it, piece by piece on this very heap: each one
+## where it came to rest, none inside another.
+func _lay_settled(pieces: Array, per_part: Array[Array], cell_slots: Dictionary) -> void:
+	var by_id := {}
+	for i in _part_info.size():
+		by_id[_part_info[i].id] = i
+	for e: Array in pieces:
+		if not by_id.has(e[0]):
+			continue
+		var part: int = by_id[e[0]]
+		var o := Vector3(e[1], e[2], e[3])
+		var cell := _cell_of(o)
+		if not _in_grid(cell):
+			continue
+		var k := cell.y * GRID_X + cell.x
+		var idx: int = per_part[part].size()
+		per_part[part].append(Transform3D(Basis(Quaternion(e[4], e[5], e[6], e[7])), o))
+		var list: Array = cell_slots.get(k, [])
+		list.append([part, idx])
+		cell_slots[k] = list
+
+
+## Without the settled face: every cell of the face that shows gets pieces until their footprints cover it
+## `cover` times over (its true area: more where it's steep). Each lies on its widest side along
+## the slope, tumbled and sunk into the ones round it.
+func _lay_one_by_one(per_part: Array[Array], cell_slots: Dictionary) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
 	for j in range(1, GRID_Z - 1):
 		for i in range(1, GRID_X - 1):
 			var cell := Vector2i(i, j)
@@ -480,6 +536,10 @@ func _build_surface() -> void:
 				var list: Array = cell_slots.get(k, [])
 				list.append([part, idx])
 				cell_slots[k] = list
+
+
+## The laid pieces as slots: a MultiMesh per part, slots in cell order, each with its body.
+func _make_slots(per_part: Array[Array], cell_slots: Dictionary) -> void:
 	for p in _part_mesh.size():
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -520,6 +580,18 @@ func _build_surface() -> void:
 	_mark(_redraw, Rect2i(0, 0, GRID_X, GRID_Z))
 	_update_surface_pieces(Rect2i(0, 0, GRID_X, GRID_Z))
 	_redraw.fill(Rect2i())
+	# Walkers stand on the pieces, not on the surface they lie on: each cell's collision is raised
+	# by how high its pieces rise over it, on average.
+	_pad.resize(GRID_X * GRID_Z)
+	for key in GRID_X * GRID_Z:
+		var sum := 0.0
+		for s in range(_cell_first[key], _cell_first[key + 1]):
+			sum += _slot_xform[s].origin.y
+		var n := _cell_first[key + 1] - _cell_first[key]
+		# No higher than the heap is thick there: at the foot it ramps up from the floor, no step.
+		_pad[key] = clampf(sum / n, 0.0, minf(MAX_PAD, _h[key])) if n > 0 else 0.0
+	_chunk_dirty.fill(1)
+	_update_shape()
 
 
 ## Loose pieces on the floor in front of the face: dense at the foot, thinning out. Laid flat,
@@ -1264,7 +1336,7 @@ func _loose_follow(key: int) -> void:
 		var half := _part_size[part][_part_size[part].min_axis_index()] * 0.5
 		if y > t.origin.y + half + BURY:  # covered over: what slid onto it shows its own pieces
 			_remove_loose(id)
-		elif y < t.origin.y - half - FALL:
+		elif _top(t.origin) < t.origin.y - half - FALL:  # what it lay on (the pieces over the surface too) is gone
 			_remove_loose(id)
 			while _debris.size() >= MAX_DEBRIS:
 				_settle(_debris.pop_front())
@@ -1323,7 +1395,8 @@ func _update_shape() -> void:
 				var x := x0 + i
 				if x >= GRID_X:
 					break
-				data[j * (CHUNK + 1) + i] = _h[z * GRID_X + x] / CELL
+				var k := z * GRID_X + x
+				data[j * (CHUNK + 1) + i] = (_h[k] + (_pad[k] if _h[k] > 0.03 and not _pad.is_empty() else 0.0)) / CELL
 		_shapes[c].map_data = data
 	_shape_dirty = false
 	_shape_timer = COLLISION_INTERVAL
@@ -1369,6 +1442,17 @@ func _in_grid(c: Vector2i) -> bool:
 ## things buried in it, like the crate keys.
 func surface_y(world: Vector3) -> float:
 	return global_position.y + _height_smooth(to_local(world))
+
+
+## Where things stand on the heap at `world`: the surface plus the pieces lying on it there.
+func walk_y(world: Vector3) -> float:
+	return global_position.y + _top(to_local(world))
+
+
+func _top(local: Vector3) -> float:
+	var y := _height_smooth(local)
+	var c := _cell_of(local)
+	return y + (_pad[c.y * GRID_X + c.x] if y > 0.03 and _in_grid(c) and not _pad.is_empty() else 0.0)
 
 
 func _height_at(local: Vector3) -> float:

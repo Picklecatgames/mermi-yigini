@@ -178,9 +178,9 @@ func _physics_process(delta: float) -> void:
 			GameState.KeyState.BURIED:
 				var top: float = _pile.surface_y(p)
 				if top <= p.y + 0.03:
-					GameState.request_reveal_key(rank, Vector3(p.x, top, p.z))
+					GameState.request_reveal_key(rank, Vector3(p.x, _pile.walk_y(p), p.z))
 			GameState.KeyState.EXPOSED:
-				_pos[rank] = Vector3(p.x, _pile.surface_y(p), p.z)  # rides the surface as it sinks
+				_pos[rank] = Vector3(p.x, _pile.walk_y(p), p.z)  # on the pieces, riding the heap as it sinks
 				for w: Node3D in get_tree().get_nodes_in_group("walker"):
 					if w.global_position.distance_to(_pos[rank]) < PICK_RADIUS:
 						GameState.request_take_key(rank)

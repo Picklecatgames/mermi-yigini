@@ -1,10 +1,6 @@
 [gd_resource type="ShaderMaterial" format=3]
 
 [ext_resource type="Shader" path="res://materials/scrap_heap.gdshader" id="1"]
-[ext_resource type="Texture2D" path="res://materials/scrap/scrap_carpet_col.res" id="2"]
-[ext_resource type="Texture2D" path="res://materials/scrap/scrap_carpet_nrm.res" id="3"]
 
 [resource]
 shader = ExtResource("1")
-shader_parameter/carpet_col = ExtResource("2")
-shader_parameter/carpet_nrm = ExtResource("3")

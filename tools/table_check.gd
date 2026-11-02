@@ -64,10 +64,14 @@ func _initialize() -> void:
 	await create_timer(3.0).timeout
 	Input.action_release("move_forward")
 	# The scrap heap (2026-11-01) is locked up to 61°: we go up its foot and stop at the face, on the
-	# scrap, never sunk into it.
-	var on: float = main.get_node("Pile").surface_y(me.global_position)
-	_ok(me.global_position.y > 0.3 and absf(me.global_position.y - on) < 0.3,
-		"walking into the heap goes up its foot and stands on the scrap (%.1f m up, the scrap %.1f m, %.1f m in)" % [me.global_position.y, on, 9.5 - (me.global_position.x - HEAP.x)])
+	# pieces round our feet (the capsule rests on the highest of them), never sunk into the heap.
+	var pile: Node = main.get_node("Pile")
+	var top := 0.0
+	for a in 8:
+		top = maxf(top, pile.walk_y(me.global_position + Vector3(0.4, 0, 0).rotated(Vector3.UP, a * PI / 4.0)))
+	var under: float = pile.surface_y(me.global_position)
+	_ok(me.global_position.y > 0.3 and me.global_position.y > under - 0.05 and me.global_position.y < top + 0.3,
+		"walking into the heap goes up its foot and stands on the scrap (%.1f m up, the scrap round us up to %.1f m, %.1f m in)" % [me.global_position.y, top, 9.5 - (me.global_position.x - HEAP.x)])
 	print("table_check ", "FAILED" if _fail else "OK")
 	quit(1 if _fail else 0)
 
