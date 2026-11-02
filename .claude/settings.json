@@ -6,8 +6,7 @@
       "Read(./**/*.fbx)",
       "Read(./**/*.blend)",
       "Read(./**/*.wav)",
-      "Read(./**/*.ogg)",
-      "Read(./**/*.import)"
+      "Read(./**/*.ogg)"
     ]
   },
   "hooks": {
