@@ -1,0 +1,167 @@
+{
+ "bitkiler/devrik_kutuk.gltf": {
+  "ucgen": 8000,
+  "kaynak_ucgen": 83128,
+  "carpisma": "convex",
+  "boyut_m": [
+   4.052,
+   1.057,
+   1.053
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/dead_tree_trunk_02, CC0"
+ },
+ "bitkiler/kuru_cali_a.gltf": {
+  "ucgen": 8000,
+  "kaynak_ucgen": 27519,
+  "carpisma": "none",
+  "boyut_m": [
+   0.697,
+   0.539,
+   0.843
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/wild_rooibos_bush, CC0"
+ },
+ "bitkiler/kuru_cali_b.gltf": {
+  "ucgen": 6287,
+  "kaynak_ucgen": 27519,
+  "carpisma": "none",
+  "boyut_m": [
+   0.524,
+   0.541,
+   0.475
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/wild_rooibos_bush, CC0"
+ },
+ "bitkiler/kuru_cali_c.gltf": {
+  "ucgen": 4204,
+  "kaynak_ucgen": 27519,
+  "carpisma": "none",
+  "boyut_m": [
+   0.425,
+   0.448,
+   0.472
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/wild_rooibos_bush, CC0"
+ },
+ "bitkiler/kuru_cali_d.gltf": {
+  "ucgen": 2684,
+  "kaynak_ucgen": 27519,
+  "carpisma": "none",
+  "boyut_m": [
+   0.327,
+   0.42,
+   0.384
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/wild_rooibos_bush, CC0"
+ },
+ "bitkiler/kuru_cali_e.gltf": {
+  "ucgen": 1193,
+  "kaynak_ucgen": 27519,
+  "carpisma": "none",
+  "boyut_m": [
+   0.278,
+   0.306,
+   0.166
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/wild_rooibos_bush, CC0"
+ },
+ "bitkiler/kuru_dal_a.gltf": {
+  "ucgen": 3000,
+  "kaynak_ucgen": 16803,
+  "carpisma": "none",
+  "boyut_m": [
+   0.323,
+   0.34,
+   1.297
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/dry_branches_medium_01, CC0"
+ },
+ "bitkiler/kuru_dal_b.gltf": {
+  "ucgen": 3000,
+  "kaynak_ucgen": 16803,
+  "carpisma": "none",
+  "boyut_m": [
+   0.151,
+   0.142,
+   1.039
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/dry_branches_medium_01, CC0"
+ },
+ "bitkiler/kuru_dal_c.gltf": {
+  "ucgen": 2999,
+  "kaynak_ucgen": 16803,
+  "carpisma": "none",
+  "boyut_m": [
+   0.129,
+   0.143,
+   0.777
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/dry_branches_medium_01, CC0"
+ },
+ "bitkiler/kutuk.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 41046,
+  "carpisma": "convex",
+  "boyut_m": [
+   1.425,
+   0.572,
+   1.591
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/tree_stump_01, CC0"
+ },
+ "bitkiler/olu_govde.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 17978,
+  "carpisma": "convex",
+  "boyut_m": [
+   0.306,
+   1.995,
+   0.267
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/dead_quiver_trunk, CC0"
+ },
+ "kayalar/kaya_buyuk.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 59066,
+  "carpisma": "convex",
+  "boyut_m": [
+   2.524,
+   1.903,
+   2.498
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_boulder_04, CC0"
+ },
+ "kayalar/kaya_kucuk.gltf": {
+  "ucgen": 3000,
+  "kaynak_ucgen": 89618,
+  "carpisma": "convex",
+  "boyut_m": [
+   1.364,
+   0.532,
+   0.741
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_boulder_05, CC0"
+ },
+ "kayalar/kaya_sivri.gltf": {
+  "ucgen": 4000,
+  "kaynak_ucgen": 14844,
+  "carpisma": "convex",
+  "boyut_m": [
+   0.843,
+   0.717,
+   1.6
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/rock_07, CC0"
+ },
+ "kayalar/kaya_yassi.gltf": {
+  "ucgen": 5000,
+  "kaynak_ucgen": 97964,
+  "carpisma": "convex",
+  "boyut_m": [
+   2.523,
+   0.88,
+   1.233
+  ],
+  "kaynak": "Poly Haven https://polyhaven.com/a/namaqualand_boulder_02, CC0"
+ }
+}
