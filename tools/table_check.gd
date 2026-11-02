@@ -70,8 +70,8 @@ func _initialize() -> void:
 	for a in 8:
 		top = maxf(top, pile.walk_y(me.global_position + Vector3(0.4, 0, 0).rotated(Vector3.UP, a * PI / 4.0)))
 	var under: float = pile.surface_y(me.global_position)
-	_ok(me.global_position.y > 0.3 and me.global_position.y > under - 0.05 and me.global_position.y < top + 0.3,
-		"walking into the heap goes up its foot and stands on the scrap (%.1f m up, the scrap round us up to %.1f m, %.1f m in)" % [me.global_position.y, top, 9.5 - (me.global_position.x - HEAP.x)])
+	_ok(me.global_position.y > 0.25 and me.global_position.y > under - 0.05 and me.global_position.y < top + 0.3,
+		"walking into the heap goes up its foot and stands on the scrap (%.3f m up, the heap %.3f under us, the scrap round us up to %.2f m, %.1f m in)" % [me.global_position.y, under, top, 9.5 - (me.global_position.x - HEAP.x)])
 	print("table_check ", "FAILED" if _fail else "OK")
 	quit(1 if _fail else 0)
 

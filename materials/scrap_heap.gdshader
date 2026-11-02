@@ -1,11 +1,14 @@
 shader_type spatial;
+render_mode unshaded;
 
-// The scrap heap's surface under its pieces (scripts/pile.gd). It is never meant to be seen: the
-// pieces lie on it several deep. Where a gap still shows it, it is plain deep shadow, no texture
-// (the user, 2026-11-02: only pieces, each its own).
+// The scrap heap's surface under its pieces (scripts/pile.gd). It must never be seen, only the
+// scrap (the user, 2026-11-02). Pieces lie on it several deep and tools/build_scrap_face.gd fills
+// the gaps; it is drawn sunk under where they lie and unlit, so what a last chink shows is the
+// deep shadow between pieces, never a lit smooth slope, and the thin skirt at the foot, where
+// pieces don't stay, sinks under the floor. Collision is the heap's real height, not this.
 
-// Rust-brown, not black: a gap between pieces reads as deep shadow in the scrap, not a hole.
-uniform vec3 shade = vec3(0.026, 0.017, 0.011);
+uniform vec3 shade = vec3(0.006, 0.0045, 0.0035);
+uniform float sink = 0.15;  // m under the heap's real height
 
 // Heap shape: height per cell, written by pile.gd as scrap is taken and slopes slide.
 uniform sampler2D height_field : filter_nearest;
@@ -23,15 +26,10 @@ float field(ivec2 c) {
 void vertex() {
 	// The plane's vertices sit on cell centres.
 	ivec2 c = ivec2(round(VERTEX.xz / cell_size + vec2(grid - 1) * 0.5));
-	float h = field(c);
-	VERTEX.y = h > 0.004 ? h : -0.05;  // empty cells tuck under the floor
-	NORMAL = normalize(vec3(field(c - ivec2(1, 0)) - field(c + ivec2(1, 0)), 2.0 * cell_size,
-			field(c - ivec2(0, 1)) - field(c + ivec2(0, 1))));
+	float h = field(c) - sink;
+	VERTEX.y = h > 0.004 ? h : -0.05;  // thin and empty cells tuck under the floor
 }
 
 void fragment() {
 	ALBEDO = shade;
-	ROUGHNESS = 1.0;
-	SPECULAR = 0.0;
-	AO = 0.0;
 }
