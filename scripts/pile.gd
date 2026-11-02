@@ -42,15 +42,33 @@ const REDRAW_STEP := 0.002    # m a cell drifts before the pieces on it are move
 ## The pieces: the prepared scrap (id, glb, tur, kutle_kg, boyut_m...; each glb a mesh with its
 ## base at y = 0 and one convex collision).
 const PARTS_FILE := "res://assets/props/hurda/hurda.json"
-## How often each kind of piece turns up in the heap, by hurda.json "tur" (times the root of how
-## many pieces the kind has): small metal most, crates few. Guns (tur "silah") stay out: they would read as weapons to pick up.
-const KIND_WEIGHT := {"disli": 1.0, "yay": 1.0, "civata": 1.0, "zincir": 0.8, "boru": 0.8, "sac": 0.7,
-	"alet": 0.7, "konserve": 0.6, "motor": 0.4, "elektronik": 0.3, "kap": 0.25, "jant": 0.22, "sandik": 0.1}
+## Only these kinds go into the heap (2026-11-02, the user's list: gears, heavy springs, nuts, bolts,
+## pipes and valves, metal rims, aerials, car mirrors, chain, corkscrews, coins, rusty knives,
+## scissors, metal buckets; tins, drink cans, metal bottles, flasks, thermoses, spoons, forks, metal
+## plates; old motherboards, old phones, modems, broken alarm clocks), by hurda.json "tur", with how
+## often each turns up (times the root of how many pieces the kind has). Any other kind stays out
+## (guns, sheet, tools, crates, motor parts...).
+const KIND_WEIGHT := {"disli": 1.0, "yay": 1.0, "civata": 1.0, "boru": 0.9, "zincir": 0.6, "konserve": 0.8,
+	"kola": 0.6, "sise": 0.4, "mutfak": 0.6, "elektronik": 0.4, "jant": 0.3, "kap": 0.3, "anten": 0.3,
+	"ayna": 0.2, "bicak": 0.4, "para": 0.5}
 ## The face is real pieces dropped onto this heap and settled, big ones under, small ones in the
 ## gaps (tools/build_scrap_face.gd picks them; data/scrap_face.json).
 const FACE_FILE := "res://data/scrap_face.json"
-## Pieces left whole from a set (2026-11-02, the user: the stacked tyres look silly in the heap).
-const NOT_IN_HEAP := ["stacked_tire_01", "muddy_tire_01", "truck_wheel"]
+## Pieces of those kinds that are not on the user's list, and ones left whole from a set (the
+## stacked tyres looked silly in the heap).
+const NOT_IN_HEAP := [
+	"saw_blade",  # disli
+	"pressure_gauge", "old_faucet",  # boru: a gauge and a tap, not a valve
+	"metal_paint_can", "paint_can_01", "paint_can_02", "paint_can_03", "motor_oil_tin", "oil_tin", "cleaner_tin_01",
+	"spray_paint_bottles_02_a", "spray_paint_bottles_02_dented", "small_oil_can_01", "russian_food_cans_01_salt_box",  # konserve: paint, oil, a salt box
+	"dirty_tire_01", "dirty_tire_02", "dirty_tire_03", "dirty_tire_04", "old_tyre", "junk_scrap_06", "stacked_tire_01", "muddy_tire_01", "truck_wheel",  # jant: tyres
+	"rusted_wheel_rim_01", "rusted_wheel_rim_02",  # jant: metal, but drawn small they read as black tyres
+	"gate_latch_01", "horse_shoe", "old_key", "old_padlock",  # zincir
+	"jerry_can_01", "jerry_can_02", "jerry_can_03", "jerry_can_04", "metal_jerrycan", "metal_jerrycan_green", "metal_jug",
+	"small_lpg_tank", "soviet_fuel_canister", "watering_can_metal_01",  # kap: all but the bucket
+	"retro_multimeter", "vintage_flashlight", "boombox"]  # elektronik
+## Kinds known to stay out, quietly: anything else not in KIND_WEIGHT is warned about.
+const OUT_KINDS := ["silah", "sac", "alet", "motor", "sandik"]
 const MAX_SHARE := 0.015
 ## Each copy of a model a little darker or more rust-brown than the next, so repeats don't match;
 ## only a little, or neighbours flicker light and dark and the face reads as noise.
@@ -259,6 +277,8 @@ func _ready() -> void:
 func _load_parts() -> void:
 	var list: Array = []
 	for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(PARTS_FILE)):
+		if not KIND_WEIGHT.has(p.tur) and p.tur not in OUT_KINDS:
+			push_warning("hurda.json: %s has kind '%s', not one the heap takes (Pile.KIND_WEIGHT)" % [p.id, p.tur])
 		if KIND_WEIGHT.has(p.tur) and p.id not in NOT_IN_HEAP:
 			p.glb = PARTS_FILE.get_base_dir().path_join(p.glb.get_file())
 			list.append(p)

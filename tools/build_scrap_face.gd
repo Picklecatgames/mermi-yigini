@@ -3,14 +3,14 @@ extends SceneTree
 ## then over it, CHUNK cells at a time, drops real pieces and lets them come to rest. Gravity
 ## pulls each chunk's pieces onto the face along its normal, so they lie on a 61° face as on the
 ## floor; pieces settled before are solid, so nothing ends up inside anything else.
-## Each chunk is laid as a scrap heap builds up: the big flat and long pieces first (sheet, pipe,
-## rims, crates), then the hand-sized ones over them, last the small ones that run into the gaps.
+## Each chunk is laid in layers (LAYERS): hand-sized pieces fill, the longer ones lie over them, the
+## small ones run into the gaps last.
 ## Pieces lie down flat-ish onto the face, as dumped scrap does, not on end. The mix shifts slowly
 ## along the face (brass and copper thicker in places), with no edges between stretches.
 ## Chunks two apart settle at once. As soon as a group is down, rays from outside find its pieces
-## that show; the buried ones leave the physics server (it holds 65 536 bodies: before, the
-## later half of the chunks found no room and stayed bare). Only the pieces that show at the end
-## are written, to data/scrap_face.json:
+## that show; the buried ones leave the physics server (it holds only so many bodies, project
+## setting jolt_physics_3d/limits/max_bodies: past it later chunks find no room and stay bare).
+## Only the pieces that show at the end are written, to data/scrap_face.json:
 ##   {"heights": hash of the heap's starting heights, "pieces": [[id, x, lift, z, qx, qy, qz, qw], ...]}
 ## x, z in the heap's own space, lift over its surface there, at each piece's box centre.
 ##   Godot.exe --headless --path . --fixed-fps 60 -s res://tools/build_scrap_face.gd
@@ -19,35 +19,32 @@ const CHUNK := 8          # cells (2 m) a chunk
 const BATCH := 60         # pieces per drop into a chunk
 const DROP_FRAMES := 20
 const SETTLE_FRAMES := 180
-const GROUP := 10         # chunks settling at once
+const GROUP := 6          # chunks settling at once
 const LAYER := 1 << 6     # physics layer of the settling pieces
 const RAYS := 4           # per cell side
 const REACH := 4          # cells round a group its rays come from (a leaning ray travels ~1 m sideways)
-const MIN_HITS := 2       # rays a piece must catch to be kept: a sliver in a gap costs a whole piece to draw
+const MIN_HITS := 3       # rays a piece must catch to be kept: a sliver in a gap costs a whole piece to draw
 const OUT := "res://data/scrap_face.json"
 ## The layers, bottom up: which pieces (by their longest side, m), how many times their footprints
 ## cover the chunk's true area, how far they may tip off lying flat (rad), and how much of each
-## kind (by area covered, not by count). The hand-sized pieces fill, the big sheets, pipes and
-## rims lie over them and show most, the small ones are a sprinkling in the gaps: a face of
-## many same-sized small pieces reads as noise.
+## kind (by area covered, not by count; a kind the heap takes but not named here gets 1). The
+## hand-sized pieces fill, the longer pipes, valve wheels, rims and chain lie over them, nuts and
+## bolts run into the gaps. Which kinds there are at all is the heap's (Pile.KIND_WEIGHT).
 const LAYERS := [
-	{"size": Vector2(0.15, 0.4), "cover": 1.8, "tilt": 0.5,
-		"kinds": {"boru": 2.2, "disli": 1.5, "sac": 1.3, "alet": 0.7, "zincir": 1.0, "motor": 1.0, "konserve": 0.6, "yay": 0.45,
-			"jant": 0.6, "kap": 0.3, "sandik": 0.2, "elektronik": 0.2}},
-	{"size": Vector2(0.4, 9.0), "cover": 1.8, "tilt": 0.3,
-		"kinds": {"sac": 3.0, "boru": 2.4, "jant": 1.0, "kap": 0.6, "alet": 0.25, "zincir": 0.6, "sandik": 0.4, "disli": 0.5, "elektronik": 0.1}},
-	{"size": Vector2(0.0, 0.15), "cover": 0.1, "tilt": 0.8,
-		"kinds": {"disli": 2.0, "civata": 1.5, "boru": 1.5, "zincir": 1.0, "yay": 0.6, "motor": 0.8, "konserve": 0.5, "alet": 0.5}},
+	{"size": Vector2(0.12, 0.35), "cover": 3.0, "tilt": 0.5,
+		"kinds": {"disli": 2.0, "boru": 1.1, "konserve": 1.5, "kola": 1.0, "zincir": 0.8, "yay": 0.8, "jant": 0.6, "kap": 0.4}},
+	{"size": Vector2(0.35, 9.0), "cover": 0.5, "tilt": 0.3,
+		"kinds": {"boru": 2.0, "jant": 1.5, "zincir": 1.2}},
+	{"size": Vector2(0.0, 0.12), "cover": 0.4, "tilt": 0.8,
+		"kinds": {"civata": 2.5, "boru": 0.7, "disli": 1.0, "konserve": 0.6}},
 ]
-## Not on the face: card and plastic read as rubbish, not scrap metal; tyres, brought down to the
-## face's light copies, come out square.
-const OFF_FACE := ["karton", "plastik", "kaucuk"]
 ## A kind with few models in a layer gets less of its share, or its one model repeats all over the
 ## face (a single motor was every tenth piece): full share from this many models.
 const KIND_MODELS := 4.0
 ## A model heavier than this (triangles in the face's light copy) turns up that much less often:
-## the face draws ~40 000 pieces, and some light copies keep 1 500 triangles.
-const TRIS_EASY := 400.0
+## the face draws ~30 000 pieces, and some light copies keep 1 500-2 000 triangles (the simplifier
+## stops at UV seams).
+const TRIS_EASY := 250.0
 const BRASS := ["pirinc", "bakir"]
 const BRASS_FREQ := 0.06    # the brass-and-copper share drifts over some 15 m of face
 const BRASS_RANGE := Vector2(0.25, 2.5)  # times its plain weight, where the drift is lowest and highest
@@ -98,6 +95,8 @@ func _initialize() -> void:
 			var group := batch.slice(g, g + GROUP)
 			await _settle(group)
 			var bodies := _bury(group)
+			if bodies > int(ProjectSettings.get_setting("physics/jolt_physics_3d/limits/max_bodies")) * 0.9:
+				push_warning("%d bodies: near the physics server's limit, the next chunks may stay bare" % bodies)
 			done += group.size()
 			print("%d / %d chunks, %d pieces, %d bodies (%d s)" % [done, chunks.size(), _part.size(), bodies, (Time.get_ticks_msec() - t0) / 1000])
 	var seen := _seen(Rect2i(0, 0, _pile.GRID_X, _pile.GRID_Z))
@@ -148,14 +147,14 @@ func _sort_parts() -> void:
 			var longest := s[s.max_axis_index()]
 			if longest < _pile.SURFACE_MIN or longest < layer.size.x or longest >= layer.size.y:
 				continue
-			if info.materyal in OFF_FACE or not layer.kinds.has(info.tur):
+			if layer.kinds.get(info.tur, 1.0) <= 0.0:
 				continue
 			by_kind[info.tur] = by_kind.get(info.tur, []) + [i]
 			foot[info.tur] = foot.get(info.tur, 0.0) + _pile._part_foot[i]
 		var share := {}
 		for kind: String in by_kind:
 			foot[kind] /= by_kind[kind].size()
-			share[kind] = layer.kinds[kind] / foot[kind] * minf(1.0, by_kind[kind].size() / KIND_MODELS)
+			share[kind] = layer.kinds.get(kind, 1.0) / foot[kind] * minf(1.0, by_kind[kind].size() / KIND_MODELS)
 		_layer_parts.append(by_kind)
 		_layer_kind_foot.append(foot)
 		_layer_kind_share.append(share)
@@ -316,16 +315,18 @@ func _keep(body: RigidBody3D) -> void:
 	_rid.append(rid)
 
 
-## Lets go of the bodies no ray from outside reaches, in `group`'s chunks and the ones round them
+## Lets go of the bodies fewer than MIN_HITS rays from outside reach, in `group`'s chunks and the ones round them
 ## (their pieces spilled over the edges): more pieces only cover them further, so they never show,
 ## and what lands later lands on the ones that do. Returns the bodies left.
 func _bury(group: Array) -> int:
 	var areas := group.map(func(c: Vector2i) -> Rect2i: return Rect2i(c, Vector2i.ONE * CHUNK).grow(CHUNK))
 	var seen := {}
 	for area: Rect2i in areas:
-		seen.merge(_seen(area.grow(REACH)))
+		var more := _seen(area.grow(REACH))
+		for i: int in more:
+			seen[i] = maxi(seen.get(i, 0), more[i])
 	for i in _part.size():
-		if not _rid[i].is_valid() or seen.has(i):
+		if not _rid[i].is_valid() or seen.get(i, 0) >= MIN_HITS:
 			continue
 		var cell: Vector2i = _pile._cell_of(_xform[i].origin)
 		if not areas.any(func(a: Rect2i) -> bool: return a.has_point(cell)):

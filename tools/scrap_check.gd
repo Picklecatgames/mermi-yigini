@@ -106,8 +106,9 @@ func _initialize() -> void:
 ## dig the heap away under one and it falls, still there to pick up.
 func _pieces(gs: Node, pile: Node3D) -> void:
 	# Looking down onto the face a little way up it, toward the north wall: away from where the
-	# rest of this check digs. A few percent of the face shows between its pieces, so 25 rays over
-	# a metre: nearly all hit a piece, and the first that does goes on.
+	# rest of this check digs. Some of the face shows between its pieces (~13% with only small
+	# pieces, tools/build_scrap_face.gd prints it), so 25 rays over a metre: most hit a piece, and
+	# the first that does goes on.
 	var space := pile.get_world_3d().direct_space_state
 	var hit := {}
 	var on_piece := 0
@@ -120,7 +121,7 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 			on_piece += 1
 			if hit.is_empty():
 				hit = h
-	assert(on_piece >= 20, "aimed at the heap, a piece is hit, not the heap under it (%d of 25)" % on_piece)
+	assert(on_piece >= 17, "aimed at the heap, a piece is hit, not the heap under it (%d of 25)" % on_piece)
 	var s: int = pile._rid_slot[hit.rid]
 	assert(pile.is_grabbable(hit.collider, hit.rid, hit.position) and pile.loose_id(hit.collider, hit.rid) == pile._slot_id[s], "that piece is the one taken")
 	pile.highlight(hit.position, true, hit.rid)
