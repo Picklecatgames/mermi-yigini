@@ -1,0 +1,14 @@
+{
+	"_": "The one palette every low poly asset snaps to (tools/lowpoly.py, tools/lowpoly_zombie.gd), sRGB. Post-apocalyptic desert: greys, wood, rust, olive, sand, brass, steel blue, skin, blood.",
+	"colours": [
+		"1d1d1f", "3a3a3c", "5c5b58", "85837d", "b3b0a8", "dedad0", "f1ece0",
+		"3b2a1e", "5a3e2b", "7a5638", "a07650", "c49a6c",
+		"5e2418", "8a3a22", "b5532c", "d4773f",
+		"2f3a24", "4a5a32", "6b7a45", "93a063",
+		"a8956a", "c8b48a", "e3d4ad",
+		"8f6f2a", "c49b3a", "e3c35a",
+		"2d3e4a", "4c6577", "7d97a8",
+		"7f4f3c", "b07a5e", "d9a98a",
+		"6e1414", "a12525"
+	]
+}

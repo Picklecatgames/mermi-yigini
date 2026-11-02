@@ -614,13 +614,13 @@ func _workshop_inside() -> void:
 	root.name = "Bench"
 	add(root)
 	var yaw := PI / 2.0  # the bench's front (+z in its glb) to the yard
-	var bench: StaticBody3D = _prop(root, "res://assets/props/workbench/workbench.glb", BENCH_AT, yaw, BENCH_SCALE)
+	var bench: StaticBody3D = _prop(root, "res://assets/lowpoly/workbench.glb", BENCH_AT, yaw, BENCH_SCALE)
 	bench.set_script(preload("res://scripts/bench_top.gd"))
-	var press: StaticBody3D = _prop(bench, "res://assets/props/press/press.glb", Vector3(0.8, 0.779, -0.11), 0.0)
+	var press: StaticBody3D = _prop(bench, "res://assets/lowpoly/press.glb", Vector3(0.8, 0.779, -0.11), 0.0)
 	press.name = "Press"
 	press.set_script(preload("res://scripts/press.gd"))
 	# The hopper on the bench's right, as in the hall (range_dressing.gd _workshop): 2.06 m along its x.
-	var hopper: StaticBody3D = _prop(root, "res://assets/props/workbench/hopper.glb", BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(2.064, 0, 0.25), yaw)
+	var hopper: StaticBody3D = _prop(root, "res://assets/lowpoly/hopper.glb", BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(2.064, 0, 0.25), yaw)
 	hopper.set_script(preload("res://scripts/hopper.gd"))
 	_bench_radio(bench)
 	_bench_lamp(BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(-0.108, 2.8, -0.45))
@@ -693,7 +693,7 @@ func _cage_lamp(parent: Node, at: Vector3) -> void:
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly
 ## (docs/ayrintilar.md "Radyo"); as range_dressing.gd _radio, in the bench's own frame.
 func _bench_radio(bench: Node3D) -> void:
-	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/props/radio/radio.glb",
+	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/lowpoly/radio.glb",
 		bench.transform * Vector3(-0.38, 1.293, -0.275), bench.rotation.y + 0.45, 1.1)
 	var list := AudioStreamPlaylist.new()
 	list.loop = true
@@ -716,7 +716,7 @@ func _bench_radio(bench: Node3D) -> void:
 
 ## The wall lamp over the bench, its arm out from the back wall (range_dressing.gd _wall_lamp).
 func _bench_lamp(at: Vector3) -> void:
-	var lamp: StaticBody3D = _prop(arena.get_node("Bench"), "res://assets/props/wall_lamp/wall_lamp.glb", at, PI / 2.0)
+	var lamp: StaticBody3D = _prop(arena.get_node("Bench"), "res://assets/lowpoly/wall_lamp.glb", at, PI / 2.0)
 	var bulb_at := Vector3(0.0, -0.111, 0.752)  # build_wall_lamp.py prints this
 	var spot := SpotLight3D.new()
 	spot.position = bulb_at + Vector3(0, -0.05, 0)

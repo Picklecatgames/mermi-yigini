@@ -28,7 +28,7 @@ Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğ
 
 ## Asetler
 
-- Gerçekçi PBR; hurdalık için paslı, hafif karikatürize asetler de olur. Kaynak ve lisans listesi `docs/ayrintilar.md` → "Kullanılan asetler"; yeni aset oraya yazılır.
+- Low poly (2026-11-02, kullanıcı kararı; PS3 tarzı değil). Düz renkli "mobil" görünüm istenmiyor, gore ve gerçekçi korkuya yakın olmalı; PS1 korku tarzı 3 zombide deneniyor. Ayrıntı `docs/ayrintilar.md` → "Low poly" ve "PS1 korku denemesi". Kaynak ve lisans listesi `docs/ayrintilar.md` → "Kullanılan asetler"; yeni aset oraya yazılır.
 - CC0 tercih; CC-BY ise jenerikte isim. NC, ND, "personal use only", yalnız Unreal ve Lyra kaynaklı asetler alınmaz. Gerçek marka isimleri ve logolar yok.
 
 ## Araçlar

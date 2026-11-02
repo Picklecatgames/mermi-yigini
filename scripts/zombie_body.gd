@@ -21,11 +21,11 @@ const FLESH := preload("res://materials/env/gore/flesh.tres")
 const STUMP := preload("res://materials/env/gore/meat_1.res")
 const LIB := preload("res://assets/characters/zombies/zombie_anims.res")
 const MODELS := {
-	&"prisoner": preload("res://assets/characters/zombies/prisoner/prisoner.scn"),
-	&"copzombie": preload("res://assets/characters/zombies/copzombie/copzombie.scn"),
+	&"prisoner": preload("res://assets/characters/zombies/prisoner/prisoner_psx.scn"),  # PS1 horror (tools/lowpoly_zombie.gd psx)
+	&"copzombie": preload("res://assets/characters/zombies/copzombie/copzombie_psx.scn"),  # PS1 horror (tools/lowpoly_zombie.gd psx)
 	&"parasite": preload("res://assets/characters/zombies/parasite/parasite.scn"),
 	&"warzombie": preload("res://assets/characters/zombies/warzombie/warzombie.scn"),
-	&"zombiegirl": preload("res://assets/characters/zombies/zombiegirl/zombiegirl.scn"),
+	&"zombiegirl": preload("res://assets/characters/zombies/zombiegirl/zombiegirl_psx.scn"),  # PS1 horror (tools/lowpoly_zombie.gd psx)
 	&"yaku": preload("res://assets/characters/zombies/yaku/yaku.scn"),
 	&"romero": preload("res://assets/characters/zombies/romero/romero.scn"),
 	&"skeletonzombie": preload("res://assets/characters/zombies/skeletonzombie/skeletonzombie.scn"),
