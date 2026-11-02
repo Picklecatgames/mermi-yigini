@@ -8,8 +8,8 @@ extends SceneTree
 ## first); name shots after `--` to take only those.
 
 const SHOTS := {
-	"ws_front": [Vector3(22.0, 1.7, 6.0), Vector3(6.0, 1.5, -1.0)],  # build_world.gd: the workshop from the yard
-	"ws_in": [Vector3(11.0, 1.7, -6.5), Vector3(2.5, 1.2, 2.0)],
+	"ws_front": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],  # build_world.gd: the workshop from the yard
+	"ws_in": [Vector3(8.6, 1.7, -3.6), Vector3(2.5, 1.1, 1.5)],
 	"ws_wide": [Vector3(34.0, 6.0, 22.0), Vector3(4.0, 1.0, -2.0)],
 	"desert": [Vector3(18.0, 1.7, 4.0), Vector3(80.0, 2.0, 40.0)],
 	"desert_back": [Vector3(10.0, 2.5, 18.0), Vector3(-80.0, 4.0, 50.0)],

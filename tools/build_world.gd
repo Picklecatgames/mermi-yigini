@@ -16,16 +16,16 @@ const EDGE_RISE := 26.0  # m the dunes climb to at the world's edge: the players
 const EDGE_REACH := 45.0  # m in from the edge over which they climb
 
 ## The workshop: back wall on x = WS.position.x, open towards +x (the yard, the spawns).
-const WS := Rect2(2.0, -9.0, 10.0, 18.0)
-const WS_BACK_H := 4.6  # m, the roof over the back wall
-const WS_FRONT_H := 3.8  # m, its front edge: the lean-to drains forwards
-const WS_POSTS: Array[float] = [-9.0, -4.5, 0.0, 4.5, 9.0]  # z of each post line, front and back
-const WS_SIDE_WALL := 5.0  # m of sheeting down each side from the back; the front half open
-const BENCH_AT := Vector3(2.6, 0, -3.0)  # the crew's bench, its back on the back wall
+const WS := Rect2(2.0, -4.5, 7.0, 9.0)  # 2026-11-02, the user: half as long, compact like a van
+const WS_BACK_H := 3.4  # m, the roof over the back wall
+const WS_FRONT_H := 2.9  # m, its front edge: the lean-to drains forwards
+const WS_POSTS: Array[float] = [-4.5, 0.0, 4.5]  # z of each post line, front and back
+const WS_SIDE_WALL := 3.5  # m of sheeting down each side from the back; the front half open
+const BENCH_AT := Vector3(2.6, 0, 1.2)  # the crew's bench, its back on the back wall
 const BENCH_SCALE := 1.2  # as it stood in the hall (range_dressing.gd _workshop)
-const DESK_AT := Vector3(9.6, 0, 0.0)  # the pistol's desk, right in front of the spawns
+const DESK_AT := Vector3(7.9, 0, 0.0)  # the pistol's desk, right in front of the spawns
 
-const SPAWNS_WORLD: Array[Vector3] = [Vector3(11.0, 0, -0.8), Vector3(11.0, 0, 0.8), Vector3(11.0, 0, -2.4), Vector3(11.0, 0, 2.4)]
+const SPAWNS_WORLD: Array[Vector3] = [Vector3(9.3, 0, -0.8), Vector3(9.3, 0, 0.8), Vector3(9.3, 0, -2.4), Vector3(9.3, 0, 2.4)]
 const SUN_ANGLE := Vector3(-48.0, -125.0, 0.0)  # deg: afternoon, from behind the workshop's left
 
 
@@ -311,28 +311,27 @@ func _workshop_inside() -> void:
 	desk.name = "GunTable"
 	desk.set_script(preload("res://scripts/gun_table.gd"))
 	# Along the walls.
-	_prop(root, MODELS + "steel_frame_shelves_01/steel_frame_shelves_01_1k.gltf", Vector3(2.45, 0, 3.0), PI / 2.0, 0.1)  # the scan is 10x too big
-	_prop(root, MODELS + "steel_frame_shelves_01/steel_frame_shelves_01_1k.gltf", Vector3(2.45, 0, 4.2), PI / 2.0, 0.1)
-	_prop(root, MODELS + "metal_tool_chest/metal_tool_chest_1k.gltf", Vector3(3.2, 0, -8.4), 0.0)
-	_prop(root, MODELS + "tool_cart/tool_cart_1k.gltf", Vector3(4.6, 0, -1.2), 0.4)
-	_prop(root, MODELS + "portable_generator/portable_generator_1k.gltf", Vector3(5.6, 0, 8.3), 0.2)
-	_prop(root, MODELS + "metal_jerrycan/metal_jerrycan_1k.gltf", Vector3(6.4, 0, 8.5), 0.5)
-	_prop(root, MODELS + "wooden_military_crate/wooden_military_crate_1k.gltf", Vector3(2.8, 0, 7.9), 0.1)
-	_prop(root, MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf", Vector3(2.8, 0.465, 7.95), 0.25)
-	_prop(root, MODELS + "small_lpg_tank/small_lpg_tank_1k.gltf", Vector3(2.5, 0, -6.2), 0.0)
-	# Light under the roof: three old pendants (ambience.gd hums near the "Lamps").
+	_prop(root, MODELS + "steel_frame_shelves_01/steel_frame_shelves_01_1k.gltf", Vector3(2.45, 0, 3.9), PI / 2.0, 0.1)  # the scan is 10x too big
+	_prop(root, MODELS + "metal_tool_chest/metal_tool_chest_1k.gltf", Vector3(3.0, 0, -4.0), 0.0)
+	_prop(root, MODELS + "tool_cart/tool_cart_1k.gltf", Vector3(4.6, 0, -2.9), 0.4)
+	_prop(root, MODELS + "portable_generator/portable_generator_1k.gltf", Vector3(5.4, 0, 4.0), 0.2)
+	_prop(root, MODELS + "metal_jerrycan/metal_jerrycan_1k.gltf", Vector3(6.2, 0, 4.1), 0.5)
+	_prop(root, MODELS + "wooden_military_crate/wooden_military_crate_1k.gltf", Vector3(10.8, 0, 5.2), 0.1)
+	_prop(root, MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf", Vector3(10.8, 0.465, 5.25), 0.25)
+	_prop(root, MODELS + "small_lpg_tank/small_lpg_tank_1k.gltf", Vector3(2.5, 0, -3.1), 0.0)
+	# Light under the roof: two old pendants (ambience.gd hums near the "Lamps").
 	var lamps := Node3D.new()
 	lamps.name = "Lamps"
 	add(lamps)
-	for z: float in [-5.0, 0.0, 5.0]:
-		var top := Vector3(6.0, 3.1, z)
-		var lamp := pendant(top, WS_BACK_H + (6.0 - WS.position.x) / WS.size.x * (WS_FRONT_H - WS_BACK_H) - 0.1, Color(1.0, 0.78, 0.5), 2.2, 60.0)
+	for z: float in [-2.2, 2.2]:
+		var top := Vector3(5.2, 2.35, z)
+		var lamp := pendant(top, WS_BACK_H + (5.2 - WS.position.x) / WS.size.x * (WS_FRONT_H - WS_BACK_H) - 0.1, Color(1.0, 0.78, 0.5), 2.2, 60.0)
 		arena.remove_child(lamp)
 		lamp.owner = null
 		lamps.add_child(lamp)
 		_own(lamp)
 	# A fire in the burn barrel in front of the workshop, where the crew stands at night.
-	var stove: StaticBody3D = _prop(root, "res://assets/props/burn_barrel/burn_barrel.glb", Vector3(14.2, 0, -7.0), 0.4)
+	var stove: StaticBody3D = _prop(root, "res://assets/props/burn_barrel/burn_barrel.glb", Vector3(12.0, 0, -4.2), 0.4)
 	var burning := Node3D.new()
 	burning.name = "BarrelFire"
 	burning.set_script(preload("res://scripts/barrel_fire.gd"))
@@ -341,7 +340,7 @@ func _workshop_inside() -> void:
 	burning.set("bed", 0.545)
 	burning.set("logs", false)
 	add(burning, stove)
-	_prop(root, MODELS + "old_tyre/old_tyre_1k.gltf", Vector3(15.3, 0.12, -6.2), 0.0, 1.0, Basis(Vector3.RIGHT, PI / 2.0))
+	_prop(root, MODELS + "old_tyre/old_tyre_1k.gltf", Vector3(13.0, 0.12, -3.5), 0.0, 1.0, Basis(Vector3.RIGHT, PI / 2.0))
 
 
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly
