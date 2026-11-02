@@ -14,6 +14,7 @@ extends SceneTree
 
 const PORT := 24733  # not Net.PORT nor another check's
 const LOG := "user://down_check_client.log"
+const ENGINE_LOG := "user://down_check_client_engine.log"  # the client's engine output: script errors, a crash
 const SEEN := "user://down_check_seen.json"
 const FROM := Vector3(14.5, 1.2, 0.0)  # a zombie over the railing
 
@@ -23,6 +24,7 @@ var main: Node
 var me: CharacterBody3D
 var view: Control
 var _log: Array[String] = []
+var _client_pid := 0  # host: the client's process, till it has gone and passed
 var _all_down := 0
 
 
@@ -111,10 +113,8 @@ func _online() -> void:
 	_all_down = 0  # the solo one
 	if net.host(PORT) != OK:
 		return _fail("could not host on %d" % PORT)
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SEEN))
-	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
-		ProjectSettings.globalize_path("res://"), "-s", "res://tools/down_check.gd", "--", "--client"])
+	_client_pid = _start_client("res://tools/down_check.gd")
 	if not await _until(func() -> bool: return gs.multiplayer.get_peers().size() == 1, "the client", 60.0): return
 	var c: int = gs.multiplayer.get_peers()[0]
 	if not await _until(func() -> bool: return gs.player(c).has_pose and gs.player(c).character != "", "the client's body"): return
@@ -179,15 +179,14 @@ func _online() -> void:
 	await process_frame
 	if not _ok(not gs.is_down() and not gs.is_down(c) and gs.player(c).hp == gs.HP_MAX, "both up again, whole"): return
 	var t0 := Time.get_ticks_msec()
-	while OS.is_process_running(pid):
+	while OS.is_process_running(_client_pid):
 		if Time.get_ticks_msec() - t0 > 120_000:
-			OS.kill(pid)
-			print(FileAccess.get_file_as_string(LOG))
-			return _fail("client timed out")
+			return _fail("client timed out")  # its log's last line is the last check it passed
 		await process_frame
-	print(FileAccess.get_file_as_string(LOG))
-	if OS.get_process_exit_code(pid) != 0:
+	if OS.get_process_exit_code(_client_pid) != 0:
 		return _fail("client side failed")
+	_client_pid = 0
+	print(FileAccess.get_file_as_string(LOG))
 	var seen = JSON.parse_string(FileAccess.get_file_as_string(SEEN))
 	if not _ok(seen is Dictionary and seen.all_down == 1 and is_equal_approx(seen.vault, gs.vault), "the same on the client (%s)" % [seen]): return
 	print("down_check OK")
@@ -258,6 +257,8 @@ func _raw_fire() -> void:
 
 func _until(cond: Callable, what: String, secs := 60.0) -> bool:
 	var t0 := Time.get_ticks_msec()
+	if not cond.call():
+		_write_log(what)
 	while not cond.call():
 		if Time.get_ticks_msec() - t0 > secs * 1000.0:
 			_fail("waited for " + what)
@@ -278,13 +279,39 @@ func _ok(cond: bool, what: String) -> bool:
 
 func _fail(what: String) -> void:
 	_log.append("down_check FAIL: " + what)
+	_stop_client()
 	printerr("down_check FAIL: ", what)
 	_write_log()
 	quit(1)
 
 
-func _write_log() -> void:
+## Host: the client, this script again with `-- --client`, its engine output in ENGINE_LOG.
+func _start_client(script: String) -> int:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ENGINE_LOG))
+	return OS.create_process(OS.get_executable_path(), ["--headless", "--log-file", ProjectSettings.globalize_path(ENGINE_LOG),
+		"--path", ProjectSettings.globalize_path("res://"), "-s", script, "--", "--client"])
+
+
+## Host, failing with the client still about: stops it and shows its log and the end of its engine
+## output, so a hang, a script error or a crash on its side says where.
+func _stop_client() -> void:
+	if _client_pid == 0:
+		return
+	if OS.is_process_running(_client_pid):
+		OS.kill(_client_pid)
+	_client_pid = 0
+	print("--- client log:\n", FileAccess.get_file_as_string(LOG))
+	var engine := FileAccess.get_file_as_string(ENGINE_LOG).split("\n")
+	print("--- client engine output, last lines:\n", "\n".join(engine.slice(-40)))
+
+
+## `waiting`: the step the client is on, for the host to print if it has to kill it there.
+func _write_log(waiting := "") -> void:
 	if "--client" in OS.get_cmdline_user_args():
+		var lines := _log.duplicate()
+		if waiting:
+			lines.append("waiting for " + waiting)
 		var f := FileAccess.open(LOG, FileAccess.WRITE)
 		if f:
-			f.store_string("\n".join(_log))
+			f.store_string("\n".join(lines))

@@ -285,12 +285,18 @@ func _load_parts() -> void:
 	var in_kind := {}
 	for p: Dictionary in list:
 		in_kind[p.tur] = in_kind.get(p.tur, 0) + 1
-	for p: Dictionary in list:  # all at once, on the loader's threads: one by one took 1.4 s
-		ResourceLoader.load_threaded_request(p.glb)
+	# All at once, on the loader's threads: one by one took 1.4 s. Not headless (the checks): there
+	# the dummy renderer makes meshes and textures without a lock, and now and then two threads
+	# made one at once and crashed it.
+	var threaded := DisplayServer.get_name() != "headless"
+	if threaded:
+		for p: Dictionary in list:
+			ResourceLoader.load_threaded_request(p.glb)
 	var weight := PackedFloat32Array()
 	for p: Dictionary in list:
 		_part_info.append(p)
-		var glb: Node = (ResourceLoader.load_threaded_get(p.glb) as PackedScene).instantiate()
+		var scene: PackedScene = ResourceLoader.load_threaded_get(p.glb) if threaded else load(p.glb)
+		var glb: Node = scene.instantiate()
 		var mi: MeshInstance3D = glb.find_children("*", "MeshInstance3D", true, false)[0]
 		var mesh: Mesh = mi.mesh
 		_part_mesh.append(mesh)

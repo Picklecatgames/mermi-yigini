@@ -105,6 +105,8 @@ static func hole(holder: Node3D, at: Vector3, dir: Vector3, rng: RandomNumberGen
 ## of a fight: each took 15-70 ms the first time it came up (tools/spike_probe.gd). waves.gd calls it
 ## with the hall; whatever is asked for before it is in waits for it then.
 static func warm() -> void:
+	if DisplayServer.get_name() == "headless":
+		return  # the dummy renderer makes textures without a lock: off a thread it can crash (pile.gd _load_parts)
 	var paths: Array[String] = []
 	for kind: StringName in SETS:
 		for i in SETS[kind]:

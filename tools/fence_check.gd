@@ -19,6 +19,7 @@ extends SceneTree
 
 const PORT := 24711
 const LOG := "user://fence_check_client.log"
+const ENGINE_LOG := "user://fence_check_client_engine.log"  # the client's engine output: script errors, a crash
 const SEEN := "user://fence_check_seen.json"
 const TIME_SCALE := 4.0
 
@@ -29,6 +30,7 @@ var waves: Node
 var fence: Node3D
 var hud: Control
 var _log: Array[String] = []
+var _client_pid := 0  # host: the client's process, till it has gone and passed
 
 
 func _initialize() -> void:
@@ -216,10 +218,8 @@ func _online() -> void:
 	gs.wave_cue.connect(func(cue: Array) -> void:
 		if cue[0] == &"phase" and cue[2] == waves.Phase.FAILED:
 			failed_at[0] = Time.get_unix_time_from_system())
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SEEN))
-	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
-		ProjectSettings.globalize_path("res://"), "-s", "res://tools/fence_check.gd", "--", "--client"])
+	_client_pid = _start_client("res://tools/fence_check.gd")
 	if not await _until(func() -> bool: return gs.multiplayer.get_peers().size() == 1, "the client", 60.0): return
 	# Claws while it's here, then it mends the railing at the bench.
 	await create_timer(1.5).timeout
@@ -249,15 +249,14 @@ func _online() -> void:
 	gs.all_down.emit()
 	if not await _until(func() -> bool: return waves.phase == waves.Phase.READY and gs.fence_holes() == 0, "the lost wave to wait again"): return
 	var t0 := Time.get_ticks_msec()
-	while OS.is_process_running(pid):
+	while OS.is_process_running(_client_pid):
 		if Time.get_ticks_msec() - t0 > 120_000:
-			OS.kill(pid)
-			print(FileAccess.get_file_as_string(LOG))  # its last line is the last check it passed
-			return _fail("client timed out")
+			return _fail("client timed out")  # its log's last line is the last check it passed
 		await process_frame
-	print(FileAccess.get_file_as_string(LOG))
-	if OS.get_process_exit_code(pid) != 0:
+	if OS.get_process_exit_code(_client_pid) != 0:
 		return _fail("client side failed")
+	_client_pid = 0
+	print(FileAccess.get_file_as_string(LOG))
 	var seen = JSON.parse_string(FileAccess.get_file_as_string(SEEN))
 	if not _ok(seen is Dictionary and absf(seen.failed_at - failed_at[0]) < 0.5, "the client lost it at the same moment (%.2f s apart)" % absf(seen.get("failed_at", 0.0) - failed_at[0])): return
 	var theirs: Array = (seen.bays as Array).map(func(w: float) -> int: return int(w))  # JSON reads numbers as floats
@@ -321,10 +320,15 @@ func _client() -> void:
 	quit()
 
 
-## Host: one of `type` out of a pen now, ahead of the wave's own.
+## Host: one of `type` out of a pen now, ahead of the wave's own, spawned as in its own first wave
+## (waves.gd TYPES "from"): before it, it wears any of its kind's bodies, and a vaulter or a creeper
+## in one without the crossing clips (the melty zombie's) never gets over or under.
 func _front(type: StringName) -> Dictionary:
+	var w: int = waves.wave
+	waves.wave = maxi(w, waves.TYPES[type].from)
 	waves._queue.push_front(type)
 	waves._spawn_next()
+	waves.wave = w
 	return waves._zombies[waves._next_id - 1]
 
 
@@ -348,6 +352,8 @@ func _bay_z(b: int) -> float:
 
 func _until(cond: Callable, what: String, secs := 60.0) -> bool:
 	var t0 := Time.get_ticks_msec()
+	if not cond.call():
+		_write_log(what)
 	while not cond.call():
 		if Time.get_ticks_msec() - t0 > secs * 1000.0:
 			_fail("waited for " + what)
@@ -368,13 +374,39 @@ func _ok(cond: bool, what: String) -> bool:
 
 func _fail(what: String) -> void:
 	_log.append("fence_check FAIL: " + what)
+	_stop_client()
 	printerr("fence_check FAIL: ", what)
 	_write_log()
 	quit(1)
 
 
-func _write_log() -> void:
+## Host: the client, this script again with `-- --client`, its engine output in ENGINE_LOG.
+func _start_client(script: String) -> int:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ENGINE_LOG))
+	return OS.create_process(OS.get_executable_path(), ["--headless", "--log-file", ProjectSettings.globalize_path(ENGINE_LOG),
+		"--path", ProjectSettings.globalize_path("res://"), "-s", script, "--", "--client"])
+
+
+## Host, failing with the client still about: stops it and shows its log and the end of its engine
+## output, so a hang, a script error or a crash on its side says where.
+func _stop_client() -> void:
+	if _client_pid == 0:
+		return
+	if OS.is_process_running(_client_pid):
+		OS.kill(_client_pid)
+	_client_pid = 0
+	print("--- client log:\n", FileAccess.get_file_as_string(LOG))
+	var engine := FileAccess.get_file_as_string(ENGINE_LOG).split("\n")
+	print("--- client engine output, last lines:\n", "\n".join(engine.slice(-40)))
+
+
+## `waiting`: the step the client is on, for the host to print if it has to kill it there.
+func _write_log(waiting := "") -> void:
 	if "--client" in OS.get_cmdline_user_args():
+		var lines := _log.duplicate()
+		if waiting:
+			lines.append("waiting for " + waiting)
 		var f := FileAccess.open(LOG, FileAccess.WRITE)
 		if f:
-			f.store_string("\n".join(_log))
+			f.store_string("\n".join(lines))

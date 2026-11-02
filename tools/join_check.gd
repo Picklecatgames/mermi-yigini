@@ -8,6 +8,7 @@ extends SceneTree
 
 const PORT := 24692  # not Net.PORT or net_check's
 const LOG := "user://join_check_client.log"
+const ENGINE_LOG := "user://join_check_client_engine.log"  # the client's engine output: script errors, a crash
 const WORLD := "user://join_check_client.json"
 const LOOSE := 7  # a starting spill bullet the host takes
 const CLAWED := 30  # railing points the host loses before anyone joins: 10 off three bays, one torn down
@@ -17,6 +18,7 @@ var gs: Node
 var net: Node
 var main: Node
 var _log: Array[String] = []
+var _client_pid := 0  # host: the client's process, till it has gone and passed
 
 
 func _initialize() -> void:
@@ -41,7 +43,11 @@ func _host() -> void:
 	gs.request_take_bullets(6000, top + Vector3(0.8, 0, 0.4))
 	if not _ok(gs.request_pick_up_loose(LOOSE) == 1, "host takes loose bullet %d" % LOOSE): return
 	for i in 3:  # one at a time: the hand starts at one bullet
-		if i > 0 and not _ok(gs.request_pick_up(top, 1) == 1, "host grabs one from the heap"): return
+		# A grab that comes out a special round (GameState._roll_specials) goes in the pocket: again.
+		for n in 5:
+			if gs.carried == 1:
+				break
+			if not _ok(gs.request_pick_up(top, 1) == 1, "host grabs one from the heap"): return
 		if not _ok(gs.request_throw(top + Vector3(0, 1.5, 3.0), Vector3(0, 0.3, 1).normalized()) == 1, "host throws it"): return
 	var keys: Node = main.get_node("Keys")
 	if not _ok(gs.request_reveal_key(1, keys._pos[1]) and gs.request_take_key(1), "host takes key 1"): return
@@ -51,22 +57,19 @@ func _host() -> void:
 	gs.vault = VAULT
 	if not await _until(func() -> bool: return not pile._any_active and pile._digs.is_empty() and pile._awake.is_empty(), "the host's heap and throw to settle"): return
 
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
 	var f := FileAccess.open(WORLD, FileAccess.WRITE)  # the heap the joiner must end up with
 	f.store_string(JSON.stringify({"heights": Marshalls.raw_to_base64(pile._h.to_byte_array()), "surface_gone": pile._surface_removed.size()}))
 	f.close()
-	var pid := OS.create_process(OS.get_executable_path(), ["--headless", "--path",
-		ProjectSettings.globalize_path("res://"), "-s", "res://tools/join_check.gd", "--", "--client"])
+	_client_pid = _start_client("res://tools/join_check.gd")
 	var t0 := Time.get_ticks_msec()
-	while OS.is_process_running(pid):
+	while OS.is_process_running(_client_pid):
 		if Time.get_ticks_msec() - t0 > 120_000:
-			OS.kill(pid)
-			print(FileAccess.get_file_as_string(LOG))  # its last line is the last check it passed
-			return _fail("client timed out")
+			return _fail("client timed out")  # its log's last line is the last check it passed
 		await process_frame
-	print(FileAccess.get_file_as_string(LOG))
-	if OS.get_process_exit_code(pid) != 0:
+	if OS.get_process_exit_code(_client_pid) != 0:
 		return _fail("client side failed")
+	_client_pid = 0
+	print(FileAccess.get_file_as_string(LOG))
 	if not _ok(gs._saved.size() == 1 and gs._token_of.is_empty(), "the client's state waits under its token"): return
 	print("join_check OK")
 	quit()
@@ -99,10 +102,10 @@ func _client() -> void:
 	gs.request_select_gun(4)
 	var top: Vector3 = pile.global_position + Vector3(-1.0, 0, -0.5)
 	top.y = pile.surface_y(top)
-	gs.request_pick_up(top, 1)
+	if not await _grab(top): return
 	if not await _until(func() -> bool: return gs.synced() and gs.carried == 1, "a bullet in hand"): return
 	gs.request_reload()
-	gs.request_pick_up(top, 1)
+	if not await _grab(top): return
 	if not await _until(func() -> bool: return gs.synced() and gs.carried == 1 and gs.loaded == 1, "one loaded, one in hand"): return
 	net.leave()
 	if not await _until(func() -> bool: return not net.online, "leave"): return
@@ -114,8 +117,25 @@ func _client() -> void:
 	quit()
 
 
+## Client: one bullet off the heap at `at` into the hand. About 1 in 75 grabs is a special round
+## (GameState._roll_specials): the host puts that in the pocket, not the hand, and we grab again.
+func _grab(at: Vector3) -> bool:
+	for n in 5:
+		var hand: int = gs.carried
+		var pocket: int = gs.player().specials.size()
+		gs.request_pick_up(at, 1)
+		if not await _until(gs.synced, "the answer to a heap grab"): return false
+		if gs.carried > hand:
+			return true
+		if not _ok(gs.player().specials.size() == pocket + 1, "the grab the host took back is in our pocket (%s)" % [gs.player().specials]): return false
+		_log.append("a heap grab came out a special round: %s" % gs.player().specials.back())
+	return _ok(false, "five heap grabs in a row came out special rounds")
+
+
 func _until(cond: Callable, what: String, secs := 30.0) -> bool:
 	var t0 := Time.get_ticks_msec()
+	if not cond.call():
+		_write_log(what)
 	while not cond.call():
 		if Time.get_ticks_msec() - t0 > secs * 1000.0:
 			_fail("timed out waiting for " + what)
@@ -135,13 +155,39 @@ func _ok(cond: bool, what: String) -> bool:
 
 func _fail(what: String) -> void:
 	_log.append("join_check FAIL: " + what)
+	_stop_client()
 	printerr("join_check FAIL: ", what)
 	_write_log()
 	quit(1)
 
 
-func _write_log() -> void:
+## Host: the client, this script again with `-- --client`, its engine output in ENGINE_LOG.
+func _start_client(script: String) -> int:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(LOG))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(ENGINE_LOG))
+	return OS.create_process(OS.get_executable_path(), ["--headless", "--log-file", ProjectSettings.globalize_path(ENGINE_LOG),
+		"--path", ProjectSettings.globalize_path("res://"), "-s", script, "--", "--client"])
+
+
+## Host, failing with the client still about: stops it and shows its log and the end of its engine
+## output, so a hang, a script error or a crash on its side says where.
+func _stop_client() -> void:
+	if _client_pid == 0:
+		return
+	if OS.is_process_running(_client_pid):
+		OS.kill(_client_pid)
+	_client_pid = 0
+	print("--- client log:\n", FileAccess.get_file_as_string(LOG))
+	var engine := FileAccess.get_file_as_string(ENGINE_LOG).split("\n")
+	print("--- client engine output, last lines:\n", "\n".join(engine.slice(-40)))
+
+
+## `waiting`: the step the client is on, for the host to print if it has to kill it there.
+func _write_log(waiting := "") -> void:
 	if "--client" in OS.get_cmdline_user_args():
+		var lines := _log.duplicate()
+		if waiting:
+			lines.append("waiting for " + waiting)
 		var f := FileAccess.open(LOG, FileAccess.WRITE)
 		if f:
-			f.store_string("\n".join(_log))
+			f.store_string("\n".join(lines))
