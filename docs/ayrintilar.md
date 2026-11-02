@@ -4,6 +4,23 @@ CLAUDE.md'nin eski uzun hâli (2026-10-20'de ayrıldı). Özet CLAUDE.md'de; bir
 
 ## Oyun fikri
 
+### Yeni yön: açık alan (2026-11-02, kullanıcı kararı; aşağıdaki eski bölümlerin önüne geçer)
+
+Kullanıcının sözleri (özet değil, kararlar):
+- "Bugüne kadar kurduğumuz tüm yapılar gidecek." Salon, korkuluk ve atış alanı, hurda çukuru ve kenarı, hurda dağı gidiyor.
+- "Oyun açık alanda geçecek. Bizim bir çöplüğümüz olacak. Çöplüğümüz o arkadaki gibi dağ şeklinde olacak. Ucu bucağı olmayan bir çöp olacak."
+- "Oradan aldıklarımızı işleyeceğiz." Hurda alınır, sökülür, işlenir.
+- "Gece gündüz döngüsü olacak. Gündüz vakti materyalleri alıp söküp otomasyon, taret, silah vesaire craftlayacağız."
+- "Gece olunca da zombiler, yaratıklar, canavarlar gelecek. Her gecede bir önceki geceden zor."
+- **Çizim:** geniş, oval bir açık arazi. Önde dikdörtgen bir üs alanı: sol üst köşesinde "masa" yazan bir masa ve yanında küçük bir kutu, ortada oyuncu. Üssün hemen arkasında, onu yarım halka gibi saran, sivri tepeli, çok büyük bir çöp dağı ("Hurda dağı"). Dağın iki yanından arazi geriye uzanıyor.
+
+Önceki oturumlardan geçerliliğini koruyan kullanıcı kuralları: çöp dağının kendi yüzeyi ("çamur") hiçbir zaman görünmez, yalnız hurda görünür; görünmeyen içi veri olarak durur (RAM yemesin), oyuncu kazdıkça küçülür. Hurdanın gerçekçi yığılması ve alttan alınınca üstünün hareketlenmesi istendi (referans: iç içe pirinç tesisat ve dişli yığını fotoğrafı). Toplanan hurda el boyunda (2026-11-01). Silahlar post-apokaliptik. Ses kayıtları kullanıcıdan gelir. Müzik kafa yormayan post-apo, kullanıcı Suno ile üretecek.
+
+Kodda yeniden kullanılabilecekler (benim notum, kural değil): `scripts/pile.gd` (yükseklik alanı, yüzde gerçek parçalar, gömülü parçalar, alınınca altının açılması ve üstünün fizikle düşmesi, çökme; şu an çukur biçiminde, `_build_heights` dağa çevrilebilir), `tools/build_scrap_face.gd` (yüzü fizikle döken araç), `assets/props/hurda/` (248+ el boyu hurda), `assets/props/cukur/` (çit, merdiven, ızgara/sac zemin, kiriş), `assets/props/ogutucu/` (öğütücü), `scripts/waves.gd` ve zombi rolleri (vaulter, creeper, walker...), co-op altyapısı (`GameState`, `net.gd`), silahlar ve viewmodel, tezgâh/geliştirme menüsü.
+
+**Açık sorular (kullanıcıya):** dağın büyüklüğü ve "ucu bucağı olmayan" kısmın ne kadarının oynanabilir olacağı; üs alanının ölçüsü ve sınırı (duvar, çit, sınırsız mı); düşmanların nereden geldiği (her yönden mi, dağın içinden mi); bir gün-gecenin süresi; kaybetme koşulu (herkes baygın mı, üs yıkılınca mı); otomasyonun kapsamı (bant, makine, enerji); oyunun bitişi ya da demo hedefi (kaç gece).
+
+
 Post-apokaliptik bir hurdalık kalesinde 4 kişilik co-op FPS. Oyuncular korkuluğun (x = 14) ötesinden dalga dalga gelen zombilere ateş eder; isabet para verir. Salonun batısı tavana kadar hurda dağı: hurda toplanır, öğütücüde öğütülür, çıkan malzeme barutta ya da kovanda kullanılır. Kurallar aşağıda "Yeni yön: zombi dalgaları" ve "Yeni yön: hurdalık" bölümlerinde.
 
 - **Bırakılan tasarım (2026-11-02, kullanıcı kararı):** ortadaki 100M mermilik yığını bitirme hedefi, yığından mermi alıp ateş etme, yığının hem hedef hem yakıt olması, mermi tarifi, yığından zarla çıkan özel mermiler, kasa sırası, taretler ve hortumlar. Kodda kalanlar aşağıda "Eski tasarımdan kodda kalanlar".
