@@ -1,0 +1,245 @@
+{
+ "korkuluk_2m": {
+  "size": [
+   2.07,
+   1.1,
+   0.14
+  ],
+  "tris": 168,
+  "note": "orijin direğin dibinde, +X yönüne 2.0 m; bitişe korkuluk_direk"
+ },
+ "korkuluk_1m": {
+  "size": [
+   1.07,
+   1.1,
+   0.14
+  ],
+  "tris": 168,
+  "note": "orijin direğin dibinde, +X yönüne 1.0 m; bitişe korkuluk_direk"
+ },
+ "korkuluk_direk": {
+  "size": [
+   0.14,
+   1.1,
+   0.14
+  ],
+  "tris": 84,
+  "note": "tek direk: sıranın sonu ya da giriş açıklığının kenarı"
+ },
+ "korkuluk_kapi_1m": {
+  "size": [
+   1.14,
+   1.1,
+   0.14
+  ],
+  "tris": 276,
+  "note": "iki direkli 1 m kapı; açılacaksa kapı kolu ayrı değil, parça olarak kaldırılır"
+ },
+ "kafesli_merdiven_3m": {
+  "size": [
+   0.84,
+   3.0,
+   0.95
+  ],
+  "tris": 812,
+  "note": "üst üste dizilir (basamak 30 cm); duvar -Z tarafında 20 cm geride, kafes +Z tarafında"
+ },
+ "dam_merdiveni_3m": {
+  "size": [
+   0.6,
+   3.0,
+   0.23
+  ],
+  "tris": 400,
+  "note": "kafessiz sabit merdiven; duvar -Z tarafında 20 cm geride"
+ },
+ "kafesli_merdiven_cikis": {
+  "size": [
+   0.84,
+   2.62,
+   1.42
+  ],
+  "tris": 856,
+  "note": "orijin platform yüzeyi ve basamak düzlemi; kafesli_merdiven_3m yığınının tepesi orijinin 1,5 m altında; tutamaklar platforma (-Z) kıvrılır"
+ },
+ "merdiven_rampa_1_8m": {
+  "size": [
+   2.58,
+   2.68,
+   1.01
+  ],
+  "tris": 600,
+  "note": "10 rıht x 18 cm, basamak 25 cm, net en 0.9 m; orijin alt basamağın önü, +X yönünde çıkar, üst sahanlık x=2.25 m, y=1.80 m"
+ },
+ "merdiven_rampa_3_6m": {
+  "size": [
+   5.08,
+   4.48,
+   1.01
+  ],
+  "tris": 984,
+  "note": "20 rıht x 18 cm, basamak 25 cm, net en 0.9 m; orijin alt basamağın önü, +X yönünde çıkar, üst sahanlık x=4.75 m, y=3.60 m"
+ },
+ "zemin_izgara_2x1": {
+  "size": [
+   2.0,
+   0.03,
+   1.0
+  ],
+  "tris": 86,
+  "note": "2.0x1.0 m ızgara, 3 cm; orijin alt orta"
+ },
+ "zemin_izgara_1x1": {
+  "size": [
+   1.0,
+   0.03,
+   1.0
+  ],
+  "tris": 62,
+  "note": "1.0x1.0 m ızgara, 3 cm; orijin alt orta"
+ },
+ "zemin_baklava_2x1": {
+  "size": [
+   2.0,
+   0.01,
+   1.0
+  ],
+  "tris": 12,
+  "note": "2.0x1.0 m sac, 10 mm; orijin alt orta"
+ },
+ "zemin_pasli_sac_2x1": {
+  "size": [
+   2.0,
+   0.01,
+   1.0
+  ],
+  "tris": 12,
+  "note": "2.0x1.0 m sac, 10 mm; orijin alt orta"
+ },
+ "kiris_I_2m": {
+  "size": [
+   2.0,
+   0.2,
+   0.1
+  ],
+  "tris": 36,
+  "note": "IPE 200 kiriş, 2.0 m, X boyunca; orijin alt orta"
+ },
+ "kiris_I_4m": {
+  "size": [
+   4.0,
+   0.2,
+   0.1
+  ],
+  "tris": 36,
+  "note": "IPE 200 kiriş, 4.0 m, X boyunca; orijin alt orta"
+ },
+ "kolon_2m": {
+  "size": [
+   0.3,
+   2.0,
+   0.3
+  ],
+  "tris": 72,
+  "note": "120x120 kutu profil, 2 m; tepesinde kiriş için başlık plakası"
+ },
+ "yangin_platform_a": {
+  "size": [
+   4.79,
+   0.77,
+   1.36
+  ],
+  "tris": 956,
+  "note": "ızgaralı platform 4,8x1,4 m; orijin yürüme yüzeyi, konsollar altta"
+ },
+ "yangin_platform_b": {
+  "size": [
+   4.79,
+   0.77,
+   1.36
+  ],
+  "tris": 1244,
+  "note": "merdiven boşluklu platform; orijin yürüme yüzeyi"
+ },
+ "yangin_korkuluk_4_7m": {
+  "size": [
+   4.71,
+   0.98,
+   1.39
+  ],
+  "tris": 932,
+  "note": "siyah kaynaklı korkuluk"
+ },
+ "yangin_korkuluk_2_2m": {
+  "size": [
+   2.23,
+   0.99,
+   0.73
+  ],
+  "tris": 712,
+  "note": "kısa köşe korkuluğu"
+ },
+ "yangin_merdiveni": {
+  "size": [
+   2.99,
+   4.01,
+   1.37
+  ],
+  "tris": 4749,
+  "note": "eğik basamaklı merdiven, 4 m yükselir"
+ },
+ "yangin_dik_merdiven_6_5m": {
+  "size": [
+   0.77,
+   6.47,
+   0.06
+  ],
+  "tris": 632,
+  "note": "dikey merdiven 6,5 m"
+ },
+ "tel_cit_1m": {
+  "size": [
+   0.93,
+   2.37,
+   0.05
+  ],
+  "tris": 3028,
+  "note": "tel panel, direkler arası 1 m"
+ },
+ "tel_cit_2m": {
+  "size": [
+   1.91,
+   2.37,
+   0.05
+  ],
+  "tris": 3054,
+  "note": "tel panel, direkler arası 2 m"
+ },
+ "tel_cit_direk": {
+  "size": [
+   0.15,
+   2.52,
+   0.15
+  ],
+  "tris": 1134,
+  "note": "ara direk 2,5 m"
+ },
+ "tel_cit_bitis": {
+  "size": [
+   0.15,
+   2.52,
+   0.15
+  ],
+  "tris": 4010,
+  "note": "uç direk, kelepçeli"
+ },
+ "tel_cit_kapi": {
+  "size": [
+   1.91,
+   2.52,
+   0.16
+  ],
+  "tris": 4750,
+  "note": "kapılı 2 m bölme"
+ }
+}
