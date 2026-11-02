@@ -1,7 +1,9 @@
 class_name Pile
 extends StaticBody3D
-## The scrap heap that fills the west of the hall up to the roof: a height field the count is
-## carved out of (GameState.pile, 100M pieces; one piece is UNIT of the starting volume).
+## The scrap pit (2026-11-02, the user: a square pit in the hall's floor, scrap strewn into it 50 m
+## deep): a height field over the pit's floor the count is carved out of (GameState.pile, 100M
+## pieces; one piece is UNIT of the starting volume). The node sits at the pit's floor, DEPTH under
+## the hall's; the pit's walls (tools/build_arena.gd _pit) hold the scrap in at the grid's edges.
 ## Scrap locks together: slopes up to LOCK_SLOPE stand, and every take that undercuts such a slope
 ## lets what is above it settle down into the gap. Takes from the same steep spot build up strain;
 ## past a threshold the host lets that part of the face give way (GameState scrap_collapse): it
@@ -17,8 +19,15 @@ extends StaticBody3D
 # never runs past the host's. Tumbling pieces are local visuals.
 
 const CELL := 0.25            # m per height field cell
-const GRID_X := 128           # cells along x -> 32 m, the west wall to past the foot
-const GRID_Z := 224           # cells along z -> 56 m, wall to wall
+const GRID_X := 80            # cells along x -> 20 m, the pit's width
+const GRID_Z := 80            # cells along z -> 20 m: a square pit
+## The pit: its middle on the hall's floor (x, z), how deep it goes, and how far under the rim the
+## scrap starts, at the walls and in the middle (it is heaped up a little there).
+const PIT_CENTER := Vector2(-12.0, 0.0)
+const DEPTH := 50.0
+const FILL_EDGE := 0.9
+const FILL_MIDDLE := 0.3
+const RIM_GAP := 0.15         # m: the scrap never stands higher than this under the rim
 const LOCK_SLOPE := 1.8       # tan(61°): scrap hooked into scrap stands this steep
 const REPOSE_SLOPE := 0.75    # tan(37°): a face that gave way slumps to this
 const LOCK_STEP := LOCK_SLOPE * CELL
@@ -75,18 +84,7 @@ const MAX_SHARE := 0.015
 const TONE := Vector2(0.84, 1.02)
 const RUST_TINT := Color(0.86, 0.74, 0.62)
 const RUST_SHARE := 0.6
-## The roof (tools/build_arena.gd): a 6° pitch from 8.8 m at the eaves, and the glass lantern over
-## the middle, 11.6 m to the top of its walls. The heap is packed up to just under them.
-const EAVE := 8.8
-const HALF_SPAN := 27.7
-const PITCH := 0.1051         # tan(6°)
-const LANTERN := Vector4(-15.0, -14.0, 15.0, 14.0)
-const LANTERN_TOP := 11.3
-const ROOF_GAP := 0.3         # m under the sheeting: purlins and trusses go into the heap
-## Where the face starts on average, and how far it wanders along the hall.
-const FOOT_X := -2.5
-const FOOT_WANDER := 2.4
-const LUMP := 0.7             # m of height noise
+const LUMP := 0.12            # m of height noise on the scrap's top
 const SCRAP_LAYER := 1 << 2   # physics layer 3: loose pieces; the player's body ignores it
 const BULLET_LAYER := SCRAP_LAYER  # the old name (player.gd's reach ray masks it)
 const WAKE_RADIUS := 0.45     # m round a walker's feet where resting pieces turn into bodies
@@ -111,9 +109,9 @@ const MAX_PER_CELL := 6
 const TOP_LAYER := 6          # pieces to a cell lying on top; the rest lie a layer down
 const SURFACE_MIN := 0.025   # m: only crumbs smaller than this stay off the face (the user: nuts and bolts too)
 const LOW_TRIS := 150         # surface pieces are drawn from a lighter copy of their part
-## Loose pieces on the floor round the foot, thinning out with distance.
-@export var spill_pieces := 700
-@export var spill_reach := 2.2  # m past the foot
+## Loose pieces on the hall's floor round the pit's rim, thinning out with distance.
+@export var spill_pieces := 300
+@export var spill_reach := 2.2  # m past the rim
 ## False: only the heap's shape and collision, no pieces (tools/build_scrap_face.gd settles them).
 var with_pieces := true
 
@@ -217,6 +215,7 @@ var _walker_h := {}              # walker -> the surface height under it last fr
 
 
 func _ready() -> void:
+	position = Vector3(PIT_CENTER.x, -DEPTH, PIT_CENTER.y)
 	_noise.seed = 3
 	_noise.frequency = 0.18
 	_noise.fractal_octaves = 4
@@ -251,7 +250,7 @@ func _ready() -> void:
 	var heap := MeshInstance3D.new()
 	heap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 	heap.mesh = plane
-	heap.custom_aabb = AABB(Vector3(-GRID_X * CELL * 0.5, -0.1, -GRID_Z * CELL * 0.5), Vector3(GRID_X * CELL, LANTERN_TOP + 0.5, GRID_Z * CELL))
+	heap.custom_aabb = AABB(Vector3(-GRID_X * CELL * 0.5, -0.1, -GRID_Z * CELL * 0.5), Vector3(GRID_X * CELL, DEPTH + 0.5, GRID_Z * CELL))
 	add_child(heap)
 
 	for cz in CHUNKS_Z:
@@ -456,18 +455,18 @@ func _pick_part(r: float, on_face := false) -> int:
 	return clampi(pick.bsearch(r), 0, pick.size() - 1)
 
 
-## The starting heap: packed to the roof from the west wall, a face that wanders along the hall
-## with spurs and bays in it, lumps all over, and no slope steeper than LOCK_SLOPE.
+## The starting pit: full of scrap DEPTH down, its top FILL_EDGE under the rim at the walls and
+## heaped up to FILL_MIDDLE in the middle, lumps all over, and no slope steeper than LOCK_SLOPE.
 func _build_heights() -> void:
 	_h.resize(GRID_X * GRID_Z)
 	_ceil.resize(GRID_X * GRID_Z)
 	for j in GRID_Z:
 		for i in GRID_X:
-			var g := global_position + _cell_pos(Vector2i(i, j))
+			var c := _cell_pos(Vector2i(i, j))
 			var k := j * GRID_X + i
-			_ceil[k] = ceiling_at(g.x, g.z) - global_position.y
-			var foot := FOOT_X + _noise.get_noise_1d(g.z * 0.6) * FOOT_WANDER * 1.6 + _noise.get_noise_2d(g.z, 40.0) * 1.2
-			var y := (foot - g.x) * LOCK_SLOPE * 0.62 + _noise.get_noise_2d(g.x * 1.7, g.z * 1.7) * LUMP
+			_ceil[k] = DEPTH - RIM_GAP
+			var r := Vector2(c.x, c.z).length() / (GRID_X * CELL * 0.5)  # 0 in the middle, 1 at the walls
+			var y := DEPTH - lerpf(FILL_MIDDLE, FILL_EDGE, clampf(r * r, 0.0, 1.0)) + _noise.get_noise_2d(c.x * 6.0, c.z * 6.0) * LUMP
 			_h[k] = clampf(y, 0.0, _ceil[k])
 	# No step between neighbours over LOCK_STEP: lower whatever stands too proud, two sweeps
 	# (the chamfer distance transform's), so the heap starts at rest.
@@ -489,11 +488,15 @@ func _build_heights() -> void:
 			_h[k] = 0.0
 
 
-## The roof's underside over world point (x, z), less ROOF_GAP.
-static func ceiling_at(x: float, z: float) -> float:
-	if x > LANTERN.x and x < LANTERN.z and z > LANTERN.y and z < LANTERN.w:
-		return LANTERN_TOP
-	return EAVE + (HALF_SPAN - absf(x)) * PITCH - ROOF_GAP
+## The pit's opening in the hall's floor (x, z): tools/build_arena.gd cuts it and walls it.
+static func pit_rect() -> Rect2:
+	var half := Vector2(GRID_X, GRID_Z) * CELL * 0.5
+	return Rect2(PIT_CENTER - half, half * 2.0)
+
+
+## A point over the middle of the scrap's top (world), for markers that point the way to it.
+func top_point() -> Vector3:
+	return global_position + Vector3(0.0, _height_smooth(Vector3.ZERO), 0.0)
 
 
 ## Surface pieces: the face as it was settled (data/scrap_face.json), or, without it, laid
@@ -515,7 +518,7 @@ func _build_surface() -> void:
 
 
 func _face_cell(k: int) -> bool:
-	return _h[k] >= 0.03 and _h[k] <= _ceil[k] - 0.3  # not bare floor; pressed into the roof nobody sees it
+	return _h[k] >= 0.03  # not the pit's bare floor
 
 
 ## The face as tools/build_scrap_face.gd settled it, piece by piece on this very heap: each one
@@ -572,8 +575,8 @@ func _lay_one_by_one(per_part: Array[Array], cell_slots: Dictionary) -> void:
 		for i in range(1, GRID_X - 1):
 			var cell := Vector2i(i, j)
 			var k := j * GRID_X + i
-			if _h[k] < 0.03 or _h[k] > _ceil[k] - 0.3:
-				continue  # bare floor; pressed into the roof nobody sees it
+			if _h[k] < 0.03:
+				continue  # the pit's bare floor
 			var n := _cell_normal(cell)
 			var area := CELL * CELL / maxf(n.y, 0.2) * cover
 			var count := 0
@@ -683,14 +686,21 @@ func _build_spill() -> void:
 		_part_slots.append([])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2
+	var half := Vector2(GRID_X, GRID_Z) * CELL * 0.5
 	for id in spill_pieces:
-		var j := rng.randi_range(2, GRID_Z - 3)
-		var i := GRID_X - 1
-		while i > 0 and _h[j * GRID_X + i - 1] < 0.15:  # walk west to where the foot thickens
-			i -= 1
-		var p := _cell_pos(Vector2i(i, j)) + Vector3(spill_reach * pow(rng.randf(), 2.2), 0.0, rng.randf_range(-0.5, 0.5) * CELL)
+		# On the hall's floor round the pit's rim: thick at the edge, thinning out.
+		var along := rng.randf_range(-1.0, 1.0)
+		var out := 0.25 + spill_reach * pow(rng.randf(), 2.2)
+		var p := Vector3.ZERO
+		match rng.randi() % 4:
+			0: p = Vector3(-half.x - out, 0.0, along * half.y)
+			1: p = Vector3(half.x + out, 0.0, along * half.y)
+			2: p = Vector3(along * half.x, 0.0, -half.y - out)
+			_: p = Vector3(along * half.x, 0.0, half.y + out)
 		var part := _pick_part(rng.randf())
-		_add_loose(id, part, rest_on(p, part, rng.randf() * TAU))
+		var t := rest_on(p, part, rng.randf() * TAU)
+		t.origin.y = DEPTH + _part_size[part][_part_size[part].min_axis_index()] * 0.5
+		_add_loose(id, part, t)
 
 
 ## A flat resting transform for `part` at local point `p` on the heap or the floor.
@@ -842,9 +852,11 @@ func _dig_under(id: int) -> void:
 		return  # it lay on the floor: nothing under it
 	# What it covered shows, then what rested on it falls into the room it left (onto those).
 	var opened := _lay_open(part, t)
+	if opened == 0:
+		opened = _lay_open_nearest(t.origin)  # none touched it: the next one down round there shows
 	_wake_over(part, t, WAKE_DEPTH)
-	if opened > 0 or _buried_round(cell) > 0:
-		return  # more of the settled face under it, to be laid open by the next takes
+	if opened > 0:
+		return
 	# Under the settled face the heap goes on: a piece made where this one lay, a little lower.
 	var new_id := 0
 	if id < HIDDEN_ID_START:
@@ -867,16 +879,6 @@ func _hid_at(h: int) -> Transform3D:
 	var t := _hid_xform[h]
 	t.origin.y += _height_smooth(t.origin)
 	return t
-
-
-## Buried pieces not laid open yet in the cells round `cell`.
-func _buried_round(cell: Vector2i) -> int:
-	var n := 0
-	for j in range(cell.y - 1, cell.y + 2):
-		for i in range(cell.x - 1, cell.x + 2):
-			if _in_grid(Vector2i(i, j)):
-				n += _hid_left[j * GRID_X + i]
-	return n
 
 
 ## Lays open the buried pieces piece `part` at `t` (local) lay on or against: each one turns into
@@ -903,6 +905,33 @@ func _lay_open(part: int, t: Transform3D) -> int:
 				_add_loose(HIDDEN_ID_START + h, _hid_part[h], ht)
 				n += 1
 	return n
+
+
+## Lays open the buried piece nearest under `at` (local) in the cells round it, if any: every take
+## shows something where it was. Returns 1 or 0.
+func _lay_open_nearest(at: Vector3) -> int:
+	var c := _cell_of(at)
+	var best := -1
+	var best_d := INF
+	for j in range(c.y - 1, c.y + 2):
+		for i in range(c.x - 1, c.x + 2):
+			if not _in_grid(Vector2i(i, j)):
+				continue
+			for h: int in _hid_cell.get(j * GRID_X + i, []):
+				if _hid_open.has(h):
+					continue
+				var ht := _hid_at(h)
+				var d := ht.origin.distance_to(at)
+				if ht.origin.y <= at.y + 0.05 and d < best_d:
+					best = h
+					best_d = d
+	if best < 0:
+		return 0
+	var o := _hid_xform[best].origin
+	_hid_open[best] = true
+	_hid_left[_cell_of(o).y * GRID_X + _cell_of(o).x] -= 1
+	_add_loose(HIDDEN_ID_START + best, _hid_part[best], _hid_at(best))
+	return 1
 
 
 ## What rested on piece `part` at `t` (local), just taken, lets go: each piece touching it from
@@ -1596,7 +1625,7 @@ func _update_shape() -> void:
 func min_take(p: Vector3) -> int:
 	var c := _cell_of(to_local(p))
 	var y := p.y - global_position.y
-	var reach := ceili((LANTERN_TOP - y) / LOCK_STEP) + 1
+	var reach := ceili((DEPTH - y) / LOCK_STEP) + 1
 	var vol := 0.0
 	for j in range(maxi(c.y - reach, 0), mini(c.y + reach + 1, GRID_Z)):
 		for i in range(maxi(c.x - reach, 0), mini(c.x + reach + 1, GRID_X)):

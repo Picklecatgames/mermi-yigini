@@ -31,10 +31,12 @@ const LANTERN := Vector4(-15.0, -14.0, 15.0, 14.0)
 const LANTERN_EAVE := 11.6  # top of its glass side walls, over the old roof
 const LANTERN_PITCH := deg_to_rad(18.0)
 const SUN_DIR := Vector3(-0.42, -1.0, 0.22)  # the night light's travel through the glass
-## The heap's centre, west of the hall's middle (scenes/main.tscn Pile has the same): its paint
-## ring (10.6 m) ends at x 1.6, leaving a 12.4 m band to the railing for belts and turrets
-## (docs/taret_bant_kilavuzu.md, "Yerleşim").
-const HEAP := Vector3(-9.0, 0, 0)
+## The scrap pit, as scripts/pile.gd has it (PIT_CENTER, GRID_X * CELL, DEPTH; that script can't
+## be loaded here, it needs the autoloads): its middle, where the heap's lights aim, its side, depth.
+const HEAP := Vector3(-12.0, 0, 0.0)
+const PIT_SIZE := 20.0
+const PIT_DEPTH := 50.0
+const PIT_WALL := 0.4     # m thick, concrete, from the floor down to the pit's bottom
 ## Co-op spawns between the heap and the railing (2026-10-28, the user), everyone facing the heap
 ## over the desk with the pistol (GUN_TABLE); the first two right behind it.
 const SPAWNS: Array[Vector3] = [Vector3(8.7, 0, -0.8), Vector3(8.7, 0, 0.8), Vector3(8.7, 0, -2.4), Vector3(8.7, 0, 2.4)]
@@ -246,9 +248,13 @@ func _floor() -> void:
 	var rubber := worn("dirty_concrete", "kill_floor", {"tint": Color(0.72, 0.68, 0.64), "tex_size": 3.0,
 		"cell_size": 3.0, "cell_tone": 0.14, "odd_cells": 0.12, "antitile": 0.5, "grime": 1.0,
 		"grime_scale": 0.11, "grime_color": Color(0.11, 0.045, 0.035), "wear_x": fl + 2.2, "wear_width": 2.6})
-	for part in [[Rect2(-28.0, -28.0, fl + 28.0, 56.0), load("res://materials/concrete.tres")],
-			[Rect2(fl, -28.0, 28.15 - fl, 56.0), rubber],
-			[Rect2(28.15, -BAY_HALF - 0.3, BAY_END - 28.15, 2.0 * BAY_HALF + 0.6), rubber]]:
+	var concrete: Material = load("res://materials/concrete.tres")
+	var parts := []
+	for r in _around_pit(Rect2(-28.0, -28.0, fl + 28.0, 56.0)):
+		parts.append([r, concrete])
+	parts.append([Rect2(fl, -28.0, 28.15 - fl, 56.0), rubber])
+	parts.append([Rect2(28.15, -BAY_HALF - 0.3, BAY_END - 28.15, 2.0 * BAY_HALF + 0.6), rubber])
+	for part in parts:
 		var r: Rect2 = part[0]
 		var mi := MeshInstance3D.new()
 		var pm := PlaneMesh.new()
@@ -258,9 +264,54 @@ func _floor() -> void:
 		mi.material_override = part[1]
 		mi.layers = 1 | FLOOR_PAINT
 		add(mi, body)
-	var cs := CollisionShape3D.new()
-	cs.shape = WorldBoundaryShape3D.new()
-	add(cs, body)
+	# Solid ground everywhere but over the pit: a slab a metre thick, its top the floor.
+	for r in _around_pit(Rect2(-60.0, -60.0, 140.0, 120.0)):
+		collide(Vector3(r.size.x, 1.0, r.size.y), Vector3(r.get_center().x, -0.5, r.get_center().y), body)
+	_pit(body)
+
+
+func _pit_rect() -> Rect2:
+	return Rect2(HEAP.x - PIT_SIZE * 0.5, HEAP.z - PIT_SIZE * 0.5, PIT_SIZE, PIT_SIZE)
+
+
+## `area` (x, z) less the pit's opening: up to four rects round it.
+func _around_pit(area: Rect2) -> Array[Rect2]:
+	var pit := _pit_rect()
+	if not area.intersects(pit):
+		return [area]
+	var out: Array[Rect2] = []
+	var x0 := maxf(area.position.x, pit.position.x)
+	var x1 := minf(area.end.x, pit.end.x)
+	for r in [Rect2(area.position.x, area.position.y, x0 - area.position.x, area.size.y),  # west of it
+			Rect2(x1, area.position.y, area.end.x - x1, area.size.y),  # east
+			Rect2(x0, area.position.y, x1 - x0, pit.position.y - area.position.y),  # north
+			Rect2(x0, pit.end.y, x1 - x0, area.end.y - pit.end.y)]:  # south
+		if r.size.x > 0.001 and r.size.y > 0.001:
+			out.append(r)
+	return out
+
+
+## The scrap pit (2026-11-02, the user: a square pit in the floor, scrap strewn into it 50 m deep):
+## four concrete walls from the floor down to its bottom round _pit_rect(), facing in. The
+## scrap in it is scripts/pile.gd; the railing, ladders and steel decking round its rim come later.
+func _pit(body: StaticBody3D) -> void:
+	var pit := _pit_rect()
+	var mat := pbr_box("concrete_slab_wall", 2.0, Color(0.62, 0.6, 0.58), true, "pit_wall")
+	var depth := PIT_DEPTH
+	var walls := Node3D.new()
+	walls.name = "PitWalls"
+	add(walls, body)
+	var c := pit.get_center()
+	var hx := pit.size.x * 0.5 + PIT_WALL * 0.5
+	var hz := pit.size.y * 0.5 + PIT_WALL * 0.5
+	for w in [[Vector3(PIT_WALL, depth, pit.size.y + PIT_WALL * 2.0), Vector3(c.x - hx, -depth * 0.5, c.y)],
+			[Vector3(PIT_WALL, depth, pit.size.y + PIT_WALL * 2.0), Vector3(c.x + hx, -depth * 0.5, c.y)],
+			[Vector3(pit.size.x, depth, PIT_WALL), Vector3(c.x, -depth * 0.5, c.y - hz)],
+			[Vector3(pit.size.x, depth, PIT_WALL), Vector3(c.x, -depth * 0.5, c.y + hz)]]:
+		block(w[0], w[1], mat, walls)
+		collide(w[0], w[1], body)
+	# Its bottom, under all the scrap.
+	collide(Vector3(pit.size.x, 1.0, pit.size.y), Vector3(c.x, -depth - 0.5, c.y), body)
 
 
 func _walls() -> void:
@@ -576,7 +627,7 @@ func _lamps() -> void:
 ## trusses in place of the hall lamps there. Wide and soft-edged, crossing so the whole heap is
 ## washed in an even, calm light, with faint beams in the dust. No lamp hangs over the heap itself.
 const HEAP_SPOTS: Array[Vector3] = [HEAP + Vector3(-11, 0, 7), HEAP + Vector3(11, 0, 7), HEAP + Vector3(-11, 0, -7), HEAP + Vector3(11, 0, -7)]
-const HEAP_AIM := HEAP + Vector3(0, 2.4, 0)  # a third up the ~7 m heap
+const HEAP_AIM := HEAP + Vector3(0, -0.5, 0)  # the scrap's top in the pit
 
 
 func _heap_spot() -> void:
@@ -864,16 +915,13 @@ func _firing_line() -> void:
 ## 2026-11-01 (the user): the bullet heap and everything behind it, the crate stands with it, went;
 ## the scrap heap (scripts/pile.gd) fills the west of the hall up to the roof. Whatever stood or
 ## hung where it lies goes too: west of CLEAR_X, all but the decals and what is fixed on the walls
-## (stains and dressing stay). Ceiling battens go only where the heap is up at their height.
+## (stains and dressing stay). 2026-11-02: the heap became a pit in the floor (_pit); the west stays
+## cleared, but the ceiling battens and the heap's spots over it are back.
 const CLEAR_X := 1.5
-const CLEAR_LAMPS_X := -6.0
 
 
 func _clear_for_heap() -> void:
 	var gone: Array[Node] = []
-	for n in arena.get_children():
-		if n is Node3D and (n.name.begins_with("HeapSpot") or n.name == "HeapBounce") and (n as Node3D).position.x < CLEAR_X:
-			gone.append(n)
 	for path in ["Props", "Abandon"]:
 		for n in arena.get_node(path).get_children():
 			if n is Decal or not n is Node3D:
@@ -883,9 +931,6 @@ func _clear_for_heap() -> void:
 			var on_wall := (c.x < -27.0 or absf(c.z) > 27.2) and not n is Light3D and c.y > 0.8
 			if c.x < CLEAR_X and not on_wall:
 				gone.append(n)
-	for n in arena.get_node("Lamps").get_children():
-		if n is Node3D and (n as Node3D).position.x < CLEAR_LAMPS_X:
-			gone.append(n)
 	for n in gone:
 		n.free()
 

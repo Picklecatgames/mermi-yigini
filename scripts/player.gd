@@ -604,7 +604,7 @@ func _show_heap() -> void:
 	var heap := _pile() as Node3D
 	if heap == null:
 		return
-	var to := heap.global_position + Vector3.UP * 3.0 - (global_position + Vector3.UP * EYE)
+	var to: Vector3 = heap.top_point() + Vector3.UP * 0.5 - (global_position + Vector3.UP * EYE)
 	var yaw := atan2(-to.x, -to.z)
 	yaw = _yaw + wrapf(yaw - _yaw, -PI, PI)  # the short way round
 	var pitch := atan2(to.y, Vector2(to.x, to.z).length())

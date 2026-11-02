@@ -1,8 +1,8 @@
 extends SceneTree
-## Headless check for the scrap heap (scripts/pile.gd): it starts at rest under the roof with its
-## volume matching the count; taking from the foot of the face lets what is above settle; enough
-## takes off one steep spot make that part of the face give way, the top comes down, pieces
-## tumble off it and shove a player standing below; through all of it no volume is made or lost.
+## Headless check for the scrap pit (scripts/pile.gd): it starts at rest, full up to under the rim,
+## with its volume matching the count; digging a hole in it lets what is round it settle; enough
+## takes off one steep spot make that side give way, pieces tumble off it and shove a player
+## standing below; through all of it no volume is made or lost.
 ##   Godot.exe --headless --path . -s res://tools/scrap_check.gd
 
 var _collapses := 0
@@ -32,28 +32,18 @@ func _initialize() -> void:
 			top = maxf(top, h[k])
 	print("unit %.7f m³, top %.2f m, steepest step %.3f (lock %.3f)" % [pile.unit, top, worst, pile.LOCK_STEP])
 	assert(worst <= pile.LOCK_STEP + 1e-4, "the heap starts at rest")
-	assert(over <= 1e-4, "nothing over the roof")
-	assert(top > 8.5, "packed up to the roof")
+	assert(over <= 1e-4, "nothing over the rim")
+	assert(top > pile.DEPTH - 1.0, "full up to under the rim")
 	assert(not pile._any_active, "nothing sliding at the start")
 	var v0 := _volume(pile)
 	var expect: float = (gs.PILE_START - pile.spill_pieces) * pile.unit
 	assert(absf(v0 - expect) / expect < 1e-4, "the heap holds the count (%.1f m³, %.1f expected)" % [v0, expect])
 	assert(pile._id_index.size() == pile.spill_pieces, "loose pieces on the floor")
 
-	# The steepest spot on the lower face, near the middle of the hall.
-	var dig := Vector2i(-1, -1)
-	var steep := 0.0
-	for j in range(gz / 2 - 30, gz / 2 + 30):
-		for i in range(1, gx - 1):
-			var k := j * gx + i
-			if h[k] > 0.6 and h[k] < 1.6:
-				var s := absf(h[k + 1] - h[k - 1])
-				if s > steep:
-					steep = s
-					dig = Vector2i(i, j)
-	assert(dig.x >= 0, "a foot to dig at")
+	# A hole dug into the pit's middle, a little toward its south wall.
+	var dig := Vector2i(gx / 2, gz / 2 - 8)
 	var at: Vector3 = pile.cell_world(dig)
-	var above := dig + Vector2i(-4, 0)  # uphill: the face rises to the west
+	var above := dig + Vector2i(-4, 0)  # beside the hole: it slides in as the hole deepens
 	var above_h: float = h[above.y * gx + above.x]
 	print("digging at %s (%.2f m up), %.2f m above it at the start" % [at, at.y, above_h])
 
@@ -105,7 +95,7 @@ func _initialize() -> void:
 ## is outlined and taken by its id; the one under it shows, lower, and is taken the same way;
 ## dig the heap away under one and it falls, still there to pick up.
 func _pieces(gs: Node, pile: Node3D) -> void:
-	# Looking down onto the face a little way up it, toward the north wall: away from where the
+	# Looking down onto the pit's top toward its north wall: away from where the
 	# rest of this check digs. Some of the face shows between its pieces (~13% with only small
 	# pieces, tools/build_scrap_face.gd prints it), so 25 rays over a metre: most hit a piece, and
 	# the first that does goes on.
@@ -113,8 +103,8 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 	var hit := {}
 	var on_piece := 0
 	for k in 25:
-		var at := Vector3(-5.0 + (k % 5) * 0.25, 0.0, -18.0 + (k / 5) * 0.25)
-		var ray := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 12.0, at + Vector3.DOWN)
+		var at := Vector3(-12.0 + (k % 5) * 0.25, 0.0, 5.0 + (k / 5) * 0.25)
+		var ray := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 12.0, at + Vector3.DOWN * 3.0)
 		ray.collision_mask = pile.SCRAP_LAYER | 1
 		ray.exclude = [pile.get_rid()]  # as the player's reach ray: past the raised walking surface
 		var h := space.intersect_ray(ray)

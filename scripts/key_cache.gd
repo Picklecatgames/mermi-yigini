@@ -6,8 +6,7 @@ extends Node3D
 ## Why the cost is a hard gate: no slope in the heap stands steeper than Pile.LOCK_SLOPE, so before
 ## the surface over a key comes down to it, everything above a cone at that slope with its tip on
 ## the key has to go, however and wherever one digs (pile.gd min_take). A key is put where that
-## cone holds its cost: the commons in the thin foot, reachable by hand from the floor, the
-## legendaries deep under the roof.
+## cone holds its cost: the commons just under the pit's top, the legendaries deep down in it.
 ## By hand the first fifteen minutes move ~1,500 pieces in all (docs/ajan_kritik/ekonomi.md).
 ##
 ## When digging gets down to a key it pops out onto the surface, glows in its tier's colour and
@@ -37,9 +36,9 @@ const COSTS := [34, 60, 103, 164, 75_900, 110_000, 153_000, 209_000, 285_000, 1_
 const JITTER := 0.15       # ± fraction of a key's cost, so no two games match
 const FLOOR_GAP := 0.15    # m of heap kept under a key: never on the bare floor
 const SPACING := 1.5       # m between keys
-## Surface height over a spot each tier may lie under, [low, high] m: commons in the foot, the
-## others anywhere the heap is thick enough.
-const BAND := [[0.3, 1.6], [1.0, 99.0], [9.5, 99.0]]
+## Surface height over a spot each tier may lie under, [low, high] m over the pit's bottom: the pit
+## (2026-11-02) is equally deep everywhere, so any spot; the cost alone sets how deep.
+const BAND := [[0.0, 99.0], [0.0, 99.0], [0.0, 99.0]]
 const TRIES := 260         # spots looked at per key
 const MIN_DEPTH := 0.08    # m under the surface: a key is never showing from the start
 const CHECK_INTERVAL := 0.2  # s between looks at buried keys

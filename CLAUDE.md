@@ -5,13 +5,13 @@ Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik bir hurdalık kalesi, dalga 
 ## Oyun özeti
 
 - Korkuluğun (x = 14) ötesinden gelen zombilere ateş et; isabet = $ (kafa ×2). Dalgayı oyuncu şalterle başlatır; çitin bölmeleri yıkılınca zombiler içeri girer, herkes baygın düşünce dalga kaybedilir. Tezgâhta kişisel geliştirmeler ve çit onarımı.
-- Salonun batısı tavana kadar hurda dağı. Her şey hurdalıktan gelen malzemeden yapılır: hurda öğütülür, çıkan malzeme oyuncunun seçimiyle barutta ya da kovanda kullanılır. Yeni kovanlar ve mermi türleri açıldıkça daha çok hurda gerekir.
-- Silahlar post-apokaliptik silahlara geçiyor (şimdilik tabanca → Deagle → UZI → Scorpion → Minigun). 12 anahtar dağa gömülü; ne açtıkları açık.
+- Salonun batısında zeminde kare hurda çukuru (20 × 20 m, 50 m derin, hurda dolu). Her şey hurdalıktan gelen malzemeden yapılır: hurda öğütülür, çıkan malzeme oyuncunun seçimiyle barutta ya da kovanda kullanılır. Yeni kovanlar ve mermi türleri açıldıkça daha çok hurda gerekir.
+- Silahlar post-apokaliptik silahlara geçiyor (şimdilik tabanca → Deagle → UZI → Scorpion → Minigun). 12 anahtar çukura gömülü; ne açtıkları açık.
 - Mermi yığını tasarımı (yığını bitirme hedefi, mermi tarifi, yığından çıkan özel mermiler, kasa sırası, taretler) bırakıldı. Kodda kalanlar: `docs/ayrintilar.md` → "Eski tasarımdan kodda kalanlar".
 
 ## Teknik kurallar
 
-- Hurda dağı yükseklik alanı + yüzde gerçek parçalar (`scripts/pile.gd`). Atış izi, kovan ve uçan mermi görselleri MultiMesh + havuz, mermi başına node yok.
+- Hurda çukuru yükseklik alanı + yüzde gerçek parçalar, altında gömülü parçalar (`scripts/pile.gd`); çamur yüzeyi hiç çizilmez. Atış izi, kovan ve uçan mermi görselleri MultiMesh + havuz, mermi başına node yok.
 - Co-op: bütün durum `GameState` autoload'unda, her oyuncu eylemi `request_*`, host otoriter, bağlantı yalnız `scripts/net.gd`. Yeni dünya sinyali `_world` ile, `EVENTS`'e yaz; yeni istemci komutu `REQUESTS`'e. Rastgelelik yalnız host'ta. Kontrol: `tools/net_check.gd`.
 - Viewmodel: tek kol rig'i, her silah aynı eldivende (`tools/build_arms.py`); ayarlar `viewmodel.gd` `SETS`.
 - `scenes/arena.tscn` elle düzenlenmez: `tools/build_arena.gd`'yi değiştirip çalıştır.

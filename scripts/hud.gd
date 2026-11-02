@@ -209,7 +209,7 @@ func _point_targets() -> Array:
 		out.append([table.global_position + Vector3.UP * 1.3, "Tabanca", true])
 	var heap := get_tree().get_first_node_in_group("bullet_pile") as Node3D
 	if kind == "bullets_carried" and heap:
-		out.append([heap.global_position + Vector3.UP * 3.0, "Mermi", true])
+		out.append([heap.top_point() + Vector3.UP * 1.5, "Mermi", true])
 	return out
 
 

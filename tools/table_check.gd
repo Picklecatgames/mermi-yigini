@@ -1,10 +1,10 @@
 extends SceneTree
 ## Headless check of the start (2026-10-28): we stand between the heap and the railing facing the
 ## heap, the desk with the pistol in front of us; E on it draws the pistol empty and the desk fades
-## out. Then the heap: walking into it goes up its foot and stands on the scrap, never sunk in.
+## out. Then the scrap pit: walking off its rim we land on the scrap in it, never sunk in.
 ##   Godot.exe --headless --path . -s res://tools/table_check.gd
 
-const HEAP := Vector3(-9.0, 0, 0)
+const HEAP := Vector3(-12.0, 0, 0)  # the scrap pit's middle (pile.gd PIT_CENTER)
 
 var _fail := false
 
@@ -55,7 +55,7 @@ func _initialize() -> void:
 	_ok(gs.unlocked("workbench") and not me._hud._q.visible, "the bench is open (no Q: everything is bought there)")
 	_ok(not me._hud._sheet.visible, "the quest list waits for the board")
 	_ok(gs.gold == gs.START_GOLD, "we start with $%d" % gs.gold)
-	# The heap: from its foot, walk straight in for 3 s.
+	# The pit: from just outside its rim, walk straight in for 3 s.
 	me.global_position = HEAP + Vector3(9.5, 0.2, 0.0)
 	me._yaw = PI / 2.0  # looking -x, at the middle
 	me._pitch = 0.0
@@ -63,15 +63,15 @@ func _initialize() -> void:
 	Input.action_press("move_forward")
 	await create_timer(3.0).timeout
 	Input.action_release("move_forward")
-	# The scrap heap (2026-11-01) is locked up to 61°: we go up its foot and stop at the face, on the
-	# pieces round our feet (the capsule rests on the highest of them), never sunk into the heap.
+	# The scrap pit (2026-11-02): its top lies under the rim; we drop onto it and stand on the pieces
+	# round our feet (the capsule rests on the highest of them), never sunk into the scrap.
 	var pile: Node = main.get_node("Pile")
 	var top := 0.0
 	for a in 8:
 		top = maxf(top, pile.walk_y(me.global_position + Vector3(0.4, 0, 0).rotated(Vector3.UP, a * PI / 4.0)))
 	var under: float = pile.surface_y(me.global_position)
-	_ok(me.global_position.y > 0.25 and me.global_position.y > under - 0.05 and me.global_position.y < top + 0.3,
-		"walking into the heap goes up its foot and stands on the scrap (%.3f m up, the heap %.3f under us, the scrap round us up to %.2f m, %.1f m in)" % [me.global_position.y, under, top, 9.5 - (me.global_position.x - HEAP.x)])
+	_ok(me.global_position.y < -0.05 and me.global_position.y > under - 0.05 and me.global_position.y < top + 0.3,
+		"walking into the pit drops us onto the scrap and we stand on it (%.3f m up, the heap %.3f under us, the scrap round us up to %.2f m, %.1f m in)" % [me.global_position.y, under, top, 9.5 - (me.global_position.x - HEAP.x)])
 	print("table_check ", "FAILED" if _fail else "OK")
 	quit(1 if _fail else 0)
 

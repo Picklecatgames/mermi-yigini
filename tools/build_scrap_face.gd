@@ -319,8 +319,8 @@ func _keep(body: RigidBody3D) -> void:
 	var part: int = body.get_meta("part")
 	var t := Transform3D(body.global_transform.basis.orthonormalized(), body.global_transform.origin)
 	body.queue_free()
-	if t.origin.y < -0.5:
-		return  # fell off the world
+	if (_to_world.affine_inverse() * t).origin.y < -0.5:
+		return  # fell off the world (under the pit's bottom)
 	var rid := PhysicsServer3D.body_create()
 	PhysicsServer3D.body_set_mode(rid, PhysicsServer3D.BODY_MODE_STATIC)
 	PhysicsServer3D.body_add_shape(rid, _pile._part_hull[part].get_rid(), _pile._part_hull_at[part])
