@@ -23,7 +23,11 @@ const GROUP := 6          # chunks settling at once
 const LAYER := 1 << 6     # physics layer of the settling pieces
 const RAYS := 4           # per cell side
 const REACH := 4          # cells round a group its rays come from (a leaning ray travels ~1 m sideways)
-const MIN_HITS := 3       # rays a piece must catch to be kept: a sliver in a gap costs a whole piece to draw
+const MIN_HITS := 3       # rays a piece must catch to be kept, unless it is all that stands in a gap (_straight)
+const FILL_PASSES := 6    # rounds of dropping pieces into the gaps left, until none shows the heap's surface
+const FILL_BATCH := 4000  # pieces falling at once while filling
+const LOW_FACE := 2.0     # m: the face under this is looked at from low down too
+const LOW_LOOK := Vector3(1.0, 0.25, 0.0)  # (hall space) out of the face toward an eye low in the hall
 const OUT := "res://data/scrap_face.json"
 ## The layers, bottom up: which pieces (by their longest side, m), how many times their footprints
 ## cover the chunk's true area, how far they may tip off lying flat (rad), and how much of each
@@ -33,7 +37,7 @@ const OUT := "res://data/scrap_face.json"
 const LAYERS := [
 	{"size": Vector2(0.12, 0.35), "cover": 3.0, "tilt": 0.5,
 		"kinds": {"disli": 2.0, "boru": 1.1, "konserve": 1.5, "kola": 1.0, "zincir": 0.8, "yay": 0.8, "jant": 0.6, "kap": 0.4}},
-	{"size": Vector2(0.35, 9.0), "cover": 0.5, "tilt": 0.3,
+	{"size": Vector2(0.35, 9.0), "cover": 0.15, "tilt": 0.3,
 		"kinds": {"boru": 2.0, "jant": 1.5, "zincir": 1.2}},
 	{"size": Vector2(0.0, 0.12), "cover": 0.4, "tilt": 0.8,
 		"kinds": {"civata": 2.5, "boru": 0.7, "disli": 1.0, "konserve": 0.6}},
@@ -45,6 +49,9 @@ const KIND_MODELS := 4.0
 ## the face draws ~30 000 pieces, and some light copies keep 1 500-2 000 triangles (the simplifier
 ## stops at UV seams).
 const TRIS_EASY := 250.0
+## Off the face: one model that stands out at a glance repeats all over it and gives the heap away
+## (the user, 2026-11-02: the long valve stem with its wheel). Still in the heap, under the face.
+const FACE_SKIP := ["valve_wheel_scan"]
 const BRASS := ["pirinc", "bakir"]
 const BRASS_FREQ := 0.06    # the brass-and-copper share drifts over some 15 m of face
 const BRASS_RANGE := Vector2(0.25, 2.5)  # times its plain weight, where the drift is lowest and highest
@@ -99,14 +106,15 @@ func _initialize() -> void:
 				push_warning("%d bodies: near the physics server's limit, the next chunks may stay bare" % bodies)
 			done += group.size()
 			print("%d / %d chunks, %d pieces, %d bodies (%d s)" % [done, chunks.size(), _part.size(), bodies, (Time.get_ticks_msec() - t0) / 1000])
+	# Slivers go before the gaps are filled: what they half hid is filled for real.
 	var seen := _seen(Rect2i(0, 0, _pile.GRID_X, _pile.GRID_Z))
-	var slivers := 0
-	for i: int in seen.keys():
-		if seen[i] < MIN_HITS:
-			seen.erase(i)
-			_rid_piece.erase(_rid[i])
-			PhysicsServer3D.free_rid(_rid[i])
-			slivers += 1
+	var slivers := _drop(func(i: int) -> bool: return seen.get(i, 0) < MIN_HITS)
+	await _fill()
+	# Kept: what shows well, and whatever a ray straight in meets first (it is all that covers there).
+	seen = _seen(Rect2i(0, 0, _pile.GRID_X, _pile.GRID_Z))
+	var straight := _straight()
+	slivers += _drop(func(i: int) -> bool: return seen.get(i, 0) < MIN_HITS and not straight.has(i))
+	seen = _seen(Rect2i(0, 0, _pile.GRID_X, _pile.GRID_Z))
 	print("%d slivers left out" % slivers)
 	var out := []
 	var kinds := {}
@@ -147,7 +155,7 @@ func _sort_parts() -> void:
 			var longest := s[s.max_axis_index()]
 			if longest < _pile.SURFACE_MIN or longest < layer.size.x or longest >= layer.size.y:
 				continue
-			if layer.kinds.get(info.tur, 1.0) <= 0.0:
+			if layer.kinds.get(info.tur, 1.0) <= 0.0 or info.id in FACE_SKIP:
 				continue
 			by_kind[info.tur] = by_kind.get(info.tur, []) + [i]
 			foot[info.tur] = foot.get(info.tur, 0.0) + _pile._part_foot[i]
@@ -335,6 +343,95 @@ func _bury(group: Array) -> int:
 		PhysicsServer3D.free_rid(_rid[i])
 		_rid[i] = RID()
 	return _rid_piece.size()
+
+
+## Lets go of every live piece `out` says, returns how many.
+func _drop(out: Callable) -> int:
+	var n := 0
+	for i in _part.size():
+		if _rid[i].is_valid() and out.call(i):
+			_rid_piece.erase(_rid[i])
+			PhysicsServer3D.free_rid(_rid[i])
+			_rid[i] = RID()
+			n += 1
+	return n
+
+
+## The pieces met first by the rays that must not reach the heap's surface (_cover_rays).
+func _straight() -> Dictionary:
+	var out := {}
+	var ray := PhysicsRayQueryParameters3D.new()
+	ray.collision_mask = LAYER
+	for j in range(1, _pile.GRID_Z - 1):
+		for i in range(1, _pile.GRID_X - 1):
+			if not _pile._face_cell(j * _pile.GRID_X + i):
+				continue
+			for r: Array in _cover_rays(Vector2i(i, j)):
+				ray.from = _to_world * (r[0] + r[1] * 3.0)
+				ray.to = _to_world * (r[0] - r[1] * 0.3)
+				var hit := _space.intersect_ray(ray)
+				if not hit.is_empty() and _rid_piece.has(hit.rid):
+					out[_rid_piece[hit.rid]] = true
+	return out
+
+
+## Rays onto `cell` that must meet scrap before the heap's surface, as [point on it, direction
+## out of it] (heap space): RAYS × RAYS straight in along the face's normal, and on the lower
+## face as many more from low down in the hall, as a player looks at its foot.
+func _cover_rays(cell: Vector2i) -> Array:
+	var out := []
+	var n := _normal_round(cell)
+	var low := (_to_world.basis.inverse() * LOW_LOOK).normalized()
+	for b in RAYS:
+		for a in RAYS:
+			var at: Vector3 = _pile._cell_pos(cell) + Vector3((a + 0.5) / RAYS - 0.5, 0.0, (b + 0.5) / RAYS - 0.5) * _pile.CELL
+			at.y = _pile._height_smooth(at)
+			out.append([at, n])
+			if at.y < LOW_FACE and low.dot(n) > 0.3:
+				out.append([at, low])
+	return out
+
+
+## The heap's own surface must not show anywhere, only scrap (2026-11-02, the user). Where a ray
+## straight in still reaches it, a piece is dropped onto that very spot, a hand-sized one or a small
+## one, and comes to rest in the gap; again, until no ray gets through or FILL_PASSES run out.
+func _fill() -> void:
+	var ray := PhysicsRayQueryParameters3D.new()
+	ray.collision_mask = 1 | LAYER
+	for pass_no in FILL_PASSES:
+		var spots := []
+		for j in range(1, _pile.GRID_Z - 1):
+			for i in range(1, _pile.GRID_X - 1):
+				if not _pile._face_cell(j * _pile.GRID_X + i):
+					continue
+				var cell := Vector2i(i, j)
+				for r: Array in _cover_rays(cell):
+					ray.from = _to_world * (r[0] + r[1] * 3.0)
+					ray.to = _to_world * (r[0] - r[1] * 0.3)
+					var hit := _space.intersect_ray(ray)
+					if not hit.is_empty() and (_rid_piece.has(hit.rid) or hit.position.distance_to(_to_world * r[0]) > 0.25):
+						continue  # scrap there, or the heap itself in the way of a low look
+					spots.append([r[0], r[1], _normal_round(cell)])
+		print("fill %d: %d bare spots" % [pass_no, spots.size()])
+		if spots.is_empty():
+			return
+		# One piece a spot: bigger ones first, the last rounds small ones for the last chinks.
+		var l := 0 if pass_no < FILL_PASSES / 2 else 2
+		for k in range(0, spots.size(), FILL_BATCH):
+			var bodies := []
+			for spot: Array in spots.slice(k, k + FILL_BATCH):
+				var at: Vector3 = spot[0]
+				var n: Vector3 = spot[2]
+				var part := _pick(l, at)
+				var s: Vector3 = _pile._part_size[part]
+				at += spot[1] * (s.length() * 0.5 + 0.03)  # back along the ray: clear of everything
+				bodies.append(_body(part, _to_world * Transform3D(_lying(part, n, LAYERS[l].tilt), at), _to_world.basis * n))
+			for f in SETTLE_FRAMES:
+				await physics_frame
+				if f % 30 == 29 and bodies.all(func(b: RigidBody3D) -> bool: return b.sleeping or b.linear_velocity.length() < 0.03):
+					break
+			for body: RigidBody3D in bodies:
+				_keep(body)
 
 
 ## How much of the face shows bare between the pieces: the share of straight-in rays that reach

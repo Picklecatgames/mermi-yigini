@@ -602,13 +602,18 @@ func _make_slots(per_part: Array[Array], cell_slots: Dictionary) -> void:
 	_update_surface_pieces(Rect2i(0, 0, GRID_X, GRID_Z))
 	_redraw.fill(Rect2i())
 	# Walkers stand on the pieces, not on the surface they lie on: each cell's collision is raised
-	# by how high its pieces rise over it, on average.
+	# by how high its upper half of pieces rise over it, on average (the lower ones lie in the gaps
+	# between them, and a foot rests on the top ones).
 	_pad.resize(GRID_X * GRID_Z)
 	for key in GRID_X * GRID_Z:
-		var sum := 0.0
+		var ys := PackedFloat32Array()
 		for s in range(_cell_first[key], _cell_first[key + 1]):
-			sum += _slot_xform[s].origin.y
-		var n := _cell_first[key + 1] - _cell_first[key]
+			ys.append(_slot_xform[s].origin.y)
+		ys.sort()
+		var sum := 0.0
+		for y in ys.slice(ys.size() / 2):
+			sum += y
+		var n := ys.size() - ys.size() / 2
 		# No higher than the heap is thick there: at the foot it ramps up from the floor, no step.
 		_pad[key] = clampf(sum / n, 0.0, minf(MAX_PAD, _h[key])) if n > 0 else 0.0
 	_chunk_dirty.fill(1)
