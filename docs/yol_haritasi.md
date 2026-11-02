@@ -74,34 +74,32 @@ Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başt
 11. **Hile menüsü (x10 hız, para ekle) + ilk 15 dakikanın denge turu:** yalnız host açar, yalnız debug build'de. Denge 1 ve 2 oyuncuyla ölçülür.
    - Panel yapıldı (2026-10-22): F9 denge paneli, ayrıntı `ayrintilar.md`. Kalan: ilk 15 dakikanın denge turu.
 
-## Faz 3: İkinci para ve kasalar (~15 sa)
+## Faz 3: Hurdalık döngüsü (2026-11-02)
 
-12. **Kovan → fırın → külçe:** kovanı kim toplarsa onun; fırın dünya yapısı (ortak); külçe kişisel mi ortak mı bu adımda karar.
-   - **Kovan toplama (kullanıcı isteği, 2026-10-20):** yerdeki kovan para kaynağı olacağı için belirgin olmalı: çevresinde ince bir kontur/parıltı çizgisi, uzaktan seçilir. Oyuncu bakıp E ile eline alır. El kapasitesi başta 1 kovan, gelişme ağacından 10'a çıkar. Sonra ağaca toplayıcılar bağlanır: kova → süpürge → robot süpürge (kovanı yerden kendisi toplar). Co-op: kovan şimdi süs ve yerel (her makinede ayrı fizik); para olunca host'ta sayılan bir dünya nesnesine dönmeli (konumu, kimin aldığı olay olarak).
-13. **Kasa duvarı + anahtar–kasa eşlemesi:** anahtarı yürüyen oyuncu alır (host'ta ilk gelen), kasa açılınca özellik herkese açılır, açılış töreni herkesin ekranında oynar.
-   - Başlandı (2026-10-22): 1–7. seviye kasaları kaidelerde (`scripts/chests.gd`, `tools/build_chests.py`); 1–7. anahtarlar kasalarına göre değişti (`tools/build_keys.py`, Kum Adamı çıktı). Kalanlar: 8–12. kasalar, açılma ve tören.
-14. **Mermi tipi altyapısı + tracer:** tip oyuncunun şarjöründe taşınır. Tracer: mor, hızlı; vurunca hedefin sağ arkasında ışık olarak belirip tekrar vurur; yankı vuruşlarını host zamanlar, herkes görür; yankı sayısı upgrade ağacı.
+Mermi yığını bırakıldı (kullanıcı kararı); eski Faz 3-5 (kovan → fırın, kasa duvarı, taretler, hortum, mermi tarifi, yığın kilometre taşları) geçersiz. Kurallar `ayrintilar.md` → "Yeni yön: hurdalık"; adımların sırası benim önerim.
 
-## Faz 4: Otomasyon ve orta oyun (~25 sa)
+12. ~~**Hurda dağı:**~~ (main'de, 2026-11-02) mermi yığınının yerine kenetlenip çöken, parçaları tek tek alınan gerçek hurda dağı.
+13. **Öğütücü çalışır:** hurda içine atılır, miller döner, ibre titrer, sayaç sayar, toplama kutusuna malzeme düşer. Yer kullanıcıyla kesinleşecek (şimdi geçici 4,5, 0, 21).
+14. **Malzeme → barut ya da kovan → mermi:** oyuncu malzemeyi barutta mı kovanda mı kullanacağını seçer; dağdan mermi alma kalkar.
+15. **Yeni kovanlar ve mermi türleri:** her biri daha çok hurda ister.
+16. **Post-apokaliptik silahlar:** aday listesi `ayrintilar.md` → "Silah adayları".
+17. **Eski tasarımın kalıntıları:** `ayrintilar.md` → "Eski tasarımdan kodda kalanlar".
 
-Taret ve bant için kılavuz, adım listesi ve yapılmayacaklar: `taret_bant_kilavuzu.md` (2026-10-22).
+## Faz 4: Dalgalar ve orta oyun
 
-15. **İlk taret:** ortak kasadan alınır, külçeyle gelişir, zincire girmez. Hedef seçimi ve atış host'ta, istemciye yalnız atış olayları.
-16. **Taret hortumu (2026-10-23, bantların yerine):** taret konunca yığına kendiliğinden uzanır, oyuncu döşemez; akış ve kazı kılavuzdaki hat modeliyle aynı (`bullets_taken`, anahtarlar hortumun kazdığı yerden fırlar).
-17. **Mermi tarifi, birer birer** (`ayrintilar.md` → "Mermi tarifi"): önce deneme olarak klon + sekme + mermi çarkı, beğenilirse kalan 7 özellik kasa sırasıyla. Maliyet şarjörden düşer. Sekme hedefleri ve bölünme zarı host'ta.
-18. **Silahları kasaya bağlamak (2026-10-23):** pompalı yok; UZI 3., Scorpion 6. (Kafatası), minigun 12. kasadan. `GUNS`'ta UZI ve Scorpion'a `"crate"` eklenir, Q'dan satın alınmazlar.
+18. **Dalga ve baygınlık sayılarının onayı, denge turu.**
+19. **Çit level sistemine göre çeşitlenir** (kullanıcı kararı; görsel ve yapısal).
+20. **Müzik:** kafa yormayan post-apo müziği (kullanıcı Suno ile üretecek).
 
-## Faz 5: Final (~15 sa)
+## Faz 5: Final
 
-19. **Minigun (12. anahtar, Dişli):** herkese açılır; yüksek atış hızında ağ yükü için atışlar paketlenir (ör. 50 ms'de bir toplu olay).
-   - Erken yapılanlar (2026-10-22): model, klipler, ısınma/hızlanma/yavaşlama, kilit (`gun_open`, şimdilik T açar), nişansız sağ tık, yavaşlatma; ayrıntı `ayrintilar.md` → Minigun, kontrol `tools/minigun_check.gd`. Kalanlar: kasaya bağlamak (13. adım), atış paketleme, sesler, kısa reload/equip, 3. şahısta dönen namlu.
-20. **Kilometre taşları (99M/90M/50M/10M/1M) ve son mermi töreni:** son mermiyi alan oyuncu gonga atar, herkesin ekranında.
-21. **Co-op iletişimi:** ping ve emote ikonları (CLAUDE.md kuralı: konuşma animasyonu yok).
+21. **Bitiş hedefi ve töreni** (açık soru: yığın gidince oyunun neyle bittiği belli değil).
+21b. **Co-op iletişimi:** ping ve emote ikonları (CLAUDE.md kuralı: konuşma animasyonu yok).
 
 ## Faz 6: Steam ve demo hazırlığı (~20 sa)
 
 22. **GodotSteam:** lobi, arkadaş daveti, "arkadaşına katıl". Bağlantı katmanı ENet'ten Steam'e geçer.
-23. **Ana menü ve dünya oluşturma:** host et / katıl / ayarlar; oyuncu sayısına göre yığın büyüklüğü burada seçilir.
+23. **Ana menü ve dünya oluşturma:** host et / katıl / ayarlar; oyuncu sayısına göre dünya ayarları burada seçilir.
 24. **Kayıt:** dünya host'ta kaydedilir; kişisel durum Steam ID'ye göre saklanır.
 25. **60 dakikalık denge (1, 2 ve 4 oyuncuyla) + UI cilası + ses geçişi:** bütün sesler (reload, ayak, boş tetik, kovan) co-op'ta karakterin konumunda 3D. Yerleri hazır: ayak ve reload `remote_players.gd` karakter düğümünde, atış `muzzle_position()`'da.
    - **Karakter ayrıştırma (karar 2026-10-20, en sona):** önce oyuncu sırasına göre otomatik kıyafet rengi (maske + shader, operator dokusunda tişört/pantolon/yelek bölgeleri, ağdan veri gitmez); sonra ana menüde renk seçimi (birkaç sayı, `request_*` ile host'a, `PlayerState`'te). Aksesuar ve farklı karakter demo sonrası.
