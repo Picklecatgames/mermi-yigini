@@ -173,8 +173,8 @@ func _check_settings(main: Node) -> void:
 	assert(settings.rear_cue() == 0.0, "surround: no rear cue, the rear speakers say it")
 	print("audio ok")
 
-	var env: Environment = main.get_node("Arena/WorldEnvironment").environment
-	var lamps := func() -> int: return main.get_node("Arena").find_children("*", "Light3D", true, false).filter(func(l: Light3D) -> bool: return not l is DirectionalLight3D and l.shadow_enabled).size()
+	var env: Environment = main.get_node("World/WorldEnvironment").environment
+	var lamps := func() -> int: return main.get_node("World").find_children("*", "Light3D", true, false).filter(func(l: Light3D) -> bool: return not l is DirectionalLight3D and l.shadow_enabled).size()
 	settings.set_value("preset", 0)
 	await _frames(2)
 	assert(not env.ssao_enabled and not env.volumetric_fog_enabled and near.call(root.get_viewport().scaling_3d_scale, 0.7), "low preset: effects off, 70 %")

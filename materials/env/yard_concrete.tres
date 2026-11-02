@@ -1,0 +1,40 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://materials/env/worn_surface.gdshader" id="1_m426g"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_concrete/dirty_concrete_diff_2k.jpg" id="2_a7had"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_concrete/dirty_concrete_arm_2k.jpg" id="3_pkt8a"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/dirty_concrete/dirty_concrete_nor_gl_2k.jpg" id="4_w2qgy"]
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_xasoj"]
+seed = 26119
+frequency = 0.02
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_j75it"]
+noise = SubResource("FastNoiseLite_xasoj")
+seamless = true
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_m426g")
+shader_parameter/albedo_tex = ExtResource("2_a7had")
+shader_parameter/normal_tex = ExtResource("4_w2qgy")
+shader_parameter/arm_tex = ExtResource("3_pkt8a")
+shader_parameter/grime_tex = SubResource("NoiseTexture2D_j75it")
+shader_parameter/tint = Color(0.8, 0.74, 0.66, 1)
+shader_parameter/brightness = null
+shader_parameter/mesh_uv = null
+shader_parameter/uv_scale = null
+shader_parameter/tex_size = 4.0
+shader_parameter/cell_size = 4.0
+shader_parameter/turn_cells = null
+shader_parameter/cell_tone = 0.12
+shader_parameter/odd_cells = 0.1
+shader_parameter/antitile = 0.5
+shader_parameter/grime_color = Color(0.42, 0.33, 0.22, 1)
+shader_parameter/grime = 0.9
+shader_parameter/grime_scale = 0.08
+shader_parameter/rust_color = null
+shader_parameter/rust = null
+shader_parameter/wear_x = null
+shader_parameter/wear_width = null
+shader_parameter/cutout = null

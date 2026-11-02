@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://csjp1aulupqqp"]
 
-[ext_resource type="PackedScene" path="res://scenes/arena.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/world.tscn" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/pile.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3"]
 [ext_resource type="Script" uid="uid://c3qi8avw68ne" path="res://scripts/impacts.gd" id="5"]
@@ -12,7 +12,7 @@
 
 [node name="Main" type="Node3D" unique_id=603565990]
 
-[node name="Arena" parent="." unique_id=867209200 instance=ExtResource("1")]
+[node name="World" parent="." unique_id=867209200 instance=ExtResource("1")]
 
 [node name="Pile" parent="." unique_id=1017014262 instance=ExtResource("2")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11.75, 0, 0)
@@ -24,7 +24,7 @@ script = ExtResource("13")
 script = ExtResource("16")
 
 [node name="Player" parent="." unique_id=5293025 instance=ExtResource("3")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0, 0)
 
 [node name="Impacts" type="Node3D" parent="." unique_id=186312426]
 script = ExtResource("5")

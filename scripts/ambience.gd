@@ -52,7 +52,7 @@ var events: Array[Dictionary] = []  # per EVENTS row: player, wait, last clip, a
 
 func _ready() -> void:
 	_outside = [_player("night_outside.ogg", NIGHT_DB.x, true), _player("forest_night.ogg", FOREST_DB.x, true)]
-	for light in get_node("../Arena/Lamps").find_children("*", "SpotLight3D", true, false):
+	for light in get_node("../World/Lamps").find_children("*", "SpotLight3D", true, false):
 		_lamps.append((light as Node3D).global_position)  # dead bulbs have no light, so no hum
 	# Flat, not 3D: a source right overhead swung hard left-right with every step under the lamp.
 	_hum = AudioStreamPlayer.new()
