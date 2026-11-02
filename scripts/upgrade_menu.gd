@@ -8,7 +8,7 @@ extends CanvasLayer
 ## to what is left. The game keeps running, so the gauges keep filling while the menu is open.
 
 const INFO := {  # name, value format, icon colour, what it does
-	"carry": ["El Kapasitesi", "%d", Color(0.36, 0.72, 1.0), "Yığından bir avuçta aldığın mermi"],
+	"carry": ["El Kapasitesi", "%d", Color(0.36, 0.72, 1.0), "Bir seferde taşıyabildiğin hurda"],
 	"magazine": ["Şarjör", "%d", Color(1.0, 0.55, 0.25), "Şarjöre giren mermi"],
 	"combo_cap": ["Kombo Tavanı", "x%d", Color(0.85, 0.4, 1.0), "Seri isabetle büyüyen çarpanın üst sınırı"],
 	"gold_bonus": ["Para Bonusu", "+%d%%", Color(1.0, 0.8, 0.25), "Her isabetten kazandığın paraya eklenen pay"],

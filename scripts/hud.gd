@@ -28,7 +28,7 @@ const BIG := 60  # px, the two big numbers
 const HEAP_W := 200.0  # px, the heap's bar
 const MONEY := UiStyle.MONEY  # kept for older callers
 const QUEST_W := 230.0  # px, a quest's bar
-const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Yığından mermi taşı",
+const KINDS := {"gold_earned": "Altın kazan", "bullets_carried": "Hurda taşı",
 	"bullets_fired": "Mermi ateşle", "hits": "Zombiye isabet", "weak_hits": "Kafa isabeti",
 	"combo": "Kombo zinciri", "crafted": "Preste pirinç işle", "bullets_melted": "Mermi erit",
 	"key_found": "Anahtar bul", "loaded": "Şarjöre mermi koy", "board_claim": "Panoya git", "bench_bought": "Tezgâhta geliştirme al",
@@ -210,7 +210,7 @@ func _point_targets() -> Array:
 		out.append([table.global_position + Vector3.UP * 1.3, "Tabanca", true])
 	var heap := get_tree().get_first_node_in_group("bullet_pile") as Node3D
 	if kind == "bullets_carried" and heap:
-		out.append([heap.global_position + Vector3.UP * 3.0, "Mermi", true])
+		out.append([heap.global_position + Vector3.UP * 3.0, "Hurda", true])
 	return out
 
 
@@ -527,7 +527,6 @@ func _show_hint(id: String) -> void:
 	if _hint.get_meta("for", "") == id:
 		return
 	_hint.set_meta("for", id)
-	_hint.set_meta("gun", not hint.is_empty() and hint[0] == "R")  # hidden while the gun is away
 	for n in _hint.get_children():
 		n.queue_free()
 	_hint.visible = not hint.is_empty() and not _subtitle.visible
@@ -674,7 +673,6 @@ func refresh() -> void:
 	_left.visible = _shown("hud_ammo") and not stowed
 	_guns.visible = _shown("hud_ammo") and not stowed
 	_special_row.visible = _special_row.visible and not stowed
-	_hint.modulate.a = 0.0 if stowed and _hint.get_meta("gun", false) else 1.0
 	_right.visible = _shown("workbench")
 
 

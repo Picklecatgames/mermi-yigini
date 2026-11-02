@@ -214,7 +214,7 @@ func _ready() -> void:
 	_hud = HUD.new()
 	$HUD.add_child(_hud)
 	_prompt.queue_free()
-	_grab_hint = _crosshair_hint(UiStyle.hint("E", "Basılı tut: mermi al"))
+	_grab_hint = _crosshair_hint(UiStyle.hint("E", "Basılı tut: hurda al"))
 	_full_hint = _crosshair_hint(UiStyle.hint("G", "Elin dolu: fırlat"))
 	_board_hint = _crosshair_hint(UiStyle.hint("E", "Görev panosu"))
 	_bench_hint = _crosshair_hint(UiStyle.hint("E", "Tezgâh: silahını geliştir"))
