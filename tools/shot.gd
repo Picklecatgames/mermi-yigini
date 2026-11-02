@@ -58,6 +58,8 @@ const SHOTS := {
 	"scrap_touch": [Vector3(-1.2, 1.4, 1.6), Vector3(-3.0, 0.9, 1.0)],
 	"scrap_roof":[Vector3(2.0, 1.7, -3.0), Vector3(-9.0, 9.5, 0.0)],
 	"desk": [Vector3(5.0, 1.7, 22.3), Vector3(5.0, 0.9, 25.5)],
+	"ogutucu": [Vector3(1.1, 1.7, 18.8), Vector3(4.5, 0.8, 21.0)],
+	"ogutucu_yakin": [Vector3(3.0, 1.7, 20.6), Vector3(4.2, 0.95, 21.3)],
 	"cash": [Vector3(5.4, 1.45, 24.1), Vector3(5.12, 0.95, 25.45)],
 	"bulb": [Vector3(1.3, 6.2, 15.3), Vector3(0.0, 6.85, 14.0)],
 	"workshop": [Vector3(10.0, 1.7, 21.5), Vector3(10.8, 1.6, 27.9)],

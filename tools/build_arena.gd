@@ -757,6 +757,9 @@ func _props() -> void:
 	var ext := MODELS + "korean_fire_extinguisher_01/korean_fire_extinguisher_01_1k.gltf"
 	for p in [Vector3(-27.4, 0, -13.4), Vector3(27.4, 0, 16.4), Vector3(13.4, 0, -27.4), Vector3(-13.4, 0, 27.4)]:
 		_prop(props, ext, p, randf() * TAU)
+	# 2026-11-02: the scrap grinder in front of the heap (west of x 1.5 is cleared for it), its control box
+	# towards the heap; place is provisional.
+	_prop(props, "res://assets/props/ogutucu/ogutucu.glb", Vector3(4.5, 0, 21.0), -PI / 2)
 
 
 ## Dust drifting in the air over the heap and down the range: tiny lit specks, so they only show
