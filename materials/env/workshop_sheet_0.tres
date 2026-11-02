@@ -1,0 +1,13 @@
+[gd_resource type="ORMMaterial3D" format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/textures/rusty_corrugated_iron/rusty_corrugated_iron_diff_2k.jpg" id="1_iwxh8"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/rusty_corrugated_iron/rusty_corrugated_iron_nor_gl_2k.jpg" id="2_qh0yn"]
+[ext_resource type="Texture2D" path="res://assets/env/textures/rusty_corrugated_iron/rusty_corrugated_iron_arm_2k.jpg" id="3_8jik8"]
+
+[resource]
+cull_mode = 2
+albedo_texture = ExtResource("1_iwxh8")
+orm_texture = ExtResource("3_8jik8")
+normal_enabled = true
+normal_texture = ExtResource("2_qh0yn")
+texture_filter = 5

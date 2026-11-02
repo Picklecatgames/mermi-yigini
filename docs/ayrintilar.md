@@ -13,6 +13,10 @@ Kullanıcının sözleri (özet değil, kararlar):
 - "Gece gündüz döngüsü olacak. Gündüz vakti materyalleri alıp söküp otomasyon, taret, silah vesaire craftlayacağız."
 - "Gece olunca da zombiler, yaratıklar, canavarlar gelecek. Her gecede bir önceki geceden zor."
 - **Çizim:** geniş, oval bir açık arazi. Önde dikdörtgen bir üs alanı: sol üst köşesinde "masa" yazan bir masa ve yanında küçük bir kutu, ortada oyuncu. Üssün hemen arkasında, onu yarım halka gibi saran, sivri tepeli, çok büyük bir çöp dağı ("Hurda dağı"). Dağın iki yanından arazi geriye uzanıyor.
+- **Zemin ve çevre (2026-11-02):** "Çalışma mekânımızın zemini beton olacak. Atölye ve atölyenin çevresi beton. Ama dışarısı çöl gibi bir ortama gidecek. Çöl, hafif ormanlık, wasteland tarzında. Mad Max gibi." Ortam dikdörtgen ve geniş. Dışarısı "Unity demosu gibi" durmamalı; ağaçlar ve görünüm gerçek olmalı (gece salonu için yaptığımız gibi).
+- **Atölye (2026-11-02, kullanıcının çizimi):** önü açık, çatılı bir atölye. İçine eski salondaki masa (tezgâh) ve müzik sistemi (radyo) taşınır. Sonra: "Ana mekânı yüzde elli uzunlamasına küçült, daha portatif, daha minivan hissettirecek şekilde." Üç tarafı kapalı, bir tarafı açık. Tavan lambaları değişti. Ortadaki boş masa kaldırıldı. "Çok keskin bir kutu gibi olmuş", bunu düzeltecek malzemeler kurulmalı.
+- **Atölyenin süslemesi (2026-11-02, bekliyor):** vintage malzemeler, ortama uyan yeni lamba türleri, duvarda tablo, el yapımı atölye malzemeleri (tornavida, testere vb.).
+- **Gökyüzü çeşitleri (2026-11-02):** "Nadiren girecek dolunay, kızılay, aurora gibi görünümleri de kur." "Gündüz içinde farklı tipte gündüzler kur, sıkıcılıktan kurtar."
 
 Önceki oturumlardan geçerliliğini koruyan kullanıcı kuralları: çöp dağının kendi yüzeyi ("çamur") hiçbir zaman görünmez, yalnız hurda görünür; görünmeyen içi veri olarak durur (RAM yemesin), oyuncu kazdıkça küçülür. Hurdanın gerçekçi yığılması ve alttan alınınca üstünün hareketlenmesi istendi (referans: iç içe pirinç tesisat ve dişli yığını fotoğrafı). Toplanan hurda el boyunda (2026-11-01). Silahlar post-apokaliptik. Ses kayıtları kullanıcıdan gelir. Müzik kafa yormayan post-apo, kullanıcı Suno ile üretecek.
 
@@ -314,6 +318,9 @@ Mermi yığını bırakıldı ama şunlar kodda duruyor; hurdalık sistemleri ge
 **Güncelleme (2026-10-18):** Low-poly set **kullanılmayacak**; hedef daha gerçekçi görünüm (PBR). Aşağıdaki liste yalnızca referans. Beton zemin: `materials/concrete.tres` (Poly Haven taraması, world-space shader, 4 m plaka derzleri; her plakada doku rastgele kaydırılıp döndürülür).
 
 **Kullanılan asetler (jenerikte isim verilecekler):**
+- `assets/env/namaqualand/` (2026-11-02, çöl: ağaçlar, çalılar, kayalar; `tools/build_world.gd` `_wasteland`). Poly Haven Namaqualand koleksiyonu ve diğerleri, hepsi CC0, isim zorunlu değil, 1K glTF: quiver_tree_01, quiver_tree_02, dead_quiver_trunk, searsia_burchellii, wild_rooibos_bush, namaqualand_boulder_02/04/05, namaqualand_rocks_01, namaqualand_stones_01, dead_tree_trunk_02, dry_branches_medium_01 (https://polyhaven.com/models).
+- `assets/env/textures/` (2026-11-02, çöl zemini, `materials/env/desert.gdshader`): Poly Haven gravelly_sand, sandy_gravel_02, mud_cracked_dry_03, red_laterite_soil_stones, 2K, CC0.
+- `assets/env/hdri/kloofendal_48d_partly_cloudy_puresky_4k.hdr` (2026-11-02, gündüz gökyüzü): Poly Haven "Kloofendal 48d Partly Cloudy (Pure Sky)", CC0.
 - `assets/props/cukur/` (2026-11-02, hurda Ã§ukurunun Ã§evresi: Ã§it, merdiven, demir zemin; `tools/cukur/` ile kuruldu, Ã¶lÃ§Ã¼ ve Ã¼Ã§genler `cukur.json`, Ã¶nizleme `docs/cukur_asetleri.jpg`, kontrol `tools/cukur_check.gd`). Dokular bÃ¼tÃ¼n parÃ§alarÄ±n paylaÅŸtÄ±ÄŸÄ± `textures/` klasÃ¶rÃ¼nde, 1K. Hepsi CC0, isim zorunlu deÄŸil:
   - Poly Haven "Modular Fire Escape" (Juniix) https://polyhaven.com/a/modular_fire_escape â†’ `yangin_*` (platformlar, siyah korkuluklar, eÄŸik merdiven, dikey merdiven; merdiven 5.000 Ã¼Ã§gene dÃ¼ÅŸÃ¼rÃ¼ldÃ¼).
   - Poly Haven "Modular Chainlink Fence" (James Ray Cock; tel malzemesi Amal Kumar) https://polyhaven.com/a/modular_chainlink_fence â†’ `tel_cit_*` (kapÄ± 5.000 Ã¼Ã§gene dÃ¼ÅŸÃ¼rÃ¼ldÃ¼, tel BLEND yerine MASK).
