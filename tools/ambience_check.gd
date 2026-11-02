@@ -9,8 +9,13 @@ func _initialize() -> void:
 	for i in 3:
 		await process_frame
 	var amb: Node = root.get_node("Main/Ambience")
-	assert(amb._lamps.size() > 10, "found the lit hall lamps")
+	# The scrap heap took the west half's lamps (build_arena.gd CLEAR_LAMPS_X): 9 lit are left.
+	# A failed assert doesn't quit headless, so this one does it itself.
 	print("lit lamps: %d" % amb._lamps.size())
+	if amb._lamps.size() < 6 or amb._lamps.any(func(l: Vector3) -> bool: return l.x < -6.0):
+		push_error("the lit hall lamps: missing, or one left inside the heap")
+		quit(1)
+		return
 	var lamp: Vector3 = amb._lamps[0]
 	var body: Node3D = root.get_node("Main/Player")
 	body.global_position = Vector3(lamp.x, 0.0, lamp.z)

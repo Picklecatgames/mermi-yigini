@@ -81,7 +81,12 @@ func _initialize() -> void:
 	ok = _expect(fx._snd.round_0.playing and fx._snd.round_0.stream == FX.SOUNDS.rise, "the rise sound plays as it lifts") and ok
 	await create_timer(FX.SPOOL.y - FX.RISE.x - 0.3).timeout
 	ok = _expect(fx._whooshes[0].playing and fx._whooshes[0].get_parent() == fx._parts.Spool, "the spool whooshes in, the sound riding on it") and ok
-	await create_timer(FX.CLOSE.y - FX.SPOOL.y).timeout
+	# On the effect's own clock: it holds still while it warms up, so it can run behind the wall
+	# clock by a few frames, and the crank is a short sound.
+	var behind: float = FX.SPOOL.y - fx._t
+	while fx._t < FX.CLOSE.y:
+		await process_frame
+	print("  (the effect ran %.2f s behind the wall clock)" % behind)
 	var mount := (fx._snd.values() as Array).any(func(p): return p.playing and p.stream == FX.SOUNDS.mount)
 	ok = _expect(mount, "the crank sounds as the round closes on the spool") and ok
 	ok = _expect(fx.zapping(FX.ZAPPING + 0.3) and not fx.zapping(FX.ZAPPING + 1.1) and FX.SETTLE.x > FX.ZAPPING + FX.ZAP_BURSTS[-1].y and FX.SOUNDS.zapping.get_length() < FX.SETTLE.x - FX.ZAPPING + 0.2, "it hangs crackling through the zapping sound's bursts, then is set down") and ok
