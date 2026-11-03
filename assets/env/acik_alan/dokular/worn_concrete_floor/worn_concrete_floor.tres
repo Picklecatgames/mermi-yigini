@@ -1,0 +1,14 @@
+[gd_resource type="ORMMaterial3D" load_steps=4 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/env/acik_alan/dokular/worn_concrete_floor/worn_concrete_floor_diff_2k.jpg" id="1"]
+[ext_resource type="Texture2D" path="res://assets/env/acik_alan/dokular/worn_concrete_floor/worn_concrete_floor_nor_gl_2k.jpg" id="2"]
+[ext_resource type="Texture2D" path="res://assets/env/acik_alan/dokular/worn_concrete_floor/worn_concrete_floor_arm_2k.jpg" id="3"]
+
+[resource]
+albedo_texture = ExtResource("1")
+orm_texture = ExtResource("3")
+normal_enabled = true
+normal_texture = ExtResource("2")
+uv1_scale = Vector3(0.3333, 0.3333, 0.3333)
+uv1_triplanar = true
+uv1_world_triplanar = true
