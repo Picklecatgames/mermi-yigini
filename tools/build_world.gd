@@ -15,10 +15,10 @@ const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; 
 ## of junk, as if we were a scrap dealer in the desert; some mountains touching the sky"): flat ground
 ## behind the workshop, all of it the junkyard's (scripts/pile.gd: a heap in front, mountains of
 ## scrap behind it); nothing else stands on it.
-const YARD := Rect2(-112.0, -64.0, 106.0, 128.0)
+const YARD := Rect2(-136.0, -80.0, 130.0, 160.0)
 ## The junkyard's grid on the ground (pile.gd CENTER, GRID_X/Z × CELL; pile.gd can't be loaded here,
 ## it needs the autoloads).
-const HEAP_AREA := Rect2(-112.0, -64.0, 104.0, 128.0)
+const HEAP_AREA := Rect2(-136.0, -80.0, 128.0, 160.0)
 const CELL := 2.0  # m, the desert mesh's grid
 const DUNE_START := 6.0  # m from the pad's edge where the ground starts to roll
 const EDGE_RISE := 12.0  # m the dunes climb to at the world's edge: the players' natural border
@@ -558,6 +558,12 @@ func _workshop_shed() -> void:
 			i += 1
 		var h: float = roof_y.call((x0 + x1) * 0.5)
 		collide(Vector3(WS.size.x, h, 0.2), Vector3((x0 + x1) * 0.5, h * 0.5, wz + side * 0.08), shed)
+	# A rusted steel sill along the walls' feet (2026-11-03, the PS1 critic: at 270p the ragged sheet
+	# feet read as a sawtooth band of light): the sheets stand in it, nothing shows under them.
+	block(Vector3(0.12, 0.16, WS.size.y + 0.1), Vector3(x0 - 0.04, 0.08, WS.get_center().y), steel, shed)
+	for side: float in [-1.0, 1.0]:
+		var wz := (WS.position.y - 0.04) if side < 0 else (WS.end.y + 0.04)
+		block(Vector3(WS.size.x + 0.1, 0.16, 0.12), Vector3((x0 + x1) * 0.5, 0.08, wz), steel, shed)
 
 
 const SHEET_W := 0.86  # m, one corrugated sheet; laid every SHEET_PITCH, the rest overlaps the next
@@ -715,19 +721,29 @@ func _cage_lamp(parent: Node, at: Vector3) -> void:
 	spot.position = Vector3(0, bulb_y, 0)
 	spot.basis = Basis.looking_at(Vector3.DOWN, Vector3.FORWARD)
 	spot.light_color = Color(1.0, 0.72, 0.42)
-	spot.light_energy = 2.4
-	spot.spot_range = 5.5
-	spot.spot_angle = 70.0
-	spot.spot_angle_attenuation = 1.6
+	spot.light_energy = 3.2  # a wide warm pool on the floor, not a small spot (2026-11-03, the PS1 critic)
+	spot.spot_range = 7.0
+	spot.spot_angle = 80.0
+	spot.spot_angle_attenuation = 0.9
 	spot.shadow_enabled = at.z == 0.0  # one shadow caster is enough under a roof this small
 	spot.light_volumetric_fog_energy = 0.5
 	add(spot, lamp)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0, bulb_y, 0)
 	fill.light_color = Color(1.0, 0.7, 0.4)
-	fill.light_energy = 0.5
-	fill.omni_range = 2.2
+	fill.light_energy = 0.8
+	fill.omni_range = 3.5
 	add(fill, lamp)
+	# The bulb glows the light's own warm colour, not white.
+	for mi: MeshInstance3D in inst.find_children("*", "MeshInstance3D", true, false):
+		for i in mi.mesh.get_surface_count():
+			var m := mi.get_active_material(i) as BaseMaterial3D
+			if m and m.emission_enabled:
+				m = m.duplicate()
+				m.emission = Color(1.0, 0.62, 0.3)
+				m.emission_energy_multiplier = minf(m.emission_energy_multiplier, 2.0)
+				m.albedo_color = m.albedo_color * Color(1.0, 0.8, 0.6)
+				mi.set_surface_override_material(i, m)
 
 
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly

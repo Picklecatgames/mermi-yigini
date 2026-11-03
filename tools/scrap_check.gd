@@ -163,11 +163,15 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 	await _wake(gs, pile)
 	# One that tumbled off the face earlier lies on the heap as a loose piece of its own: dig the
 	# heap out from under it and it falls, and can still be picked up.
+	# The lowest one: higher up the mountain the scrap sliding down from above fills a hole in under
+	# it as fast as it is dug (2026-11-03).
 	id = -1
+	var low := INF
 	for other: int in pile._id_index:
-		if pile.is_heap_id(other) and pile._height_at(pile._id_index[other][3].origin) > 0.3:
+		var h_at: float = pile._height_at(pile._id_index[other][3].origin)
+		if pile.is_heap_id(other) and h_at > 0.3 and h_at < low:
 			id = other
-			break
+			low = h_at
 	assert(id >= 0, "pieces off the fallen face lie on the heap, each its own")
 	var local: Vector3 = pile._id_index[id][3].origin
 	for n in 40:
