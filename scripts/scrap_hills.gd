@@ -24,6 +24,12 @@ var _inst_i := PackedInt32Array()      # and its instance there
 var _inst_xf: Array[Transform3D] = []  # as laid, its origin's y over the surface
 var _inst_k := PackedInt32Array()      # the cell it lies on
 var _tile := {}                        # pile tile index -> PackedInt32Array of pieces
+var _hazed: Array[ShaderMaterial] = [] # materials moved onto FAR_SHADER (its haze: _process)
+const FAR_SHADER := preload("res://materials/psx_far.gdshader")
+const HAZE_MAX := 0.55        # the most the mountain goes into the dust
+const HAZE_REACH := 2.2       # times the scene's fog end: where the haze is full
+const NIGHT_HAZE := 0.93      # by night (dark fog), how far into it
+const NIGHT_SHADE := 0.6      # and the haze that much darker than the fog: against the sky
 
 
 func build(pile: Node) -> void:
@@ -111,7 +117,36 @@ func build(pile: Node) -> void:
 		tris += list.size() * part[5]
 	for s in _inst_xf.size():
 		_place(s)
+	# The real pieces where players reach go into the same haze, or the mountain's foot stood paler
+	# in the scene's fog than the mountain behind it.
+	for node: MultiMeshInstance3D in pile._surface + pile._spill:
+		var m := node.material_override as ShaderMaterial
+		if m and not m in _hazed:
+			m.shader = FAR_SHADER
+			_hazed.append(m)
 	print("scrap hills: %d pieces of %d models in %d groups, %d triangles (%d ms)" % [_inst_xf.size(), parts.size(), groups.size(), tris, Time.get_ticks_msec() - t0])
+
+
+## The haze follows the scene's fog (its colour turns with the day, scripts/day_night.gd).
+func _process(_delta: float) -> void:
+	var env := get_viewport().find_world_3d().environment
+	if env == null:
+		env = get_viewport().find_world_3d().fallback_environment
+	var col := Color(0.5, 0.5, 0.5)
+	var reach := Vector2(12.0, 160.0)
+	var most := 0.0
+	var day := 1.0
+	if env and env.fog_enabled:
+		reach = Vector2(env.fog_depth_begin, env.fog_depth_end * HAZE_REACH) if env.fog_mode == Environment.FOG_MODE_DEPTH else Vector2(10.0, 0.6 / maxf(env.fog_density, 1e-4))
+		# By night the dust is dark: the mountain goes almost all into it, a little darker than the
+		# sky, a silhouette; by day its scrap shows through.
+		day = smoothstep(0.05, 0.35, env.fog_light_color.get_luminance())
+		col = env.fog_light_color * lerpf(NIGHT_SHADE, 1.0, day)
+		most = lerpf(NIGHT_HAZE, HAZE_MAX, day)
+	RenderingServer.global_shader_parameter_set(&"psx_haze_colour", col)
+	RenderingServer.global_shader_parameter_set(&"psx_haze_range", reach)
+	RenderingServer.global_shader_parameter_set(&"psx_haze_max", most)
+	RenderingServer.global_shader_parameter_set(&"psx_haze_day", day)
 
 
 ## The pieces over cells `area` follow the surface (pile.gd, as it redraws its own).
@@ -149,7 +184,9 @@ func _parts() -> Array:
 		var m := low.surface_get_material(0)
 		if m is ShaderMaterial:
 			m = m.duplicate()
+			m.shader = FAR_SHADER  # its own haze, not the scene's solid fog
 			m.set_shader_parameter("vertex_tint", true)
+			_hazed.append(m)
 		elif m is BaseMaterial3D:
 			m = m.duplicate()
 			m.vertex_color_use_as_albedo = true

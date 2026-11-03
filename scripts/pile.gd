@@ -97,9 +97,12 @@ const OUT_KINDS := ["silah", "sac", "alet", "motor", "sandik"]
 const MAX_SHARE := 0.015
 ## Each copy of a model a little darker or more rust-brown than the next, so repeats don't match;
 ## only a little, or neighbours flicker light and dark and the face reads as noise.
-const TONE := Vector2(0.84, 1.02)
+const TONE := Vector2(0.76, 1.08)
 const RUST_TINT := Color(0.86, 0.74, 0.62)
 const RUST_SHARE := 0.6
+## Old paint showing on some pieces (_tone): faded red, blue-grey, olive, ochre.
+const PAINT: Array[Color] = [Color(1.12, 0.78, 0.7), Color(0.82, 0.9, 1.02), Color(0.9, 0.98, 0.78), Color(1.12, 0.98, 0.7)]
+const PAINT_SHARE := 0.16
 const LUMP := 0.12            # m of height noise on the scrap's top
 const SCRAP_LAYER := 1 << 2   # physics layer 3: loose pieces; the player's body ignores it
 const BULLET_LAYER := SCRAP_LAYER  # the old name (player.gd's reach ray masks it)
@@ -1810,6 +1813,10 @@ func _cell_normal(c: Vector2i) -> Vector3:
 ## A copy's tone from `key`: darker or lighter, a little more or less rust-brown.
 static func _tone(key: int) -> Color:
 	var c := Color.WHITE.lerp(RUST_TINT, _hash01(key * 31 + 7) * RUST_SHARE) * lerpf(TONE.x, TONE.y, _hash01(key))
+	# Now and then old paint under the rust (2026-11-03, the PS1 critic: the heap was one dark grey),
+	# faded and dusty, so it stays one family and doesn't sparkle at 270p.
+	if _hash01(key * 17 + 3) < PAINT_SHARE:
+		c *= PAINT[int(_hash01(key * 13 + 5) * PAINT.size()) % PAINT.size()]
 	c.a = 1.0
 	return c
 

@@ -26,6 +26,14 @@ uniform bool triplanar = false;
 uniform float tri_metres = 2.0;
 uniform vec4 far_colour : source_color = vec4(0.0);
 uniform vec2 far_fade = vec2(20.0, 60.0);
+#ifdef PSX_HAZE
+// Instead of the scene's fog (psx_far.gdshader): into psx_haze_colour from psx_haze_range.x to .y
+// metres, at most psx_haze_max of the way. Globals (scrap_hills.gd sets them from the fog): the PS1
+// screen hands out its own copies of materials, per-material values never reached those.
+global uniform vec4 psx_haze_colour;
+global uniform vec2 psx_haze_range;
+global uniform float psx_haze_max;
+#endif
 
 varying vec3 affine_uv;
 varying vec3 world_pos;
@@ -70,4 +78,9 @@ void fragment() {
 	ALBEDO = mix(c.rgb, far_colour.rgb, far);
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
+#ifdef PSX_HAZE
+	float haze = smoothstep(psx_haze_range.x, psx_haze_range.y, length(VERTEX)) * psx_haze_max;
+	ALBEDO *= 1.0 - haze;
+	EMISSION = EMISSION * (1.0 - haze) + psx_haze_colour.rgb * haze;
+#endif
 }
