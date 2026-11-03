@@ -7,7 +7,7 @@ extends SpotLight3D
 ## player.gd and remote_players.gd place it at the eyes each frame (follow): it lags the head a
 ## little, a lamp strapped on, not a camera's vignette (2026-11-03, the PS1 critic). An old bulb
 ## behind a dented reflector: yellowish, a hard edge with a brighter ring, a blotchy middle
-## (PATTERN). The local player's hands and gun take its light from player.gd (_lamp_hands).
+## (PATTERN). The local player's hands and gun take its light from player.gd (LAMP_HANDS).
 
 const ENERGY := 6.0
 const EASE := 1.5  # 1/s
