@@ -478,7 +478,7 @@ func _workshop_shed() -> void:
 	var shed := StaticBody3D.new()
 	shed.name = "Workshop"
 	add(shed)
-	var steel: Material = pbr_box("rust_coarse_01", 1.5, Color(0.55, 0.5, 0.46), true, "workshop_steel")
+	var steel: Material = _psx_mat("rust_coarse_01", Color(0.55, 0.5, 0.46), "workshop_steel", 1.5)
 	var x0 := WS.position.x
 	var x1 := WS.end.x
 	var roof_y := func(x: float) -> float: return WS_BACK_H + (x - x0) / (x1 - x0) * (WS_FRONT_H - WS_BACK_H)
@@ -557,17 +557,7 @@ func _sheet(parent: Node, b: Basis, foot: Vector3, length: float, rng: RandomNum
 		for v in [["rusty_corrugated_iron", Color(1.0, 1.0, 1.0)], ["rusty_corrugated_iron", Color(0.86, 0.74, 0.66)],
 				["rusty_corrugated_iron", Color(1.0, 0.9, 0.78)], ["rusty_corrugated_iron", Color(0.7, 0.62, 0.56)],
 				["corrugated_iron_02", Color(0.82, 0.78, 0.72)], ["rusted_shutter", Color(0.9, 0.82, 0.74)]]:
-			var m := ORMMaterial3D.new()
-			m.albedo_texture = load(TEX + "%s/%s_diff_2k.jpg" % [v[0], v[0]])
-			m.albedo_color = v[1]
-			m.normal_enabled = true
-			m.normal_texture = load(TEX + "%s/%s_nor_gl_2k.jpg" % [v[0], v[0]])
-			m.orm_texture = load(TEX + "%s/%s_arm_2k.jpg" % [v[0], v[0]])
-			m.cull_mode = BaseMaterial3D.CULL_DISABLED
-			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-			var path := "res://materials/env/workshop_sheet_%d.tres" % _sheet_mats.size()
-			ResourceSaver.save(m, path)
-			_sheet_mats.append(load(path))
+			_sheet_mats.append(_psx_mat(v[0], v[1], "workshop_sheet_%d" % _sheet_mats.size()))
 	var key := snappedf(length, 0.05)
 	if not _sheet_meshes.has(key):
 		_sheet_meshes[key] = _sheet_mesh(SHEET_W, key)
@@ -586,7 +576,7 @@ func _sheet(parent: Node, b: Basis, foot: Vector3, length: float, rng: RandomNum
 func _sheet_mesh(w: float, h: float) -> ArrayMesh:
 	const PERIOD := 0.076
 	const AMP := 0.009
-	var segs := int(w / PERIOD * 6.0)
+	var segs := int(w / PERIOD * 4.0)  # PS1: four points a ripple, lit per vertex
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in segs + 1:
@@ -602,8 +592,40 @@ func _sheet_mesh(w: float, h: float) -> ArrayMesh:
 		var a := i * 2
 		for t in [a, a + 1, a + 2, a + 1, a + 3, a + 2]:
 			st.add_index(t)
-	st.generate_tangents()
 	return st.commit()
+
+
+## PS1 horror look (2026-11-02, the user: the whole game PSX horror; tools/psx_props.gd): props
+## and the pit's rim pieces come as their <source>_psx.scn wherever there is one.
+func _ps1(path: String) -> String:
+	var psx := path.get_basename() + "_psx.scn"
+	return psx if ResourceLoader.exists(psx) else path
+
+
+func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0, tilt := Basis()) -> StaticBody3D:
+	return super(parent, _ps1(path), pos, yaw, s, tilt)
+
+
+func _cukur(piece: String, xf: Transform3D, parent: Node) -> void:
+	var n: Node3D = (load(_ps1(CUKUR + piece + ".gltf")) as PackedScene).instantiate()
+	n.transform = xf
+	add(n, parent)
+
+
+## The workshop's sheets and steel, PS1: the texture small and unfiltered (assets/psx/tex/, made by
+## tools/psx_props.gd tex), lit per vertex, drawn from both sides; `metres` > 0 maps it by world
+## position every `metres` (the steel boxes) instead of by UV.
+func _psx_mat(id: String, tint: Color, save_as: String, metres := 0.0) -> Material:
+	var m := ShaderMaterial.new()
+	m.shader = load("res://materials/psx_prop_2s.gdshader")
+	m.set_shader_parameter("albedo_tex", load("res://assets/psx/tex/%s.res" % id))
+	m.set_shader_parameter("tint", tint)
+	if metres > 0.0:
+		m.set_shader_parameter("triplanar", true)
+		m.set_shader_parameter("tri_metres", metres)
+	var path := "res://materials/env/%s.tres" % save_as
+	ResourceSaver.save(m, path)
+	return load(path)
 
 
 ## Inside: the crew's bench from the hall with the press, the hopper and the radio playing its
@@ -614,13 +636,13 @@ func _workshop_inside() -> void:
 	root.name = "Bench"
 	add(root)
 	var yaw := PI / 2.0  # the bench's front (+z in its glb) to the yard
-	var bench: StaticBody3D = _prop(root, "res://assets/lowpoly/workbench.glb", BENCH_AT, yaw, BENCH_SCALE)
+	var bench: StaticBody3D = _prop(root, "res://assets/props/workbench/workbench.glb", BENCH_AT, yaw, BENCH_SCALE)
 	bench.set_script(preload("res://scripts/bench_top.gd"))
-	var press: StaticBody3D = _prop(bench, "res://assets/lowpoly/press.glb", Vector3(0.8, 0.779, -0.11), 0.0)
+	var press: StaticBody3D = _prop(bench, "res://assets/props/press/press.glb", Vector3(0.8, 0.779, -0.11), 0.0)
 	press.name = "Press"
 	press.set_script(preload("res://scripts/press.gd"))
 	# The hopper on the bench's right, as in the hall (range_dressing.gd _workshop): 2.06 m along its x.
-	var hopper: StaticBody3D = _prop(root, "res://assets/lowpoly/hopper.glb", BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(2.064, 0, 0.25), yaw)
+	var hopper: StaticBody3D = _prop(root, "res://assets/props/workbench/hopper.glb", BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(2.064, 0, 0.25), yaw)
 	hopper.set_script(preload("res://scripts/hopper.gd"))
 	_bench_radio(bench)
 	_bench_lamp(BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(-0.108, 2.8, -0.45))
@@ -661,7 +683,7 @@ func _workshop_inside() -> void:
 ## A caged work lamp hanging off the roof at (x, z): the cage and its bulb are Poly Haven's
 ## caged_hanging_light; a warm spot down through the cage, a soft fill round the bulb.
 func _cage_lamp(parent: Node, at: Vector3) -> void:
-	var inst: Node3D = (load(MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf") as PackedScene).instantiate()
+	var inst: Node3D = (load(_ps1(MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf")) as PackedScene).instantiate()
 	var box := _aabb(inst, Transform3D())
 	var roof := WS_BACK_H + (at.x - WS.position.x) / WS.size.x * (WS_FRONT_H - WS_BACK_H) - 0.06
 	var lamp := Node3D.new()
@@ -693,7 +715,7 @@ func _cage_lamp(parent: Node, at: Vector3) -> void:
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly
 ## (docs/ayrintilar.md "Radyo"); as range_dressing.gd _radio, in the bench's own frame.
 func _bench_radio(bench: Node3D) -> void:
-	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/lowpoly/radio.glb",
+	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/props/radio/radio.glb",
 		bench.transform * Vector3(-0.38, 1.293, -0.275), bench.rotation.y + 0.45, 1.1)
 	var list := AudioStreamPlaylist.new()
 	list.loop = true
@@ -716,7 +738,7 @@ func _bench_radio(bench: Node3D) -> void:
 
 ## The wall lamp over the bench, its arm out from the back wall (range_dressing.gd _wall_lamp).
 func _bench_lamp(at: Vector3) -> void:
-	var lamp: StaticBody3D = _prop(arena.get_node("Bench"), "res://assets/lowpoly/wall_lamp.glb", at, PI / 2.0)
+	var lamp: StaticBody3D = _prop(arena.get_node("Bench"), "res://assets/props/wall_lamp/wall_lamp.glb", at, PI / 2.0)
 	var bulb_at := Vector3(0.0, -0.111, 0.752)  # build_wall_lamp.py prints this
 	var spot := SpotLight3D.new()
 	spot.position = bulb_at + Vector3(0, -0.05, 0)

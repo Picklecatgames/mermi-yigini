@@ -300,6 +300,11 @@ func _load_parts() -> void:
 			push_warning("hurda.json: %s has kind '%s', not one the heap takes (Pile.KIND_WEIGHT)" % [p.id, p.tur])
 		if KIND_WEIGHT.has(p.tur) and p.id not in NOT_IN_HEAP:
 			p.glb = PARTS_FILE.get_base_dir().path_join(p.glb.get_file())
+			# PS1 horror look (2026-11-02, the user): the part's <name>_psx.scn (tools/psx_props.gd)
+			# wherever there is one.
+			var psx: String = p.glb.get_basename() + "_psx.scn"
+			if ResourceLoader.exists(psx):
+				p.glb = psx
 			list.append(p)
 	var in_kind := {}
 	for p: Dictionary in list:
@@ -1732,6 +1737,10 @@ static func _tone(key: int) -> Color:
 ## Part `p`'s material, taking each copy's tone (MultiMesh colours) on its colour.
 func _toned(p: int) -> Material:
 	var m := _part_mesh[p].surface_get_material(0)
+	if m is ShaderMaterial:  # PS1 parts (materials/psx_prop.gdshader): the tone rides on COLOR
+		var psx := m.duplicate() as ShaderMaterial
+		psx.set_shader_parameter("vertex_tint", true)
+		return psx
 	if not m is BaseMaterial3D:
 		return null
 	var out := m.duplicate() as BaseMaterial3D

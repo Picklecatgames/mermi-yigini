@@ -1,14 +1,17 @@
-[gd_resource type="ORMMaterial3D" format=3]
+[gd_resource type="ShaderMaterial" format=3]
 
-[ext_resource type="Texture2D" path="res://assets/env/textures/rusty_corrugated_iron/rusty_corrugated_iron_diff_2k.jpg" id="1_xdvc7"]
-[ext_resource type="Texture2D" path="res://assets/env/textures/rusty_corrugated_iron/rusty_corrugated_iron_nor_gl_2k.jpg" id="2_pb4kd"]
-[ext_resource type="Texture2D" path="res://assets/env/textures/rusty_corrugated_iron/rusty_corrugated_iron_arm_2k.jpg" id="3_bm3fq"]
+[ext_resource type="Shader" path="res://materials/psx_prop_2s.gdshader" id="1_espbw"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/rusty_corrugated_iron.res" id="2_xdvc7"]
 
 [resource]
-cull_mode = 2
-albedo_color = Color(0.7, 0.62, 0.56, 1)
-albedo_texture = ExtResource("1_xdvc7")
-orm_texture = ExtResource("3_bm3fq")
-normal_enabled = true
-normal_texture = ExtResource("2_pb4kd")
-texture_filter = 5
+render_priority = 0
+shader = ExtResource("1_espbw")
+shader_parameter/albedo_tex = ExtResource("2_xdvc7")
+shader_parameter/tint = Color(0.7, 0.62, 0.56, 1)
+shader_parameter/uv_scale = null
+shader_parameter/uv_offset = null
+shader_parameter/snap = null
+shader_parameter/alpha_cut = null
+shader_parameter/vertex_tint = null
+shader_parameter/triplanar = null
+shader_parameter/tri_metres = null
