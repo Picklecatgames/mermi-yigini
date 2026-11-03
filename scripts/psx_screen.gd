@@ -91,12 +91,14 @@ func _ps1_materials(g: Node) -> void:
 		var b := m as BaseMaterial3D
 		if b == null or _mats.has(b) or b.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
 			continue  # unshaded: effects and glows, they keep their own look
-		_mats[b] = [b.albedo_texture, b.texture_filter, b.normal_enabled, b.specular_mode]
+		_mats[b] = [b.albedo_texture, b.texture_filter, b.normal_enabled, b.specular_mode, b.shading_mode]
 		if b.albedo_texture:
 			b.albedo_texture = _shrunk(b.albedo_texture)
 		b.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 		b.normal_enabled = false
 		b.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		if not b.uv1_triplanar:  # triplanar lit per vertex drew the yard's kerb white
+			b.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX  # lit per vertex, as the PS1 props and the dead are
 
 
 ## The world's own ground shaders (the desert, the worn concrete): their textures shrunk the same
@@ -150,6 +152,7 @@ func _restore_materials() -> void:
 			b.texture_filter = was[1]
 			b.normal_enabled = was[2]
 			b.specular_mode = was[3]
+			b.shading_mode = was[4]
 	_mats.clear()
 
 

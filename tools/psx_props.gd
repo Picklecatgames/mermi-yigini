@@ -109,8 +109,8 @@ func _init() -> void:
 			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128), TEX_OUT % id) == OK and ok
 		_nature = true
 		_ground = true
-		for id: String in GROUND_TEX:
-			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128), TEX_OUT % id) == OK and ok
+		for id: String in GROUND_TEX:  # raw, not WebP: the kerb is a StandardMaterial3D, and WebP drew it white there
+			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128, false), TEX_OUT % id) == OK and ok
 		_nature = false
 		_ground = false
 		var flat := Image.create(4, 4, false, Image.FORMAT_RGB8)

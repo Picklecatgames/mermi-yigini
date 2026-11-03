@@ -111,8 +111,10 @@ func _sky() -> void:
 	sun.light_color = Color(0.96, 0.89, 0.78)
 	sun.light_energy = 1.0  # through the overcast
 	sun.shadow_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 120.0
+	# Short and coarse, PS1 taste (2026-11-03, the user: the lighting PS1-fit): past 50 m the fog
+	# has it all anyway, and the shadow map spent on 50 m draws the near shadows hard and clean.
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 50.0
 	sun.light_angular_distance = 3.0  # soft-edged shadows
 	add(sun)
 
