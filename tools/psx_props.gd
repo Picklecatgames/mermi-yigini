@@ -62,6 +62,23 @@ const CUKUR := "res://assets/props/cukur/"
 const OGUTUCU := ["res://assets/props/ogutucu/ogutucu.glb", 3000, 256]
 ## Workshop sheets and steel (build_world.gd _sheet, _workshop_shed): 128 px over the 2 m they cover.
 const SHED_TEX := ["rust_coarse_01", "metal_plate_02"]
+## The desert's trees, bushes and rocks (Poly Haven's Namaqualand set; 2026-11-03, the user: the
+## trees are bad, find PS1 ones, keep the desert's own kinds): [folder, triangles for the whole file
+## (every LOD node in it shares them), texture px]. A PS1 tree is a few hundred triangles and its
+## leaves are cut out, not blended: the scans' see-through leaves become alpha-cut cards here.
+const NAMA := "res://assets/env/namaqualand/%s/%s_1k.gltf"
+const NATURE := [
+	["quiver_tree_01", 1400, 128], ["quiver_tree_02", 800, 128], ["searsia_burchellii", 2400, 128],
+	["dead_quiver_trunk", 400, 128], ["dead_tree_trunk_02", 500, 128], ["dry_branches_medium_01", 600, 64],
+	["wild_rooibos_bush", 1200, 64], ["namaqualand_boulder_02", 300, 128], ["namaqualand_boulder_04", 300, 128],
+	["namaqualand_boulder_05", 300, 128], ["namaqualand_rocks_01", 400, 64], ["namaqualand_stones_01", 400, 64],
+]
+## Their colours (the user, 2026-11-03: the scrap's sand-rust-dirt family): saturation down to
+## NATURE_SATURATION, then NATURE_DUST of the way to the dust (build_world.gd's fog by day), so the
+## green of the leaves goes olive-grey and the red rock dull, all of one desert.
+const NATURE_SATURATION := 0.5
+const NATURE_DUST := Color(0.5, 0.42, 0.31)
+const NATURE_DUST_SHARE := 0.22
 
 var _mats := {}
 var _texs := {}
@@ -69,6 +86,7 @@ var _sum := [0, 0, 0, 0]  # triangles before, after; bytes before, after
 var _far := FAR
 var _rust_share := 0.0
 var _grade := false  # scrap: textures into the rust range (GRADE_*)
+var _nature := false  # trees and rocks: leaves cut out, textures into the desert's range (NATURE_*)
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
 
@@ -94,6 +112,11 @@ func _init() -> void:
 		for f in DirAccess.get_files_at(CUKUR):
 			if f.get_extension() == "gltf":
 				ok = _convert(CUKUR + f, 1000, 128) and ok
+	if all or "nature" in args:
+		_nature = true
+		for e: Array in NATURE:
+			ok = _convert(NAMA % [e[0], e[0]], e[1], e[2]) and ok
+		_nature = false
 	if all or "hurda" in args:
 		_far = HURDA_FAR
 		_rust_share = HURDA_RUST_SHARE
@@ -165,8 +188,25 @@ func _mesh(src: Mesh, share: int, px: int) -> Mesh:
 			arrays[Mesh.ARRAY_INDEX] = idx
 		var skinned: bool = arrays[Mesh.ARRAY_BONES] != null
 		if src.surface_get_primitive_type(s) == Mesh.PRIMITIVE_TRIANGLES and not skinned:
-			idx = _fewer(arrays, maxi(4, share * (idx.size() / 3) / maxi(1, tris)))
+			var want := maxi(4, share * (idx.size() / 3) / maxi(1, tris))
+			var bm := src.surface_get_material(s) as BaseMaterial3D
+			var leaves := _nature and bm != null and bm.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
+			if leaves:
+				# Leaves and twigs: never through the LOD, which crushed the quiver tree's rosettes
+				# to slivers; whole cards thinned out instead.
+				idx = _sparse(arrays, idx, want)
+			else:
+				idx = _fewer(arrays, want)
+				if _nature and idx.size() / 3 > want * 1.5:
+					idx = _sparse(arrays, idx, want)
 			arrays = _compact(arrays, idx)
+			if leaves:
+				# Lit as one crown, not card by card: lit per vertex from both sides, the cards
+				# facing away from the sun drew black (the thorn tree a cloud of black shards).
+				var up := PackedVector3Array()
+				up.resize((arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size())
+				up.fill(Vector3.UP)
+				arrays[Mesh.ARRAY_NORMAL] = up
 			_thicken(arrays)
 		arrays[Mesh.ARRAY_TANGENT] = null  # no normal map
 		out.add_surface_from_arrays(src.surface_get_primitive_type(s), arrays)
@@ -202,6 +242,60 @@ func _fewer(arrays: Array, want: int) -> PackedInt32Array:
 		best = _cluster(arrays, idx, cells)
 		cells /= 2
 	return best
+
+
+## Leaves and twigs as cards LODs can't merge (the thorn tree's thousands): whole cards kept at
+## random, about `want` triangles' worth, each kept one grown about its middle so the crown stays
+## as full; `arrays`' vertices moved. A PS1 tree's crown was a handful of big cards.
+func _sparse(arrays: Array, idx: PackedInt32Array, want: int) -> PackedInt32Array:
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var parent := PackedInt32Array()
+	parent.resize(verts.size())
+	for i in parent.size():
+		parent[i] = i
+	for t in range(0, idx.size(), 3):
+		for k in [1, 2]:
+			var a := _root(parent, idx[t])
+			var b := _root(parent, idx[t + k])
+			if a != b:
+				parent[b] = a
+	var cards := {}  # root -> triangle starts
+	for t in range(0, idx.size(), 3):
+		var r := _root(parent, idx[t])
+		if not cards.has(r):
+			cards[r] = []
+		cards[r].append(t)
+	var keep := clampf(float(want) / (idx.size() / 3), 0.05, 1.0)
+	var grow := minf(1.0 / sqrt(keep), 1.8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = idx.size()
+	var out := PackedInt32Array()
+	for r: int in cards:
+		if rng.randf() > keep:
+			continue
+		var tris: Array = cards[r]
+		var mid := Vector3.ZERO
+		var seen := {}
+		for t: int in tris:
+			for k in 3:
+				seen[idx[t + k]] = true
+		for v: int in seen:
+			mid += verts[v] / seen.size()
+		for v: int in seen:
+			verts[v] = mid + (verts[v] - mid) * grow
+		for t: int in tris:
+			out.append_array([idx[t], idx[t + 1], idx[t + 2]])
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	if out.size() / 3 > want * 1.5:
+		# Cards joined into a few big pieces (the thorn tree's leaves along their twigs): thinned
+		# triangle by triangle then, each kept leaf a ragged triangle, PS1 enough.
+		var thin := PackedInt32Array()
+		var k := float(want) / (out.size() / 3)
+		for t in range(0, out.size(), 3):
+			if rng.randf() <= k:
+				thin.append_array([out[t], out[t + 1], out[t + 2]])
+		out = thin
+	return out if out.size() > 0 else idx
 
 
 ## `idx` with the vertices merged per cell of a `cells`-a-side grid over the mesh's box, the
@@ -307,7 +401,7 @@ func _material(m: Material, px: int) -> Material:
 	var b := m as BaseMaterial3D
 	var out: Material
 	var blend := b.transparency in [BaseMaterial3D.TRANSPARENCY_ALPHA, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS]
-	if b.emission_enabled or blend:
+	if b.emission_enabled or (blend and not _nature):
 		var c := b.duplicate() as BaseMaterial3D
 		c.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
 		c.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
@@ -328,7 +422,10 @@ func _material(m: Material, px: int) -> Material:
 		var sm := ShaderMaterial.new()
 		sm.shader = SHADER_2S if b.cull_mode == BaseMaterial3D.CULL_DISABLED else SHADER
 		if b.albedo_texture:
-			sm.set_shader_parameter("albedo_tex", _small(b.albedo_texture, px))
+			var tex := b.albedo_texture
+			if _nature and b.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				tex = _keyed_once(tex)
+			sm.set_shader_parameter("albedo_tex", _small(tex, px))
 		sm.set_shader_parameter("tint", _graded(b.albedo_color) if _grade else b.albedo_color)
 		var avg: Color = _avg.get(sm.get_shader_parameter("albedo_tex"), Color.WHITE) * b.albedo_color
 		avg = avg.lerp(HURDA_RUST, _rust_share)
@@ -339,10 +436,20 @@ func _material(m: Material, px: int) -> Material:
 			sm.set_shader_parameter("uv_scale", Vector2(b.uv1_scale.x, b.uv1_scale.y))
 			sm.set_shader_parameter("uv_offset", Vector2(b.uv1_offset.x, b.uv1_offset.y))
 		if b.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
-			sm.set_shader_parameter("alpha_cut", b.alpha_scissor_threshold if b.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else 0.5)
+			# Leaves 0.3: at 0.5 their 128 px, mipmapped alpha cut most of a crown away
+			sm.set_shader_parameter("alpha_cut", b.alpha_scissor_threshold if b.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else (0.3 if _nature else 0.5))
 		out = sm
 	_mats[m] = out
 	return out
+
+
+var _keyed := {}
+
+
+func _keyed_once(tex: Texture2D) -> Texture2D:
+	if not _keyed.has(tex):
+		_keyed[tex] = keyed(tex)
+	return _keyed[tex]
 
 
 ## `tex` no bigger than `px` on its long side, mipmapped, WebP inside the scene (raw for a StandardMaterial3D:
@@ -350,7 +457,7 @@ func _material(m: Material, px: int) -> Material:
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
 		return null
-	var key := [tex, px, webp, _grade]
+	var key := [tex, px, webp, _grade, _nature]
 	if _texs.has(key):
 		return _texs[key]
 	var img: Image = tex.get_image().duplicate()
@@ -361,11 +468,12 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if maxi(w, h) > px:
 		var k := float(px) / maxi(w, h)
 		img.resize(maxi(1, roundi(w * k)), maxi(1, roundi(h * k)), Image.INTERPOLATE_LANCZOS)
-	if _grade:
+	if _grade or _nature:
 		img.convert(Image.FORMAT_RGBA8)
 		for y in img.get_height():
 			for x in img.get_width():
-				img.set_pixel(x, y, _graded(img.get_pixel(x, y), true))
+				var c := img.get_pixel(x, y)
+				img.set_pixel(x, y, _graded(c, true) if _grade else _desert(c))
 	img.generate_mipmaps()
 	var last := img.duplicate() as Image
 	last.resize(1, 1, Image.INTERPOLATE_BILINEAR)
@@ -466,6 +574,37 @@ static func _root(parent: PackedInt32Array, x: int) -> int:
 		parent[x] = parent[parent[x]]
 		x = parent[x]
 	return x
+
+
+## A leaf atlas with its black ground made see-through: the Namaqualand scans' glTFs point their
+## see-through leaves at a JPG, no alpha, the leaves on black, so every leaf card drew as a black
+## square, the scans' too (2026-11-03: "the trees are bad"). Darker than KEY_BLACK is clear.
+const KEY_BLACK := 0.05
+
+
+static func keyed(tex: Texture2D) -> Texture2D:
+	if tex == null:
+		return null
+	var img: Image = tex.get_image().duplicate()
+	img.decompress()
+	img.clear_mipmaps()
+	img.convert(Image.FORMAT_RGBA8)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			c.a = minf(c.a, smoothstep(KEY_BLACK, KEY_BLACK * 2.0, maxf(c.r, maxf(c.g, c.b))))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
+## `c` in the desert's range (NATURE_*).
+static func _desert(c: Color) -> Color:
+	var grey := c.get_luminance()
+	var out := Color(grey, grey, grey).lerp(c, NATURE_SATURATION)
+	out = out.lerp(NATURE_DUST * (grey / maxf(NATURE_DUST.get_luminance(), 0.02)), NATURE_DUST_SHARE)
+	out.a = c.a
+	return out
 
 
 ## `c` in the scrap's rust range (GRADE_*); a tint (`texel` false) only loses saturation, the

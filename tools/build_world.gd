@@ -39,6 +39,7 @@ const SKY_TURN := 0.0  # deg: the HDRI turned so its bright side is where the su
 
 
 func _initialize() -> void:
+	PortableCompressedTexture2D.set_keep_all_compressed_buffers(true)  # else the PS1 trees' WebP textures save with no pixels (magenta)
 	seed(11)
 	arena = Node3D.new()
 	arena.name = "World"
@@ -337,6 +338,15 @@ func _lite(id: String, node_name: String, tris: int) -> Mesh:
 	if _lites.has(key):
 		return _lites[key]
 	var file := id if id != "searsia_medium" else "searsia_burchellii"
+	# The PS1 copy (tools/psx_props.gd nature, 2026-11-03, the user: the trees are bad, PS1 ones):
+	# a few hundred triangles, alpha-cut cards, small textures in the desert's colours. Near and far
+	# are the one mesh then.
+	var psx := NAMA + "%s/%s_1k_psx.scn" % [file, file]
+	if ResourceLoader.exists(psx):
+		var lowp: Node = (load(psx) as PackedScene).instantiate()
+		_lites[key] = (lowp.find_child(node_name, true, false) as MeshInstance3D).mesh
+		lowp.free()
+		return _lites[key]
 	var path := NAMA + "%s/%s.res" % [file, key]
 	var scene: Node = (load(NAMA + "%s/%s_1k.gltf" % [file, file]) as PackedScene).instantiate()
 	var src := (scene.find_child(node_name, true, false) as MeshInstance3D).mesh
@@ -486,7 +496,7 @@ func _bush_mesh() -> Mesh:
 
 ## Something low with no collision: a bush, dry branches, a spill of stones.
 func _plant(parent: Node, id: String, at: Vector3, rng: RandomNumberGenerator) -> void:
-	var inst: Node3D = (load(NAMA + "%s/%s_1k.gltf" % [id, id]) as PackedScene).instantiate()
+	var inst: Node3D = (load(_ps1(NAMA + "%s/%s_1k.gltf" % [id, id])) as PackedScene).instantiate()
 	inst.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4)), at)
 	add(inst, parent)
 	_own(inst)
