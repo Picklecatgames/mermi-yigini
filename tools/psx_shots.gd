@@ -194,6 +194,7 @@ func _game() -> void:
 			for kv in a.trim_prefix("--set=").split(","):
 				more[kv.get_slice(":", 0)] = str_to_var(kv.get_slice(":", 1))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	await process_frame  # the autoloads join the tree after _initialize: Atmosphere must see the world come in
 	var settings: Node = root.get_node("Settings")
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
@@ -246,7 +247,7 @@ func _night(main: Node) -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.35, 0.42, 0.6)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
-	env.fog_light_color = Color(0.02, 0.025, 0.035)
+	env.fog_light_color = Color(0.045, 0.05, 0.065)  # a shade over black: what stands in it reads as a silhouette
 	env.fog_sky_affect = 1.0
 	env.volumetric_fog_albedo = Color(0.05, 0.05, 0.06)
 	main.get_node("Ambience").set(&"night", true)

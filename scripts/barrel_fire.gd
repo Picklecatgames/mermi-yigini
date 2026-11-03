@@ -32,10 +32,12 @@ func _ready() -> void:
 	_core()
 	_sparks()
 	_smoke()
-	_light = OmniLight3D.new()  # the fire's light on the corner, from just over the rim
-	_light.position = Vector3(0, rim + 0.25, 0)
+	_light = OmniLight3D.new()  # the fire's light on the corner, from up in the flames
+	# Up in the flames, not on the rim: the drum's lip burned brighter than the fire (the PS1
+	# critic). Far enough to give the hands of whoever stands by it a warm edge.
+	_light.position = Vector3(0, rim + 0.5, 0)
 	_light.light_color = Color(1.0, 0.45, 0.15)
-	_light.omni_range = 3.8
+	_light.omni_range = 5.0
 	_light.shadow_enabled = false  # from over the rim the drum threw a hard black disc on the floor round itself
 	_light.light_volumetric_fog_energy = 0.6
 	add_child(_light)
@@ -61,7 +63,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	var n := _noise.get_noise_1d(_t * 10.0) * 0.6 + _noise.get_noise_1d(_t * 37.0) * 0.4  # slow sway and quick flutter
 	_light.light_energy = 2.0 + 0.55 * n
-	_inside.light_energy = 3.0 + 0.8 * n
+	_inside.light_energy = 1.5 + 0.4 * n
 	_bed.emission_energy_multiplier = 2.2 + 0.6 * _noise.get_noise_1d(_t * 2.0 + 50.0)
 
 
@@ -164,7 +166,7 @@ func _curve(points: Array) -> CurveTexture:
 ## the yard (2026-11-03, the PS1 critic): fewer, bigger, brighter tongues that clear the rim by
 ## half a metre, so the fire has a shape from 10 m off.
 func _flames(tex: Texture2D, i: int) -> void:
-	var p := _sprites(tex, true, 14, 0.75 + 0.1 * i, 0.44 - 0.05 * i)
+	var p := _sprites(tex, true, 14, 0.75 + 0.1 * i, 0.66 - 0.07 * i)
 	p.position.y = rim - 0.06
 	p.preprocess = 1.0
 	p.randomness = 0.5
@@ -187,8 +189,10 @@ func _flames(tex: Texture2D, i: int) -> void:
 	pm.turbulence_noise_scale = 1.6
 	pm.turbulence_influence_min = 0.05
 	pm.turbulence_influence_max = 0.15
-	pm.color_ramp = _ramp([[0.0, Color(1.0, 0.8, 0.45, 0.0)], [0.12, Color(1.0, 0.72, 0.32, 0.9)], [0.45, Color(1.0, 0.4, 0.08, 0.75)],
-		[0.8, Color(0.75, 0.12, 0.02, 0.35)], [1.0, Color(0.3, 0.03, 0.0, 0.0)]])
+	# A yellow-white heart, then a saturated orange-red body: pale licks read as smoke or paper at
+	# 270p (2026-11-03, the PS1 critic).
+	pm.color_ramp = _ramp([[0.0, Color(1.0, 0.85, 0.5, 0.0)], [0.1, Color(1.0, 0.78, 0.35, 0.9)], [0.3, Color(1.0, 0.36, 0.04, 0.85)],
+		[0.7, Color(0.8, 0.1, 0.0, 0.5)], [1.0, Color(0.3, 0.02, 0.0, 0.0)]])
 
 
 ## The hot heart of it: a soft glow sitting in the rim, so the flames grow out of light, not air.
