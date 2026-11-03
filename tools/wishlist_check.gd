@@ -28,7 +28,7 @@ func _initialize() -> void:
 
 func _gold(mi: MeshInstance3D) -> bool:
 	for i in mi.mesh.get_surface_count():
-		var m := mi.get_active_material(i) as StandardMaterial3D
-		if not m or not m.next_pass or m.albedo_color != Wishlist.GOLD:
+		var m := mi.get_active_material(i) as ShaderMaterial  # the PS1 material, tinted (tools/psx_import.gd)
+		if not m or not m.next_pass or m.get_shader_parameter("tint") != Wishlist.GOLD * Wishlist.GOLD_LIFT:
 			return false
 	return true

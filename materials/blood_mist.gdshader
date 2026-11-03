@@ -18,6 +18,9 @@ instance uniform float flip = 1.0;  // mirrors the film across its flight, for v
 instance uniform float fade = 1.0;
 
 const float GRID = 8.0;
+const float STEP = 4.0;  // 16 of the 64 frames
+const float CELL_PX = 32.0;
+const float LEVELS = 3.0;
 const float SOFT = 0.06;  // m: fades out where it meets a wall or the floor instead of cutting
 
 varying vec2 cell_a;
