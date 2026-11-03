@@ -45,7 +45,7 @@ const DEFAULTS := {
 	"preset": 2, "window_mode": 0, "vsync": true, "fps_limit": 7,
 	"render_scale": 100, "upscaler": 0, "antialias": 4, "shadows": 2,
 	"ssao": true, "ssil": true, "ssr": true, "fog": true, "glow": true, "brightness": 100,
-	"psx": 1,
+	"psx": 2,
 	# controls
 	"sensitivity": 1.0, "ads_sensitivity": 100, "invert_y": false,
 	# game

@@ -12,7 +12,7 @@ extends SceneTree
 ## when a setting changes mid-run, tools/perf_probe.gd): psx_game_<view>_<day|night>_<N>.png.
 
 const ZOMBIES := ["prisoner", "copzombie", "zombiegirl"]
-const SCREEN := Vector2i(400, 225)
+const SCREEN := Vector2i(480, 270)  # 2026-11-03: the default "PS1 ekranı", 270p
 const BAYER := [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 const GAME_VIEWS := {  # eye, looking at
 	"yard": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],
@@ -113,7 +113,7 @@ func _shot(cam: Camera3D, from: Vector3, to: Vector3, name: String, ps1: bool) -
 
 
 func _game() -> void:
-	var psx := 1
+	var psx := 2
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--psx="):
 			psx = a.trim_prefix("--psx=").to_int()

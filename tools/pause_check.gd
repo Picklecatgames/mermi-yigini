@@ -195,10 +195,10 @@ func _check_settings(main: Node) -> void:
 	var vp := root.get_viewport()
 	var gun_view: SubViewportContainer = main.get_node("Player/ViewmodelView")
 	var gun_vp: SubViewport = gun_view.get_node("SubViewport")
-	settings.set_value("psx", 1)
+	settings.set_value("psx", 2)
 	await _frames(2)
-	assert(vp.scaling_3d_mode == Viewport.SCALING_3D_MODE_NEAREST and near.call(vp.scaling_3d_scale * vp.get_visible_rect().size.y, 225.0)
-			and vp.msaa_3d == Viewport.MSAA_DISABLED and vp.screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED, "PS1 screen: the 3D 225 px tall, unfiltered, unsmoothed")
+	assert(vp.scaling_3d_mode == Viewport.SCALING_3D_MODE_NEAREST and near.call(vp.scaling_3d_scale * vp.get_visible_rect().size.y, 270.0)
+			and vp.msaa_3d == Viewport.MSAA_DISABLED and vp.screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED, "PS1 screen: the 3D 270 px tall, unfiltered, unsmoothed")
 	assert(gun_view.material != null and gun_vp.scaling_3d_mode == Viewport.SCALING_3D_MODE_NEAREST and near.call(gun_vp.scaling_3d_scale, vp.scaling_3d_scale), "PS1 screen: the gun drawn as small")
 	var hud: CanvasLayer = main.get_node("Player/HUD")
 	assert(root.get_node("PsxScreen").layer < 0 and hud.layer > 0 and menu.layer > 0, "PS1 screen: under the HUD and the menu, they stay sharp")
@@ -206,7 +206,7 @@ func _check_settings(main: Node) -> void:
 	await _frames(2)
 	assert(vp.scaling_3d_mode == Viewport.SCALING_3D_MODE_BILINEAR and near.call(vp.scaling_3d_scale, 1.0) and gun_view.material == null
 			and gun_vp.msaa_3d == Viewport.MSAA_4X, "PS1 screen off: the preset's own again")
-	settings.set_value("psx", 1)
+	settings.set_value("psx", 2)
 	print("psx ok")
 
 	menu.close()  # the camera only follows while the game runs

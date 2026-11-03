@@ -7,7 +7,7 @@
 //   albedo_tex  the real, dirty texture, 128-256 px; drawn unfiltered (filter_nearest, repeats)
 //   tint        multiplies it; its alpha too
 //   snap        vertex jitter: the screen grid vertices snap to, steps per screen height (180 the
-//               zombies; 225 = one pixel of the default "PS1 ekranı"). 0: no screen snap
+//               zombies; 270 = one pixel of the default "PS1 ekranı"). 0: no screen snap
 //   alpha_cut   above 0: a cutout (hair, torn cloth, leaves); below it the pixel is not drawn, in
 //               the shadow too
 //   snap_world  metres; above 0 the vertices also snap to a grid of this size in view space, so the
