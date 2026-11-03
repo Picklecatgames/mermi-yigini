@@ -16,6 +16,7 @@ uniform float snap = 180.0;
 uniform float alpha_cut = 0.0;
 uniform float snap_world = 0.0;
 uniform float affine : hint_range(0.0, 1.0) = 0.0;
+global uniform float psx_jitter;  // 0: snap, snap_world and affine off (materials/psx.gdshader)
 uniform sampler2D emission_tex : source_color, filter_nearest_mipmap, repeat_enable, hint_default_white;
 uniform vec4 emission : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float emission_energy = 1.0;
@@ -44,11 +45,11 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	world_nrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	vec4 view = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
-	if (snap_world > 0.0) {
+	if (snap_world > 0.0 && psx_jitter > 0.0) {
 		view.xyz = round(view.xyz / snap_world) * snap_world;
 	}
 	vec4 clip = PROJECTION_MATRIX * view;
-	if (snap > 0.0) {
+	if (snap > 0.0 && psx_jitter > 0.0) {
 		vec2 grid = vec2(snap * VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, snap) * 0.5;
 		clip.xy = round(clip.xy / clip.w * grid) / grid * clip.w;
 	}
@@ -57,7 +58,7 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 uv = mix(UV, affine_uv.xy / affine_uv.z, affine);
+	vec2 uv = mix(UV, affine_uv.xy / affine_uv.z, affine * psx_jitter);
 	vec4 c;
 	if (triplanar) {
 		vec3 w = abs(world_nrm);

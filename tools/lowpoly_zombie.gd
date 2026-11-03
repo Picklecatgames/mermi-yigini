@@ -48,6 +48,12 @@ const PSX_GRADE_OF := {"demon": [0.3, 0.62, 0.45, Color(0.36, 0.2, 0.16), 0.3],
 		"worker": [0.65, 0.9, 0.12, DIRT, 0.3], "masked": [0.4, 0.75, 0.2, DIRT, 0.45],
 		"chupacabra": [0.5, 0.72, 0.15, DIRT, 0.45], "boss": [0.5, 0.78, 0.15, DIRT, 0.4],
 		"brute": [0.6, 0.82, 0.12, DIRT, 0.4]}
+## psx: what a model loses (2026-11-03, the user: the cop's cap looks broken). "meshes" go whole;
+## "uv" drops the triangles from the neck up whose corners all sit in one of these UV rects.
+## The cop: its hair cards poke out of the cap's sides as dark scraps once fewer, and the cap's
+## chin strap (the brown band at the atlas' bottom left) stands up off the brim instead of down
+## to the chin, already so in the source model.
+const PSX_DROP_OF := {"copzombie": {"meshes": ["Hair"], "uv": [Rect2(0.0, 0.93, 0.25, 0.07)]}}
 const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra"]
 const PLAYER_OUT := "res://assets/characters/players/%s/%s%s.scn"
 const PSX_SHADER := preload("res://materials/psx.gdshader")
@@ -70,7 +76,13 @@ func _psx(model: String) -> bool:
 	if GLB.has(model):
 		scene.scene_file_path = ""  # its own scene, not the glb's with overrides
 		out_path = GLB[model].get_base_dir() + "/" + model + "%s.scn"
+	var drop: Dictionary = PSX_DROP_OF.get(model, {})
 	var meshes := scene.find_children("*", "MeshInstance3D", true, false)
+	for mi: MeshInstance3D in meshes.duplicate():
+		if mi.name in drop.get("meshes", []):
+			meshes.erase(mi)
+			mi.get_parent().remove_child(mi)
+			mi.free()
 	var total := 0
 	for mi: MeshInstance3D in meshes:
 		for s in mi.mesh.get_surface_count():
@@ -88,6 +100,8 @@ func _psx(model: String) -> bool:
 			var tris := (arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
 			before += tris
 			arrays[Mesh.ARRAY_INDEX] = _fewer(arrays, format, maxi(int(float(budget) * tris / total), 60))
+			if drop.has("uv"):
+				arrays[Mesh.ARRAY_INDEX] = _drop_uv(arrays, drop.uv, scene.get_node("Skeleton3D"))
 			arrays[Mesh.ARRAY_TANGENT] = null  # no normal map
 			for c in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
 				arrays[c] = null  # their formats aren't carried over below (boss, brute): nothing reads them
@@ -119,6 +133,26 @@ func _psx(model: String) -> bool:
 	print("%s psx: %d -> %d tris, saved %s err=%d" % [model, before, after, path, err])
 	scene.free()
 	return err == OK
+
+
+## The surface's triangles without those from the neck up with every corner in one of `rects`.
+func _drop_uv(arrays: Array, rects: Array, sk: Skeleton3D) -> PackedInt32Array:
+	var top := sk.get_bone_global_rest(sk.find_bone("mixamorig_Neck")).origin.y
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var keep := PackedInt32Array()
+	for t in range(0, idx.size(), 3):
+		var gone := true
+		for k in 3:
+			var i := idx[t + k]
+			var inside := false
+			for r: Rect2 in rects:
+				inside = inside or r.has_point(uvs[i])
+			gone = gone and inside and verts[i].y > top
+		if not gone:
+			keep.append_array([idx[t], idx[t + 1], idx[t + 2]])
+	return keep
 
 
 ## PSX_GRADE_OF on a texture, in place (tools/build_fp_arms.gd grades the first-person arms with it too).

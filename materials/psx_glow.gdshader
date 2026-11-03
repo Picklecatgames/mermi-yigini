@@ -5,11 +5,14 @@ render_mode unshaded, blend_add, shadows_disabled;
 
 uniform vec4 glow : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float snap = 180.0;
+global uniform float psx_jitter;
 
 void vertex() {
 	vec4 clip = PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
 	vec2 grid = vec2(snap * VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, snap) * 0.5;
-	clip.xy = round(clip.xy / clip.w * grid) / grid * clip.w;
+	if (psx_jitter > 0.0) {
+		clip.xy = round(clip.xy / clip.w * grid) / grid * clip.w;
+	}
 	POSITION = clip;
 }
 

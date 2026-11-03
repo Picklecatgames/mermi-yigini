@@ -1,8 +1,8 @@
 extends CanvasLayer
 ## The PS1 screen (autoload `PsxScreen`, 2026-11-02, the user: the whole game in PS1 horror style).
 ## The 3D is drawn `lines` pixels tall and blown up unfiltered (SCALING_3D_MODE_NEAREST), no edge
-## smoothing; over it, on this layer, the colour comes down to 15 bits with a 4x4 ordered dither
-## (materials/psx_screen.gdshader). The HUD, the menus and their text sit on higher layers and stay
+## smoothing; over it, on this layer, the colour is graded to the night palette and comes down to
+## 15 bits (materials/psx_screen.gdshader; its ordered dither is off). The HUD, the menus and their text sit on higher layers and stay
 ## sharp. The gun in the hand has its own viewport (player.tscn ViewmodelView, on the root canvas
 ## over this layer): it is drawn just as small and its container gets the same colour
 ## (materials/psx_view.gdshader).

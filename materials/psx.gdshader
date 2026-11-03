@@ -42,17 +42,19 @@ uniform float emission_energy = 1.0;
 uniform vec2 uv_scale = vec2(1.0);
 uniform float mip_bias = 0.0;
 global uniform float psx_mip_bias;
+// 0 (2026-11-03, the user: "çok titreme var"): snap, snap_world and affine do nothing; 1 the old wobble
+global uniform float psx_jitter;
 
 varying vec3 affine_uv;  // uv * w and w: divided back per pixel it is interpolated on screen, not in depth
 
 void vertex() {
 	UV *= uv_scale;
 	vec4 view = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
-	if (snap_world > 0.0) {
+	if (snap_world > 0.0 && psx_jitter > 0.0) {
 		view.xyz = round(view.xyz / snap_world) * snap_world;
 	}
 	vec4 clip = PROJECTION_MATRIX * view;
-	if (snap > 0.0) {
+	if (snap > 0.0 && psx_jitter > 0.0) {
 		vec2 grid = vec2(snap * VIEWPORT_SIZE.x / VIEWPORT_SIZE.y, snap) * 0.5;
 		clip.xy = round(clip.xy / clip.w * grid) / grid * clip.w;
 	}
@@ -61,7 +63,7 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 uv = mix(UV, affine_uv.xy / affine_uv.z, affine);
+	vec2 uv = mix(UV, affine_uv.xy / affine_uv.z, affine * psx_jitter);
 	float bias = mip_bias + psx_mip_bias;
 	vec4 c = texture(albedo_tex, uv, bias) * tint;
 	if (alpha_cut > 0.0 && c.a < alpha_cut) {

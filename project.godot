@@ -126,6 +126,10 @@ psx_mip_bias={
 "type": "float",
 "value": 0.0
 }
+psx_jitter={
+"type": "float",
+"value": 0.0
+}
 psx_haze_colour={
 "type": "color",
 "value": Color(0.66, 0.56, 0.42, 1)
