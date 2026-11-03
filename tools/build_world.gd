@@ -817,8 +817,8 @@ func _bench_radio(bench: Node3D) -> void:
 	sound.autoplay = true
 	sound.bus = &"Dunya"
 	sound.volume_db = -10.0
-	sound.unit_size = 4.0
-	sound.max_distance = 25.0
+	sound.unit_size = 1.5  # heard at the bench and the desk, gone a few steps out (2026-11-03, the user: the songs stay, the range shrinks)
+	sound.max_distance = 9.0
 	sound.position = Vector3(0, 0.1, 0)
 	add(sound, radio)
 

@@ -25,6 +25,18 @@ const BUSES := [
 	[&"Arayuz", &"Efekt", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
 ]
 
+## The chip's own colour on the main buses, live, over what the files already carry (2026-11-03,
+## the user: ambience, music and the fire too clean, "lo-fi efekti ve eski oyunlardaki o şey
+## efektini iyi vermen lazım"): the bits cut (AudioEffectDistortion LOFI: drive 0 is 16 bits, each
+## 0.1 about a bit and a half fewer) and the top rolled off, as the SPU's 22-32 kHz samples and its
+## interpolation dulled them. [bus, low-pass Hz, lofi drive]. Arayuz stays clean.
+const SPU := [
+	[&"Silahlar", 9000.0, 0.3],
+	[&"Efekt", 6500.0, 0.4],
+	[&"Ambiyans", 5500.0, 0.42],
+	[&"Muzik", 7000.0, 0.38],
+]
+
 static var _table: Dictionary = {}
 static var _files: Dictionary = {}  # "kind/prefix" -> [paths]
 static var _last: Dictionary = {}  # "kind/prefix" -> the path played last
@@ -67,6 +79,30 @@ static func buses() -> void:
 			r.dry = 1.0
 			r.spread = 0.5  # narrow: the PS1 mixed close to mono
 			AudioServer.add_bus_effect(i, r)
+	spu()
+
+
+## SPU above on its buses, once each (settings.gd makes them first).
+static func spu() -> void:
+	for b in SPU:
+		var i := AudioServer.get_bus_index(b[0])
+		if i < 0:
+			continue
+		var done := false
+		for e in AudioServer.get_bus_effect_count(i):
+			done = done or AudioServer.get_bus_effect(i, e).resource_name == "SPU"
+		if done:
+			continue
+		var lofi := AudioEffectDistortion.new()
+		lofi.resource_name = "SPU"
+		lofi.mode = AudioEffectDistortion.MODE_LOFI
+		lofi.drive = b[2]
+		lofi.keep_hf_hz = 16000.0
+		var lp := AudioEffectLowPassFilter.new()
+		lp.resource_name = "SPU"
+		lp.cutoff_hz = b[1]
+		AudioServer.add_bus_effect(i, lofi, 0)
+		AudioServer.add_bus_effect(i, lp, 1)
 
 
 static func bus_of(kind_name: String) -> StringName:
