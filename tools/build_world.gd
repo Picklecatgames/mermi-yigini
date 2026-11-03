@@ -2,14 +2,23 @@ extends "res://tools/build_arena.gd"
 ## Builds scenes/world.tscn, the open ground (2026-11-02, the user: the old hall and everything in it
 ## goes; a wide rectangle out in the open, Mad Max wasteland, a light desert with a few dead trees):
 ## a concrete pad, on it the workshop (open to the front, a lean-to roof on posts, the crew's bench
-## with its radio and the desk with the pistol brought over from the hall) and, until the scrap
-## mountain comes, the scrap pit; round it sand and cracked earth rising into dunes at the edges.
+## with its radio and the desk with the pistol brought over from the hall); behind it the back yard,
+## flat ground with the junkyard (scripts/pile.gd: a scrap heap, mountains of scrap behind it);
+## round it all sand and cracked earth rising into dunes at the edges.
 ## The scene is never edited by hand: change the numbers here and re-run
 ##   godot --headless --path . -s res://tools/build_world.gd
 ## The helpers (add, worn, pbr_box, _prop, block, collide, pendant, _pit...) are build_arena.gd's.
 
 const WORLD := Rect2(-100.0, -80.0, 220.0, 160.0)  # x, z: everything the players can see the ground of (2026-11-02, the user: smaller, the zombies' ground was needlessly big)
-const PAD := Rect2(-26.0, -14.0, 52.0, 28.0)  # the concrete round the workshop and the pit; edges on the desert grid (CELL)
+const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; edges on the desert grid (CELL)
+## The back yard (2026-11-03, the user: "the pit goes; the back yard is flat ground and heaps and heaps
+## of junk, as if we were a scrap dealer in the desert; some mountains touching the sky"): flat ground
+## behind the workshop, all of it the junkyard's (scripts/pile.gd: a heap in front, mountains of
+## scrap behind it); nothing else stands on it.
+const YARD := Rect2(-112.0, -64.0, 106.0, 128.0)
+## The junkyard's grid on the ground (pile.gd CENTER, GRID_X/Z × CELL; pile.gd can't be loaded here,
+## it needs the autoloads).
+const HEAP_AREA := Rect2(-112.0, -64.0, 104.0, 128.0)
 const CELL := 2.0  # m, the desert mesh's grid
 const DUNE_START := 6.0  # m from the pad's edge where the ground starts to roll
 const EDGE_RISE := 12.0  # m the dunes climb to at the world's edge: the players' natural border
@@ -108,7 +117,7 @@ func _sky() -> void:
 
 
 ## The concrete: filthy cracked slabs (Poly Haven "Dirty Concrete"), each 4 m pour its own tone,
-## sand blown onto it, round the pit's opening; under it ground a metre thick.
+## sand blown onto it; under it ground a metre thick.
 func _pad() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Floor"
@@ -116,7 +125,7 @@ func _pad() -> void:
 	var slabs := worn("dirty_concrete", "yard_concrete", {"tint": Color(0.8, 0.74, 0.66), "tex_size": 4.0,
 		"cell_size": 4.0, "cell_tone": 0.12, "odd_cells": 0.1, "antitile": 0.5, "grime": 0.9,
 		"grime_scale": 0.08, "grime_color": Color(0.42, 0.33, 0.22)})  # the grime is blown sand, not soot
-	for r in _around_pit(PAD):
+	for r in [PAD]:
 		var mi := MeshInstance3D.new()
 		var pm := PlaneMesh.new()
 		pm.size = r.size
@@ -133,15 +142,16 @@ func _pad() -> void:
 			[Vector3(0.2, 0.12, PAD.size.y), Vector3(PAD.position.x - 0.1, 0.06, PAD.get_center().y)],
 			[Vector3(0.2, 0.12, PAD.size.y), Vector3(PAD.end.x + 0.1, 0.06, PAD.get_center().y)]]:
 		block(side[0], side[1], kerb, body)
-	_pit(body)
 
 
 ## Height of the desert at (x, z): flat at the pad, rolling dunes further out, climbing steeply into
 ## a ring of high dunes near the world's edge that nobody walks over.
 func _ground_y(x: float, z: float, noise: FastNoiseLite) -> float:
-	var dx := maxf(maxf(PAD.position.x - x, x - PAD.end.x), 0.0)
-	var dz := maxf(maxf(PAD.position.y - z, z - PAD.end.y), 0.0)
-	var away := Vector2(dx, dz).length()
+	var away := INF
+	for flat in [PAD, YARD]:  # the pad and the back yard are flat
+		var dx := maxf(maxf(flat.position.x - x, x - flat.end.x), 0.0)
+		var dz := maxf(maxf(flat.position.y - z, z - flat.end.y), 0.0)
+		away = minf(away, Vector2(dx, dz).length())
 	var roll := smoothstep(DUNE_START, DUNE_START + 30.0, away)
 	# Low uneven swells and gullies, not smooth dunes (2026-11-02, the user: "looks like a Unity demo").
 	var h := noise.get_noise_2d(x, z) * 2.2 * roll + noise.get_noise_2d(x * 4.1, z * 4.1) * 0.35 * roll
@@ -227,7 +237,9 @@ func _wasteland() -> void:
 	add(root)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 23
-	var spots := func(count: int, near: float, far: float) -> Array[Vector3]:
+	# `in_yard`: it may lie in the back yard too (junk, bushes), not only out on the sand; never on
+	# the scrap heap or the giant heaps.
+	var spots := func(count: int, near: float, far: float, in_yard := false) -> Array[Vector3]:
 		var out: Array[Vector3] = []
 		while out.size() < count:
 			var p := Vector2(rng.randf_range(WORLD.position.x + 8.0, WORLD.end.x - 8.0), rng.randf_range(WORLD.position.y + 8.0, WORLD.end.y - 8.0))
@@ -235,13 +247,15 @@ func _wasteland() -> void:
 			var too_far := Rect2(PAD.position - Vector2(far, far), PAD.size + Vector2(far, far) * 2.0)
 			if away.has_point(p) or not too_far.has_point(p):
 				continue
+			if (not in_yard and YARD.has_point(p)) or HEAP_AREA.grow(3.0).has_point(p):
+				continue
 			out.append(Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y))
 		return out
 	var on_ground := func(p: Vector3) -> Vector3: return Vector3(p.x, _ground_y(p.x, p.z, _desert_noise) - 0.05, p.z)
 	for centre: Vector3 in spots.call(8, 10.0, 34.0):
 		for k in rng.randi_range(2, 5):
 			var p: Vector3 = on_ground.call(centre + Vector3(rng.randf_range(-9.0, 9.0), 0, rng.randf_range(-9.0, 9.0)))
-			if PAD.grow(3.0).has_point(Vector2(p.x, p.z)):
+			if PAD.grow(3.0).has_point(Vector2(p.x, p.z)) or YARD.has_point(Vector2(p.x, p.z)):
 				continue
 			var r := rng.randf()
 			if r < 0.4:
@@ -256,9 +270,9 @@ func _wasteland() -> void:
 			var b: Vector3 = on_ground.call(centre + Vector3(rng.randf_range(-12.0, 12.0), 0, rng.randf_range(-12.0, 12.0)))
 			if not PAD.grow(3.0).has_point(Vector2(b.x, b.z)):
 				_plant(root, "wild_rooibos_bush", b, rng)
-	for p: Vector3 in spots.call(60, 3.0, 120.0):
+	for p: Vector3 in spots.call(60, 3.0, 120.0, true):
 		_plant(root, "wild_rooibos_bush", p, rng)
-	for p: Vector3 in spots.call(40, 3.0, 40.0):
+	for p: Vector3 in spots.call(40, 3.0, 40.0, true):
 		var clutter: String = ["dry_branches_medium_01", "namaqualand_stones_01", "namaqualand_rocks_01"][rng.randi() % 3]
 		_plant(root, clutter, p, rng)
 	for p: Vector3 in spots.call(45, 10.0, 120.0):
@@ -270,7 +284,7 @@ func _wasteland() -> void:
 		_prop(root, NAMA + "dead_tree_trunk_02/dead_tree_trunk_02_1k.gltf", p + Vector3(0, 0.12, 0), rng.randf() * TAU)
 	for p: Vector3 in spots.call(3, 14.0, 60.0):
 		_prop(root, MODELS + "covered_car/covered_car_1k.gltf", p, rng.randf() * TAU, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.05, 0.05)))
-	for p: Vector3 in spots.call(10, 3.0, 50.0):
+	for p: Vector3 in spots.call(10, 3.0, 50.0, true):
 		var junk: String = ["old_tyre/old_tyre_1k.gltf", "rusted_wheel_rim_01/rusted_wheel_rim_01_1k.gltf", "rusted_wheel_rim_02/rusted_wheel_rim_02_1k.gltf"][rng.randi() % 3]
 		_prop(root, MODELS + junk, p, rng.randf() * TAU)
 
@@ -395,7 +409,7 @@ func _forest() -> void:
 			z += FOREST_STEP
 			var away := _out_of_clearing(p) + _desert_noise.get_noise_2d(p.x * 2.0, p.y * 2.0) * 10.0
 			var thick := smoothstep(FOREST_START, FOREST_FULL, away) * 0.92
-			if rng.randf() > thick:
+			if rng.randf() > thick or YARD.grow(2.0).has_point(p):
 				continue
 			var r := rng.randf()
 			var kind: Array = kinds[0]
@@ -451,6 +465,8 @@ func _forest() -> void:
 		var dir := Vector2(cos(a), sin(a))
 		var p := CLEARING_CENTRE + dir * CLEARING_RADII
 		p = p.clamp(WORLD.position + Vector2(10, 10), WORLD.end - Vector2(10, 10))
+		if YARD.has_point(p):
+			continue  # nobody steps out of the junk behind the yard
 		var m := Marker3D.new()
 		m.name = "ForestEdge%d" % i
 		m.position = Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y)

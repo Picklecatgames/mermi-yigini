@@ -24,7 +24,7 @@ const LOG := "user://net_check_client.log"
 const ENGINE_LOG := "user://net_check_client_engine.log"  # the client's engine output: script errors, a crash
 const WORLD := "user://net_check_client.json"  # what the client saw of the shared world
 ## The host digs these [at, rounds] as the client joins, near the heap's top, clear of the keys.
-const HEAP := Vector3(-9, 0, 0)  # on the scrap heap's face (scenes/main.tscn Pile at x -11.75)
+const HEAP := Vector3(-16, 0, 0)  # on the scrap heap's face (scripts/pile.gd CENTER x -20)
 const DIGS := [[HEAP + Vector3(1.0, 0, 0.5), 3000], [HEAP + Vector3(-0.8, 0, -1.2), 5000], [HEAP + Vector3(0.3, 0, 1.6), 2000]]
 const DUG := 10_000
 ## Once the client has pressed its clones (its last step against the clock), part of the face gives
