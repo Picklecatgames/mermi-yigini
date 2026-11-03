@@ -56,6 +56,10 @@ def bake_transforms():
 def match(o, p):
     if p.get('names'): return o.name in p['names']
     n =(o.name + '|' + (o.data.name if o.data else '') + '|' + ','.join(m.name for m in o.data.materials if m)).lower()
+    # above/below: duvardaki panoyu tezgâhtan ayırmak için nesnenin taban yüksekliği (m)
+    z = min((o.matrix_world @ v.co).z for v in o.data.vertices) if ('above' in p or 'below' in p) else 0
+    if 'below' in p and z >= p['below']: return False
+    if 'above' in p and z >= p['above']: return not (p.get('exclude') and any(s.lower() in n for s in p['exclude']))
     if p.get('match') and not any(s.lower() in n for s in p['match']): return False
     if p.get('exclude') and any(s.lower() in n for s in p['exclude']): return False
     return True

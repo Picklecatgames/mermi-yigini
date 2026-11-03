@@ -109,6 +109,83 @@
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/tree_stump_01, CC0"
  },
+ "bitkiler/olu_agac_a.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 232924,
+  "carpisma": "none",
+  "boyut_m": [
+   2.911,
+   7.416,
+   2.65
+  ],
+  "kaynak": "Quadra3D, Dead Trees Demo, CC-BY 4.0 https://sketchfab.com/3d-models/9bdd36641ef541adb51f0d01ddb07b2c"
+ },
+ "bitkiler/olu_agac_b.gltf": {
+  "ucgen": 5999,
+  "kaynak_ucgen": 232924,
+  "carpisma": "none",
+  "boyut_m": [
+   2.415,
+   4.109,
+   2.353
+  ],
+  "kaynak": "Quadra3D, Dead Trees Demo, CC-BY 4.0 https://sketchfab.com/3d-models/9bdd36641ef541adb51f0d01ddb07b2c"
+ },
+ "bitkiler/olu_agac_c.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 232924,
+  "carpisma": "none",
+  "boyut_m": [
+   4.631,
+   5.081,
+   2.703
+  ],
+  "kaynak": "Quadra3D, Dead Trees Demo, CC-BY 4.0 https://sketchfab.com/3d-models/9bdd36641ef541adb51f0d01ddb07b2c"
+ },
+ "bitkiler/olu_agac_d.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 232924,
+  "carpisma": "none",
+  "boyut_m": [
+   2.477,
+   5.599,
+   2.171
+  ],
+  "kaynak": "Quadra3D, Dead Trees Demo, CC-BY 4.0 https://sketchfab.com/3d-models/9bdd36641ef541adb51f0d01ddb07b2c"
+ },
+ "bitkiler/olu_agac_yasli.gltf": {
+  "ucgen": 7793,
+  "kaynak_ucgen": 8107,
+  "carpisma": "none",
+  "boyut_m": [
+   4.764,
+   8.075,
+   4.174
+  ],
+  "kaynak": "evolveduk, Old tree, CC-BY 4.0 https://sketchfab.com/3d-models/3cb4d59eb4844dc4802480e9ee53785e"
+ },
+ "bitkiler/olu_agac_yasli_yaprakli.gltf": {
+  "ucgen": 7999,
+  "kaynak_ucgen": 8107,
+  "carpisma": "none",
+  "boyut_m": [
+   5.711,
+   8.58,
+   4.651
+  ],
+  "kaynak": "evolveduk, Old tree, CC-BY 4.0 https://sketchfab.com/3d-models/3cb4d59eb4844dc4802480e9ee53785e"
+ },
+ "bitkiler/olu_col_agaci.gltf": {
+  "ucgen": 32389,
+  "kaynak_ucgen": 1301119,
+  "carpisma": "none",
+  "boyut_m": [
+   4.484,
+   4.509,
+   3.626
+  ],
+  "kaynak": "iGauravRajput, Desert tree Skeleton, CC-BY 4.0 https://sketchfab.com/3d-models/b47825ecb8a049d78be9bd07f49a7d5d"
+ },
  "bitkiler/olu_govde.gltf": {
   "ucgen": 6000,
   "kaynak_ucgen": 17978,
@@ -119,6 +196,28 @@
    0.267
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/dead_quiver_trunk, CC0"
+ },
+ "enkaz/sedan_enkazi_1.gltf": {
+  "ucgen": 9591,
+  "kaynak_ucgen": 9591,
+  "carpisma": "convex",
+  "boyut_m": [
+   2.745,
+   1.672,
+   4.6
+  ],
+  "kaynak": "Rashad Ibrahimli, Abandoned Generic Sedan 1, CC-BY 4.0 https://sketchfab.com/3d-models/6a2169dafc254f399387a679305bb1bf"
+ },
+ "enkaz/sedan_enkazi_2.gltf": {
+  "ucgen": 11999,
+  "kaynak_ucgen": 16463,
+  "carpisma": "convex",
+  "boyut_m": [
+   4.6,
+   1.61,
+   3.364
+  ],
+  "kaynak": "Rashad Ibrahimli, Abandoned Generic Sedan 2, CC-BY 4.0 https://sketchfab.com/3d-models/db2df46c49f9441286c84c66208ef7ac"
  },
  "kayalar/kaya_buyuk.gltf": {
   "ucgen": 6000,
@@ -247,6 +346,94 @@
   ],
   "carpisma": "convex",
   "kaynak": "kendi modelim (tools/atolye/wasteland.py), doku ambientCG Ground097, CC0"
+ },
+ "ufuk/telefon_direkleri.gltf": {
+  "ucgen": 5316,
+  "kaynak_ucgen": 5316,
+  "carpisma": "none",
+  "boyut_m": [
+   8.791,
+   9.5,
+   1.631
+  ],
+  "kaynak": "Caboose3d, Telephone Poles, CC-BY 4.0 https://sketchfab.com/3d-models/a76b68b838424a89b7db8a38f4c3d546"
+ },
+ "ufuk/yikik_garajlar.gltf": {
+  "ucgen": 8000,
+  "kaynak_ucgen": 8367,
+  "carpisma": "convex",
+  "boyut_m": [
+   7.742,
+   2.85,
+   16.309
+  ],
+  "kaynak": "olegolegperepelica, Abandoned Garage Block Rusty Ruined, CC-BY 4.0 https://sketchfab.com/3d-models/a1959927a98e4752bdb01b6e1f7f7d26"
+ },
+ "ufuk/yikinti_a.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 81124,
+  "carpisma": "convex",
+  "boyut_m": [
+   17.517,
+   47.705,
+   22.664
+  ],
+  "kaynak": "tobiasherbers, Ruined buildings pack, CC-BY 4.0 https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb"
+ },
+ "ufuk/yikinti_b.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 81124,
+  "carpisma": "convex",
+  "boyut_m": [
+   19.384,
+   51.606,
+   11.601
+  ],
+  "kaynak": "tobiasherbers, Ruined buildings pack, CC-BY 4.0 https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb"
+ },
+ "ufuk/yikinti_c.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 81124,
+  "carpisma": "convex",
+  "boyut_m": [
+   30.604,
+   83.845,
+   16.527
+  ],
+  "kaynak": "tobiasherbers, Ruined buildings pack, CC-BY 4.0 https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb"
+ },
+ "ufuk/yikinti_d.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 81124,
+  "carpisma": "convex",
+  "boyut_m": [
+   16.827,
+   33.811,
+   21.77
+  ],
+  "kaynak": "tobiasherbers, Ruined buildings pack, CC-BY 4.0 https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb"
+ },
+ "ufuk/yikinti_e.gltf": {
+  "ucgen": 5999,
+  "kaynak_ucgen": 81124,
+  "carpisma": "convex",
+  "boyut_m": [
+   19.14,
+   55.978,
+   18.652
+  ],
+  "kaynak": "tobiasherbers, Ruined buildings pack, CC-BY 4.0 https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb"
+ },
+ "ufuk/yikinti_f.gltf": {
+  "ucgen": 6000,
+  "kaynak_ucgen": 81124,
+  "carpisma": "convex",
+  "boyut_m": [
+   27.527,
+   58.688,
+   12.171
+  ],
+  "kaynak": "tobiasherbers, Ruined buildings pack, CC-BY 4.0 https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb"
  },
  "yiginlar/lastik_kulesi.gltf": {
   "ucgen": 14400,

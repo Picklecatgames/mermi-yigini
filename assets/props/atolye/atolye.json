@@ -1,4 +1,26 @@
 {
+ "ic/ayakli_cift_projektor.gltf": {
+  "ucgen": 8000,
+  "kaynak_ucgen": 18984,
+  "carpisma": "convex",
+  "boyut_m": [
+   1.101,
+   1.7,
+   2.431
+  ],
+  "kaynak": "denis_cliofas, Industrial Work Light, CC-BY 4.0 https://sketchfab.com/3d-models/ff0abe17dc64498191bb41c905d00ab0"
+ },
+ "ic/ayakli_projektor.gltf": {
+  "ucgen": 2790,
+  "kaynak_ucgen": 2790,
+  "carpisma": "convex",
+  "boyut_m": [
+   0.535,
+   1.6,
+   0.487
+  ],
+  "kaynak": "Chamod1999, Flood light 02, CC-BY 4.0 https://sketchfab.com/3d-models/95ad365a60434015a8700efbdaa90893"
+ },
  "ic/boru_lamba.gltf": {
   "ucgen": 8000,
   "kaynak_ucgen": 8626,
@@ -32,6 +54,17 @@
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/steel_frame_shelves_02, CC0"
  },
+ "ic/delikli_pano.gltf": {
+  "ucgen": 24,
+  "kaynak_ucgen": 24,
+  "carpisma": "box",
+  "boyut_m": [
+   0.023,
+   0.902,
+   1.6
+  ],
+  "kaynak": "Sousinho, Tool Storage Board, CC-BY 4.0 https://sketchfab.com/3d-models/a298746adb5946b997cc19618cb110e5"
+ },
  "ic/duvar_projektoru.gltf": {
   "ucgen": 4668,
   "kaynak_ucgen": 4668,
@@ -54,6 +87,28 @@
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/portable_searchlight, CC0"
  },
+ "ic/eski_tezgah.gltf": {
+  "ucgen": 9999,
+  "kaynak_ucgen": 24886,
+  "carpisma": "box",
+  "boyut_m": [
+   0.682,
+   1.17,
+   2.492
+  ],
+  "kaynak": "Oliver Triplett, Old Work Bench, CC-BY 4.0 https://sketchfab.com/3d-models/9fbc30ba31a546fe9370e6de2dcc0707"
+ },
+ "ic/eski_tezgah_panosu.gltf": {
+  "ucgen": 8000,
+  "kaynak_ucgen": 24886,
+  "carpisma": "box",
+  "boyut_m": [
+   0.108,
+   1.114,
+   1.665
+  ],
+  "kaynak": "Oliver Triplett, Old Work Bench, CC-BY 4.0 https://sketchfab.com/3d-models/9fbc30ba31a546fe9370e6de2dcc0707"
+ },
  "ic/kablo_box_4way.gltf": {
   "ucgen": 1780,
   "kaynak_ucgen": 42078,
@@ -75,6 +130,17 @@
    0.022
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/modular_electric_cables, CC0"
+ },
+ "ic/kablo_makarasi.gltf": {
+  "ucgen": 1664,
+  "kaynak_ucgen": 1664,
+  "carpisma": "convex",
+  "boyut_m": [
+   0.886,
+   0.886,
+   0.886
+  ],
+  "kaynak": "wolfgar74, Cable Spool, CC-BY 4.0 https://sketchfab.com/3d-models/22ddb8e02f944fb7b5662f14fdc50e5e"
  },
  "ic/kablo_mount.gltf": {
   "ucgen": 332,
@@ -163,6 +229,28 @@
    0.396
   ],
   "kaynak": "Poly Haven https://polyhaven.com/a/bench_vice_01, CC0"
+ },
+ "ic/ors_mengene.gltf": {
+  "ucgen": 6414,
+  "kaynak_ucgen": 6414,
+  "carpisma": "convex",
+  "boyut_m": [
+   0.499,
+   1.0,
+   1.131
+  ],
+  "kaynak": "Steven Janes, Anvil-Vise Combo, CC-BY 4.0 https://sketchfab.com/3d-models/2cc3a34bdd7f48799474878334673116"
+ },
+ "ic/rafli_tezgah.gltf": {
+  "ucgen": 10000,
+  "kaynak_ucgen": 14878,
+  "carpisma": "box",
+  "boyut_m": [
+   3.721,
+   1.75,
+   0.728
+  ],
+  "kaynak": "JJ Chalupnik, Workbench, CC-BY 4.0 https://sketchfab.com/3d-models/9634d6a81a494925a909512c8048f446"
  },
  "ic/tabure.gltf": {
   "ucgen": 4999,
@@ -270,6 +358,17 @@
   "carpisma": "box",
   "kaynak": "kendi modelim (tools/atolye/parts.py)"
  },
+ "yapi/celik_h_kiris_4m.gltf": {
+  "ucgen": 2500,
+  "kaynak_ucgen": 25952,
+  "carpisma": "convex",
+  "boyut_m": [
+   0.753,
+   0.436,
+   4.0
+  ],
+  "kaynak": "Cyril Demetrius, Construction steel beam, CC-BY 4.0 https://sketchfab.com/3d-models/33f84d01ec834d8c98c39ee7251f8ff4"
+ },
  "yapi/celik_kare_profil_4m.gltf": {
   "ucgen": 12,
   "boyut_m": [
@@ -279,6 +378,39 @@
   ],
   "carpisma": "box",
   "kaynak": "kendi modelim (tools/atolye/parts.py)"
+ },
+ "yapi/egri_sac_a.gltf": {
+  "ucgen": 3132,
+  "kaynak_ucgen": 6732,
+  "carpisma": "box",
+  "boyut_m": [
+   0.229,
+   2.997,
+   2.323
+  ],
+  "kaynak": "Sousinho, Rusted corrugated panels, CC-BY 4.0 https://sketchfab.com/3d-models/ea06568a9e304ecc806cb7cb0552e269"
+ },
+ "yapi/egri_sac_b.gltf": {
+  "ucgen": 2796,
+  "kaynak_ucgen": 6732,
+  "carpisma": "box",
+  "boyut_m": [
+   0.237,
+   2.985,
+   1.184
+  ],
+  "kaynak": "Sousinho, Rusted corrugated panels, CC-BY 4.0 https://sketchfab.com/3d-models/ea06568a9e304ecc806cb7cb0552e269"
+ },
+ "yapi/egri_sac_c.gltf": {
+  "ucgen": 804,
+  "kaynak_ucgen": 6732,
+  "carpisma": "box",
+  "boyut_m": [
+   0.052,
+   2.995,
+   2.901
+  ],
+  "kaynak": "Sousinho, Rusted corrugated panels, CC-BY 4.0 https://sketchfab.com/3d-models/ea06568a9e304ecc806cb7cb0552e269"
  },
  "yapi/oluk_2m.gltf": {
   "ucgen": 84,
@@ -339,6 +471,28 @@
   ],
   "carpisma": "box",
   "kaynak": "kendi modelim (tools/atolye/parts.py)"
+ },
+ "yapi/palet_eski_a.gltf": {
+  "ucgen": 228,
+  "kaynak_ucgen": 384,
+  "carpisma": "box",
+  "boyut_m": [
+   1.2,
+   0.146,
+   1.2
+  ],
+  "kaynak": "YadroGames, Wooden Pallets, CC-BY 4.0 https://sketchfab.com/3d-models/dba5c00928cd400796d9f6fffdd724b3"
+ },
+ "yapi/palet_eski_b.gltf": {
+  "ucgen": 156,
+  "kaynak_ucgen": 384,
+  "carpisma": "box",
+  "boyut_m": [
+   1.2,
+   0.144,
+   1.2
+  ],
+  "kaynak": "YadroGames, Wooden Pallets, CC-BY 4.0 https://sketchfab.com/3d-models/dba5c00928cd400796d9f6fffdd724b3"
  },
  "yapi/sac_cit_a.gltf": {
   "ucgen": 7792,

@@ -65,9 +65,9 @@ Not: tek başına 3 m'de tekrar edince `dry_ground_rocks`'ta uzakta bant görün
 
 | | Ad | Kaynak | Lisans | Üçgen | Neden |
 |---|---|---|---|---|---|
-| SF | Ruined buildings pack | tobiasherbers https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb | CC-BY 4.0 | 85.578 (set) | Sisli uzak plan için yıkık bina siluetleri |
-| SF | Telephone Poles | Caboose3d https://sketchfab.com/3d-models/a76b68b838424a89b7db8a38f4c3d546 | CC-BY 4.0 | 5.316 (set) | Ufka uzanan eğri telefon direkleri |
-| SF | Abandoned Garage Block Rusty Ruined | olegolegperepelica https://sketchfab.com/3d-models/a1959927a98e4752bdb01b6e1f7f7d26 | CC-BY 4.0 | 8.369 | Yıkık tuğla garajlar, orta plan |
+| ✔ | Ruined buildings pack | tobiasherbers https://sketchfab.com/3d-models/690edb7d64b84df7bfeee3b54746d6eb | CC-BY 4.0 | 85.578 (set) → 6 × 6.000 | Sisli uzak plan için yıkık kule siluetleri; katlar 3 m olsun diye 6 kat büyütüldü, 34–84 m (`yikinti_a-f`) |
+| ✔ | Telephone Poles | Caboose3d https://sketchfab.com/3d-models/a76b68b838424a89b7db8a38f4c3d546 | CC-BY 4.0 | 5.316 (set) | Ufka uzanan eğri telefon direkleri, 9,5 m, iki direk ve tel tek parça (`telefon_direkleri`) |
+| ✔ | Abandoned Garage Block Rusty Ruined | olegolegperepelica https://sketchfab.com/3d-models/a1959927a98e4752bdb01b6e1f7f7d26 | CC-BY 4.0 | 8.369 → 8.000 | Yıkık tuğla garajlar, orta plan, 16 m (`yikik_garajlar`; duvarda grafiti var, marka yok) |
 | ○ | Ruin Building | nermin https://sketchfab.com/3d-models/184d70cc473540749206cc7d8f9917b8 | CC-BY 4.0 | 33.384 | Roblox için yapılmış, yedek |
 | ○ | Electric pole | DJMaesen https://sketchfab.com/3d-models/19be5e32d7a44fcf8c6eb4f83e17bd25 | CC-BY 4.0 | 1.718 | Tek direk, yedek |
 | ○ | modular_electricity_poles, concrete_road_barrier_02 | Poly Haven | CC0 | 200 bin / 42 bin | Ağır ama CC0; yedek |
@@ -121,10 +121,10 @@ Pure-sky HDRI'larda toz yok; tozlu hava sis ve hacim sisiyle verilmeli. En puslu
 | ✔ | `varil_yesil`, `varil_pasli`, `varil_boyali` | kendi modelim (`wasteland.py`), dokular Poly Haven green_metal_rust, rust_coarse_01, rusty_painted_metal | CC0 | 768 | Ø 0,61 × 0,88 | 200 litrelik, çemberli, hafif ezik paslı varil (projedekiler mavi ve temiz) |
 | ✔ | `varil_yigini`, `varil_sirasi` | aynı variller | CC0 | 3.840 / 2.304 | | Üst üste ve yatık variller |
 | ✔ | `lastik_kulesi`, `lastik_yigini` | Poly Haven old_tyre (projede), dizilim benim | CC0 | 14.400 / 23.040 | | Beşli lastik kulesi; yayvan yığın ve yaslanmış lastik |
-| SF | Abandoned Generic Sedan 1 / 2 | Rashad Ibrahimli https://sketchfab.com/3d-models/6a2169dafc254f399387a679305bb1bf, https://sketchfab.com/3d-models/db2df46c49f9441286c84c66208ef7ac | CC-BY 4.0 | 9.597 / 16.487 | | Markasız, paslı, tekerleksiz sedan enkazı |
-| SF | Dead Trees Demo | Quadra3D https://sketchfab.com/3d-models/9bdd36641ef541adb51f0d01ddb07b2c | CC-BY 4.0 | 232.924 (40 ağaç) | | Seyrek ölü ağaçlar; birkaçı seçilip bölünecek |
-| SF | Old tree | evolveduk https://sketchfab.com/3d-models/3cb4d59eb4844dc4802480e9ee53785e | CC-BY 4.0 | 8.107 | | Kurumuş yaşlı ağaç |
-| SF | Desert tree Skeleton | iGauravRajput https://sketchfab.com/3d-models/b47825ecb8a049d78be9bd07f49a7d5d | CC-BY 4.0 | 1,3 M → 15 bin | | Çöl ağacı iskeleti |
+| ✔ | Abandoned Generic Sedan 1 / 2 | Rashad Ibrahimli https://sketchfab.com/3d-models/6a2169dafc254f399387a679305bb1bf, https://sketchfab.com/3d-models/db2df46c49f9441286c84c66208ef7ac | CC-BY 4.0 | 9.597 / 16.487 | | Markasız, paslı, tekerleksiz sedan enkazı |
+| ✔ | Dead Trees Demo | Quadra3D https://sketchfab.com/3d-models/9bdd36641ef541adb51f0d01ddb07b2c | CC-BY 4.0 | 232.924 (demo: 4 ağaç) → 4 × 6.000 | 4–7,4 m | Seyrek ölü ağaçlar; 2,5 kat büyütüldü (`olu_agac_a-d`) |
+| ✔ | Old tree | evolveduk https://sketchfab.com/3d-models/3cb4d59eb4844dc4802480e9ee53785e | CC-BY 4.0 | 8.107 | 8 m | Kurumuş yaşlı ağaç: yalın gövde `olu_agac_yasli`, ince dal kartlarıyla `olu_agac_yasli_yaprakli` |
+| ✔ | Desert tree Skeleton | iGauravRajput https://sketchfab.com/3d-models/b47825ecb8a049d78be9bd07f49a7d5d | CC-BY 4.0 | 1,3 M → 32 bin | 4,5 m | Çöl ağacı iskeleti, taranmış toprak tabanıyla (`olu_col_agaci`; düşürme 15 bine inmedi) |
 | ○ | Old Rusty Yellow Cabriolet | PolarNick239 | CC-BY 4.0 | 832.970 | | Tarama, çok ağır, üstünde grafiti |
 | ○ | PSX Dead Tree Pack, Dead Tree - PS1 | FlunkedPunk, Wersaus33 | CC-BY 4.0 | | | PS1 tarzı, gerçekçi değil |
 | – | covered_car, rusted_wheel_rim_01/02, old_tyre | projede `assets/env/models/` | CC0 | | | Brandalı araba, jant, lastik |
@@ -141,9 +141,9 @@ Pure-sky HDRI'larda toz yok; tozlu hava sis ve hacim sisiyle verilmeli. En puslu
 | ✔ | `sac_cit_a/b/c` | kendi modelim (`wasteland.py`), dört pas dokusu + ahşap direk | CC0 | 7.800–9.100 | 2,9–3,7 × 2,3–2,6 m | Hurdadan çit: iki direğe dikilmiş, üst üste binen, eğri, her biri başka paslı sac |
 | ✔ | `oluk_2m` | kendi modelim, doku rusty_metal_02 | CC0 | 84 | Ø 13 cm yarım boru | Çatı kenarı yağmur oluğu |
 | ✔ | `palet` | kendi modelim, doku fine_grained_wood | CC0 | 204 | 1,20 × 0,144 × 0,80 (EUR) | Atölye zemini, istif |
-| SF | Rusted corrugated panels | Sousinho https://sketchfab.com/3d-models/ea06568a9e304ecc806cb7cb0552e269 | CC-BY 4.0 | 6.732 (3 panel) | | Kırmızı, paslı, yeşil eğri büküntülü sac; hurdadan yama çatı ve duvar |
-| SF | Construction steel beam | Cyril Demetrius https://sketchfab.com/3d-models/33f84d01ec834d8c98c39ee7251f8ff4 | CC-BY 4.0 | 25.956 → 2.500 | 4 m | Perçinli paslı H kiriş |
-| SF | Wooden Pallets | YadroGames https://sketchfab.com/3d-models/dba5c00928cd400796d9f6fffdd724b3 | CC-BY 4.0 | 384 | | Taranmış görünümlü iki palet |
+| ✔ | Rusted corrugated panels | Sousinho https://sketchfab.com/3d-models/ea06568a9e304ecc806cb7cb0552e269 | CC-BY 4.0 | 6.732 (3 panel) | 3 m boy | `egri_sac_a-c`; Kırmızı, paslı, yeşil eğri büküntülü sac; hurdadan yama çatı ve duvar |
+| ✔ | Construction steel beam | Cyril Demetrius https://sketchfab.com/3d-models/33f84d01ec834d8c98c39ee7251f8ff4 | CC-BY 4.0 | 25.956 → 2.500 | 4 m | Perçinli paslı H kiriş |
+| ✔ | Wooden Pallets | YadroGames https://sketchfab.com/3d-models/dba5c00928cd400796d9f6fffdd724b3 | CC-BY 4.0 | 384 | 1,2 × 1,2 m | Taranmış görünümlü iki palet (`palet_eski_a/b`) |
 | ○ | Corrugated Metal Sheet Type 1/2/3 | Mareon | CC-BY 4.0 | 440–2.920 | | Temiz boyalı, pas yok |
 | ○ | Worn Shed PBR | donnichols https://sketchfab.com/3d-models/be6edd62e55a4f9a99da940fc164a5b9 | CC-BY 4.0 | 2.086 | | Bütün ev; parça değil |
 | ○ | Steelbeam | jkvarel | CC-BY 4.0 | 164 | | Dokusu zayıf |
@@ -169,13 +169,13 @@ Pure-sky HDRI'larda toz yok; tozlu hava sis ve hacim sisiyle verilmeli. En puslu
 | ✔ | `el_projektoru` | Poly Haven portable_searchlight | CC0 | 6.000 / 18.802 | 0,17 × 0,19 × 0,25 | Masaya konan el feneri |
 | ✔ | `boru_lamba` | Poly Haven industrial_pipe_lamp | CC0 | 8.000 / 8.626 | 0,18 × 0,36 × 0,26 | Borudan masa lambası |
 | ✔ | `kablo_*` (7 parça) | Poly Haven modular_electric_cables | CC0 | 332–3.330 | | Direk boyunca giden kablo, priz, şalter, buat |
-| SF | Old Work Bench | Oliver Triplett https://sketchfab.com/3d-models/9fbc30ba31a546fe9370e6de2dcc0707 | CC-BY 4.0 | 24.890 | | Ahşap tezgâh, delikli pano, takım dolabı, aletler |
-| SF | Workbench | JJ Chalupnik https://sketchfab.com/3d-models/9634d6a81a494925a909512c8048f446 | CC-BY 4.0 | 8.335 | | Uzun çelik tezgâh, pano, takım çekmecesi |
-| SF | Tool Storage Board | Sousinho https://sketchfab.com/3d-models/a298746adb5946b997cc19618cb110e5 | CC-BY 4.0 | 24 | | Paslı delikli takım panosu (doku ile) |
-| SF | Industrial Work Light | denis_cliofas https://sketchfab.com/3d-models/ff0abe17dc64498191bb41c905d00ab0 | CC-BY 4.0 | 18.998 | | Sarı tripodlu çift projektör |
-| SF | Flood light 02 | Chamod1999 https://sketchfab.com/3d-models/95ad365a60434015a8700efbdaa90893 | CC-BY 4.0 | 2.790 | | Hafif tripodlu projektör |
-| SF | Cable Spool | wolfgar74 https://sketchfab.com/3d-models/22ddb8e02f944fb7b5662f14fdc50e5e | CC-BY 4.0 | 1.664 | | Ahşap kablo makarası (masa da olur) |
-| SF | Anvil-Vise Combo | Steven Janes https://sketchfab.com/3d-models/2cc3a34bdd7f48799474878334673116 | CC-BY 4.0 | 6.414 | | Kütük üstünde örs-mengene |
+| ✔ | Old Work Bench | Oliver Triplett https://sketchfab.com/3d-models/9fbc30ba31a546fe9370e6de2dcc0707 | CC-BY 4.0 | 24.890 → 10.000 + 8.000 | 2,5 m | Ahşap tezgâh ve aletler `eski_tezgah`; duvar panosu ve lamba ayrı `eski_tezgah_panosu` (tabanı 1,1 m'ye kaldırılarak konur) |
+| ✔ | Workbench | JJ Chalupnik https://sketchfab.com/3d-models/9634d6a81a494925a909512c8048f446 | CC-BY 4.0 | 8.335 | 3,7 m | Uzun tezgâh, pano, takım çekmecesi (`rafli_tezgah`) |
+| ✔ | Tool Storage Board | Sousinho https://sketchfab.com/3d-models/a298746adb5946b997cc19618cb110e5 | CC-BY 4.0 | 24 | 1,6 m | Paslı delikli takım panosu (doku ile, `delikli_pano`) |
+| ✔ | Industrial Work Light | denis_cliofas https://sketchfab.com/3d-models/ff0abe17dc64498191bb41c905d00ab0 | CC-BY 4.0 | 18.998 → 8.000 | 1,7 m | Sarı tripodlu çift projektör (`ayakli_cift_projektor`) |
+| ✔ | Flood light 02 | Chamod1999 https://sketchfab.com/3d-models/95ad365a60434015a8700efbdaa90893 | CC-BY 4.0 | 2.790 | 1,6 m | Hafif tripodlu projektör (`ayakli_projektor`) |
+| ✔ | Cable Spool | wolfgar74 https://sketchfab.com/3d-models/22ddb8e02f944fb7b5662f14fdc50e5e | CC-BY 4.0 | 1.664 | 0,9 m | Ahşap kablo makarası, masa da olur (`kablo_makarasi`) |
+| ✔ | Anvil-Vise Combo | Steven Janes https://sketchfab.com/3d-models/2cc3a34bdd7f48799474878334673116 | CC-BY 4.0 | 6.414 | 1 m | Kütük üstünde örs-mengene (`ors_mengene`) |
 | ○ | Repair / Modification Bench | Smokahontas | CC-BY 4.0 | 15.243 | | Yedek tezgâh |
 | ○ | Workbench | Heroinfather https://sketchfab.com/3d-models/9903d3f3a9c94c478cca7eee8ba9e6ab | CC-BY 4.0 | 8.708 | | Yedek tezgâh |
 | ○ | Workbench | Bársh | CC-BY 4.0 | 56.474 | | Garaj dioraması, ağır |
@@ -185,4 +185,4 @@ Pure-sky HDRI'larda toz yok; tozlu hava sis ve hacim sisiyle verilmeli. En puslu
 | ○ | PBR Anvil | NOT_Lonely | CC-BY 4.0 | 642 | | Yedek örs |
 | – | portable_generator, metal_tool_chest, tool_cart, steel_frame_shelves_01, worn_metal_rack, Barrel_02, barrel_03, metal_jerrycan, power_box_01, twin_spot_light, hanging_industrial_lamp, caged_hanging_light, wooden_crate_01, old_military_crate | projede `assets/env/models/` | CC0 | | | Jeneratör, takım dolabı, raf, varil, bidon, sandık, lamba zaten var |
 
-**SF** satırları: seçildi ama Sketchfab indirme ucu bu oturum boyunca 429 (çok istek) döndürdü; durumları aşağıda.
+Sketchfab satırları 2026-11-03'te indi ve işlendi (önceki gün indirme ucu saatlerce 429 vermişti). Hepsi CC-BY 4.0, jenerikte yazar adı gerekli.

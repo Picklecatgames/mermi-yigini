@@ -6,7 +6,7 @@ extends SceneTree
 
 const DIRS := [
 	"res://assets/env/acik_alan/kayalar", "res://assets/env/acik_alan/bitkiler", "res://assets/env/acik_alan/ufuk",
-	"res://assets/env/acik_alan/yiginlar", "res://assets/env/acik_alan/kum_tepeleri",
+	"res://assets/env/acik_alan/yiginlar", "res://assets/env/acik_alan/kum_tepeleri", "res://assets/env/acik_alan/enkaz",
 	"res://assets/props/atolye/yapi", "res://assets/props/atolye/ic",
 ]
 const TEX := "res://assets/env/acik_alan/dokular"
