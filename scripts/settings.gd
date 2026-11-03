@@ -268,6 +268,7 @@ func _make_buses() -> void:
 			AudioServer.add_bus(i)
 			AudioServer.set_bus_name(i, n)
 			AudioServer.set_bus_send(i, &"Master")
+	Ps1Sound.buses()  # the PS1 reverb buses and Arayuz, into the ones above
 	# Ambience heard in the hall's reverb (the lamp hum): Dunya's effects, into Ambiyans.
 	var dunya := AudioServer.get_bus_index(&"Dunya")
 	if AudioServer.get_bus_index(&"AmbiyansYanki") < 0:

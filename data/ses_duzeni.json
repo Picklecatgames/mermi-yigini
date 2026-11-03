@@ -1,0 +1,16 @@
+{
+	"_not": "PS1 ses düzeni (docs/ayrintilar.md). Klasör = tür = yol. Okuyanlar: scripts/ps1_sound.gd (çalarken), tools/ses_ekle.py (eklerken). lufs: dosyanın hedef seviyesi; tepe: 1 sn'den kısa kliplerde LUFS yerine tepe hedefi (dBFS); hz: kaydedilen örnek hızı; perde: her çalışta ± oran; duzey: her çalışta ± dB; ses: bu türden aynı anda en çok kaç ses; dongu: yatak, ek yeri çapraz geçişle kapatılır; stereo: 0 mono, 0-1 dar stereo genişliği.",
+	"voices": 24,
+	"kinds": {
+		"silah": {"dir": "weapons/sounds", "bus": "Silah", "lufs": -20, "tepe": -3, "hz": 32000, "perde": 0.03, "duzey": 1.0, "ses": 6, "stereo": 0},
+		"zombi": {"dir": "sounds/zombies", "bus": "Zombi", "lufs": -20, "tepe": -4, "hz": 22050, "perde": 0.07, "duzey": 2.0, "ses": 8, "stereo": 0},
+		"gore": {"dir": "sounds/gore", "bus": "PsAcik", "lufs": -19, "tepe": -3, "hz": 22050, "perde": 0.08, "duzey": 2.0, "ses": 6, "stereo": 0},
+		"dunya": {"dir": "sounds/world", "bus": "PsAcik", "lufs": -21, "tepe": -4, "hz": 22050, "perde": 0.06, "duzey": 2.0, "ses": 6, "stereo": 0},
+		"atolye": {"dir": "sounds/recipes", "bus": "PsOda", "lufs": -19, "tepe": -3, "hz": 22050, "perde": 0.04, "duzey": 1.5, "ses": 4, "stereo": 0},
+		"adim": {"dir": "characters/operator/sounds", "bus": "Adim", "lufs": -26, "tepe": -10, "hz": 22050, "perde": 0.08, "duzey": 2.0, "ses": 4, "stereo": 0},
+		"ozel": {"dir": "sounds/specials", "bus": "PsAcik", "lufs": -19, "tepe": -3, "hz": 22050, "perde": 0.03, "duzey": 1.0, "ses": 2, "stereo": 0},
+		"ortam_olay": {"dir": "sounds/ambience/wild", "bus": "PsUzak", "lufs": -23, "tepe": -8, "hz": 22050, "perde": 0.03, "duzey": 3.0, "ses": 2, "stereo": 0},
+		"ortam_yatak": {"dir": "sounds/ambience", "bus": "Ambiyans", "lufs": -26, "tepe": -12, "hz": 22050, "perde": 0.0, "duzey": 0.0, "ses": 4, "stereo": 0.5, "dongu": true},
+		"arayuz": {"dir": "sounds/ui", "bus": "Arayuz", "lufs": -20, "tepe": -4, "hz": 22050, "perde": 0.05, "duzey": 1.0, "ses": 2, "stereo": 0}
+	}
+}

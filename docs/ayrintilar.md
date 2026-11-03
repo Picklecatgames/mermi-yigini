@@ -326,6 +326,39 @@ Mermi yığını bırakıldı ama şunlar kodda duruyor; hurdalık sistemleri ge
 - **Ekip çalışması:** Her `.tscn` sahnesinin tek bir sahibi olur, git çakışmasını önlemek için.
 - **Commit mesajları:** Türkçe, birinci tekil şahıs, samimi insan ağzıyla; ne fark edildi, ne yapıldı. Örnek: "Mermiler çok fazla gold kazandırıyordu, çarpanı yarıya indirdim." Robotik "Add X / Fix Y" kalıbı kullanılmaz. `Co-Authored-By: Claude` ve benzeri AI imza satırları **eklenmez** (commit ve PR açıklamalarında).
 
+### PS1 ses düzeni (2026-11-03)
+
+Kullanıcı isteği: "PS1 tarzı oyunlarda sesler nasıl olmalı, araştır; vereceğim tüm sesleri bu kural ve düzene göre ekle." Ses kodla üretilmez, kayıtlar kullanıcıdan gelir (eski kural); efekt ve işleme serbest. Aşağıdaki sayılar benim seçimim, kullanıcı kararı değil; değişirse `data/ses_duzeni.json` değişir.
+
+**Araştırma özeti.** PS1'in ses yongası (SPU) aynı anda 24 ses çalar, 512 KB ses belleği var, örnekler 4-bit ADPCM (VAG) sıkıştırılmış durur; çıkış 44,1 kHz ama bellek yetmediği için örneklerin çoğu 11-22 kHz'e düşürülmüştü. Perde, örneğin çalma hızıyla değişir (aynı kayıt hızlı/yavaş çalınır), interpolasyonu tizleri hafifçe yumuşatır. Yongada tek bir donanım yankısı vardır, oyun bir önayar seçer: Room, Studio (küçük/orta/büyük), Hall, Half Echo, Space Echo, Chaos Echo, Delay. Karışım çoğunlukla mono ya da dar stereoydu. Silent Hill'de Akira Yamaoka ses tasarımını müzikten ayırmadı: endüstriyel, mekanik doku, radyo cızırtısı ve en önemlisi dinamik; o dönem oyunlarda neredeyse hiç olmayan sessizliği bilerek kullandı, gürültüden sonra ani sessizlik oyuncuyu dondurur. Modern PSX-tarzı yapımcılar (itch.io, Haunted PS1 çevresi) örnek hızını düşürüp (bitcrusher, SPS gibi PS1 yonga öykünücüleri) hafifçe eziyor, ama fazla ezince sesin "bozuk" duyulduğunu kendileri söylüyor: renk hafif olmalı. Kaynaklar: psx-spx (problemkaputt.de/psx-spx.htm, "Sound Processing Unit" ve "SPU Reverb"), BodbDearg/PlayStation1Vsts (PsyQ SDK'nın yankı önayarları), Yamaoka röportajları (silenthillmemories.net FACT 2015, Music4Games 2009), NME "Silent Hill's unsettling soundtrack", itch.io PSX korku ses paketleri ve geliştirici yazıları.
+
+**Kurallar.**
+- **Klasör = tür = ses yolu.** Bir dosyanın türünü bulunduğu klasör söyler; tür de yolunu, oynamasını ve kaç tanesinin aynı anda çalabileceğini (`data/ses_duzeni.json`, hem `scripts/ps1_sound.gd` hem `tools/ses_ekle.py` okur):
+
+| Tür | Klasör (`assets/` altında) | Yol | Hedef | Örnek hızı | Perde ± | Düzey ± | Aynı anda |
+|---|---|---|---|---|---|---|---|
+| silah | `weapons/sounds` | Silah (sağa, küçük oda) | −20 LUFS | 32 kHz | %3 | 1 dB | 6 |
+| zombi | `sounds/zombies` | Zombi (beton, ıslak) | −20 | 22 kHz | %7 | 2 | 8 |
+| gore | `sounds/gore` | PsAcik | −19 | 22 kHz | %8 | 2 | 6 |
+| dunya | `sounds/world` (yeni) | PsAcik | −21 | 22 kHz | %6 | 2 | 6 |
+| atolye | `sounds/recipes` | PsOda | −19 | 22 kHz | %4 | 1,5 | 4 |
+| adim | `characters/operator/sounds` | Adim (alçak geçiren) | −26 | 22 kHz | %8 | 2 | 4 |
+| ozel | `sounds/specials` | PsAcik | −19 | 22 kHz | %3 | 1 | 2 |
+| ortam_olay | `sounds/ambience/wild` | PsUzak | −23 | 22 kHz | %3 | 3 | 2 |
+| ortam_yatak | `sounds/ambience` | Ambiyans (kuru) | −26, döngü | 22 kHz, dar stereo | yok | yok | 4 |
+| arayuz | `sounds/ui` | Arayuz (kuru) | −20 | 22 kHz | %5 | 1 | 2 |
+
+  Hedefler projede zaten tutturulmuş seviyeler (tek atımlar ~−20, gece olayları −23, yataklar −26 LUFS, 2026-11-03 ölçümü); 1 sn'den kısa kliplerde LUFS ölçülemez, tepe hedeflenir (−3…−10 dBFS). Kodda yazılan dB artık karışımdır, dosya seviyesi değil.
+- **PS1 yankı yolları** (`ps1_sound.gd` `BUSES`, `settings.gd` başta kurar, hepsi Efekt'e, PsUzak Ambiyans'a akar): `PsOda` SPU "Room" gibi küçük, kısa oda (atölye, masa); `PsAcik` açık arazi: 140 ms gecikmeli, karanlık, az ıslak bir yankı, hurda dağından dönen ses ("Space Echo" ruhu); `PsUzak` 2,2 kHz alçak geçiren + ıslak salon: uzaktan gelen çağrılar, inlemeler; `Arayuz` kuru. Melter/pres menüsünün `Arayuz`'u daha önce hiç kurulmamıştı, Master'a düşüyordu; artık var. `Silah`, `Zombi`, `Adim`, `Ambiyans` kendi betiklerinde kalır, dokunulmadı.
+- **24 ses.** `Ps1Sound.play` ile çalan tek atımlar en çok 24; tür kendi sınırına gelince kendi en eskisini, toplam 24'e gelince herkesin en eskisini susturur (PS1 oyunları en eski notayı keserdi). Yataklar sayılmaz.
+- **Her çalış biraz farklı.** Aynı türden en az 3, tercihen 5-8 çeşit (`ad_01`, `ad_02`…); aynı çeşit art arda gelmez; perde ve düzey tablodaki aralıkta rastgele. Tek kayıt gelirse `--bol` ile içinden çeşit çıkarılır.
+- **PS1 rengi dosyada, hafif.** 22,05 kHz (silah 32 kHz; uzak ya da telsiz sesi `--kaba` ile 11 kHz), hafif 12-bit ezme; ADPCM'in kendisi taklit edilmez, fazlası bozuk duyulur. Mono; yataklar dar stereo (%50).
+- **Döngüde akılda kalan ses olmaz** (eski kural, 2026-10-24): yatak düz bir doku, göze batanlar (baykuş, inilti, sac tıngırtısı) rastgele zamanda tek atım. Yatak ek yeri 3 sn çapraz geçişle kapatılır.
+- **Sessizlik (öneri, kullanıcı kararı değil):** gece dalgasından hemen önce ortamı kısıp olayları seyreltmek; korku yüksek sesten değil beklemekten gelir (Yamaoka). Henüz uygulanmadı. Müzik yok.
+- **Adlandırma:** İngilizce, küçük harf, alt çizgi (`sheet_rattle_03.ogg`); çeşitler iki haneli numara. Her yeni dosya "Kullanılan asetler"e kaynak ve lisansla yazılır (araç satırı hazırlar).
+
+**Ses ekleme** (`tools/ses_ekle.py`, ffmpeg): `python tools/ses_ekle.py <dosya> <tür> <ad> [--bol] [--vurus S] [--sure S] [--kaba]`. Sırayla: tık ve kırpılma onarımı (adeclick, adeclip), 40 Hz altı kesilir; `--bol` ile sessizliklerden çeşitlere bölünür (en gür 8'i), yoksa baştaki ve sondaki sessizlik kırpılır; `--vurus` vuruşu dosyanın o saniyesine koyar (animasyonun karesinde başlayan ses o karede vursun), `--sure` 0,8-1,25 kat germe (perde aynı); mono/dar stereo, yatakta döngü ek yeri; PS1 rengi ve kısa giriş/çıkış; türün LUFS'ine (kısa klipte tepeye) eşitleme, tepe −1 dBFS altında; ogg olarak türün klasörüne, var olan numaralardan sonra. `--dene` yazmadan gösterir. Godot'ta: `Ps1Sound.play("zombi/groan", self)` (bir dünya noktasında: üçüncü argüman `Vector3`; düz Node altında düz çalar), `Ps1Sound.bed("ortam_yatak/wind_day", self)`. Kontrol: `tools/ps1_sound_check.gd`. Mevcut betikler (ambience, zombie_voice, viewmodel…) kendi oynatıcılarıyla kalır; yeni sesler bu yoldan girer, eskiler dokunuldukça geçer. Dışa aktarmada `data/*.json` dahil edilmeli.
+
 ## Seçilen ve aday asetler
 
 **Güncelleme (2026-10-18):** Low-poly set **kullanılmayacak**; hedef daha gerçekçi görünüm (PBR). Aşağıdaki liste yalnızca referans. Beton zemin: `materials/concrete.tres` (Poly Haven taraması, world-space shader, 4 m plaka derzleri; her plakada doku rastgele kaydırılıp döndürülür).
