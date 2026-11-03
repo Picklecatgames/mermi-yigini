@@ -36,6 +36,7 @@ const GAME_VIEWS := {  # eye, looking at
 	"yard": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],
 	"desert": [Vector3(18.0, 1.7, 4.0), Vector3(80.0, 2.0, 40.0)],
 	"bench": [Vector3(8.6, 1.7, -3.6), Vector3(2.5, 1.1, 1.5)],
+	"heap": [Vector3(-1.5, 1.7, 7.0), Vector3(-12.0, -1.5, 0.0)],  # the scrap pit, its pieces close and far
 	"wall": [Vector3(5.5, 1.7, 1.0), Vector3(3.0, 1.8, -4.0)],  # the corrugated sheet inside
 	"forest": [Vector3(30.0, 1.7, 8.0), Vector3(90.0, 3.0, 25.0)],
 }

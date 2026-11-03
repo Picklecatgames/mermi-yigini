@@ -17,6 +17,7 @@ extends CanvasLayer
 ## own screen, so four players in co-op cost the same per machine.
 
 const VIEWS := ["ViewmodelView"]  # SubViewportContainers that draw 3D over the world
+const MIP_BIAS := 1.5  # mips softer on the root viewport's ordinary materials, the PS1 screen on
 
 var lines := 0
 var fine := true
@@ -63,6 +64,10 @@ func _fit() -> void:
 	var scale := minf(1.0, lines * taps / maxf(size.y, 1.0))
 	var small := (size * lines / maxf(size.y, 1.0)).floor().max(Vector2.ONE)
 	RenderingServer.global_shader_parameter_set(&"psx_mip_bias", log(taps) / log(2.0) if lines > 0 else 0.0)
+	# The materials not yet on psx.gdshader (the scrap, the world's scans) read their textures a
+	# mip softer too, or their fine detail boils at 270 lines (2026-11-03, the user: the scrap tires
+	# the eyes).
+	vp.texture_mipmap_bias = MIP_BIAS if lines > 0 else 0.0
 	_rect.visible = lines > 0
 	if lines > 0:
 		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_NEAREST

@@ -385,10 +385,16 @@ func apply_graphics() -> void:
 	vp.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X, Viewport.MSAA_4X, Viewport.MSAA_DISABLED][aa]
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == 1 or aa == 4 else Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.use_taa = aa == 5 and values.upscaler != 2  # FSR 2 does its own
-	vp.positional_shadow_atlas_size = SHADOW_ATLAS[values.shadows]
-	RenderingServer.directional_shadow_atlas_set_size(SHADOW_ATLAS[values.shadows], true)
-	RenderingServer.positional_soft_shadow_filter_set_quality(SOFT_SHADOWS[values.shadows])
-	RenderingServer.directional_soft_shadow_filter_set_quality(SOFT_SHADOWS[values.shadows])
+	# The PS1 screen on (2026-11-03): the modern passes the old console never had go (screen-space
+	# shading and reflections, light shafts, bloom), and shadows are coarse and hard: a sharp
+	# 1080p-grade shadow edge crawls when drawn 270 lines tall.
+	var psx: bool = values.psx > 0
+	var atlas: int = mini(SHADOW_ATLAS[values.shadows], 2048) if psx else SHADOW_ATLAS[values.shadows]
+	var soft: int = RenderingServer.SHADOW_QUALITY_HARD if psx else SOFT_SHADOWS[values.shadows]
+	vp.positional_shadow_atlas_size = atlas
+	RenderingServer.directional_shadow_atlas_set_size(atlas, true)
+	RenderingServer.positional_soft_shadow_filter_set_quality(soft)
+	RenderingServer.directional_soft_shadow_filter_set_quality(soft)
 	var root := get_tree().root
 	for light: Light3D in root.find_children("*", "Light3D", true, false):
 		if light is DirectionalLight3D or light.get_viewport() != vp:
@@ -406,11 +412,11 @@ func apply_graphics() -> void:
 	for env in envs:
 		_remember_env(env)
 		var built: Dictionary = env.get_meta(&"built")
-		env.ssao_enabled = built.ssao and values.ssao
-		env.ssil_enabled = built.ssil and values.ssil
-		env.ssr_enabled = built.ssr and values.ssr
-		env.volumetric_fog_enabled = built.fog and values.fog
-		env.glow_enabled = built.glow and values.glow
+		env.ssao_enabled = built.ssao and values.ssao and not psx
+		env.ssil_enabled = built.ssil and values.ssil and not psx
+		env.ssr_enabled = built.ssr and values.ssr and not psx
+		env.volumetric_fog_enabled = built.fog and values.fog and not psx
+		env.glow_enabled = built.glow and values.glow and not psx
 		env.tonemap_exposure = built.exposure * values.brightness / 100.0
 
 
