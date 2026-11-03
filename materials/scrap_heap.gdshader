@@ -1,11 +1,10 @@
 shader_type spatial;
 render_mode unshaded;
 
-// The scrap heap's surface under its pieces (scripts/pile.gd). It is never drawn (the user,
-// 2026-11-02: only scrap shows, the "mud" under it never): pile.gd renders it as a shadow caster
-// only, so the light stays out of the heap's inside and a chink between pieces looks into the
-// dark between them. Sunk a little under where the pieces lie, so they don't shadow themselves
-// on it. Collision is the heap's real height, not this.
+// The scrap heap's surface under its pieces (scripts/pile.gd). Never mud (the user, 2026-11-02:
+// only scrap shows): drawn flat black and sunk under where the pieces lie, so a chink between the
+// boxed pieces (2026-11-03) looks into the dark, and it casts the heap's shadow so the light stays
+// out of its inside. Collision is the heap's real height, not this.
 
 uniform float sink = 0.15;  // m under the heap's real height
 

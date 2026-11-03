@@ -248,8 +248,6 @@ func _ready() -> void:
 	plane.subdivide_width = GRID_X - 2
 	plane.subdivide_depth = GRID_Z - 2
 	plane.material = heap_material
-	# Never drawn, only its shadow (the user, 2026-11-02: the "mud" under the scrap never shows):
-	# the light stays out of the heap's inside.
 	var heap := MeshInstance3D.new()
 	# Drawn too, black and sunk under the pieces (2026-11-03: the boxed pieces leave gaps): a chink
 	# looks into the dark, never onto mud (scrap_heap.gdshader).
@@ -339,10 +337,10 @@ func _load_parts() -> void:
 		_part_mass.append(clampf(p.kutle_kg, 0.05, 30.0))
 		glb.free()
 		_part_low.append(_low_poly(mesh))
-		var box: AABB = mesh.get_aabb()
-		_part_size.append(box.size)
-		_part_mid.append(box.get_center())
-		var dims := [box.size.x, box.size.y, box.size.z]
+		var aabb: AABB = mesh.get_aabb()
+		_part_size.append(aabb.size)
+		_part_mid.append(aabb.get_center())
+		var dims := [aabb.size.x, aabb.size.y, aabb.size.z]
 		dims.sort()
 		_part_foot.append(dims[1] * dims[2])
 		# A kind's share grows with the root of its count: 96 pipe pieces don't bury the one spring.
