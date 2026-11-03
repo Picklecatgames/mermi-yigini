@@ -1,11 +1,14 @@
 extends Node
-## The hall's background (no room tone for now: the user is bringing a better one): the night outside
-## (crickets, the forest on the hill) through the nearest wall, faint in the middle of the hall and
-## clearer as you walk up to a wall; the hum of the lit lamp nearest the listener, only when
-## standing under it; and a living night around the hall (`EVENTS`): owls, a dormouse, wild pigs
-## through the leaves, a red deer roaring, a village far off, the mine cart somewhere inside, each
-## at its own natural, random interval, from a new direction, near or far, a passer-by moving as
-## it sounds. Local decoration only, no sync.
+## The open ground's background (2026-11-03, the user: rebuild it for the open ground, list the
+## recordings it lacks). `night` (false: day; the day and night cycle sets it, none yet): at night
+## the crickets and the forest from all round, flat, at one level; the hum of the lit workshop lamp
+## nearest the listener, only when standing under it, day or night; and a living night round the
+## base (`EVENTS`): owls, a dormouse, wild pigs through the brush, a red deer roaring, each at its
+## own natural, random interval, from a new direction, near or far, a passer-by moving as it
+## sounds. By day nothing yet: wind, blowing sand and creaking sheet are the user's to bring
+## (docs/ayrintilar.md, PS1 eleştirmeni turu 1); owls and crickets under the midday sun were
+## wrong. The hall's "louder at a wall", its village and the mine cart inside are gone with the
+## hall. Local decoration only, no sync.
 ## Beds hold nothing memorable, so their loop goes unnoticed; anything that stands out is a one-shot
 ## at random times, never in a loop (2026-10-24: the owl in the old 8 s night loop came round every
 ## 6.5 s, the user; 2026-10-25: a world that keeps changing, "half an hour on, something passes by
@@ -13,12 +16,11 @@ extends Node
 
 const DIR := "res://assets/sounds/ambience/"
 ## Files are mastered to about -26 LUFS with seamless loops (2026-10-24), so these dB are the real mix.
-# Outside, through the nearest wall (2026-10-24, the user: the crickets were far too loud and close,
-# they should sound faintly from outside, growing as you near a wall; the forest was not heard at all).
-const NIGHT_DB := Vector2(-44.0, -35.0)  # crickets: middle of the hall, at a wall
-const FOREST_DB := Vector2(-45.0, -36.0)  # the forest on the hill, a touch under the crickets
-const WALL_NEAR := 1.5  # m from a wall: full "at a wall" level
-const WALL_FAR := 12.0  # m: down to the middle-of-the-hall level
+# The hall had them faint through its walls (2026-10-24, the user: the crickets were far too loud
+# and close); out in the open they sit at its "at a wall" level.
+const NIGHT_DB := -37.0  # crickets
+const FOREST_DB := -38.0  # the brush round the base, a touch under the crickets
+const BED_EASE := 0.5  # 1/s: the beds fade in at dusk and out at dawn
 # The night's events. Clips are cut from the user's recordings (wild/: Ivo Vicic, see docs) and
 # normalised alike, so `db` sets them: each play picks a level in it, most often near the quiet
 # end (far off), now and then loud (close by). [name, clips, seconds between, db quiet..loud,
@@ -33,9 +35,6 @@ const EVENTS := [
 		Vector2(300.0, 720.0), Vector2(-44.0, -30.0), 0.5, 0.4, false],
 	["deer", ["wild/deer_1", "wild/deer_2", "wild/deer_3", "wild/deer_4", "wild/deer_5"],
 		Vector2(240.0, 600.0), Vector2(-42.0, -27.0), 2.0, 0.25, false],
-	["village", ["wild/village_1", "wild/village_2", "wild/village_3", "wild/village_4"],
-		Vector2(300.0, 660.0), Vector2(-50.0, -41.0), 2.0, 0.0, false],
-	["cart", ["mine_cart"], Vector2(90.0, 240.0), Vector2(-31.0, -26.0), 1.0, 0.0, true],
 ]
 const MAX_AT_ONCE := 2  # outside events sounding together; a third waits a little
 const PITCH := 0.03  # each play up to 3 % higher or lower: the same clip is never quite the same
@@ -44,14 +43,22 @@ const HUM_NEAR := 1.0  # m (on the floor) from a lamp's spot: full hum
 const HUM_FAR := 3.5  # m: silent; lamps are 6-7 m apart, so between two it is gone
 const HUM_EASE := 4.0  # 1/s: the hum swells and fades instead of snapping as you walk
 
+var night := false
 var _lamps: Array[Vector3] = []
-var _outside: Array[AudioStreamPlayer3D] = []  # crickets, forest
+var _outside: Array[AudioStreamPlayer] = []  # crickets, forest
 var _hum: AudioStreamPlayer
 var events: Array[Dictionary] = []  # per EVENTS row: player, wait, last clip, angle, sweep, started
 
 
 func _ready() -> void:
-	_outside = [_player("night_outside.ogg", NIGHT_DB.x, true), _player("forest_night.ogg", FOREST_DB.x, true)]
+	for file: String in ["night_outside.ogg", "forest_night.ogg"]:
+		var bed := AudioStreamPlayer.new()  # flat: it is all round, not from somewhere
+		bed.stream = _stream(file, true)
+		bed.bus = &"Ambiyans"
+		bed.volume_linear = 0.0
+		bed.autoplay = true
+		add_child(bed)
+		_outside.append(bed)
 	for light in get_node("../World/Lamps").find_children("*", "SpotLight3D", true, false):
 		_lamps.append((light as Node3D).global_position)  # dead bulbs have no light, so no hum
 	# Flat, not 3D: a source right overhead swung hard left-right with every step under the lamp.
@@ -81,14 +88,11 @@ func _process(delta: float) -> void:
 		best_d = minf(best_d, Vector2(l.x - at.x, l.z - at.z).length())
 	var target := db_to_linear(HUM_DB) * (1.0 - smoothstep(HUM_NEAR, HUM_FAR, best_d))
 	_hum.volume_linear = lerpf(_hum.volume_linear, target, 1.0 - exp(-HUM_EASE * delta))
-	var wall := _nearest_wall(at)
-	var near := 1.0 - smoothstep(WALL_NEAR, WALL_FAR, wall[0])
 	for i in _outside.size():
-		var p := _outside[i]
-		p.global_position = wall[1]  # heard from that side
-		var levels: Vector2 = [NIGHT_DB, FOREST_DB][i]
-		p.volume_db = lerpf(p.volume_db, lerpf(levels.x, levels.y, near), 1.0 - exp(-HUM_EASE * delta))
-	_events(delta)
+		var to := db_to_linear([NIGHT_DB, FOREST_DB][i]) if night else 0.0
+		_outside[i].volume_linear = lerpf(_outside[i].volume_linear, to, 1.0 - exp(-BED_EASE * delta))
+	if night:
+		_events(delta)
 
 
 func _events(delta: float) -> void:
@@ -129,22 +133,7 @@ func _events(delta: float) -> void:
 			sounding += 1
 
 
-## [distance to the nearest outside wall, a point 3 m out past it]: the hall is +-28 m, the range
-## bay runs out east to x 36 between z +-12.
-func _nearest_wall(at: Vector3) -> Array:
-	var walls: Array = []  # [distance, point outside]
-	if at.x > 28.0:  # in the bay
-		walls = [[12.0 - absf(at.z), Vector3(at.x, 3.0, signf(at.z) * 15.0)], [36.3 - at.x, Vector3(39.0, 3.0, at.z)]]
-	else:
-		walls = [[28.0 - at.z, Vector3(at.x, 3.0, 31.0)], [28.0 + at.z, Vector3(at.x, 3.0, -31.0)],
-			[28.0 + at.x, Vector3(-31.0, 3.0, at.z)]]
-		if absf(at.z) > 12.0:  # the east wall, either side of the bay's mouth
-			walls.append([28.0 - at.x, Vector3(31.0, 3.0, at.z)])
-	walls.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
-	return [maxf(walls[0][0], 0.0), walls[0][1]]
-
-
-## Puts an event's player at `angle` round the hall: inside by the walls (26 m) or out past them (40 m).
+## Puts an event's player at `angle` round the base: close by (26 m) or out in the dark (40 m).
 func _place(p: AudioStreamPlayer3D, angle: float, row: Array) -> void:
 	var r := 26.0 if row[6] else 40.0
 	p.global_position = Vector3(cos(angle) * r, row[4], sin(angle) * r)

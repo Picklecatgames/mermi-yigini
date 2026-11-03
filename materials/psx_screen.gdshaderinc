@@ -6,7 +6,7 @@
 // stay as big (2026-11-03, the user: walls too zigzag, far things boil, "göz kanatıyor").
 
 uniform vec2 psx_size = vec2(480.0, 270.0);  // the small screen, pixels
-uniform float psx_dither = 0.5;  // 0..1, how strong the ordered dither is; half (2026-11-03): at full it was grain on bright, flat sky and sand
+uniform float psx_dither = 0.3;  // 0..1, how strong the ordered dither is; 2026-11-03: at full it was grain on bright, flat sky and sand, at half the grain still crawled as the view moved (the user)
 uniform float psx_taps = 1.0;  // 1 or 2: samples per small pixel each way
 
 const float PSX_BAYER[16] = float[](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);

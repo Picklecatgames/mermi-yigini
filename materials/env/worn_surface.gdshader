@@ -8,7 +8,9 @@ render_mode cull_disabled;  // roof sheet is seen from below
 // World-space projection (picked from the normal), or the mesh's own UVs when `mesh_uv`
 // (corrugated sheet, whose ridges must keep the mesh's direction).
 
-uniform sampler2D albedo_tex : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+// Albedo unfiltered (2026-11-03, the user: it looked like a modern game turned down, not a PS1 game): on the PS1
+// screen scripts/psx_screen.gd shrinks these to 128 px, and their texels then read hard and big.
+uniform sampler2D albedo_tex : source_color, filter_nearest_mipmap, repeat_enable;
 uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D arm_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D grime_tex : hint_default_white, filter_linear_mipmap, repeat_enable;  // seamless noise

@@ -3,8 +3,9 @@ extends SceneTree
 ## then over it, CHUNK cells at a time, drops real pieces and lets them come to rest. Gravity
 ## pulls each chunk's pieces onto the face along its normal, so they lie on a 61° face as on the
 ## floor; pieces settled before are solid, so nothing ends up inside anything else.
-## Each chunk is laid in layers (LAYERS): hand-sized pieces fill, the longer ones lie over them, the
-## small ones run into the gaps last.
+## Each chunk is laid in layers (LAYERS): hand-sized pieces fill, the longer ones lie over them.
+## No crumbs (2026-11-03, the user: "lay the pieces apart, not like dust"): every piece settles as its
+## box (Pile.BOX_PAD), the gaps between them look into the heap's dark, not onto nuts and bolts.
 ## Pieces lie down flat-ish onto the face, as dumped scrap does, not on end. The mix shifts slowly
 ## along the face (brass and copper thicker in places), with no edges between stretches.
 ## Chunks two apart settle at once. As soon as a group is down, rays from outside find its pieces
@@ -34,15 +35,12 @@ const OUT := "res://data/scrap_face.json"
 ## The layers, bottom up: which pieces (by their longest side, m), how many times their footprints
 ## cover the chunk's true area, how far they may tip off lying flat (rad), and how much of each
 ## kind (by area covered, not by count; a kind the heap takes but not named here gets 1). The
-## hand-sized pieces fill, the longer pipes, valve wheels, rims and chain lie over them, nuts and
-## bolts run into the gaps. Which kinds there are at all is the heap's (Pile.KIND_WEIGHT).
+## hand-sized pieces fill, the longer pipes, valve wheels, rims and chain lie over them. Which kinds there are at all is the heap's (Pile.KIND_WEIGHT).
 const LAYERS := [
-	{"size": Vector2(0.12, 0.35), "cover": 3.0, "tilt": 0.5,
+	{"size": Vector2(0.12, 0.35), "cover": 1.2, "tilt": 0.5,
 		"kinds": {"disli": 2.0, "boru": 1.1, "konserve": 1.5, "kola": 1.0, "zincir": 0.8, "yay": 0.8, "jant": 0.6, "kap": 0.4}},
 	{"size": Vector2(0.35, 9.0), "cover": 0.15, "tilt": 0.3,
 		"kinds": {"boru": 2.0, "jant": 1.5, "zincir": 1.2}},
-	{"size": Vector2(0.0, 0.12), "cover": 0.4, "tilt": 0.8,
-		"kinds": {"civata": 2.5, "boru": 0.7, "disli": 1.0, "konserve": 0.6}},
 ]
 ## A kind with few models in a layer gets less of its share, or its one model repeats all over the
 ## face (a single motor was every tenth piece): full share from this many models.
@@ -404,8 +402,8 @@ func _cover_rays(cell: Vector2i) -> Array:
 
 
 ## The heap's own surface must not show anywhere, only scrap (2026-11-02, the user). Where a ray
-## straight in still reaches it, a piece is dropped onto that very spot, a hand-sized one or a small
-## one, and comes to rest in the gap; again, until no ray gets through or FILL_PASSES run out.
+## straight in still reaches it, a hand-sized piece is dropped onto that very spot and comes to
+## rest in the gap; again, until no ray gets through or FILL_PASSES run out.
 func _fill() -> void:
 	var ray := PhysicsRayQueryParameters3D.new()
 	ray.collision_mask = 1 | LAYER
@@ -426,8 +424,7 @@ func _fill() -> void:
 		print("fill %d: %d bare spots" % [pass_no, spots.size()])
 		if spots.is_empty():
 			return
-		# One piece a spot: bigger ones first, the last rounds small ones for the last chinks.
-		var l := 0 if pass_no < FILL_PASSES / 2 else 2
+		var l := 0  # one hand-sized piece a spot, never crumbs
 		for k in range(0, spots.size(), FILL_BATCH):
 			var bodies := []
 			for spot: Array in spots.slice(k, k + FILL_BATCH):

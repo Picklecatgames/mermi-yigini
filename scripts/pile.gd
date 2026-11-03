@@ -1,9 +1,13 @@
 class_name Pile
 extends StaticBody3D
-## The scrap pit (2026-11-02, the user: a square pit in the hall's floor, scrap strewn into it 50 m
-## deep): a height field over the pit's floor the count is carved out of (GameState.pile, 100M
-## pieces; one piece is UNIT of the starting volume). The node sits at the pit's floor, DEPTH under
-## the hall's; the pit's walls (tools/build_arena.gd _pit) hold the scrap in at the grid's edges.
+## The scrap heap in the back yard (2026-11-03, the user: the pit goes, "the back yard is flat ground
+## with heaps and heaps of junk, as if we were a scrap dealer in the desert; some mountains touching the
+## sky"; "the mountain is the scrap: as it runs out it goes down bit by bit, hours later the player sees
+## half the mountain gone"): one height field on the flat ground the count is carved out of
+## (GameState.pile, 100M pieces; one piece is UNIT of the starting volume): a small heap in front,
+## behind it one great mountain (MOUNTAIN) with lesser heaps round its foot. The node sits on the
+## ground. Real pieces cover the part the players reach (NEAR, _face_cell); the mountains above it are
+## covered by bigger drawn pieces that ride the surface down as it goes (scripts/scrap_hills.gd).
 ## Scrap locks together: slopes up to LOCK_SLOPE stand, and every take that undercuts such a slope
 ## lets what is above it settle down into the gap. Takes from the same steep spot build up strain;
 ## past a threshold the host lets that part of the face give way (GameState scrap_collapse): it
@@ -19,15 +23,27 @@ extends StaticBody3D
 # never runs past the host's. Tumbling pieces are local visuals.
 
 const CELL := 0.25            # m per height field cell
-const GRID_X := 80            # cells along x -> 20 m, the pit's width
-const GRID_Z := 80            # cells along z -> 20 m: a square pit
-## The pit: its middle on the hall's floor (x, z), how deep it goes, and how far under the rim the
-## scrap starts, at the walls and in the middle (it is heaped up a little there).
-const PIT_CENTER := Vector2(-12.0, 0.0)
-const DEPTH := 50.0
-const FILL_EDGE := 0.9
-const FILL_MIDDLE := 0.3
-const RIM_GAP := 0.15         # m: the scrap never stands higher than this under the rim
+const GRID_X := 512           # cells along x -> 128 m
+const GRID_Z := 640           # cells along z -> 160 m
+## The junkyard: its middle on the ground (x, z) behind the workshop. One great mountain (2026-11-03,
+## the user: "not sharp triangles: one big mountain with little hills round it, real, epic,
+## dramatic"): world x, z, height, radius; a massive rounded top, SHOULDERS lesser domes on its
+## flanks, gullies down it, a foot that spreads out, its outline wobbling round it. Out past its foot
+## HILLOCKS lesser heaps standing on their own (rolled from HILLOCK_SEED), and in front the heap
+## players dig into (FRONT, x, z, height, radius). Every side falls to the ground at EDGE_SLOPE
+## before the grid ends.
+const CENTER := Vector2(-72.0, 0.0)
+const MOUNTAIN := Vector4(-88.0, 0.0, 74.0, 58.0)
+const SHOULDERS := 4
+const FRONT: Array[Vector4] = [Vector4(-20.0, -6.0, 6.0, 10.0), Vector4(-23.0, 7.0, 5.0, 9.0), Vector4(-14.0, 1.0, 3.0, 6.0)]
+const HILLOCKS := 40
+const HILLOCK_SEED := 5
+const EDGE_SLOPE := 1.5
+const TOP := 78.0             # m: no cell starts higher
+## Where players reach (world x, z) and how high up it: those cells carry real pieces
+## (data/scrap_face.json); the rest, the mountains, are covered by scrap_hills.gd.
+const NEAR := Rect2(-40.0, -20.0, 32.0, 40.0)
+const NEAR_TOP := 14.0
 const LOCK_SLOPE := 1.8       # tan(61°): scrap hooked into scrap stands this steep
 const REPOSE_SLOPE := 0.75    # tan(37°): a face that gave way slumps to this
 const LOCK_STEP := LOCK_SLOPE * CELL
@@ -81,9 +97,12 @@ const OUT_KINDS := ["silah", "sac", "alet", "motor", "sandik"]
 const MAX_SHARE := 0.015
 ## Each copy of a model a little darker or more rust-brown than the next, so repeats don't match;
 ## only a little, or neighbours flicker light and dark and the face reads as noise.
-const TONE := Vector2(0.84, 1.02)
+const TONE := Vector2(0.76, 1.08)
 const RUST_TINT := Color(0.86, 0.74, 0.62)
 const RUST_SHARE := 0.6
+## Old paint showing on some pieces (_tone): faded red, blue-grey, olive, ochre.
+const PAINT: Array[Color] = [Color(1.12, 0.78, 0.7), Color(0.82, 0.9, 1.02), Color(0.9, 0.98, 0.78), Color(1.12, 0.98, 0.7)]
+const PAINT_SHARE := 0.16
 const LUMP := 0.12            # m of height noise on the scrap's top
 const SCRAP_LAYER := 1 << 2   # physics layer 3: loose pieces; the player's body ignores it
 const BULLET_LAYER := SCRAP_LAYER  # the old name (player.gd's reach ray masks it)
@@ -108,15 +127,20 @@ const SLUMP_RADIUS := Vector2(1.8, 3.6)  # m, the host rolls a face's size betwe
 const MAX_PER_CELL := 6
 const TOP_LAYER := 6          # pieces to a cell lying on top; the rest lie a layer down
 const SURFACE_MIN := 0.025   # m: only crumbs smaller than this stay off the face (the user: nuts and bolts too)
+## Each piece's hitbox: its box this much bigger, plus BOX_PAD_MIN m (_load_parts).
+const BOX_PAD := 1.15
+const BOX_PAD_MIN := 0.006
 const LOW_TRIS := 150         # surface pieces are drawn from a lighter copy of their part
-## Loose pieces on the hall's floor round the pit's rim, thinning out with distance.
+## Loose pieces on the ground round the heap's foot, thinning out with distance.
 @export var spill_pieces := 300
-@export var spill_reach := 2.2  # m past the rim
+@export var spill_reach := 2.2  # m past the grid's edge
 ## False: only the heap's shape and collision, no pieces (tools/build_scrap_face.gd settles them).
 var with_pieces := true
 
 var _h := PackedFloat32Array()   # height per cell, row j = +z, column i = +x
 var _ceil := PackedFloat32Array()  # roof height per cell: the heap never reaches over it
+var _near := PackedByteArray()     # per cell: 1 where players reach (NEAR), as the heap started
+var _far: Node                     # the mountains' pieces (scrap_hills.gd)
 var unit := 0.0                  # m³ of heap per piece in the count
 var _img: Image
 var _tex: ImageTexture
@@ -215,7 +239,7 @@ var _walker_h := {}              # walker -> the surface height under it last fr
 
 
 func _ready() -> void:
-	position = Vector3(PIT_CENTER.x, -DEPTH, PIT_CENTER.y)
+	position = Vector3(CENTER.x, 0.0, CENTER.y)
 	_noise.seed = 3
 	_noise.frequency = 0.18
 	_noise.fractal_octaves = 4
@@ -245,12 +269,12 @@ func _ready() -> void:
 	plane.subdivide_width = GRID_X - 2
 	plane.subdivide_depth = GRID_Z - 2
 	plane.material = heap_material
-	# Never drawn, only its shadow (the user, 2026-11-02: the "mud" under the scrap never shows):
-	# the light stays out of the heap's inside.
 	var heap := MeshInstance3D.new()
-	heap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	# Drawn too, black and sunk under the pieces (2026-11-03: the boxed pieces leave gaps): a chink
+	# looks into the dark, never onto mud (scrap_heap.gdshader).
+	heap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	heap.mesh = plane
-	heap.custom_aabb = AABB(Vector3(-GRID_X * CELL * 0.5, -0.1, -GRID_Z * CELL * 0.5), Vector3(GRID_X * CELL, DEPTH + 0.5, GRID_Z * CELL))
+	heap.custom_aabb = AABB(Vector3(-GRID_X * CELL * 0.5, -0.1, -GRID_Z * CELL * 0.5), Vector3(GRID_X * CELL, TOP + 0.5, GRID_Z * CELL))
 	add_child(heap)
 
 	for cz in CHUNKS_Z:
@@ -274,6 +298,9 @@ func _ready() -> void:
 
 	_build_surface()
 	_build_spill()
+	_far = preload("res://scripts/scrap_hills.gd").new()
+	add_child(_far)
+	_far.build(self)
 	var outline := StandardMaterial3D.new()
 	outline.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	outline.cull_mode = BaseMaterial3D.CULL_FRONT
@@ -300,6 +327,11 @@ func _load_parts() -> void:
 			push_warning("hurda.json: %s has kind '%s', not one the heap takes (Pile.KIND_WEIGHT)" % [p.id, p.tur])
 		if KIND_WEIGHT.has(p.tur) and p.id not in NOT_IN_HEAP:
 			p.glb = PARTS_FILE.get_base_dir().path_join(p.glb.get_file())
+			# PS1 horror look (2026-11-02, the user): the part's <name>_psx.scn (tools/psx_props.gd)
+			# wherever there is one.
+			var psx: String = p.glb.get_basename() + "_psx.scn"
+			if ResourceLoader.exists(psx):
+				p.glb = psx
 			list.append(p)
 	var in_kind := {}
 	for p: Dictionary in list:
@@ -319,16 +351,20 @@ func _load_parts() -> void:
 		var mi: MeshInstance3D = glb.find_children("*", "MeshInstance3D", true, false)[0]
 		var mesh: Mesh = mi.mesh
 		_part_mesh.append(mesh)
-		var hull: CollisionShape3D = glb.find_children("*", "CollisionShape3D", true, false)[0]
-		_part_hull.append(hull.shape)
-		_part_hull_at.append(Transform3D(Basis(), -mesh.get_aabb().get_center()) * _to_root(mi).affine_inverse() * _to_root(hull))
+		# Each piece an invisible box a little bigger than it (2026-11-03, the user: "lay the pieces
+		# apart, not like dust: draw a gear as a box, an invisible hitbox"): boxes touch, the pieces
+		# in them never do, a gap is left round each; cheap and steady to stack and to fall.
+		var box := BoxShape3D.new()
+		box.size = mesh.get_aabb().size * BOX_PAD + Vector3.ONE * BOX_PAD_MIN
+		_part_hull.append(box)
+		_part_hull_at.append(Transform3D())
 		_part_mass.append(clampf(p.kutle_kg, 0.05, 30.0))
 		glb.free()
 		_part_low.append(_low_poly(mesh))
-		var box: AABB = mesh.get_aabb()
-		_part_size.append(box.size)
-		_part_mid.append(box.get_center())
-		var dims := [box.size.x, box.size.y, box.size.z]
+		var aabb: AABB = mesh.get_aabb()
+		_part_size.append(aabb.size)
+		_part_mid.append(aabb.get_center())
+		var dims := [aabb.size.x, aabb.size.y, aabb.size.z]
 		dims.sort()
 		_part_foot.append(dims[1] * dims[2])
 		# A kind's share grows with the root of its count: 96 pipe pieces don't bury the one spring.
@@ -361,20 +397,20 @@ static func _to_root(n: Node) -> Transform3D:
 	return t
 
 
-## `mesh` brought down to about LOW_TRIS triangles with the engine's own simplifier (meshoptimizer,
+## `mesh` brought down to about `target` triangles with the engine's own simplifier (meshoptimizer,
 ## as import makes LODs); `mesh` itself where it is already light or won't simplify.
-func _low_poly(mesh: Mesh) -> Mesh:
+static func _low_poly(mesh: Mesh, target := LOW_TRIS) -> Mesh:
 	var tris := 0
 	for s in mesh.get_surface_count():
 		tris += mesh.surface_get_array_index_len(s) / 3
-	if tris <= LOW_TRIS * 1.3:
+	if tris <= target * 1.3:
 		return mesh
 	var im := ImporterMesh.new()
 	for s in mesh.get_surface_count():
 		im.add_surface(Mesh.PRIMITIVE_TRIANGLES, mesh.surface_get_arrays(s), [], {}, mesh.surface_get_material(s))
 	im.generate_lods(25.0, 60.0, [])
 	var out := ArrayMesh.new()
-	var keep := float(LOW_TRIS) / tris
+	var keep := float(target) / tris
 	for s in im.get_surface_count():
 		var arrays := im.get_surface_arrays(s)
 		var full: int = arrays[Mesh.ARRAY_INDEX].size()
@@ -455,19 +491,61 @@ func _pick_part(r: float, on_face := false) -> int:
 	return clampi(pick.bsearch(r), 0, pick.size() - 1)
 
 
-## The starting pit: full of scrap DEPTH down, its top FILL_EDGE under the rim at the walls and
-## heaped up to FILL_MIDDLE in the middle, lumps all over, and no slope steeper than LOCK_SLOPE.
+## The starting heap: the mountain or the highest of the lesser heaps over each cell, under the
+## EDGE_SLOPE ramp off the grid's edges, lumps all over, and no slope steeper than LOCK_SLOPE.
 func _build_heights() -> void:
 	_h.resize(GRID_X * GRID_Z)
 	_ceil.resize(GRID_X * GRID_Z)
+	var half := Vector2(GRID_X, GRID_Z) * CELL * 0.5
+	# The mountain's shoulders, then the lesser heaps out past its foot, lower the further out.
+	var prng := RandomNumberGenerator.new()
+	prng.seed = HILLOCK_SEED
+	var mid := Vector2(MOUNTAIN.x, MOUNTAIN.y)
+	var domes: Array[Vector4] = [MOUNTAIN]
+	for n in SHOULDERS:
+		var a := TAU * (n + prng.randf_range(0.2, 0.8)) / SHOULDERS
+		var at := mid + Vector2(cos(a), sin(a)) * MOUNTAIN.w * prng.randf_range(0.3, 0.5)
+		domes.append(Vector4(at.x, at.y, MOUNTAIN.z * prng.randf_range(0.5, 0.72), MOUNTAIN.w * prng.randf_range(0.45, 0.6)))
+	var hills: Array[Vector4] = FRONT.duplicate()
+	var tries := 0
+	while hills.size() < FRONT.size() + HILLOCKS and tries < 5000:
+		tries += 1
+		var a := prng.randf() * TAU
+		var d := MOUNTAIN.w * prng.randf_range(0.95, 1.7)
+		var at := mid + Vector2(cos(a), sin(a)) * d
+		var local := at - CENTER
+		if absf(local.x) > half.x - 8.0 or absf(local.y) > half.y - 8.0 or at.x > NEAR.position.x - 4.0:
+			continue  # off the grid, or in among the front heap
+		var hh := prng.randf_range(3.0, 16.0) * clampf(2.0 - d / MOUNTAIN.w, 0.35, 1.0)
+		hills.append(Vector4(at.x, at.y, hh, hh * prng.randf_range(2.6, 3.8)))
 	for j in GRID_Z:
 		for i in GRID_X:
 			var c := _cell_pos(Vector2i(i, j))
 			var k := j * GRID_X + i
-			_ceil[k] = DEPTH - RIM_GAP
-			var r := Vector2(c.x, c.z).length() / (GRID_X * CELL * 0.5)  # 0 in the middle, 1 at the walls
-			var y := DEPTH - lerpf(FILL_MIDDLE, FILL_EDGE, clampf(r * r, 0.0, 1.0)) + _noise.get_noise_2d(c.x * 6.0, c.z * 6.0) * LUMP
-			_h[k] = clampf(y, 0.0, _ceil[k])
+			_ceil[k] = TOP + 1.0
+			var w := Vector2(c.x, c.z) + CENTER
+			# The mountain and its shoulders: domes (a bell, round on top, spreading at the foot), their
+			# outline wobbling (the radius by direction from the mountain's middle), gullies running
+			# down them (ridged noise along the fall line).
+			var off := w - mid
+			var dir := off.normalized() if off.length() > 0.01 else Vector2.RIGHT
+			var wobble := 1.0 + 0.16 * _noise.get_noise_2d(dir.x * 40.0 + 300.0, dir.y * 40.0) + 0.07 * _noise.get_noise_2d(dir.x * 120.0, dir.y * 120.0 + 70.0)
+			var y := 0.0
+			for d in domes:
+				var t := w.distance_to(Vector2(d.x, d.y)) / (d.w * wobble)
+				if t < 1.0:
+					y = maxf(y, d.z * (exp(-3.0 * t * t) - exp(-3.0)) / (1.0 - exp(-3.0)))
+			var gully := 1.0 - absf(_noise.get_noise_2d(dir.x * 90.0 + 900.0, dir.y * 90.0))
+			y *= 1.0 - 0.14 * gully * gully * smoothstep(0.15, 0.6, off.length() / MOUNTAIN.w)
+			for p in hills:
+				var q := w.distance_to(Vector2(p.x, p.y)) / p.w
+				y = maxf(y, p.z * (1.0 - smoothstep(0.0, 1.0, q)))
+			# Big lumps all over it, growing with height; small lumps everywhere.
+			y += (_noise.get_noise_2d(c.x * 0.035 + 50.0, c.z * 0.035) * 0.14 + _noise.get_noise_2d(c.x * 0.12, c.z * 0.12) * 0.06) * y
+			y += _noise.get_noise_2d(c.x * 0.8, c.z * 0.8) * 0.6 + _noise.get_noise_2d(c.x * 6.0, c.z * 6.0) * LUMP
+			var edge := minf(half.x - absf(c.x), half.y - absf(c.z)) - CELL
+			y = minf(y, EDGE_SLOPE * edge)
+			_h[k] = clampf(y, 0.0, TOP)
 	# No step between neighbours over LOCK_STEP: lower whatever stands too proud, two sweeps
 	# (the chamfer distance transform's), so the heap starts at rest.
 	for sweep in 2:
@@ -486,17 +564,18 @@ func _build_heights() -> void:
 	for k in _h.size():
 		if _h[k] < 0.004:
 			_h[k] = 0.0
+	_near.resize(_h.size())
+	for j in GRID_Z:
+		for i in GRID_X:
+			var c := _cell_pos(Vector2i(i, j))
+			var k := j * GRID_X + i
+			_near[k] = int(NEAR.has_point(Vector2(c.x, c.z) + CENTER) and _h[k] < NEAR_TOP)
 
 
-## The pit's opening in the hall's floor (x, z): tools/build_arena.gd cuts it and walls it.
-static func pit_rect() -> Rect2:
-	var half := Vector2(GRID_X, GRID_Z) * CELL * 0.5
-	return Rect2(PIT_CENTER - half, half * 2.0)
-
-
-## A point over the middle of the scrap's top (world), for markers that point the way to it.
+## A point over the scrap players reach (world, the middle of NEAR), for markers that point the way.
 func top_point() -> Vector3:
-	return global_position + Vector3(0.0, _height_smooth(Vector3.ZERO), 0.0)
+	var at := Vector3(NEAR.get_center().x - CENTER.x, 0.0, NEAR.get_center().y - CENTER.y)
+	return global_position + at + Vector3(0.0, _height_smooth(at), 0.0)
 
 
 ## Surface pieces: the face as it was settled (data/scrap_face.json), or, without it, laid
@@ -517,8 +596,9 @@ func _build_surface() -> void:
 	_make_slots(per_part, cell_slots)
 
 
+## Cells with real pieces on them: scrap where players reach.
 func _face_cell(k: int) -> bool:
-	return _h[k] >= 0.03  # not the pit's bare floor
+	return _h[k] >= 0.03 and _near[k] == 1
 
 
 ## The face as tools/build_scrap_face.gd settled it, piece by piece on this very heap: each one
@@ -575,8 +655,8 @@ func _lay_one_by_one(per_part: Array[Array], cell_slots: Dictionary) -> void:
 		for i in range(1, GRID_X - 1):
 			var cell := Vector2i(i, j)
 			var k := j * GRID_X + i
-			if _h[k] < 0.03:
-				continue  # the pit's bare floor
+			if not _face_cell(k):
+				continue  # bare ground, or the mountains (scrap_hills.gd)
 			var n := _cell_normal(cell)
 			var area := CELL * CELL / maxf(n.y, 0.2) * cover
 			var count := 0
@@ -686,21 +766,27 @@ func _build_spill() -> void:
 		_part_slots.append([])
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2
-	var half := Vector2(GRID_X, GRID_Z) * CELL * 0.5
-	for id in spill_pieces:
-		# On the hall's floor round the pit's rim: thick at the edge, thinning out.
-		var along := rng.randf_range(-1.0, 1.0)
-		var out := 0.25 + spill_reach * pow(rng.randf(), 2.2)
-		var p := Vector3.ZERO
-		match rng.randi() % 4:
-			0: p = Vector3(-half.x - out, 0.0, along * half.y)
-			1: p = Vector3(half.x + out, 0.0, along * half.y)
-			2: p = Vector3(along * half.x, 0.0, -half.y - out)
-			_: p = Vector3(along * half.x, 0.0, half.y + out)
+	# On the ground round the foot of the scrap players reach: off its edge cells, down the slope,
+	# thick at the edge, thinning out.
+	var edge: Array[Vector2i] = []
+	for j in range(1, GRID_Z - 1):
+		for i in range(1, GRID_X - 1):
+			var k := j * GRID_X + i
+			if _face_cell(k) and minf(minf(_h[k - 1], _h[k + 1]), minf(_h[k - GRID_X], _h[k + GRID_X])) < 0.03:
+				edge.append(Vector2i(i, j))
+	var id := 0
+	while id < spill_pieces and not edge.is_empty():
+		var cell := edge[rng.randi() % edge.size()]
+		var n := _cell_normal(cell)
+		var out := Vector3(n.x, 0.0, n.z).normalized() * (0.25 + spill_reach * pow(rng.randf(), 2.2))
+		var p := _cell_pos(cell) + out
+		if _height_at(p) >= 0.03:
+			continue
 		var part := _pick_part(rng.randf())
 		var t := rest_on(p, part, rng.randf() * TAU)
-		t.origin.y = DEPTH + _part_size[part][_part_size[part].min_axis_index()] * 0.5
+		t.origin.y = _part_size[part][_part_size[part].min_axis_index()] * 0.5
 		_add_loose(id, part, t)
+		id += 1
 
 
 ## A flat resting transform for `part` at local point `p` on the heap or the floor.
@@ -1398,6 +1484,8 @@ func _physics_process(delta: float) -> void:
 		for area in _redraw:
 			if area.has_area():
 				_update_surface_pieces(area)
+				if _far:
+					_far.redraw(area)
 		_redraw.fill(Rect2i())
 	_update_pour(delta)
 	_shape_timer -= delta
@@ -1652,7 +1740,7 @@ func _update_shape() -> void:
 func min_take(p: Vector3) -> int:
 	var c := _cell_of(to_local(p))
 	var y := p.y - global_position.y
-	var reach := ceili((DEPTH - y) / LOCK_STEP) + 1
+	var reach := ceili((TOP - y) / LOCK_STEP) + 1
 	var vol := 0.0
 	for j in range(maxi(c.y - reach, 0), mini(c.y + reach + 1, GRID_Z)):
 		for i in range(maxi(c.x - reach, 0), mini(c.x + reach + 1, GRID_X)):
@@ -1725,6 +1813,10 @@ func _cell_normal(c: Vector2i) -> Vector3:
 ## A copy's tone from `key`: darker or lighter, a little more or less rust-brown.
 static func _tone(key: int) -> Color:
 	var c := Color.WHITE.lerp(RUST_TINT, _hash01(key * 31 + 7) * RUST_SHARE) * lerpf(TONE.x, TONE.y, _hash01(key))
+	# Now and then old paint under the rust (2026-11-03, the PS1 critic: the heap was one dark grey),
+	# faded and dusty, so it stays one family and doesn't sparkle at 270p.
+	if _hash01(key * 17 + 3) < PAINT_SHARE:
+		c *= PAINT[int(_hash01(key * 13 + 5) * PAINT.size()) % PAINT.size()]
 	c.a = 1.0
 	return c
 
@@ -1732,6 +1824,10 @@ static func _tone(key: int) -> Color:
 ## Part `p`'s material, taking each copy's tone (MultiMesh colours) on its colour.
 func _toned(p: int) -> Material:
 	var m := _part_mesh[p].surface_get_material(0)
+	if m is ShaderMaterial:  # PS1 parts (materials/psx_prop.gdshader): the tone rides on COLOR
+		var psx := m.duplicate() as ShaderMaterial
+		psx.set_shader_parameter("vertex_tint", true)
+		return psx
 	if not m is BaseMaterial3D:
 		return null
 	var out := m.duplicate() as BaseMaterial3D

@@ -87,6 +87,7 @@ func _card(id: String, i: int, at: Vector2) -> void:
 	shown.position = Vector2(10, 8)
 	shown.size = Vector2(CARD.x - 20, CARD.y - 64)
 	shown.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ps1(shown, view)
 	shown.add_child(view)
 	b.add_child(shown)
 	var body := _stage(view, id)
@@ -108,6 +109,23 @@ func _card(id: String, i: int, at: Vector2) -> void:
 	tag.visible = false
 	b.add_child(tag)
 	_cards[id] = {"button": b, "view": view, "body": body, "anim": body.get_node("Anim"), "tag": tag, "name": label}
+
+
+## With the PS1 screen on, the card's body drawn as the world is (2026-11-03, the PS1 critic: sharp
+## and smooth on the pick screen): as many pixels tall as the 3D's own (PsxScreen.lines over the
+## window), blown up unfiltered, in the same 15-bit dithered colour (materials/psx_view.gdshader).
+func _ps1(shown: SubViewportContainer, view: SubViewport) -> void:
+	var lines: int = PsxScreen.lines
+	if lines <= 0:
+		return
+	shown.stretch_shrink = maxi(1, roundi(get_viewport().get_visible_rect().size.y / lines))
+	shown.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	view.msaa_3d = Viewport.MSAA_DISABLED
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://materials/psx_view.gdshader")
+	mat.set_shader_parameter(&"psx_size", (shown.size / shown.stretch_shrink).floor())
+	mat.set_shader_parameter(&"psx_taps", 1.0)
+	shown.material = mat
 
 
 ## The body standing in `view`'s own world: lit from the front left, a rim from behind, the camera

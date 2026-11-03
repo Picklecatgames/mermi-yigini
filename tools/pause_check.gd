@@ -168,7 +168,7 @@ func _check_settings(main: Node) -> void:
 	settings.set_value("dynamic_range", 2)
 	assert(AudioServer.is_bus_effect_enabled(0, settings._master_effect("AudioEffectCompressor")), "night mode squeezes")
 	settings.set_value("output", 1)
-	assert(near.call(amb._outside[0].panning_strength, settings.SPEAKER_PAN), "speakers: softer panning")
+	assert(near.call(amb.events[0].player.panning_strength, settings.SPEAKER_PAN), "speakers: softer panning")  # the beds are flat (2026-11-03), the night's events 3D
 	settings.set_value("output", 2)
 	assert(settings.rear_cue() == 0.0, "surround: no rear cue, the rear speakers say it")
 	print("audio ok")

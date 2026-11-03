@@ -17,13 +17,21 @@ extends CanvasLayer
 ## own screen, so four players in co-op cost the same per machine.
 
 const VIEWS := ["ViewmodelView"]  # SubViewportContainers that draw 3D over the world
-const MIP_BIAS := 1.5  # mips softer on the root viewport's ordinary materials, the PS1 screen on
+const MIP_BIAS := 0.5  # mips softer on the root viewport's ordinary materials, the PS1 screen on
+## The world's own StandardMaterials (the ground, the walls, the scans: not yet PS1 assets), the
+## PS1 screen on: their texture shrunk to TEX px and drawn unfiltered, no normal map, no shine
+## (2026-11-03, the user: it looks like a modern game with its graphics turned down, not a PS1
+## game, and it still crawls). 2K photo scans at 270 lines put a dozen texels in each pixel, and
+## that average boils as the view moves; on the old console a texel was bigger than a pixel.
+const TEX := 128
 
 var lines := 0
 var fine := true
 var _rect := ColorRect.new()
 var _view_mat := ShaderMaterial.new()
 var _views: Array[SubViewportContainer] = []
+var _small := {}  # a scan -> its TEX px copy
+var _mats := {}  # BaseMaterial3D -> what it was built with: [albedo_texture, texture_filter, normal_enabled, specular_mode]
 
 
 func _ready() -> void:
@@ -51,10 +59,101 @@ func apply(n: int, twice := true) -> void:
 
 
 func _on_node_added(n: Node) -> void:
+	if n is GeometryInstance3D and lines > 0:
+		_ps1_materials.call_deferred(n)  # its mesh and overrides are in by then
 	if n is SubViewportContainer and n.name in VIEWS and not n in _views:
 		_views.append(n)
 		n.tree_exiting.connect(func() -> void: _views.erase(n), CONNECT_ONE_SHOT)
 		_fit.call_deferred()  # its SubViewport comes in after it
+
+
+## `g`'s StandardMaterials the PS1 way (TEX). Only the world's (the root viewport's): the gun in
+## the hand has its own viewport and its close-up texture.
+func _ps1_materials(g: Node) -> void:
+	if not is_instance_valid(g) or not g.is_inside_tree() or g.get_viewport() != get_viewport():
+		return
+	var mats: Array[Material] = []
+	var gi := g as GeometryInstance3D
+	if gi.material_override:
+		mats.append(gi.material_override)
+	if g is MeshInstance3D and (g as MeshInstance3D).mesh:
+		var mi := g as MeshInstance3D
+		for s in mi.mesh.get_surface_count():
+			mats.append(mi.get_surface_override_material(s) if mi.get_surface_override_material(s) else mi.mesh.surface_get_material(s))
+	elif g is MultiMeshInstance3D and (g as MultiMeshInstance3D).multimesh and (g as MultiMeshInstance3D).multimesh.mesh:
+		var mesh := (g as MultiMeshInstance3D).multimesh.mesh
+		for s in mesh.get_surface_count():
+			mats.append(mesh.surface_get_material(s))
+	for m in mats:
+		if m is ShaderMaterial:
+			_ps1_shader(m as ShaderMaterial)
+			continue
+		var b := m as BaseMaterial3D
+		if b == null or _mats.has(b) or b.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
+			continue  # unshaded: effects and glows, they keep their own look
+		_mats[b] = [b.albedo_texture, b.texture_filter, b.normal_enabled, b.specular_mode, b.shading_mode]
+		if b.albedo_texture:
+			b.albedo_texture = _shrunk(b.albedo_texture)
+		b.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+		b.normal_enabled = false
+		b.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+		if not b.uv1_triplanar:  # triplanar lit per vertex drew the yard's kerb white
+			b.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX  # lit per vertex, as the PS1 props and the dead are
+
+
+## The world's own ground shaders (the desert, the worn concrete): their textures shrunk the same
+## way; the filter is the shader's own. Only these: other shaders hold data in their textures
+## (the scrap heap's height and cover), and shrunk they drew white specks over the heap.
+const GROUND_SHADERS := ["res://materials/env/desert.gdshader", "res://materials/env/worn_surface.gdshader"]
+
+
+func _ps1_shader(m: ShaderMaterial) -> void:
+	if _mats.has(m) or m.shader == null or not m.shader.resource_path in GROUND_SHADERS:
+		return
+	var was := {}
+	for u: Dictionary in m.shader.get_shader_uniform_list():
+		var t = m.get_shader_parameter(u.name)
+		if t is Texture2D and not (t is NoiseTexture2D):
+			was[u.name] = t
+			m.set_shader_parameter(u.name, _shrunk(t))
+	_mats[m] = was
+
+
+func _shrunk(tex: Texture2D) -> Texture2D:
+	if _small.has(tex):
+		return _small[tex]
+	var small := tex
+	if tex.get_width() > TEX or tex.get_height() > TEX:
+		var img := tex.get_image()
+		if img:
+			img = img.duplicate()
+			if img.is_compressed():
+				img.decompress()
+			if img.has_mipmaps():
+				img.clear_mipmaps()
+			var k := float(TEX) / maxf(img.get_width(), img.get_height())
+			img.resize(maxi(1, roundi(img.get_width() * k)), maxi(1, roundi(img.get_height() * k)), Image.INTERPOLATE_LANCZOS)
+			img.generate_mipmaps()
+			small = ImageTexture.create_from_image(img)
+	_small[tex] = small
+	return small
+
+
+## The world's materials as they were built (the PS1 screen off).
+func _restore_materials() -> void:
+	for b: Material in _mats:
+		if b is ShaderMaterial and is_instance_valid(b):
+			var params: Dictionary = _mats[b]
+			for p: StringName in params:
+				(b as ShaderMaterial).set_shader_parameter(p, params[p])
+		elif is_instance_valid(b):
+			var was: Array = _mats[b]
+			b.albedo_texture = was[0]
+			b.texture_filter = was[1]
+			b.normal_enabled = was[2]
+			b.specular_mode = was[3]
+			b.shading_mode = was[4]
+	_mats.clear()
 
 
 func _fit() -> void:
@@ -68,6 +167,11 @@ func _fit() -> void:
 	# mip softer too, or their fine detail boils at 270 lines (2026-11-03, the user: the scrap tires
 	# the eyes).
 	vp.texture_mipmap_bias = MIP_BIAS if lines > 0 else 0.0
+	if lines > 0:
+		for g in get_tree().root.find_children("*", "GeometryInstance3D", true, false):
+			_ps1_materials(g)
+	else:
+		_restore_materials()
 	_rect.visible = lines > 0
 	if lines > 0:
 		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_NEAREST

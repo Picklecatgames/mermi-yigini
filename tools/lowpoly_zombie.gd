@@ -37,6 +37,17 @@ const PSX_TRIS_OF := {"warrok": 4500, "maw": 4500, "demon": 5000, "bloater": 400
 const GLB := {"blob": "res://assets/characters/zombies/blob/blob.glb",
 		"melty": "res://assets/characters/zombies/melty/melty.glb",
 		"dog": "res://assets/characters/zombies/dog/dog.glb"}
+## psx: a model whose texture stands out of the dirty flesh-and-blood cast gets pulled into it:
+## saturation and value times [0], [1], then mixed [2] of the way toward the tone [3], then [4] of
+## grime: blotches of dirt darkening it. The demon was blue, white and yellow, a comic-book hero
+## among corpses (2026-11-03, the PS1 critic). The players were a party game's palette (turquoise
+## scrubs, a hi-vis orange suit, a purple luchador): the user (2026-11-03) "kirli palete çek",
+## they keep their looks, faded and dirty: the orange a rusted orange, the turquoise a washed grey-green.
+const DIRT := Color(0.3, 0.25, 0.2)
+const PSX_GRADE_OF := {"demon": [0.3, 0.62, 0.45, Color(0.36, 0.2, 0.16), 0.3],
+		"worker": [0.65, 0.9, 0.12, DIRT, 0.3], "masked": [0.4, 0.75, 0.2, DIRT, 0.45],
+		"chupacabra": [0.5, 0.72, 0.15, DIRT, 0.45], "boss": [0.5, 0.78, 0.15, DIRT, 0.4],
+		"brute": [0.6, 0.82, 0.12, DIRT, 0.4]}
 const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra"]
 const PLAYER_OUT := "res://assets/characters/players/%s/%s%s.scn"
 const PSX_SHADER := preload("res://materials/psx.gdshader")
@@ -90,6 +101,8 @@ func _psx(model: String) -> bool:
 					var img: Image = std.albedo_texture.get_image().duplicate()
 					img.decompress()
 					img.resize(PSX_TEX, PSX_TEX, Image.INTERPOLATE_LANCZOS)
+					if PSX_GRADE_OF.has(model):
+						_grade(img, PSX_GRADE_OF[model])
 					img.generate_mipmaps()  # far off a smaller copy, not a boiling one (psx.gdshader)
 					mat.set_shader_parameter("albedo_tex", ImageTexture.create_from_image(img))
 				if std:
@@ -106,6 +119,24 @@ func _psx(model: String) -> bool:
 	print("%s psx: %d -> %d tris, saved %s err=%d" % [model, before, after, path, err])
 	scene.free()
 	return err == OK
+
+
+## PSX_GRADE_OF on a texture, in place (tools/build_fp_arms.gd grades the first-person arms with it too).
+static func _grade(img: Image, g: Array) -> void:
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var to: Color = g[3]
+	var grime := FastNoiseLite.new()
+	grime.seed = 7
+	grime.frequency = 0.03
+	grime.fractal_octaves = 4
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			var d := Color.from_hsv(c.h, c.s * g[0], c.v * g[1], c.a)
+			d = d.lerp(Color(to.r, to.g, to.b, c.a), g[2])
+			var dirt := clampf(grime.get_noise_2d(x, y) * 1.6 + 0.2, 0.0, 1.0) * float(g[4])  # blotches, clear patches between
+			img.set_pixel(x, y, d.lerp(Color(DIRT.r * 0.5, DIRT.g * 0.5, DIRT.b * 0.5, c.a), dirt))
 
 
 func _convert(model: String) -> bool:

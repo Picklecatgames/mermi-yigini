@@ -32,10 +32,12 @@ func _ready() -> void:
 	_core()
 	_sparks()
 	_smoke()
-	_light = OmniLight3D.new()  # the fire's light on the corner, from just over the rim
-	_light.position = Vector3(0, rim + 0.25, 0)
+	_light = OmniLight3D.new()  # the fire's light on the corner, from up in the flames
+	# Up in the flames, not on the rim: the drum's lip burned brighter than the fire (the PS1
+	# critic). Far enough to give the hands of whoever stands by it a warm edge.
+	_light.position = Vector3(0, rim + 0.5, 0)
 	_light.light_color = Color(1.0, 0.45, 0.15)
-	_light.omni_range = 3.8
+	_light.omni_range = 5.0
 	_light.shadow_enabled = false  # from over the rim the drum threw a hard black disc on the floor round itself
 	_light.light_volumetric_fog_energy = 0.6
 	add_child(_light)
@@ -61,7 +63,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	var n := _noise.get_noise_1d(_t * 10.0) * 0.6 + _noise.get_noise_1d(_t * 37.0) * 0.4  # slow sway and quick flutter
 	_light.light_energy = 2.0 + 0.55 * n
-	_inside.light_energy = 3.0 + 0.8 * n
+	_inside.light_energy = 1.5 + 0.4 * n
 	_bed.emission_energy_multiplier = 2.2 + 0.6 * _noise.get_noise_1d(_t * 2.0 + 50.0)
 
 
@@ -123,6 +125,7 @@ func _sprites(tex: Texture2D, add: bool, amount: int, life: float, size: float) 
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	m.vertex_color_use_as_albedo = true
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST  # the PS1 screen: hard-edged sprites, not a blur
 	m.proximity_fade_enabled = true  # sprites fade where they cut into the drum and the wood: no hard edges
 	m.proximity_fade_distance = 0.12
 	var quad := QuadMesh.new()
@@ -159,9 +162,14 @@ func _curve(points: Array) -> CurveTexture:
 
 ## Tongues of flame: born yellow-white low in the drum, rising and twisting, going orange, then
 ## deep red as they thin out above the rim. Three emitters, one per flame shape, out of step.
+## On the 270p screen small faint licks vanished and the barrel read as a glowing cube from across
+## the yard (2026-11-03, the PS1 critic): fewer, bigger, brighter tongues that clear the rim by
+## half a metre, so the fire has a shape from 10 m off. Mixed, not added: added up and through the
+## tonemap the licks burned out to cream-white and read as smoke (the critic, twice); mixed they are
+## the orange they are given, as a PS1 fire's sprites were.
 func _flames(tex: Texture2D, i: int) -> void:
-	var p := _sprites(tex, true, 22, 0.5 + 0.08 * i, 0.26 - 0.03 * i)  # many small licks, not a few big cut-outs
-	p.position.y = rim - 0.16
+	var p := _sprites(tex, false, 14, 0.75 + 0.1 * i, 0.66 - 0.07 * i)
+	p.position.y = rim - 0.06
 	p.preprocess = 1.0
 	p.randomness = 0.5
 	var pm := p.process_material as ParticleProcessMaterial
@@ -170,9 +178,9 @@ func _flames(tex: Texture2D, i: int) -> void:
 	pm.emission_shape_scale = Vector3(1, 0.15, 1)
 	pm.direction = Vector3.UP
 	pm.spread = 8.0
-	pm.initial_velocity_min = 0.2
-	pm.initial_velocity_max = 0.45
-	pm.gravity = Vector3(0, 0.7, 0)
+	pm.initial_velocity_min = 0.35
+	pm.initial_velocity_max = 0.65
+	pm.gravity = Vector3(0, 0.8, 0)
 	pm.angle_min = -12.0
 	pm.angle_max = 12.0
 	pm.scale_min = 0.7
@@ -183,13 +191,15 @@ func _flames(tex: Texture2D, i: int) -> void:
 	pm.turbulence_noise_scale = 1.6
 	pm.turbulence_influence_min = 0.05
 	pm.turbulence_influence_max = 0.15
-	pm.color_ramp = _ramp([[0.0, Color(1.0, 0.8, 0.45, 0.0)], [0.15, Color(1.0, 0.68, 0.3, 0.55)], [0.45, Color(1.0, 0.38, 0.07, 0.45)],
-		[0.8, Color(0.7, 0.1, 0.02, 0.2)], [1.0, Color(0.3, 0.03, 0.0, 0.0)]])
+	# A yellow-white heart, then a saturated orange-red body: pale licks read as smoke or paper at
+	# 270p (2026-11-03, the PS1 critic).
+	pm.color_ramp = _ramp([[0.0, Color(1.0, 0.75, 0.25, 0.0)], [0.08, Color(1.0, 0.62, 0.15, 0.95)], [0.3, Color(1.0, 0.35, 0.05, 0.9)],
+		[0.7, Color(0.75, 0.1, 0.0, 0.6)], [1.0, Color(0.3, 0.02, 0.0, 0.0)]])
 
 
 ## The hot heart of it: a soft glow sitting in the rim, so the flames grow out of light, not air.
 func _core() -> void:
-	var p := _sprites(CORE, true, 10, 1.0, 0.5)
+	var p := _sprites(CORE, true, 10, 1.0, 0.3)  # small: the heart, not a white blot over the flames
 	p.position.y = rim - 0.08
 	p.preprocess = 1.0
 	var pm := p.process_material as ParticleProcessMaterial
@@ -205,7 +215,7 @@ func _core() -> void:
 
 ## Sparks: a few bright specks thrown up, wandering on the heat and winking out a metre or two up.
 func _sparks() -> void:
-	var p := _sprites(SPARK, true, 18, 2.2, 0.025)
+	var p := _sprites(SPARK, true, 18, 2.2, 0.05)  # 2.5 cm was under a pixel of the 270p screen
 	p.position.y = rim
 	p.preprocess = 2.0
 	p.randomness = 1.0

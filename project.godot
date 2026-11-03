@@ -126,3 +126,19 @@ psx_mip_bias={
 "type": "float",
 "value": 0.0
 }
+psx_haze_colour={
+"type": "color",
+"value": Color(0.66, 0.56, 0.42, 1)
+}
+psx_haze_range={
+"type": "vec2",
+"value": Vector2(12, 160)
+}
+psx_haze_max={
+"type": "float",
+"value": 0.55
+}
+psx_haze_day={
+"type": "float",
+"value": 1.0
+}

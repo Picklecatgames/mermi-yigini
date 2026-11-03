@@ -2,14 +2,23 @@ extends "res://tools/build_arena.gd"
 ## Builds scenes/world.tscn, the open ground (2026-11-02, the user: the old hall and everything in it
 ## goes; a wide rectangle out in the open, Mad Max wasteland, a light desert with a few dead trees):
 ## a concrete pad, on it the workshop (open to the front, a lean-to roof on posts, the crew's bench
-## with its radio and the desk with the pistol brought over from the hall) and, until the scrap
-## mountain comes, the scrap pit; round it sand and cracked earth rising into dunes at the edges.
+## with its radio and the desk with the pistol brought over from the hall); behind it the back yard,
+## flat ground with the junkyard (scripts/pile.gd: a scrap heap, mountains of scrap behind it);
+## round it all sand and cracked earth rising into dunes at the edges.
 ## The scene is never edited by hand: change the numbers here and re-run
 ##   godot --headless --path . -s res://tools/build_world.gd
 ## The helpers (add, worn, pbr_box, _prop, block, collide, pendant, _pit...) are build_arena.gd's.
 
 const WORLD := Rect2(-100.0, -80.0, 220.0, 160.0)  # x, z: everything the players can see the ground of (2026-11-02, the user: smaller, the zombies' ground was needlessly big)
-const PAD := Rect2(-26.0, -14.0, 52.0, 28.0)  # the concrete round the workshop and the pit; edges on the desert grid (CELL)
+const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; edges on the desert grid (CELL)
+## The back yard (2026-11-03, the user: "the pit goes; the back yard is flat ground and heaps and heaps
+## of junk, as if we were a scrap dealer in the desert; some mountains touching the sky"): flat ground
+## behind the workshop, all of it the junkyard's (scripts/pile.gd: a heap in front, mountains of
+## scrap behind it); nothing else stands on it.
+const YARD := Rect2(-136.0, -80.0, 130.0, 160.0)
+## The junkyard's grid on the ground (pile.gd CENTER, GRID_X/Z × CELL; pile.gd can't be loaded here,
+## it needs the autoloads).
+const HEAP_AREA := Rect2(-136.0, -80.0, 128.0, 160.0)
 const CELL := 2.0  # m, the desert mesh's grid
 const DUNE_START := 6.0  # m from the pad's edge where the ground starts to roll
 const EDGE_RISE := 12.0  # m the dunes climb to at the world's edge: the players' natural border
@@ -25,11 +34,12 @@ const BENCH_SCALE := 1.2  # as it stood in the hall (range_dressing.gd _workshop
 const DESK_AT := Vector3(8.2, 0, 0.0)  # the pistol's crate, right in front of the spawns
 
 const SPAWNS_WORLD: Array[Vector3] = [Vector3(9.3, 0, -0.8), Vector3(9.3, 0, 0.8), Vector3(9.3, 0, -2.4), Vector3(9.3, 0, 2.4)]
-const SUN_ANGLE := Vector3(-48.0, -125.0, 0.0)  # deg: afternoon, from behind the workshop's left
+const SUN_ANGLE := Vector3(-26.0, -125.0, 0.0)  # deg: late afternoon, from behind the workshop's left; low (2026-11-03, the PS1 critic: the day was flat, no shadow read): one long, clear shadow direction
 const SKY_TURN := 0.0  # deg: the HDRI turned so its bright side is where the sun stands
 
 
 func _initialize() -> void:
+	PortableCompressedTexture2D.set_keep_all_compressed_buffers(true)  # else the PS1 trees' WebP textures save with no pixels (magenta)
 	seed(11)
 	arena = Node3D.new()
 	arena.name = "World"
@@ -48,12 +58,15 @@ func _initialize() -> void:
 	quit()
 
 
-## Open sky over a desert: a hot hazy blue going dusty at the horizon, the sun and a sandy fog that
-## swallows the far dunes. The day-night cycle (scripts/day_night.gd, coming) takes these over.
+## The default day (2026-11-03, the user on the PS1 critic's notes: not a holiday sky): choked,
+## dusty and pale under overcast, and a short, hard PS1 fog wall that swallows the far ground,
+## half gone by ~35 m, all dust by 75 m. The day-night cycle (scripts/day_night.gd, coming) takes
+## these over; its night: tools/psx_shots.gd `_night`.
 func _sky() -> void:
-	# Poly Haven's Kloofendal pure sky (CC0): a real midday sky with broken cloud, nothing below.
+	# Poly Haven's Kloofendal Overcast pure sky (CC0), 1k and unfiltered: its big pixels are the PS1's.
 	var sky_mat := PanoramaSkyMaterial.new()
-	sky_mat.panorama = load("res://assets/env/hdri/kloofendal_48d_partly_cloudy_puresky_4k.hdr")
+	sky_mat.panorama = load("res://assets/env/hdri/kloofendal_overcast_puresky_1k.hdr")
+	sky_mat.filter = false
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
@@ -62,7 +75,7 @@ func _sky() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 1.0
-	env.ambient_light_energy = 0.8
+	env.ambient_light_energy = 0.75  # overcast, but corners and the shade under trees stay dark
 	env.sky_rotation = Vector3(0, deg_to_rad(SKY_TURN), 0)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
@@ -76,15 +89,18 @@ func _sky() -> void:
 	env.glow_intensity = 0.4
 	env.glow_bloom = 0.03
 	env.glow_hdr_threshold = 1.6
-	env.fog_enabled = true  # dust hanging over the desert: the far dunes fade into it
-	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-	env.fog_light_color = Color(0.8, 0.74, 0.66)
-	env.fog_density = 0.0035
-	env.fog_sky_affect = 0.25
-	env.fog_aerial_perspective = 0.4
+	env.fog_enabled = true  # dust hanging over the desert: the far ground goes into it
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = Color(0.66, 0.56, 0.42)  # warm sandy dust, yellower than the sky
+	env.fog_density = 1.0  # depth fog: all the way to the colour at fog_depth_end
+	env.fog_depth_begin = 12.0
+	env.fog_depth_end = 75.0
+	env.fog_depth_curve = 0.6  # under 1 it thickens early: half way in at ~35 m
+	env.fog_sky_affect = 0.6  # the sky goes dusty too, the horizon one with the ground
+	env.fog_aerial_perspective = 0.0  # its colour from the dust, not the sky
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 1.08
+	env.adjustment_saturation = 0.75
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
@@ -92,17 +108,19 @@ func _sky() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = SUN_ANGLE
-	sun.light_color = Color(1.0, 0.9, 0.76)
-	sun.light_energy = 1.6
+	sun.light_color = Color(0.96, 0.89, 0.78)
+	sun.light_energy = 1.15  # through the overcast; a little over the ambient, so the shadows read
 	sun.shadow_enabled = true
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	sun.directional_shadow_max_distance = 120.0
-	sun.light_angular_distance = 0.5
+	# Short and coarse, PS1 taste (2026-11-03, the user: the lighting PS1-fit): past 50 m the fog
+	# has it all anyway, and the shadow map spent on 50 m draws the near shadows hard and clean.
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_max_distance = 50.0
+	sun.light_angular_distance = 3.0  # soft-edged shadows
 	add(sun)
 
 
 ## The concrete: filthy cracked slabs (Poly Haven "Dirty Concrete"), each 4 m pour its own tone,
-## sand blown onto it, round the pit's opening; under it ground a metre thick.
+## sand blown onto it; under it ground a metre thick.
 func _pad() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Floor"
@@ -110,7 +128,7 @@ func _pad() -> void:
 	var slabs := worn("dirty_concrete", "yard_concrete", {"tint": Color(0.8, 0.74, 0.66), "tex_size": 4.0,
 		"cell_size": 4.0, "cell_tone": 0.12, "odd_cells": 0.1, "antitile": 0.5, "grime": 0.9,
 		"grime_scale": 0.08, "grime_color": Color(0.42, 0.33, 0.22)})  # the grime is blown sand, not soot
-	for r in _around_pit(PAD):
+	for r in [PAD]:
 		var mi := MeshInstance3D.new()
 		var pm := PlaneMesh.new()
 		pm.size = r.size
@@ -127,15 +145,16 @@ func _pad() -> void:
 			[Vector3(0.2, 0.12, PAD.size.y), Vector3(PAD.position.x - 0.1, 0.06, PAD.get_center().y)],
 			[Vector3(0.2, 0.12, PAD.size.y), Vector3(PAD.end.x + 0.1, 0.06, PAD.get_center().y)]]:
 		block(side[0], side[1], kerb, body)
-	_pit(body)
 
 
 ## Height of the desert at (x, z): flat at the pad, rolling dunes further out, climbing steeply into
 ## a ring of high dunes near the world's edge that nobody walks over.
 func _ground_y(x: float, z: float, noise: FastNoiseLite) -> float:
-	var dx := maxf(maxf(PAD.position.x - x, x - PAD.end.x), 0.0)
-	var dz := maxf(maxf(PAD.position.y - z, z - PAD.end.y), 0.0)
-	var away := Vector2(dx, dz).length()
+	var away := INF
+	for flat in [PAD, YARD]:  # the pad and the back yard are flat
+		var dx := maxf(maxf(flat.position.x - x, x - flat.end.x), 0.0)
+		var dz := maxf(maxf(flat.position.y - z, z - flat.end.y), 0.0)
+		away = minf(away, Vector2(dx, dz).length())
 	var roll := smoothstep(DUNE_START, DUNE_START + 30.0, away)
 	# Low uneven swells and gullies, not smooth dunes (2026-11-02, the user: "looks like a Unity demo").
 	var h := noise.get_noise_2d(x, z) * 2.2 * roll + noise.get_noise_2d(x * 4.1, z * 4.1) * 0.35 * roll
@@ -178,9 +197,10 @@ func _desert() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://materials/env/desert.gdshader")
 	for slot in [["sand", "gravelly_sand"], ["earth", "mud_cracked_dry_03"], ["gravel", "sandy_gravel_02"]]:
-		mat.set_shader_parameter(slot[0] + "_albedo", load(TEX + "%s/%s_diff_2k.jpg" % [slot[1], slot[1]]))
-		mat.set_shader_parameter(slot[0] + "_normal", load(TEX + "%s/%s_nor_gl_2k.jpg" % [slot[1], slot[1]]))
-		mat.set_shader_parameter(slot[0] + "_arm", load(TEX + "%s/%s_arm_2k.jpg" % [slot[1], slot[1]]))
+		var small := _psx_tex(slot[1])  # the PS1 copy (worn, above)
+		mat.set_shader_parameter(slot[0] + "_albedo", small if small else load(TEX + "%s/%s_diff_2k.jpg" % [slot[1], slot[1]]))
+		mat.set_shader_parameter(slot[0] + "_normal", null if small else load(TEX + "%s/%s_nor_gl_2k.jpg" % [slot[1], slot[1]]))
+		mat.set_shader_parameter(slot[0] + "_arm", load(FLAT_ARM) if small else load(TEX + "%s/%s_arm_2k.jpg" % [slot[1], slot[1]]))
 	var n2 := FastNoiseLite.new()
 	n2.frequency = 0.02
 	n2.fractal_octaves = 4
@@ -221,7 +241,9 @@ func _wasteland() -> void:
 	add(root)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 23
-	var spots := func(count: int, near: float, far: float) -> Array[Vector3]:
+	# `in_yard`: it may lie in the back yard too (junk, bushes), not only out on the sand; never on
+	# the scrap heap or the giant heaps.
+	var spots := func(count: int, near: float, far: float, in_yard := false) -> Array[Vector3]:
 		var out: Array[Vector3] = []
 		while out.size() < count:
 			var p := Vector2(rng.randf_range(WORLD.position.x + 8.0, WORLD.end.x - 8.0), rng.randf_range(WORLD.position.y + 8.0, WORLD.end.y - 8.0))
@@ -229,13 +251,15 @@ func _wasteland() -> void:
 			var too_far := Rect2(PAD.position - Vector2(far, far), PAD.size + Vector2(far, far) * 2.0)
 			if away.has_point(p) or not too_far.has_point(p):
 				continue
+			if (not in_yard and YARD.has_point(p)) or HEAP_AREA.grow(3.0).has_point(p):
+				continue
 			out.append(Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y))
 		return out
 	var on_ground := func(p: Vector3) -> Vector3: return Vector3(p.x, _ground_y(p.x, p.z, _desert_noise) - 0.05, p.z)
 	for centre: Vector3 in spots.call(8, 10.0, 34.0):
 		for k in rng.randi_range(2, 5):
 			var p: Vector3 = on_ground.call(centre + Vector3(rng.randf_range(-9.0, 9.0), 0, rng.randf_range(-9.0, 9.0)))
-			if PAD.grow(3.0).has_point(Vector2(p.x, p.z)):
+			if PAD.grow(3.0).has_point(Vector2(p.x, p.z)) or YARD.has_point(Vector2(p.x, p.z)):
 				continue
 			var r := rng.randf()
 			if r < 0.4:
@@ -250,9 +274,9 @@ func _wasteland() -> void:
 			var b: Vector3 = on_ground.call(centre + Vector3(rng.randf_range(-12.0, 12.0), 0, rng.randf_range(-12.0, 12.0)))
 			if not PAD.grow(3.0).has_point(Vector2(b.x, b.z)):
 				_plant(root, "wild_rooibos_bush", b, rng)
-	for p: Vector3 in spots.call(60, 3.0, 120.0):
+	for p: Vector3 in spots.call(60, 3.0, 120.0, true):
 		_plant(root, "wild_rooibos_bush", p, rng)
-	for p: Vector3 in spots.call(40, 3.0, 40.0):
+	for p: Vector3 in spots.call(40, 3.0, 40.0, true):
 		var clutter: String = ["dry_branches_medium_01", "namaqualand_stones_01", "namaqualand_rocks_01"][rng.randi() % 3]
 		_plant(root, clutter, p, rng)
 	for p: Vector3 in spots.call(45, 10.0, 120.0):
@@ -264,7 +288,7 @@ func _wasteland() -> void:
 		_prop(root, NAMA + "dead_tree_trunk_02/dead_tree_trunk_02_1k.gltf", p + Vector3(0, 0.12, 0), rng.randf() * TAU)
 	for p: Vector3 in spots.call(3, 14.0, 60.0):
 		_prop(root, MODELS + "covered_car/covered_car_1k.gltf", p, rng.randf() * TAU, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.05, 0.05)))
-	for p: Vector3 in spots.call(10, 3.0, 50.0):
+	for p: Vector3 in spots.call(10, 3.0, 50.0, true):
 		var junk: String = ["old_tyre/old_tyre_1k.gltf", "rusted_wheel_rim_01/rusted_wheel_rim_01_1k.gltf", "rusted_wheel_rim_02/rusted_wheel_rim_02_1k.gltf"][rng.randi() % 3]
 		_prop(root, MODELS + junk, p, rng.randf() * TAU)
 
@@ -317,6 +341,15 @@ func _lite(id: String, node_name: String, tris: int) -> Mesh:
 	if _lites.has(key):
 		return _lites[key]
 	var file := id if id != "searsia_medium" else "searsia_burchellii"
+	# The PS1 copy (tools/psx_props.gd nature, 2026-11-03, the user: the trees are bad, PS1 ones):
+	# a few hundred triangles, alpha-cut cards, small textures in the desert's colours. Near and far
+	# are the one mesh then.
+	var psx := NAMA + "%s/%s_1k_psx.scn" % [file, file]
+	if ResourceLoader.exists(psx):
+		var lowp: Node = (load(psx) as PackedScene).instantiate()
+		_lites[key] = (lowp.find_child(node_name, true, false) as MeshInstance3D).mesh
+		lowp.free()
+		return _lites[key]
 	var path := NAMA + "%s/%s.res" % [file, key]
 	var scene: Node = (load(NAMA + "%s/%s_1k.gltf" % [file, file]) as PackedScene).instantiate()
 	var src := (scene.find_child(node_name, true, false) as MeshInstance3D).mesh
@@ -389,7 +422,7 @@ func _forest() -> void:
 			z += FOREST_STEP
 			var away := _out_of_clearing(p) + _desert_noise.get_noise_2d(p.x * 2.0, p.y * 2.0) * 10.0
 			var thick := smoothstep(FOREST_START, FOREST_FULL, away) * 0.92
-			if rng.randf() > thick:
+			if rng.randf() > thick or YARD.grow(2.0).has_point(p):
 				continue
 			var r := rng.randf()
 			var kind: Array = kinds[0]
@@ -445,6 +478,8 @@ func _forest() -> void:
 		var dir := Vector2(cos(a), sin(a))
 		var p := CLEARING_CENTRE + dir * CLEARING_RADII
 		p = p.clamp(WORLD.position + Vector2(10, 10), WORLD.end - Vector2(10, 10))
+		if YARD.has_point(p):
+			continue  # nobody steps out of the junk behind the yard
 		var m := Marker3D.new()
 		m.name = "ForestEdge%d" % i
 		m.position = Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y)
@@ -464,7 +499,7 @@ func _bush_mesh() -> Mesh:
 
 ## Something low with no collision: a bush, dry branches, a spill of stones.
 func _plant(parent: Node, id: String, at: Vector3, rng: RandomNumberGenerator) -> void:
-	var inst: Node3D = (load(NAMA + "%s/%s_1k.gltf" % [id, id]) as PackedScene).instantiate()
+	var inst: Node3D = (load(_ps1(NAMA + "%s/%s_1k.gltf" % [id, id])) as PackedScene).instantiate()
 	inst.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4)), at)
 	add(inst, parent)
 	_own(inst)
@@ -478,7 +513,7 @@ func _workshop_shed() -> void:
 	var shed := StaticBody3D.new()
 	shed.name = "Workshop"
 	add(shed)
-	var steel: Material = pbr_box("rust_coarse_01", 1.5, Color(0.55, 0.5, 0.46), true, "workshop_steel")
+	var steel: Material = _psx_mat("rust_coarse_01", Color(0.55, 0.5, 0.46), "workshop_steel", 1.5)
 	var x0 := WS.position.x
 	var x1 := WS.end.x
 	var roof_y := func(x: float) -> float: return WS_BACK_H + (x - x0) / (x1 - x0) * (WS_FRONT_H - WS_BACK_H)
@@ -542,6 +577,12 @@ func _workshop_shed() -> void:
 			i += 1
 		var h: float = roof_y.call((x0 + x1) * 0.5)
 		collide(Vector3(WS.size.x, h, 0.2), Vector3((x0 + x1) * 0.5, h * 0.5, wz + side * 0.08), shed)
+	# A rusted steel sill along the walls' feet (2026-11-03, the PS1 critic: at 270p the ragged sheet
+	# feet read as a sawtooth band of light): the sheets stand in it, nothing shows under them.
+	block(Vector3(0.12, 0.16, WS.size.y + 0.1), Vector3(x0 - 0.04, 0.08, WS.get_center().y), steel, shed)
+	for side: float in [-1.0, 1.0]:
+		var wz := (WS.position.y - 0.04) if side < 0 else (WS.end.y + 0.04)
+		block(Vector3(WS.size.x + 0.1, 0.16, 0.12), Vector3((x0 + x1) * 0.5, 0.08, wz), steel, shed)
 
 
 const SHEET_W := 0.86  # m, one corrugated sheet; laid every SHEET_PITCH, the rest overlaps the next
@@ -554,20 +595,12 @@ var _sheet_mats: Array[Material] = []
 ## across `b.x`, bulging along `b.z`. Rusty most of them, every so often a galvanised patch.
 func _sheet(parent: Node, b: Basis, foot: Vector3, length: float, rng: RandomNumberGenerator, roof := false) -> void:
 	if _sheet_mats.is_empty():
-		for v in [["rusty_corrugated_iron", Color(1.0, 1.0, 1.0)], ["rusty_corrugated_iron", Color(0.86, 0.74, 0.66)],
-				["rusty_corrugated_iron", Color(1.0, 0.9, 0.78)], ["rusty_corrugated_iron", Color(0.7, 0.62, 0.56)],
-				["corrugated_iron_02", Color(0.82, 0.78, 0.72)], ["rusted_shutter", Color(0.9, 0.82, 0.74)]]:
-			var m := ORMMaterial3D.new()
-			m.albedo_texture = load(TEX + "%s/%s_diff_2k.jpg" % [v[0], v[0]])
-			m.albedo_color = v[1]
-			m.normal_enabled = true
-			m.normal_texture = load(TEX + "%s/%s_nor_gl_2k.jpg" % [v[0], v[0]])
-			m.orm_texture = load(TEX + "%s/%s_arm_2k.jpg" % [v[0], v[0]])
-			m.cull_mode = BaseMaterial3D.CULL_DISABLED
-			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-			var path := "res://materials/env/workshop_sheet_%d.tres" % _sheet_mats.size()
-			ResourceSaver.save(m, path)
-			_sheet_mats.append(load(path))
+		# PS1 at 270p (2026-11-03, the user: the zigzag walls hurt the eyes): plain rust and plate
+		# textures, the ripples are the geometry's; each sheet its own tone.
+		for v in [["rust_coarse_01", Color(1.0, 0.92, 0.86)], ["rust_coarse_01", Color(0.8, 0.66, 0.58)],
+				["rust_coarse_01", Color(0.95, 0.8, 0.66)], ["rust_coarse_01", Color(0.64, 0.54, 0.48)],
+				["metal_plate_02", Color(0.78, 0.78, 0.76)], ["rust_coarse_01", Color(0.55, 0.47, 0.43)]]:
+			_sheet_mats.append(_psx_mat(v[0], v[1], "workshop_sheet_%d" % _sheet_mats.size()))
 	var key := snappedf(length, 0.05)
 	if not _sheet_meshes.has(key):
 		_sheet_meshes[key] = _sheet_mesh(SHEET_W, key)
@@ -581,12 +614,12 @@ func _sheet(parent: Node, b: Basis, foot: Vector3, length: float, rng: RandomNum
 	add(mi, parent)
 
 
-## A corrugated sheet `w` wide, `h` long: sine ripples 7.6 cm apart, 1.8 cm deep; UVs in metres
+## A corrugated sheet `w` wide, `h` long: sine ripples 17 cm apart, 3.2 cm deep; UVs in metres
 ## over a 2 m texture so the rust doesn't stretch with the length.
 func _sheet_mesh(w: float, h: float) -> ArrayMesh:
-	const PERIOD := 0.076
-	const AMP := 0.009
-	var segs := int(w / PERIOD * 6.0)
+	const PERIOD := 0.172  # five to a sheet: at 270p a ripple is several pixels, not a shimmer
+	const AMP := 0.016
+	var segs := int(w / PERIOD * 4.0)  # PS1: four points a ripple, lit per vertex
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in segs + 1:
@@ -602,8 +635,74 @@ func _sheet_mesh(w: float, h: float) -> ArrayMesh:
 		var a := i * 2
 		for t in [a, a + 1, a + 2, a + 1, a + 3, a + 2]:
 			st.add_index(t)
-	st.generate_tangents()
 	return st.commit()
+
+
+## PS1 horror look (2026-11-02, the user: the whole game PSX horror; tools/psx_props.gd): props
+## and the pit's rim pieces come as their <source>_psx.scn wherever there is one.
+func _ps1(path: String) -> String:
+	var psx := path.get_basename() + "_psx.scn"
+	return psx if ResourceLoader.exists(psx) else path
+
+
+func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0, tilt := Basis()) -> StaticBody3D:
+	return super(parent, _ps1(path), pos, yaw, s, tilt)
+
+
+## The ground's textures the PS1 way where there is one (2026-11-03, the user: "the surfaces are
+## bad"; tools/psx_props.gd tex): 128 px in the desert's colours, no normal map, flat roughness.
+const PSX_TEX := "res://assets/psx/tex/%s.res"
+const FLAT_ARM := "res://assets/psx/tex/flat_arm.res"
+
+
+func _psx_tex(id: String) -> Texture2D:
+	return load(PSX_TEX % id) if ResourceLoader.exists(PSX_TEX % id) else null
+
+
+func worn(id: String, save_as: String, params: Dictionary) -> ShaderMaterial:
+	var m: ShaderMaterial = super(id, save_as, params)
+	var tex := _psx_tex(id)
+	if tex:
+		m.set_shader_parameter("albedo_tex", tex)
+		m.set_shader_parameter("normal_tex", null)
+		m.set_shader_parameter("arm_tex", load(FLAT_ARM))
+		ResourceSaver.save(m, m.resource_path)
+	return m
+
+
+func pbr_box(id: String, metres: float, tint := Color.WHITE, world := true, save_as := "") -> ORMMaterial3D:
+	var m: ORMMaterial3D = super(id, metres, tint, world, save_as)
+	var tex := _psx_tex(id)
+	if tex:
+		m.albedo_texture = tex
+		m.normal_enabled = false
+		m.normal_texture = null
+		m.orm_texture = load(FLAT_ARM)
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+		ResourceSaver.save(m, m.resource_path)
+	return m
+
+
+func _cukur(piece: String, xf: Transform3D, parent: Node) -> void:
+	var n: Node3D = (load(_ps1(CUKUR + piece + ".gltf")) as PackedScene).instantiate()
+	n.transform = xf
+	add(n, parent)
+
+
+## The workshop's sheets and steel, PS1: the texture small and unfiltered (assets/psx/tex/, made by
+## tools/psx_props.gd tex), lit per vertex, drawn from both sides; `metres` > 0 maps it by world
+## position every `metres` (the steel boxes) instead of by UV.
+func _psx_mat(id: String, tint: Color, save_as: String, metres := 0.0) -> Material:
+	var m := ShaderMaterial.new()
+	m.shader = load("res://materials/psx_prop_2s.gdshader")
+	m.set_shader_parameter("albedo_tex", load("res://assets/psx/tex/%s.res" % id))
+	m.set_shader_parameter("tint", tint)
+	if metres > 0.0:
+		m.set_shader_parameter("triplanar", true)
+		m.set_shader_parameter("tri_metres", metres)
+	var path := "res://materials/env/%s.tres" % save_as
+	ResourceSaver.save(m, path)
+	return load(path)
 
 
 ## Inside: the crew's bench from the hall with the press, the hopper and the radio playing its
@@ -614,13 +713,13 @@ func _workshop_inside() -> void:
 	root.name = "Bench"
 	add(root)
 	var yaw := PI / 2.0  # the bench's front (+z in its glb) to the yard
-	var bench: StaticBody3D = _prop(root, "res://assets/lowpoly/workbench.glb", BENCH_AT, yaw, BENCH_SCALE)
+	var bench: StaticBody3D = _prop(root, "res://assets/props/workbench/workbench.glb", BENCH_AT, yaw, BENCH_SCALE)
 	bench.set_script(preload("res://scripts/bench_top.gd"))
-	var press: StaticBody3D = _prop(bench, "res://assets/lowpoly/press.glb", Vector3(0.8, 0.779, -0.11), 0.0)
+	var press: StaticBody3D = _prop(bench, "res://assets/props/press/press.glb", Vector3(0.8, 0.779, -0.11), 0.0)
 	press.name = "Press"
 	press.set_script(preload("res://scripts/press.gd"))
 	# The hopper on the bench's right, as in the hall (range_dressing.gd _workshop): 2.06 m along its x.
-	var hopper: StaticBody3D = _prop(root, "res://assets/lowpoly/hopper.glb", BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(2.064, 0, 0.25), yaw)
+	var hopper: StaticBody3D = _prop(root, "res://assets/props/workbench/hopper.glb", BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(2.064, 0, 0.25), yaw)
 	hopper.set_script(preload("res://scripts/hopper.gd"))
 	_bench_radio(bench)
 	_bench_lamp(BENCH_AT + Basis(Vector3.UP, yaw) * Vector3(-0.108, 2.8, -0.45))
@@ -661,7 +760,7 @@ func _workshop_inside() -> void:
 ## A caged work lamp hanging off the roof at (x, z): the cage and its bulb are Poly Haven's
 ## caged_hanging_light; a warm spot down through the cage, a soft fill round the bulb.
 func _cage_lamp(parent: Node, at: Vector3) -> void:
-	var inst: Node3D = (load(MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf") as PackedScene).instantiate()
+	var inst: Node3D = (load(_ps1(MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf")) as PackedScene).instantiate()
 	var box := _aabb(inst, Transform3D())
 	var roof := WS_BACK_H + (at.x - WS.position.x) / WS.size.x * (WS_FRONT_H - WS_BACK_H) - 0.06
 	var lamp := Node3D.new()
@@ -675,25 +774,35 @@ func _cage_lamp(parent: Node, at: Vector3) -> void:
 	spot.position = Vector3(0, bulb_y, 0)
 	spot.basis = Basis.looking_at(Vector3.DOWN, Vector3.FORWARD)
 	spot.light_color = Color(1.0, 0.72, 0.42)
-	spot.light_energy = 2.4
-	spot.spot_range = 5.5
-	spot.spot_angle = 70.0
-	spot.spot_angle_attenuation = 1.6
+	spot.light_energy = 3.2  # a wide warm pool on the floor, not a small spot (2026-11-03, the PS1 critic)
+	spot.spot_range = 7.0
+	spot.spot_angle = 80.0
+	spot.spot_angle_attenuation = 0.9
 	spot.shadow_enabled = at.z == 0.0  # one shadow caster is enough under a roof this small
 	spot.light_volumetric_fog_energy = 0.5
 	add(spot, lamp)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0, bulb_y, 0)
 	fill.light_color = Color(1.0, 0.7, 0.4)
-	fill.light_energy = 0.5
-	fill.omni_range = 2.2
+	fill.light_energy = 0.8
+	fill.omni_range = 3.5
 	add(fill, lamp)
+	# The bulb glows the light's own warm colour, not white.
+	for mi: MeshInstance3D in inst.find_children("*", "MeshInstance3D", true, false):
+		for i in mi.mesh.get_surface_count():
+			var m := mi.get_active_material(i) as BaseMaterial3D
+			if m and m.emission_enabled:
+				m = m.duplicate()
+				m.emission = Color(1.0, 0.62, 0.3)
+				m.emission_energy_multiplier = minf(m.emission_energy_multiplier, 2.0)
+				m.albedo_color = m.albedo_color * Color(1.0, 0.8, 0.6)
+				mi.set_surface_override_material(i, m)
 
 
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly
 ## (docs/ayrintilar.md "Radyo"); as range_dressing.gd _radio, in the bench's own frame.
 func _bench_radio(bench: Node3D) -> void:
-	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/lowpoly/radio.glb",
+	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/props/radio/radio.glb",
 		bench.transform * Vector3(-0.38, 1.293, -0.275), bench.rotation.y + 0.45, 1.1)
 	var list := AudioStreamPlaylist.new()
 	list.loop = true
@@ -716,7 +825,7 @@ func _bench_radio(bench: Node3D) -> void:
 
 ## The wall lamp over the bench, its arm out from the back wall (range_dressing.gd _wall_lamp).
 func _bench_lamp(at: Vector3) -> void:
-	var lamp: StaticBody3D = _prop(arena.get_node("Bench"), "res://assets/lowpoly/wall_lamp.glb", at, PI / 2.0)
+	var lamp: StaticBody3D = _prop(arena.get_node("Bench"), "res://assets/props/wall_lamp/wall_lamp.glb", at, PI / 2.0)
 	var bulb_at := Vector3(0.0, -0.111, 0.752)  # build_wall_lamp.py prints this
 	var spot := SpotLight3D.new()
 	spot.position = bulb_at + Vector3(0, -0.05, 0)

@@ -5,15 +5,28 @@ extends SceneTree
 ## whole; scripts/fp_arms.gd poses its arms from the first-person rig. Writes
 ## assets/characters/players/<id>/fp_arms.scn:
 ##   Godot.exe --headless --path . -s res://tools/build_fp_arms.gd --quit-after 600
+## Cut from the full character (<id>.scn), not its PS1 version: the PS1 material is lit per vertex
+## and the gun's own key and rim (player.gd) never reached it, the hands drew black by day
+## (2026-11-03). Their texture still goes the PS1 way: the body's dirty palette
+## (lowpoly_zombie.gd PSX_GRADE_OF), PSX_TEX px, unfiltered, no normal map.
 
 const DIR := "res://assets/characters/players/"
 const ARM := ["Arm", "ForeArm", "Hand"]  # after "mixamorig_Left"/"mixamorig_Right"; the hand's fingers too
+const PSX := preload("res://tools/lowpoly_zombie.gd")
 
 
 func _initialize() -> void:
 	var bodies: Dictionary = load("res://scripts/remote_players.gd").BODIES
 	for id: String in bodies:
-		var scene: Node3D = bodies[id].instantiate()
+		var scene: Node3D = (load(DIR + "%s/%s.scn" % [id, id]) as PackedScene).instantiate()
+		var made := {}
+		for mi: MeshInstance3D in scene.find_children("*", "MeshInstance3D", true, false):
+			for s in mi.mesh.get_surface_count():
+				var std := mi.get_active_material(s) as BaseMaterial3D
+				if std != null:
+					if not made.has(std):
+						made[std] = _ps1(std, id)
+					mi.set_surface_override_material(s, made[std])
 		var sk: Skeleton3D = scene.get_node("Skeleton3D")
 		var kept := 0
 		for mi: MeshInstance3D in sk.find_children("*", "MeshInstance3D", false, false):
@@ -82,6 +95,22 @@ func _arms_of(mi: MeshInstance3D, sk: Skeleton3D) -> ArrayMesh:
 		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, packed, [], {}, format)
 		out.surface_set_material(out.get_surface_count() - 1, mi.get_active_material(s))
 	return out if out.get_surface_count() > 0 else null
+
+
+## `std` with its texture graded, small and unfiltered.
+static func _ps1(std: BaseMaterial3D, id: String) -> BaseMaterial3D:
+	var m := std.duplicate() as BaseMaterial3D
+	m.normal_enabled = false
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+	if std.albedo_texture:
+		var img: Image = std.albedo_texture.get_image().duplicate()
+		img.decompress()
+		img.resize(PSX.PSX_TEX, PSX.PSX_TEX, Image.INTERPOLATE_LANCZOS)
+		if PSX.PSX_GRADE_OF.has(id):
+			PSX._grade(img, PSX.PSX_GRADE_OF[id])
+		img.generate_mipmaps()
+		m.albedo_texture = ImageTexture.create_from_image(img)
+	return m
 
 
 static func _is_arm(bone: String) -> bool:

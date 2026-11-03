@@ -33,15 +33,15 @@ func _initialize() -> void:
 	print("unit %.7f m³, top %.2f m, steepest step %.3f (lock %.3f)" % [pile.unit, top, worst, pile.LOCK_STEP])
 	assert(worst <= pile.LOCK_STEP + 1e-4, "the heap starts at rest")
 	assert(over <= 1e-4, "nothing over the rim")
-	assert(top > pile.DEPTH - 1.0, "full up to under the rim")
+	assert(top > pile.TOP * 0.85, "the mountains stand up to their peaks")
 	assert(not pile._any_active, "nothing sliding at the start")
 	var v0 := _volume(pile)
 	var expect: float = (gs.PILE_START - pile.spill_pieces) * pile.unit
 	assert(absf(v0 - expect) / expect < 1e-4, "the heap holds the count (%.1f m³, %.1f expected)" % [v0, expect])
 	assert(pile._id_index.size() == pile.spill_pieces, "loose pieces on the floor")
 
-	# A hole dug into the pit's middle, a little toward its south wall.
-	var dig := Vector2i(gx / 2, gz / 2 - 8)
+	# A hole dug at the foot of the mountain behind the heap, where players reach (pile.gd NEAR).
+	var dig: Vector2i = pile._cell_of(pile.to_local(Vector3(-36.0, 0.0, -2.0)))
 	var at: Vector3 = pile.cell_world(dig)
 	var above := dig + Vector2i(-4, 0)  # beside the hole: it slides in as the hole deepens
 	var above_h: float = h[above.y * gx + above.x]
@@ -56,6 +56,9 @@ func _initialize() -> void:
 	var settled_seen := false
 	for n in 400:
 		taken += gs.request_take_bullets(4000, Vector3(at.x, pile.surface_y(at), at.z))
+		# Kept in the hole: on the mountain's steep foot they would slide off it (2026-11-03).
+		pl.global_position = Vector3(at.x + 0.3, pile.surface_y(at) + 0.05, at.z)
+		pl.velocity = Vector3.ZERO
 		for f in 30:
 			await physics_frame
 			shoved = maxf(shoved, pl._shove.length())
@@ -76,10 +79,14 @@ func _initialize() -> void:
 			break
 	print("player shoved at up to %.2f m/s" % shoved)
 	assert(shoved > 0.5, "the fall shoves the player")
-	for f in 1200:
+	# A mountain's slide runs a long way down it (2026-11-03): minutes, not seconds.
+	var rest := 0
+	for f in 18000:
 		if not pile._any_active and pile._digs.is_empty():
 			break
 		await physics_frame
+		rest += 1
+	print("the face came to rest %.1f s after" % (rest / 60.0))
 	assert(not pile._any_active, "the face comes to rest")
 	assert(not pile._any_slump, "and locks again")
 	var v1 := _volume(pile)
@@ -95,15 +102,15 @@ func _initialize() -> void:
 ## is outlined and taken by its id; the one under it shows, lower, and is taken the same way;
 ## dig the heap away under one and it falls, still there to pick up.
 func _pieces(gs: Node, pile: Node3D) -> void:
-	# Looking down onto the pit's top toward its north wall: away from where the
-	# rest of this check digs. Some of the face shows between its pieces (~13% with only small
+	# Looking down onto the heap in front of the mountains: away from where the rest of this
+	# check digs. Some of the face shows between its pieces (~13% with only small
 	# pieces, tools/build_scrap_face.gd prints it), so 25 rays over a metre: most hit a piece, and
 	# the first that does goes on.
 	var space := pile.get_world_3d().direct_space_state
 	var hit := {}
 	var on_piece := 0
 	for k in 25:
-		var at := Vector3(-12.0 + (k % 5) * 0.25, 0.0, 5.0 + (k / 5) * 0.25)
+		var at := Vector3(-18.0 + (k % 5) * 0.25, 0.0, -3.0 + (k / 5) * 0.25)
 		var ray := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 12.0, at + Vector3.DOWN * 3.0)
 		ray.collision_mask = pile.SCRAP_LAYER | 1
 		ray.exclude = [pile.get_rid()]  # as the player's reach ray: past the raised walking surface
@@ -156,11 +163,15 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 	await _wake(gs, pile)
 	# One that tumbled off the face earlier lies on the heap as a loose piece of its own: dig the
 	# heap out from under it and it falls, and can still be picked up.
+	# The lowest one: higher up the mountain the scrap sliding down from above fills a hole in under
+	# it as fast as it is dug (2026-11-03).
 	id = -1
+	var low := INF
 	for other: int in pile._id_index:
-		if pile.is_heap_id(other) and pile._height_at(pile._id_index[other][3].origin) > 0.3:
+		var h_at: float = pile._height_at(pile._id_index[other][3].origin)
+		if pile.is_heap_id(other) and h_at > 0.3 and h_at < low:
 			id = other
-			break
+			low = h_at
 	assert(id >= 0, "pieces off the fallen face lie on the heap, each its own")
 	var local: Vector3 = pile._id_index[id][3].origin
 	for n in 40:

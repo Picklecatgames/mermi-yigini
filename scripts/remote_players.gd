@@ -255,6 +255,7 @@ class Character extends Node3D:
 	var _head := -1
 	var _flash: Node3D
 	var _flash_left := 0.0
+	var _lamp: SpotLight3D  # scripts/head_lamp.gd, at the eyes
 	var _fx: Node3D
 	var _tag_box: MeshInstance3D
 	var _tag_mat: StandardMaterial3D
@@ -860,6 +861,10 @@ class Character extends Node3D:
 			_gun.transform = _kicked(_lowered(held), delta)
 			_grip()
 		_turn_head(wrapf(_look_yaw - _body_yaw, -PI, PI), _look_pitch - _pitch)
+		if _lamp == null:
+			_lamp = preload("res://scripts/head_lamp.gd").new()
+			add_child(_lamp)
+		_lamp.call(&"follow", eye_transform().translated_local(Vector3(0.0, 0.08, -0.15)), delta)  # on the brow, ahead of the face
 		if _flash:
 			_flash.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 			_flash_left -= delta

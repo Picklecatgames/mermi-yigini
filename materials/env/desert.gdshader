@@ -4,13 +4,15 @@ shader_type spatial;
 // with patches of cracked dry earth, gravel thrown out round the pad. Each texture is blended with
 // a shifted copy of itself under a large noise, so no repeat lines up with the next one.
 
-uniform sampler2D sand_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+// Albedo unfiltered (2026-11-03, the user: it looked like a modern game turned down, not a PS1 game): on the PS1
+// screen scripts/psx_screen.gd shrinks these to 128 px, and their texels then read hard and big.
+uniform sampler2D sand_albedo : source_color, filter_nearest_mipmap, repeat_enable;
 uniform sampler2D sand_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D sand_arm : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D earth_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D earth_albedo : source_color, filter_nearest_mipmap, repeat_enable;
 uniform sampler2D earth_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D earth_arm : hint_default_white, filter_linear_mipmap, repeat_enable;
-uniform sampler2D gravel_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D gravel_albedo : source_color, filter_nearest_mipmap, repeat_enable;
 uniform sampler2D gravel_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D gravel_arm : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise_tex : hint_default_white, filter_linear_mipmap, repeat_enable;

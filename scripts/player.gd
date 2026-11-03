@@ -133,6 +133,16 @@ var _next_fly := 0
 var _scrap_hand: Node3D  # the scrap carried, shrunk (SCRAP_HAND_POS)
 var _scrap_looks: Array[Array] = []  # pile.gd piece_look of the first HAND_MAX pieces carried
 var _vm_env: Environment
+var _vm_lights: Array[DirectionalLight3D] = []  # the gun's own key and rim
+var _vm_suns: Array[DirectionalLight3D] = []  # the world's suns, which the gun's light follows
+var _vm_day := Vector2.ONE  # the suns' energy and the world's ambient as built, by day
+var _lamp := preload("res://scripts/head_lamp.gd").new()  # at night, from the eyes
+## The head lamp on the hands and the gun (2026-11-03, the PS1 critic: at night the lamp lit the
+## ground and left the hands a black cut-out in front of it): the gun's ambient goes up to this and
+## over to the lamp's colour as it lights. Neither a spot nor an omni light on the gun's layer
+## reached the hands, nor did the key and rim above (tried); its ambient does.
+const LAMP_HANDS := 0.17  # 0.24 turned the dark brown gloves a whitish grey at night (the PS1 critic)
+const VM_AMBIENT := Color(0.55, 0.53, 0.5)
 var _hip_fov := 75.0
 var _zoom := 1.0
 var _pose_timer := 0.0
@@ -231,6 +241,8 @@ func _ready() -> void:
 	_make_laser_dot()
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
 	_setup_viewmodel_world()
+	_lamp.light_cull_mask = 1  # the world; the hands get LAMP_HANDS
+	add_child(_lamp)
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
 		_climb += a * KICK_CLIMB
@@ -408,7 +420,7 @@ func _setup_viewmodel_world() -> void:
 	_vm_env.remove_meta(&"built")
 	_vm_env.background_mode = Environment.BG_CLEAR_COLOR
 	_vm_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	_vm_env.ambient_light_color = Color(0.55, 0.53, 0.5)
+	_vm_env.ambient_light_color = VM_AMBIENT
 	_vm_env.ambient_light_energy = 0.55  # roughly what the lamps bounce onto it
 	# The steel reflects this (materials/viewmodel_sky.gdshader: LED battens on a dark roof, lit
 	# concrete); never drawn, the background stays clear. Not the hall's probes: they hold the night
@@ -440,7 +452,36 @@ func _setup_viewmodel_world() -> void:
 	rim.rotation = Vector3(-0.35, PI - 0.6, 0.0)
 	for l: DirectionalLight3D in [key, rim]:
 		l.light_cull_mask = 1 << 1
+		l.set_meta(&"day", l.light_energy)
 		_vm_camera.add_child(l)
+		_vm_lights.append(l)
+
+	_vm_env.set_meta(&"day", _vm_env.ambient_light_energy)
+	for s: DirectionalLight3D in get_tree().root.find_children("*", "DirectionalLight3D", true, false):
+		if not s in _vm_lights:
+			_vm_suns.append(s)
+	_vm_day = Vector2(_sun_energy(), get_world_3d().environment.ambient_light_energy)
+
+
+func _sun_energy() -> float:
+	var e := 0.0
+	for s in _vm_suns:
+		if is_instance_valid(s) and s.is_visible_in_tree():
+			e += s.light_energy
+	return e
+
+
+## The gun's key, rim and ambient go down with the world's sun and sky (2026-11-03, the PS1 critic:
+## at night the hands stayed lit, grey-pink in the dark workshop): at night only the lamps, the fire
+## and the muzzle flash light them, as everything else. A world with no sun keeps them as built.
+func _vm_follow_light() -> void:
+	var env := get_world_3d().environment
+	var sun := clampf(_sun_energy() / _vm_day.x, 0.0, 1.0) if _vm_day.x > 0.0 else 1.0
+	var sky := clampf(env.ambient_light_energy / _vm_day.y, 0.0, 1.0) if env != null and _vm_day.y > 0.0 else 1.0
+	for l in _vm_lights:
+		l.light_energy = float(l.get_meta(&"day")) * sun
+	_vm_env.ambient_light_energy = maxf(float(_vm_env.get_meta(&"day")) * maxf(sky, 0.15), LAMP_HANDS * _lamp.lit)  # 0.15: a shape, not a hole
+	_vm_env.ambient_light_color = VM_AMBIENT.lerp(_lamp.light_color * Color(1.0, 0.85, 0.6), _lamp.lit * (1.0 - sky))  # warmer than the bulb: the brown stays brown
 
 
 ## The laser bought at the bench (GameState UPGRADES) on the Deagle in hand: a red dot where the
@@ -687,6 +728,8 @@ func _process(delta: float) -> void:
 	if _laser_dot.visible:
 		_crosshair.visible = false
 	_vm_camera.global_transform = _camera.global_transform
+	_vm_follow_light()
+	_lamp.follow(_camera.global_transform.translated_local(Vector3(0.0, 0.08, 0.0)), delta)  # on the brow
 	var vm_fov: float = _viewmodel.view_fov
 	_vm_camera.fov = _camera.fov if vm_fov == 0.0 else rad_to_deg(2.0 * atan(tan(deg_to_rad(vm_fov) * 0.5) / _zoom))
 	if _viewmodel._want_gun != GameState.player().gun:  # e.g. after leaving: local_peer() changed
