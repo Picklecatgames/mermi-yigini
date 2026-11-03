@@ -16,7 +16,7 @@
 [ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_3.wav" id="7"]
 [ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_4.wav" id="9"]
 [ext_resource type="AudioStream" path="res://assets/weapons/sounds/shell_5.wav" id="10"]
-[ext_resource type="ArrayMesh" path="res://assets/bullet/shell_45.res" id="8"]
+[ext_resource type="ArrayMesh" path="res://assets/bullet/shell_45_psx.res" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/smoke_trail.tscn" id="11"]
 
 [sub_resource type="Gradient" id="flash_grad"]
