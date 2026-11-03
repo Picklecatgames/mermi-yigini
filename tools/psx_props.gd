@@ -300,8 +300,8 @@ func _material(m: Material, px: int) -> Material:
 			sm.set_shader_parameter("albedo_tex", _small(b.albedo_texture, px))
 		sm.set_shader_parameter("tint", b.albedo_color)
 		if b.uv1_scale != Vector3.ONE or b.uv1_offset != Vector3.ZERO:
-			sm.set_shader_parameter("uv_scale", b.uv1_scale)
-			sm.set_shader_parameter("uv_offset", b.uv1_offset)
+			sm.set_shader_parameter("uv_scale", Vector2(b.uv1_scale.x, b.uv1_scale.y))
+			sm.set_shader_parameter("uv_offset", Vector2(b.uv1_offset.x, b.uv1_offset.y))
 		if b.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 			sm.set_shader_parameter("alpha_cut", b.alpha_scissor_threshold if b.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else 0.5)
 		out = sm
