@@ -13,7 +13,9 @@ const PSX := preload("res://tools/psx_props.gd")
 const NAMA := "res://assets/env/namaqualand/%s/%s_1k%s"
 ## id -> the cards' tint: drawn unlit and lit again from straight up, the quiver tree's pale
 ## rosettes came out paler than the scan, the dark needles of the others nearly black.
-const TREES := {"quiver_tree_01": 0.75, "searsia_burchellii": 1.3, "wild_rooibos_bush": 1.4}
+## The quiver tree's a grey-blue green, not a palm's bright one (the PS1 critic): its fleshy
+## rosettes are that colour.
+const TREES := {"quiver_tree_01": Color(0.5, 0.58, 0.62), "searsia_burchellii": Color(1.3, 1.3, 1.26), "wild_rooibos_bush": Color(1.4, 1.4, 1.36)}
 const VIEWS := 3
 const PX := 128
 const DRAW := 512  # px a view is drawn at, then shrunk to PX: the leaves average, not alias
@@ -50,7 +52,7 @@ func _run() -> void:
 	quit(0 if ok else 1)
 
 
-func _tree(id: String, tint: float) -> bool:
+func _tree(id: String, tint: Color) -> bool:
 	var src: Node = (load(NAMA % [id, id, ".gltf"]) as PackedScene).instantiate()
 	var out_path: String = NAMA % [id, id, "_psx.scn"]
 	var psx: Node = (load(out_path) as PackedScene).instantiate()
@@ -148,7 +150,7 @@ static func _massed(img: Image) -> Image:
 
 
 ## [card arrays, card material] for the scan mesh `mesh`'s see-through surfaces.
-func _cards(mesh: Mesh, tint: float) -> Array:
+func _cards(mesh: Mesh, tint: Color) -> Array:
 	var box := AABB()
 	var first := true
 	for s in mesh.get_surface_count():
@@ -225,6 +227,6 @@ func _cards(mesh: Mesh, tint: float) -> Array:
 	m.shader = PSX.SHADER_2S
 	m.set_shader_parameter("albedo_tex", tex)
 	m.set_shader_parameter("alpha_cut", 0.5)
-	m.set_shader_parameter("tint", Color(tint, tint, tint * 0.97))
+	m.set_shader_parameter("tint", tint)
 	m.set_shader_parameter("far_colour", Color(0.0, 0.0, 0.0, 0.0))
 	return [arrays, m]
