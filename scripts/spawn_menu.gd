@@ -73,8 +73,19 @@ func _build() -> void:
 	var moons := HBoxContainer.new()
 	box.add_child(moons)
 	for pair: Array in MOON_NAMES:
-		_button(moons, pair[1], GameState.request_debug_moon.bind(pair[0]))
+		_button(moons, pair[1], moon.bind(pair[0]))
 	_set_count(count)
+
+
+## Night `kind` (MOON_NAMES), to be seen at once: by day the clock runs on to it, as N does
+## (2026-11-04, the user: the moon row did nothing, since by day it only picked the coming night's).
+func moon(kind: String) -> void:
+	GameState.request_debug_moon(kind)
+	var running: bool = GameState.hour_rate > 24.0 / GameState.DAY_SECONDS * 1.01
+	if GameState.night_of(GameState.hour) < 0.5 and not running:
+		GameState.request_skip_time()
+	if visible:
+		toggle()
 
 
 func _set_count(n: int) -> void:

@@ -172,6 +172,24 @@ func _host() -> void:
 		await physics_frame
 	if not _ok(died[0], "a summoned walker shot down dies"): return
 	_clear()
+	# The moon row by day: that moon, and the clock on to its night.
+	if not _ok(gs.night_of(gs.hour) == 0.0, "still day before the moon row"): return
+	menu.moon("blood")
+	if not _ok(gs.moon == "blood" and gs.hour_rate > 24.0 / gs.DAY_SECONDS * 1.5, "the moon row by day picks the blood moon and runs on to night"): return
+	t0 = Time.get_ticks_msec()
+	while gs.hour_rate > 24.0 / gs.DAY_SECONDS * 1.01:
+		await process_frame
+		if Time.get_ticks_msec() - t0 > 15_000:
+			return _fail("the moon row's run never ended")
+	if not _ok(gs.night_of(gs.hour) == 1.0 and gs.moon == "blood", "night under the blood moon"): return
+	menu.moon("crescent")
+	if not _ok(gs.moon == "crescent" and gs.night_of(gs.hour) == 1.0, "by night the row only changes the moon"): return
+	gs.request_skip_time()
+	t0 = Time.get_ticks_msec()
+	while gs.hour_rate > 24.0 / gs.DAY_SECONDS * 1.01:
+		await process_frame
+		if Time.get_ticks_msec() - t0 > 15_000:
+			return _fail("the run back to morning never ended")
 	gs.request_toggle_infinite_ammo()
 	if not await _raid(): return
 	await _online()
