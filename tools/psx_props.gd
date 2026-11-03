@@ -39,7 +39,11 @@ const HURDA := "res://assets/props/hurda/hurda.json"
 const HURDA_TEX := 64  # 2026-11-03, the user: hundreds of small pieces boiled at 270p
 ## Pieces go over to their average colour this far away (m; materials/psx_prop.gdshaderinc far_fade).
 const FAR := Vector2(20.0, 60.0)
-const HURDA_FAR := Vector2(10.0, 30.0)
+const HURDA_FAR := Vector2(6.0, 22.0)
+## The scrap's far colours go most of the way to one shared rust: in the distance the heap is a
+## few close browns, not a mosaic of blue tins and red rust.
+const HURDA_RUST := Color(0.42, 0.3, 0.24)
+const HURDA_RUST_SHARE := 0.6
 ## Wires, chains, cage bars thinner than this (m) are blown up to it along their normals: at 270p a
 ## thinner one is under a pixel from a few metres and sparkles (2026-11-03, the user). Plates and
 ## cards (one way facing) stay as they are.
@@ -53,6 +57,7 @@ var _mats := {}
 var _texs := {}
 var _sum := [0, 0, 0, 0]  # triangles before, after; bytes before, after
 var _far := FAR
+var _rust_share := 0.0
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
 
@@ -80,6 +85,7 @@ func _init() -> void:
 				ok = _convert(CUKUR + f, 1000, 128) and ok
 	if all or "hurda" in args:
 		_far = HURDA_FAR
+		_rust_share = HURDA_RUST_SHARE
 		for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(HURDA)):
 			var size: Array = p.boyut_m
 			var longest: float = size.max()
@@ -313,6 +319,7 @@ func _material(m: Material, px: int) -> Material:
 			sm.set_shader_parameter("albedo_tex", _small(b.albedo_texture, px))
 		sm.set_shader_parameter("tint", b.albedo_color)
 		var avg: Color = _avg.get(sm.get_shader_parameter("albedo_tex"), Color.WHITE) * b.albedo_color
+		avg = avg.lerp(HURDA_RUST, _rust_share)
 		avg.a = 1.0
 		sm.set_shader_parameter("far_colour", avg)
 		sm.set_shader_parameter("far_fade", _far)
