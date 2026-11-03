@@ -4,7 +4,10 @@
 // The one shared PS1 material; the screen itself (small, 15-bit, dithered) is scripts/psx_screen.gd.
 //
 // Uniforms (the first four are the zombies' and keep their names):
-//   albedo_tex  the real, dirty texture, 128-256 px; drawn unfiltered (filter_nearest, repeats)
+//   albedo_tex  the real, dirty texture, 128-256 px; drawn unfiltered, repeats. Give it mipmaps
+//               (Image.generate_mipmaps): far off and on fine ridges (corrugated sheet) it then takes
+//               a smaller copy instead of boiling and drawing moiré (2026-11-03, the user: walls too
+//               zigzag, "göz kanatıyor"). Without mipmaps it still draws, unfiltered at every distance
 //   tint        multiplies it; its alpha too
 //   snap        vertex jitter: the screen grid vertices snap to, steps per screen height (180 the
 //               zombies; 270 = one pixel of the default "PS1 ekranı"). 0: no screen snap
@@ -17,6 +20,9 @@
 //   emission_tex / emission / emission_energy  what glows (a lamp's glass, embers, a screen):
 //               emission_tex times emission times energy, added unlit. Black (default) is off
 //   uv_scale    tiles the texture (ground, walls)
+//   mip_bias    added to the mip level: above 0 blurs sooner (a busy texture still shimmers), below
+//               0 keeps detail further. The screen's own share (psx_mip_bias, a global set by
+//               scripts/psx_screen.gd: +1 when the 3D is drawn twice as fine as shown) comes on top
 //
 // Fog: the Environment's depth and volumetric fog lay over it like any material, nothing to set.
 // Skinned meshes: Godot skins before vertex(), so the snap and the warp follow the bones as is.
@@ -24,16 +30,18 @@
 shader_type spatial;
 render_mode vertex_lighting, specular_disabled, diffuse_lambert;
 
-uniform sampler2D albedo_tex : source_color, filter_nearest, repeat_enable;
+uniform sampler2D albedo_tex : source_color, filter_nearest_mipmap, repeat_enable;
 uniform vec4 tint : source_color = vec4(1.0);
 uniform float snap = 180.0;
 uniform float alpha_cut = 0.0;
 uniform float snap_world = 0.0;
 uniform float affine : hint_range(0.0, 1.0) = 0.0;
-uniform sampler2D emission_tex : source_color, filter_nearest, repeat_enable, hint_default_white;
+uniform sampler2D emission_tex : source_color, filter_nearest_mipmap, repeat_enable, hint_default_white;
 uniform vec4 emission : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float emission_energy = 1.0;
 uniform vec2 uv_scale = vec2(1.0);
+uniform float mip_bias = 0.0;
+global uniform float psx_mip_bias;
 
 varying vec3 affine_uv;  // uv * w and w: divided back per pixel it is interpolated on screen, not in depth
 
@@ -54,11 +62,12 @@ void vertex() {
 
 void fragment() {
 	vec2 uv = mix(UV, affine_uv.xy / affine_uv.z, affine);
-	vec4 c = texture(albedo_tex, uv) * tint;
+	float bias = mip_bias + psx_mip_bias;
+	vec4 c = texture(albedo_tex, uv, bias) * tint;
 	if (alpha_cut > 0.0 && c.a < alpha_cut) {
 		discard;
 	}
 	ALBEDO = c.rgb;
 	ROUGHNESS = 1.0;
-	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
+	EMISSION = texture(emission_tex, uv, bias).rgb * emission.rgb * emission_energy;
 }
