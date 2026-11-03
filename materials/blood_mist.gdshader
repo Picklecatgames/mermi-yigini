@@ -6,7 +6,7 @@ shader_type spatial;
 // surface it went near-black in the hall's dark between lamps, so it also glows a little of its own red.
 render_mode blend_mix, depth_draw_never, cull_disabled, skip_vertex_transform, specular_disabled, diffuse_lambert_wrap;
 
-uniform sampler2D atlas : source_color, filter_linear_mipmap, repeat_disable;
+uniform sampler2D atlas : source_color, filter_nearest, repeat_disable;  // PS1 horror: unfiltered, 64 px a frame (the import)
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 instance uniform float frame = 0.0;
 instance uniform float size = 0.5;  // m, the square's side
