@@ -424,7 +424,7 @@ func _audio_page() -> Control:
 
 
 func _video_page() -> Control:
-	var keys := ["preset", "window_mode", "vsync", "fps_limit", "render_scale", "upscaler", "antialias", "shadows", "ssao", "ssil", "ssr", "fog", "glow", "brightness"]
+	var keys := ["preset", "window_mode", "vsync", "fps_limit", "render_scale", "upscaler", "antialias", "shadows", "ssao", "ssil", "ssr", "fog", "glow", "brightness", "psx"]
 	var pl := _scroll_page(keys)
 	var list: VBoxContainer = pl[1]
 	list.add_child(_heading("EKRAN"))
@@ -432,6 +432,7 @@ func _video_page() -> Control:
 	list.add_child(_toggle("vsync", "Dikey senkron (V-Sync)", ""))
 	list.add_child(_choice("fps_limit", "Kare sınırı", ["30", "60", "90", "120", "144", "165", "240", "Sınırsız"], ""))
 	list.add_child(_slider("brightness", "Parlaklık", 50, 150, 5, "%d%%", ""))
+	list.add_child(_choice("psx", "PS1 ekranı", ["Kapalı", "225p", "270p", "360p"], ""))
 	list.add_child(_heading("KALİTE"))
 	list.add_child(_choice("preset", "Hazır ayar", Settings.PRESETS + ["Özel"], "Tek bir ayarı değiştirince Özel olur."))
 	list.add_child(_slider("render_scale", "Çözünürlük ölçeği", 50, 100, 5, "%d%%", ""))

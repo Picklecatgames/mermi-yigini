@@ -13,6 +13,10 @@ extends SceneTree
 ## With psx among the args, the PS1 horror version instead, <name>_psx.scn (2026-11-02, the user:
 ## "close to realistic gore horror", not the flat mobile look): the same fewer triangles and the
 ## rig untouched, but the real texture kept, shrunk to PSX_TEX, unfiltered, on materials/psx.gdshader.
+## The psx path takes the creatures off their own rigs too (GLB: the glb's scene with its skeleton
+## and AnimationPlayer kept, saved as <name>_psx.scn next to it) and the player characters
+## (assets/characters/players/<name>/<name>.scn, PLAYERS).
+##   Godot.exe --headless --path . -s res://tools/lowpoly_zombie.gd -- psx warrok blob boss
 
 const OUT := "res://assets/characters/zombies/%s/%s%s.scn"
 const TRIS := 2500  # per surface, about: the face and hands keep their shape
@@ -24,6 +28,17 @@ const REGIONS := [["Head", "head"], ["Neck", "head"], ["Hand", "hands"], ["Foot"
 		["Toe", "feet"], ["Leg", "legs"], ["Hips", "legs"]]
 
 const PSX_TEX := 256
+## psx: triangles for the whole model, shared out to its surfaces by how many each has (a surface
+## already under its share keeps all of them). Big ones get more, so they don't go blocky up close.
+const PSX_TRIS := 3000
+const PSX_TRIS_OF := {"warrok": 4500, "maw": 4500, "demon": 5000, "bloater": 4000, "spiker": 5000,
+		"blob": 2500, "melty": 2500, "dog": 2500,
+		"boss": 4000, "masked": 4000, "worker": 4000, "brute": 4000, "chupacabra": 4000}
+const GLB := {"blob": "res://assets/characters/zombies/blob/blob.glb",
+		"melty": "res://assets/characters/zombies/melty/melty.glb",
+		"dog": "res://assets/characters/zombies/dog/dog.glb"}
+const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra"]
+const PLAYER_OUT := "res://assets/characters/players/%s/%s%s.scn"
 const PSX_SHADER := preload("res://materials/psx.gdshader")
 
 var _palette: Array[Color] = []
@@ -39,22 +54,35 @@ func _init() -> void:
 
 
 func _psx(model: String) -> bool:
-	var scene: Node3D = load(OUT % [model, model, ""]).instantiate()
+	var out_path: String = OUT if not model in PLAYERS else PLAYER_OUT
+	var scene: Node3D = load(GLB[model] if GLB.has(model) else out_path % [model, model, ""]).instantiate()
+	if GLB.has(model):
+		scene.scene_file_path = ""  # its own scene, not the glb's with overrides
+		out_path = GLB[model].get_base_dir() + "/" + model + "%s.scn"
+	var meshes := scene.find_children("*", "MeshInstance3D", true, false)
+	var total := 0
+	for mi: MeshInstance3D in meshes:
+		for s in mi.mesh.get_surface_count():
+			total += (mi.mesh.surface_get_arrays(s)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+	var budget: int = PSX_TRIS_OF.get(model, PSX_TRIS)
 	var before := 0
 	var after := 0
 	var made := {}
-	for mi: MeshInstance3D in scene.find_children("*", "MeshInstance3D", true, false):
+	for mi: MeshInstance3D in meshes:
 		var src: ArrayMesh = mi.mesh
 		var out := ArrayMesh.new()
 		for s in src.get_surface_count():
 			var arrays := src.surface_get_arrays(s)
 			var format := src.surface_get_format(s)
-			before += (arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
-			arrays[Mesh.ARRAY_INDEX] = _fewer(arrays, format)
+			var tris := (arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+			before += tris
+			arrays[Mesh.ARRAY_INDEX] = _fewer(arrays, format, maxi(int(float(budget) * tris / total), 60))
 			arrays[Mesh.ARRAY_TANGENT] = null  # no normal map
+			for c in [Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM1, Mesh.ARRAY_CUSTOM2, Mesh.ARRAY_CUSTOM3]:
+				arrays[c] = null  # their formats aren't carried over below (boss, brute): nothing reads them
 			after += (arrays[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
 			out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, format & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
-			var std := src.surface_get_material(s) as StandardMaterial3D
+			var std := src.surface_get_material(s) as BaseMaterial3D
 			if not made.has(std):
 				var mat := ShaderMaterial.new()
 				mat.shader = PSX_SHADER
@@ -72,7 +100,7 @@ func _psx(model: String) -> bool:
 		mi.mesh = out
 	var packed := PackedScene.new()
 	packed.pack(scene)
-	var path := OUT % [model, model, "_psx"]
+	var path := (out_path % "_psx") if GLB.has(model) else out_path % [model, model, "_psx"]
 	var err := ResourceSaver.save(packed, path, ResourceSaver.FLAG_COMPRESS)
 	print("%s psx: %d -> %d tris, saved %s err=%d" % [model, before, after, path, err])
 	scene.free()
@@ -96,7 +124,7 @@ func _convert(model: String) -> bool:
 			var arrays := src.surface_get_arrays(s)
 			var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
 			before += idx.size() / 3
-			idx = _fewer(arrays, src.surface_get_format(s))
+			idx = _fewer(arrays, src.surface_get_format(s), TRIS)
 			var flat := _flat(arrays, idx, src.surface_get_material(s), src.surface_get_format(s), part_of)
 			after += (flat[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
 			out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, flat, [], {},
@@ -134,10 +162,10 @@ func _parts(mi: MeshInstance3D, sk: Skeleton3D) -> PackedInt32Array:
 	return out
 
 
-## The LOD nearest TRIS triangles, its indices into the surface's own vertices.
-func _fewer(arrays: Array, format: int) -> PackedInt32Array:
+## The LOD nearest `tris` triangles, its indices into the surface's own vertices.
+func _fewer(arrays: Array, format: int, tris: int) -> PackedInt32Array:
 	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	if idx.size() / 3 <= TRIS:
+	if idx.size() / 3 <= tris:
 		return idx
 	var im := ImporterMesh.new()
 	im.add_surface(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, null, "", format)
@@ -145,7 +173,7 @@ func _fewer(arrays: Array, format: int) -> PackedInt32Array:
 	var best := idx
 	for l in im.get_surface_lod_count(0):
 		var lod := im.get_surface_lod_indices(0, l)
-		if absi(lod.size() / 3 - TRIS) < absi(best.size() / 3 - TRIS):
+		if absi(lod.size() / 3 - tris) < absi(best.size() / 3 - tris):
 			best = lod
 	return best
 

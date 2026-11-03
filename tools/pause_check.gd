@@ -5,7 +5,7 @@ extends SceneTree
 ## Esc opens it and stops a solo game, Esc closes it. On every page, at four screen sizes: every
 ## text fits its box (every option a choice can show, too), no two texts overlap, nothing leaves
 ## the screen, the hover help fits its strip. Then the settings do what they say: buses, mono,
-## night mode, 3D panning, presets, shadows, the camera, a key swap, the file, the reset.
+## night mode, 3D panning, presets, shadows, the PS1 screen, the camera, a key swap, the file, the reset.
 
 const RESOLUTIONS := [Vector2i(1920, 1080), Vector2i(1280, 720), Vector2i(1024, 768), Vector2i(2560, 1080)]
 
@@ -175,6 +175,7 @@ func _check_settings(main: Node) -> void:
 
 	var env: Environment = main.get_node("World/WorldEnvironment").environment
 	var lamps := func() -> int: return main.get_node("World").find_children("*", "Light3D", true, false).filter(func(l: Light3D) -> bool: return not l is DirectionalLight3D and l.shadow_enabled).size()
+	settings.set_value("psx", 0)  # the PS1 screen takes the scale over; the presets alone first
 	settings.set_value("preset", 0)
 	await _frames(2)
 	assert(not env.ssao_enabled and not env.volumetric_fog_enabled and near.call(root.get_viewport().scaling_3d_scale, 0.7), "low preset: effects off, 70 %")
@@ -184,11 +185,29 @@ func _check_settings(main: Node) -> void:
 	assert(env.ssao_enabled and settings.value("preset") == settings.CUSTOM, "one effect on by hand: the preset is Özel")
 	settings.set_value("preset", 2)
 	await _frames(2)
-	assert(env.ssao_enabled and env.volumetric_fog_enabled and env.ssr_enabled and lamps.call() > 0, "high preset: as the hall was built")
+	var built: Dictionary = env.get_meta(&"built")  # the open world has no SSR nor volumetric fog
+	assert(env.ssao_enabled == built.ssao and env.volumetric_fog_enabled == built.fog and env.ssr_enabled == built.ssr and lamps.call() > 0, "high preset: as the world was built")
 	settings.set_value("brightness", 150)
 	await _frames(2)
 	assert(near.call(env.tonemap_exposure, env.get_meta(&"built").exposure * 1.5), "brightness")
 	print("graphics ok: %d lamp shadows on high" % lamps.call())
+
+	var vp := root.get_viewport()
+	var gun_view: SubViewportContainer = main.get_node("Player/ViewmodelView")
+	var gun_vp: SubViewport = gun_view.get_node("SubViewport")
+	settings.set_value("psx", 2)
+	await _frames(2)
+	assert(vp.scaling_3d_mode == Viewport.SCALING_3D_MODE_NEAREST and near.call(vp.scaling_3d_scale * vp.get_visible_rect().size.y, 270.0)
+			and vp.msaa_3d == Viewport.MSAA_DISABLED and vp.screen_space_aa == Viewport.SCREEN_SPACE_AA_DISABLED, "PS1 screen: the 3D 270 px tall, unfiltered, unsmoothed")
+	assert(gun_view.material != null and gun_vp.scaling_3d_mode == Viewport.SCALING_3D_MODE_NEAREST and near.call(gun_vp.scaling_3d_scale, vp.scaling_3d_scale), "PS1 screen: the gun drawn as small")
+	var hud: CanvasLayer = main.get_node("Player/HUD")
+	assert(root.get_node("PsxScreen").layer < 0 and hud.layer > 0 and menu.layer > 0, "PS1 screen: under the HUD and the menu, they stay sharp")
+	settings.set_value("psx", 0)
+	await _frames(2)
+	assert(vp.scaling_3d_mode == Viewport.SCALING_3D_MODE_BILINEAR and near.call(vp.scaling_3d_scale, 1.0) and gun_view.material == null
+			and gun_vp.msaa_3d == Viewport.MSAA_4X, "PS1 screen off: the preset's own again")
+	settings.set_value("psx", 2)
+	print("psx ok")
 
 	menu.close()  # the camera only follows while the game runs
 	settings.set_value("fov", 90)

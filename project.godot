@@ -20,6 +20,7 @@ BeckettRuntime="*uid://do68dqybesb7r"
 GameState="*res://scripts/game_state.gd"
 Net="*res://scripts/net.gd"
 Settings="*res://scripts/settings.gd"
+PsxScreen="*res://scripts/psx_screen.gd"
 
 [beckett]
 
@@ -115,5 +116,6 @@ common/physics_interpolation=true
 
 [rendering]
 
+textures/decals/filter=0
 anti_aliasing/quality/msaa_3d=2
 anti_aliasing/quality/screen_space_aa=1
