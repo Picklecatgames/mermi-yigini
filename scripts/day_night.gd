@@ -12,8 +12,8 @@ extends Node
 ## shapes, colours gone. Each night has its own moon (GameState.moon, the host's pick at dusk; the
 ## user: "dolunay kızıl ay farklı ay çeşitleri, hatta boss günlerinde gece iyice garipleşsin, birkaç
 ## ay olsun yukarıda"): MOONS gives each its discs, its light, and the night's ambient and haze, so
-## under the blood moon the whole night goes red, and a boss night has three moons, a sickly haze
-## and moonlight that wavers. The numbers are first guesses.
+## under the blood moon the whole night goes a dull rust, and a boss night has three moons, a murky
+## haze and moonlight that wavers. The numbers are first guesses.
 ##
 ## N (debug builds) runs the clock on to the next night or morning in GameState.SKIP_TIME, every
 ## machine seeing it go. Check: tools/day_night_check.gd.
@@ -27,22 +27,32 @@ const MOON_FROM := [0.5, 0.85]  # darkness over which the moon rises in, after t
 const MOON_FAR := 300.0  # m off the eye, the discs
 const MOON_SIZE := 0.08  # of MOON_FAR across at size 1: ~4.5 deg, a big moon
 const MOON_PX := 48  # a face's pixels across
-## Per moon (GameState.MOONS, and "boss"): its discs [yaw, pitch (deg), size, tint, phase (1 full)],
-## the first one the light's; the light's colour and energy; the night's ambient colour and energy
-## (of the day's); its haze, which is also the sky's colour at night (moonlit haze: what stands in
-## front of it reads dark against it); how much the light wavers (0 steady).
+## Per moon (GameState.MOONS, and "boss"): its discs [yaw, pitch (deg), size, tint, phase (1 full),
+## and what else its shader takes (materials/moon.gdshader: limb, halo, halo_color, eclipse)], the
+## first one the light's; the light's colour and energy; the night's ambient colour and energy (of
+## the day's); its haze, which is also the sky's colour at night (moonlit haze: what stands in front
+## of it reads dark against it); how much the light wavers (0 steady). The blood moon and the boss
+## night (2026-11-03, the user, of the first ones: "kızılay yeşilay kötü olmuş, daha oturaklı
+## korkutucu gergin bir cinsten yap"): no bright colours. The blood moon is an eclipsed one, dark
+## copper and dim, the night a dull rust; the boss night a huge dim copper moon, a small bone-white
+## one and a black eclipse with a burning rim over a murky brown haze, the light wavering.
 const MOONS := {
-	"full": {"discs": [[75.0, 34.0, 1.0, Color(0.85, 0.9, 1.0), 1.0]], "light": Color(0.62, 0.72, 0.92), "energy": 0.6,
+	"full": {"discs": [[75.0, 34.0, 1.0, Color(0.85, 0.9, 1.0), 1.0, {"halo": 0.18, "halo_color": Color(0.5, 0.56, 0.68)}]],
+		"light": Color(0.62, 0.72, 0.92), "energy": 0.6,
 		"ambient": Color(0.4, 0.48, 0.66), "ambient_energy": 0.3, "fog": Color(0.085, 0.1, 0.13), "waver": 0.0},
-	"pale": {"discs": [[70.0, 24.0, 0.8, Color(0.72, 0.74, 0.76), 1.0]], "light": Color(0.6, 0.63, 0.68), "energy": 0.35,
+	"pale": {"discs": [[70.0, 24.0, 0.8, Color(0.72, 0.74, 0.76), 1.0, {"halo": 0.25, "halo_color": Color(0.4, 0.42, 0.44)}]],
+		"light": Color(0.6, 0.63, 0.68), "energy": 0.35,
 		"ambient": Color(0.38, 0.4, 0.45), "ambient_energy": 0.24, "fog": Color(0.075, 0.078, 0.085), "waver": 0.0},
-	"crescent": {"discs": [[80.0, 40.0, 1.0, Color(0.9, 0.9, 0.85), 0.22]], "light": Color(0.55, 0.62, 0.8), "energy": 0.18,
+	"crescent": {"discs": [[80.0, 40.0, 1.0, Color(0.9, 0.9, 0.85), 0.22, {}]], "light": Color(0.55, 0.62, 0.8), "energy": 0.18,
 		"ambient": Color(0.35, 0.4, 0.56), "ambient_energy": 0.2, "fog": Color(0.045, 0.052, 0.07), "waver": 0.0},
-	"blood": {"discs": [[75.0, 26.0, 1.2, Color(1.0, 0.32, 0.22), 1.0]], "light": Color(0.95, 0.28, 0.18), "energy": 0.55,
-		"ambient": Color(0.6, 0.22, 0.18), "ambient_energy": 0.3, "fog": Color(0.14, 0.035, 0.03), "waver": 0.0},
-	"boss": {"discs": [[75.0, 30.0, 1.35, Color(1.0, 0.3, 0.22), 1.0], [42.0, 38.0, 0.75, Color(0.55, 1.0, 0.6), 0.6],
-			[115.0, 18.0, 0.5, Color(0.75, 0.5, 1.0), 0.35]], "light": Color(0.65, 0.95, 0.55), "energy": 0.5,
-		"ambient": Color(0.5, 0.26, 0.6), "ambient_energy": 0.32, "fog": Color(0.09, 0.13, 0.055), "waver": 0.45},
+	"blood": {"discs": [[75.0, 22.0, 1.6, Color(0.52, 0.17, 0.1), 1.0, {"limb": 0.4, "halo": 0.22, "halo_color": Color(0.3, 0.09, 0.05)}]],
+		"light": Color(0.62, 0.3, 0.22), "energy": 0.45,
+		"ambient": Color(0.42, 0.27, 0.24), "ambient_energy": 0.24, "fog": Color(0.07, 0.035, 0.03), "waver": 0.0},
+	"boss": {"discs": [[75.0, 18.0, 2.5, Color(0.45, 0.16, 0.1), 1.0, {"limb": 0.4, "halo": 0.3, "halo_color": Color(0.25, 0.08, 0.05)}],
+			[44.0, 36.0, 0.55, Color(0.78, 0.74, 0.64), 0.62, {"limb": 0.5}],
+			[112.0, 16.0, 0.8, Color(0.85, 0.42, 0.2), 1.0, {"eclipse": 1.0, "halo": 0.16, "halo_color": Color(0.35, 0.14, 0.06)}]],
+		"light": Color(0.6, 0.48, 0.4), "energy": 0.45,
+		"ambient": Color(0.38, 0.3, 0.3), "ambient_energy": 0.32, "fog": Color(0.055, 0.045, 0.038), "waver": 0.45},
 }
 const WAVER_SPEED := 1.7  # how fast a wavering moon's light comes and goes
 
@@ -159,10 +169,12 @@ func _set_moon(kind: String) -> void:
 		mat.set_shader_parameter(&"face", _face)
 		mat.set_shader_parameter(&"tint", spec[3])
 		mat.set_shader_parameter(&"phase", spec[4])
+		for k: String in spec[5]:
+			mat.set_shader_parameter(StringName(k), spec[5][k])
 		var disc := MeshInstance3D.new()
 		disc.name = "MoonDisc"
 		var quad := QuadMesh.new()
-		quad.size = Vector2.ONE * MOON_FAR * MOON_SIZE * spec[2]
+		quad.size = Vector2.ONE * MOON_FAR * MOON_SIZE * spec[2] / 0.55  # the disc fills 0.55 of it (moon.gdshader DISC)
 		disc.mesh = quad
 		disc.material_override = mat
 		disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
