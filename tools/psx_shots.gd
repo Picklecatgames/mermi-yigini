@@ -12,6 +12,9 @@ extends SceneTree
 ## hand and the HUD over it, by day and at night (the sun out, the sky and the ambient dimmed, until
 ## scripts/day_night.gd), and prints the GPU time of each view. Run once per N (the GPU timer sticks
 ## when a setting changes mid-run, tools/perf_probe.gd): psx_game_<view>_<day|night>_<N>.png.
+## `--tag=T` names them psx_game_T_... instead; `--set=key:value,...` sets other Settings first
+## (psx_fine:false). Each view also takes FRAMES more shots, _f1.., the eye sliding sideways a
+## little each: side by side they show what shimmers and crawls when the camera moves.
 
 const ZOMBIES := ["prisoner", "copzombie", "zombiegirl"]
 const SCREEN := Vector2i(480, 270)  # 2026-11-03: the default "PS1 ekranı", 270p
@@ -33,7 +36,11 @@ const GAME_VIEWS := {  # eye, looking at
 	"yard": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],
 	"desert": [Vector3(18.0, 1.7, 4.0), Vector3(80.0, 2.0, 40.0)],
 	"bench": [Vector3(8.6, 1.7, -3.6), Vector3(2.5, 1.1, 1.5)],
+	"wall": [Vector3(5.5, 1.7, 1.0), Vector3(3.0, 1.8, -4.0)],  # the corrugated sheet inside
+	"forest": [Vector3(30.0, 1.7, 8.0), Vector3(90.0, 3.0, 25.0)],
 }
+const FRAMES := 3
+const SLIDE := 0.025  # m sideways per frame
 
 
 func _initialize() -> void:
@@ -175,9 +182,16 @@ func _shot(cam: Camera3D, from: Vector3, to: Vector3, name: String, ps1: bool) -
 
 func _game() -> void:
 	var psx := 2
+	var tag := ""
+	var more := {}
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--psx="):
 			psx = a.trim_prefix("--psx=").to_int()
+		elif a.begins_with("--tag="):
+			tag = a.trim_prefix("--tag=") + "_"
+		elif a.begins_with("--set="):
+			for kv in a.trim_prefix("--set=").split(","):
+				more[kv.get_slice(":", 0)] = str_to_var(kv.get_slice(":", 1))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	var settings: Node = root.get_node("Settings")
 	var main: Node = load("res://scenes/main.tscn").instantiate()
@@ -185,6 +199,8 @@ func _game() -> void:
 	await _frames(5)
 	settings.save_path = "user://settings_shots.cfg"  # never the developer's own
 	settings.set_value("psx", psx)
+	for k: String in more:
+		settings.set_value(k, more[k])
 	root.get_node("GameState").request_pick_character("worker")
 	var player: Node3D = main.get_node("Player")
 	var vp := root.get_viewport_rid()
@@ -205,9 +221,15 @@ func _game() -> void:
 			for f in 60:
 				await process_frame
 				gpu += RenderingServer.viewport_get_measured_render_time_gpu(vp)
-			var file := "user://psx_game_%s_%s_%d.png" % [v, "night" if night else "day", psx]
+			var file := "user://psx_game_%s%s_%s_%d.png" % [tag, v, "night" if night else "day", psx]
 			root.get_viewport().get_texture().get_image().save_png(file)
 			print("%-7s %-5s psx %d  gpu %.2f ms  %s" % [v, "night" if night else "day", psx, gpu / 60.0, ProjectSettings.globalize_path(file)])
+			var side := d.cross(Vector3.UP).normalized() * SLIDE
+			for k in range(1, FRAMES):
+				player.global_position = eye - Vector3.UP * 1.6 + side * k
+				player.velocity = Vector3.ZERO
+				await _frames(3)
+				root.get_viewport().get_texture().get_image().save_png(file.trim_suffix(".png") + "_f%d.png" % k)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.save_path))
 
 

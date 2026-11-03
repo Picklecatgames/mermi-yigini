@@ -8,6 +8,6 @@ render_mode unshaded;
 
 void fragment() {
 	vec2 px = floor(UV * psx_size);
-	vec4 c = texture(TEXTURE, (px + 0.5) / psx_size);
+	vec4 c = psx_mean(TEXTURE, px);
 	COLOR = vec4(psx_colour(c.rgb, px), c.a);
 }

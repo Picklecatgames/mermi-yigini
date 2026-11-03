@@ -45,7 +45,7 @@ const DEFAULTS := {
 	"preset": 2, "window_mode": 0, "vsync": true, "fps_limit": 7,
 	"render_scale": 100, "upscaler": 0, "antialias": 4, "shadows": 2,
 	"ssao": true, "ssil": true, "ssr": true, "fog": true, "glow": true, "brightness": 100,
-	"psx": 2,
+	"psx": 2, "psx_fine": true,
 	# controls
 	"sensitivity": 1.0, "ads_sensitivity": 100, "invert_y": false,
 	# game
@@ -395,7 +395,7 @@ func apply_graphics() -> void:
 			continue
 		_remember_built(light)
 		light.shadow_enabled = light.get_meta(&"built_shadow") and values.shadows > 0  # low: the moon alone
-	PsxScreen.apply(PSX_LINES[values.psx])  # on, it draws the 3D small itself: scale, upscaler and smoothing step aside
+	PsxScreen.apply(PSX_LINES[values.psx], values.psx_fine)  # on, it draws the 3D small itself: scale, upscaler and smoothing step aside
 	var envs: Array[Environment] = []
 	for w: WorldEnvironment in root.find_children("*", "WorldEnvironment", true, false):
 		if w.environment:
