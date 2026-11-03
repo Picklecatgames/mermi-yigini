@@ -51,7 +51,7 @@ const PISTOL_HAMMER := Basis(Vector3.LEFT, deg_to_rad(64.4))
 ## Scorpion lighter per round, faster, and the more it fires the more it wanders sideways.
 ## paint lifts the gun's colour map: the SMGs' are near black (linear 0.02-0.04, the Deagle's ~0.1)
 ## and in the hall they drew as a flat silhouette with none of the map's wear and parts showing.
-## Kept low: at 2.5-4 the dark steel washed out into flat grey plastic.
+## Kept low: at 2.5-4 the dark steel washed out into flat grey plastic. (The PS1 material's tint.)
 ## shot: the gun's own shot sound in place of ShotSound's; cues: sounds at those seconds into a
 ## clip, read off where its magazine and slide move (out, into the well, seated, slide home).
 ## shake: the camera's jolt per round (player.gd, the settings can turn it down); rise: how much
@@ -121,9 +121,6 @@ const CLIP_BLEND := 0.08  # s
 ## How far a finger's joints bend at most (rad: knuckle, middle, tip), and a thumb's tip; SETS curl.
 const CURL_MAX := [1.57, 1.9, 1.4]
 const THUMB_TIP_MAX := 0.6
-## The guns' roughness maps are made for a lit studio; in the dark hall the lamp streaks spread into a
-## dull sheen. A share of it sharpens them into the glints of oiled steel.
-const GUN_ROUGHNESS := 0.7
 const RUN_SPEED := 6.5  # m/s; faster plays Run instead of Walk
 ## Recoil is a spring on the whole rig: a shot gives it a kick of speed, it flies up and back and
 ## swings home on its own momentum with one small dip, so the kick and the return are one motion.
@@ -360,10 +357,9 @@ func _ready() -> void:
 			var node := _skel.get_node(NodePath(each.mesh))
 			for mi: MeshInstance3D in ([node] if node is MeshInstance3D else node.find_children("*", "MeshInstance3D", true, false)):
 				for i in mi.mesh.get_surface_count():
-					var steel := mi.mesh.surface_get_material(i).duplicate() as StandardMaterial3D
-					steel.roughness *= GUN_ROUGHNESS
+					var steel := mi.mesh.surface_get_material(i).duplicate() as ShaderMaterial  # tools/psx_import.gd
 					var k: float = each.get("paint", 1.0)
-					steel.albedo_color = Color(k, k, k)
+					steel.set_shader_parameter("tint", Color(k, k, k))
 					mi.set_surface_override_material(i, steel)
 	if Wishlist.golden():
 		gild()

@@ -13,6 +13,7 @@ const LENS := Vector3(0, -0.032, 0.1)  # where the beam leaves (player.gd draws 
 ## The laser has no textures of its own: black polymer, its two side switches red.
 const LASER_BODY := Color(0.035, 0.035, 0.038)
 const SWITCHES := ["Solid_9", "Solid_5018"]
+const PSX := preload("res://materials/psx.gdshader")
 
 
 static func make(id: String) -> Node3D:
@@ -25,18 +26,19 @@ static func make(id: String) -> Node3D:
 	return n
 
 
-static func _laser_body() -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = LASER_BODY
-	m.roughness = 0.55
-	m.metallic = 0.1
+## The PS1 look as the guns have it (tools/psx_import.gd): lit per vertex, no texture to keep.
+static func _laser_body() -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = PSX
+	m.set_shader_parameter("tint", LASER_BODY)
 	return m
 
 
 static func _switch() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = Color(0.02, 0.0, 0.0)
-	m.roughness = 0.08
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+	m.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	m.emission_enabled = true
 	m.emission = Color(1.0, 0.1, 0.05)
 	m.emission_energy_multiplier = 0.5
