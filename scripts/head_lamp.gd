@@ -2,30 +2,47 @@ extends SpotLight3D
 ## A head lamp (2026-11-03, the user: "Yes, a head lamp", after the PS1 critic found the open
 ## desert at night unplayable in the dark): a warm, narrow beam from the eyes where the head looks,
 ## every player's, the remote ones' too. It lights itself when the world's sun goes down and goes
-## out at dawn, easing; the day and night cycle (to come) needs to do nothing for it. Each machine
-## decides it alike from its own sun, so there is nothing to sync.
-## player.gd hangs it on its camera; remote_players.gd places the others' at their eyes each frame.
+## out at dawn, easing; the day and night cycle (scripts/day_night.gd) needs to do nothing for it.
+## Each machine decides it alike from its own sun, so there is nothing to sync.
+## player.gd and remote_players.gd place it at the eyes each frame (follow): it lags the head a
+## little, a lamp strapped on, not a camera's vignette (2026-11-03, the PS1 critic). An old bulb
+## behind a dented reflector: yellowish, a hard edge with a brighter ring, a blotchy middle
+## (PATTERN). The local player's hands and gun take its light from player.gd (_lamp_hands).
 
 const ENERGY := 6.0
 const EASE := 1.5  # 1/s
 const DUSK := 0.3  # the sun under this share of its daytime energy: night
+const LAG := 14.0  # 1/s: how fast the beam catches up with the head
 
-var lit := 0.0  # 0 off .. 1 on, eased; player.gd lights the hands from it
+var lit := 0.0  # 0 off .. 1 on, eased
 var _sun: DirectionalLight3D
 var _day := 0.0
 var _look_again := 0.0  # s till the next search for a sun: a scene with none (the checks) must not search the tree every frame
+var _placed := false
 
 
 func _init() -> void:
-	light_color = Color(1.0, 0.92, 0.78)  # an old bulb, warm
+	light_color = Color(1.0, 0.88, 0.66)
 	spot_range = 22.0
-	spot_angle = 28.0
-	spot_angle_attenuation = 0.6
+	spot_angle = 22.0
+	spot_angle_attenuation = 0.35  # a hard edge
 	spot_attenuation = 0.7  # reaches ~15 m before it fades
+	light_projector = _pattern()
 	shadow_enabled = true
 	light_volumetric_fog_energy = 0.0
 	light_energy = 0.0
 	visible = false
+	top_level = true
+
+
+## At the eyes `eye`, the beam a little behind where they turn.
+func follow(eye: Transform3D, delta: float) -> void:
+	if not _placed:
+		global_transform = eye
+		_placed = true
+		return
+	var b := global_basis.orthonormalized().slerp(eye.basis.orthonormalized(), 1.0 - exp(-LAG * delta))
+	global_transform = Transform3D(b, eye.origin)
 
 
 func _process(delta: float) -> void:
@@ -49,3 +66,19 @@ func _find_sun() -> void:
 	_sun = world.get_node_or_null(^"Sun") as DirectionalLight3D if world else null
 	if _sun:
 		_day = _sun.light_energy
+
+
+## The beam's pattern: a blotchy middle, a brighter ring near the edge, nothing past it. 64 px.
+static func _pattern() -> Texture2D:
+	var img := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	var noise := FastNoiseLite.new()
+	noise.seed = 5
+	noise.frequency = 0.09
+	for y in 64:
+		for x in 64:
+			var r := Vector2(x - 31.5, y - 31.5).length() / 31.5
+			var v := 0.72 + 0.28 * (noise.get_noise_2d(x, y) * 0.5 + 0.5)
+			v = maxf(v, smoothstep(0.78, 0.88, r) * (1.0 - smoothstep(0.9, 0.97, r)) * 1.0)
+			v *= 1.0 - smoothstep(0.95, 1.0, r)
+			img.set_pixel(x, y, Color(v, v, v))
+	return ImageTexture.create_from_image(img)

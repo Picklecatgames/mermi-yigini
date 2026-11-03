@@ -34,7 +34,7 @@ const BENCH_SCALE := 1.2  # as it stood in the hall (range_dressing.gd _workshop
 const DESK_AT := Vector3(8.2, 0, 0.0)  # the pistol's crate, right in front of the spawns
 
 const SPAWNS_WORLD: Array[Vector3] = [Vector3(9.3, 0, -0.8), Vector3(9.3, 0, 0.8), Vector3(9.3, 0, -2.4), Vector3(9.3, 0, 2.4)]
-const SUN_ANGLE := Vector3(-48.0, -125.0, 0.0)  # deg: afternoon, from behind the workshop's left
+const SUN_ANGLE := Vector3(-26.0, -125.0, 0.0)  # deg: late afternoon, from behind the workshop's left; low (2026-11-03, the PS1 critic: the day was flat, no shadow read): one long, clear shadow direction
 const SKY_TURN := 0.0  # deg: the HDRI turned so its bright side is where the sun stands
 
 
@@ -75,7 +75,7 @@ func _sky() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 1.0
-	env.ambient_light_energy = 1.0  # overcast: more of the light comes from all round
+	env.ambient_light_energy = 0.75  # overcast, but corners and the shade under trees stay dark
 	env.sky_rotation = Vector3(0, deg_to_rad(SKY_TURN), 0)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
@@ -109,7 +109,7 @@ func _sky() -> void:
 	sun.name = "Sun"
 	sun.rotation_degrees = SUN_ANGLE
 	sun.light_color = Color(0.96, 0.89, 0.78)
-	sun.light_energy = 1.0  # through the overcast
+	sun.light_energy = 1.15  # through the overcast; a little over the ambient, so the shadows read
 	sun.shadow_enabled = true
 	# Short and coarse, PS1 taste (2026-11-03, the user: the lighting PS1-fit): past 50 m the fog
 	# has it all anyway, and the shadow map spent on 50 m draws the near shadows hard and clean.

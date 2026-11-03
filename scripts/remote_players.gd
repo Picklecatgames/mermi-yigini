@@ -863,9 +863,8 @@ class Character extends Node3D:
 		_turn_head(wrapf(_look_yaw - _body_yaw, -PI, PI), _look_pitch - _pitch)
 		if _lamp == null:
 			_lamp = preload("res://scripts/head_lamp.gd").new()
-			_lamp.top_level = true
 			add_child(_lamp)
-		_lamp.global_transform = eye_transform().translated_local(Vector3(0.0, 0.08, -0.15))  # on the brow, ahead of the face
+		_lamp.call(&"follow", eye_transform().translated_local(Vector3(0.0, 0.08, -0.15)), delta)  # on the brow, ahead of the face
 		if _flash:
 			_flash.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 			_flash_left -= delta
