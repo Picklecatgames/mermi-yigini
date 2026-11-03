@@ -66,7 +66,9 @@ func _host() -> void:
 	if not _ok(absf(took - gs.SKIP_TIME) < 0.5, "N took %.2f s (SKIP_TIME %.1f)" % [took, gs.SKIP_TIME]): return
 	if not _ok(absf(gs.hour - gs.SKIP_TO[false]) < 0.01 and gs.night_of(gs.hour) == 1.0, "it ends at %.0f, full night" % gs.SKIP_TO[false]): return
 	await process_frame
-	if not _ok(not sun.visible and env.background_energy_multiplier < built[2] * 0.05 and env.ambient_light_energy < built[3] * 0.2, "at night the sun is out, the sky and its light nearly gone"): return
+	if not _ok(not sun.visible and env.background_energy_multiplier < built[2] * 0.05 and env.ambient_light_energy < built[3] * 0.35, "at night the sun is out, the sky and its light nearly gone"): return
+	var moon: DirectionalLight3D = main.get_node("World/Moon")
+	if not _ok(moon.visible and moon.light_energy > 0.3 and moon.shadow_enabled and dn._disc.visible, "the full moon is up, its light casting shadows"): return
 	var mids := 0
 	var worst := 0.0
 	for i in range(1, samples.size()):
@@ -89,6 +91,7 @@ func _host() -> void:
 	if not _ok(sun.visible and sun.rotation_degrees.is_equal_approx(built[0]) and is_equal_approx(sun.light_energy, built[1])
 			and is_equal_approx(env.background_energy_multiplier, built[2]) and is_equal_approx(env.ambient_light_energy, built[3])
 			and env.fog_light_color.is_equal_approx(built[4]), "the morning is the day as built"): return
+	if not _ok(not moon.visible and not dn._disc.visible, "the moon down by day"): return
 	# Every type from the menu.
 	var me: Node3D = main.get_node("Player")
 	me.global_position = STAND

@@ -3,11 +3,15 @@ extends SceneTree
 ## (scripts/spawn_menu.gd), as the player sees them, the PS1 screen on, as PNGs:
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1600x900 -s res://tools/day_night_shots.gd
 ## user://daynight_<n>_<hour>.png along the run to night, then user://summon_<day|night>.png: a mix of
-## types called up in front of the player, a moment after they come up.
+## types called up in front of the player, a moment after they come up; user://night_far.png: from
+## FAR_EYE, the workshop and the heap behind it ~30 m off, a few of the dead ~20 m off;
+## user://night_moon.png: up at the moon.
 
 const EYE := Vector3(17.0, 1.7, 4.0)  # psx_shots.gd's "yard" view
 const LOOK := Vector3(5.0, 1.4, -0.5)
 const AT := [0.8, 1.6, 2.4, 3.2, 4.0, 5.2]  # s into N's run to night
+const FAR_EYE := Vector3(36.0, 1.7, 8.0)
+const FAR_LOOK := Vector3(2.0, 3.0, -2.0)
 const SUMMON := [["walker", 1], ["brute", 1], ["dog", 2], ["runner", 2], ["spiker", 1]]
 
 
@@ -32,6 +36,7 @@ func _initialize() -> void:
 			await process_frame
 		_save("daynight_%d_%02d%02d" % [i + 1, int(gs.hour), int(fmod(gs.hour, 1.0) * 60.0)])
 	await _summon(gs, player, "night")
+	await _far(gs, player)
 	gs.request_skip_time()
 	while gs.hour_rate > 24.0 / gs.DAY_SECONDS * 1.01:
 		await process_frame
@@ -57,6 +62,22 @@ func _summon(gs: Node, player: Node3D, tag: String) -> void:
 		side += 1
 	await _frames(25)
 	_save("summon_" + tag)
+
+
+func _far(gs: Node, player: Node3D) -> void:
+	_stand(player, FAR_EYE, FAR_LOOK)
+	await _frames(5)
+	var ahead := (FAR_LOOK - FAR_EYE).normalized()
+	ahead.y = 0.0
+	for i in 3:  # called up 14 m out, they come up 6 m further: ~20 m
+		var at := player.global_position + ahead.normalized() * 14.0 + Vector3(0.0, 0.0, (i - 1) * 3.0)
+		gs.request_debug_spawn(["walker", "brute", "runner"][i], at, float(player.get(&"_yaw")), 1)
+	await _frames(20)
+	_save("night_far")
+	var moon: Node3D = player.get_parent().get_node("World/Moon")  # and the moon itself, over the desert
+	_stand(player, FAR_EYE, FAR_EYE + moon.global_basis.z * 10.0 + Vector3.DOWN * 3.0)
+	await _frames(5)
+	_save("night_moon")
 
 
 func _stand(player: Node3D, eye: Vector3, look: Vector3) -> void:
