@@ -136,6 +136,7 @@ var _vm_env: Environment
 var _vm_lights: Array[DirectionalLight3D] = []  # the gun's own key and rim
 var _vm_suns: Array[DirectionalLight3D] = []  # the world's suns, which the gun's light follows
 var _vm_day := Vector2.ONE  # the suns' energy and the world's ambient as built, by day
+var _lamp := preload("res://scripts/head_lamp.gd").new()  # at night, from the eyes
 var _hip_fov := 75.0
 var _zoom := 1.0
 var _pose_timer := 0.0
@@ -234,6 +235,9 @@ func _ready() -> void:
 	_make_laser_dot()
 	_table_hint = _crosshair_hint(UiStyle.hint("E", "Tabancayı al"))
 	_setup_viewmodel_world()
+	_lamp.position = Vector3(0.0, 0.08, 0.0)  # on the brow
+	_lamp.light_cull_mask = 1  # the world; the hands get their share through _vm_follow_light
+	_camera.add_child(_lamp)
 	_viewmodel.setup(self)
 	_viewmodel.kicked.connect(func(a: float, yaw: float) -> void:
 		_climb += a * KICK_CLIMB
@@ -467,6 +471,7 @@ func _sun_energy() -> float:
 func _vm_follow_light() -> void:
 	var env := get_world_3d().environment
 	var sun := clampf(_sun_energy() / _vm_day.x, 0.0, 1.0) if _vm_day.x > 0.0 else 1.0
+	sun = maxf(sun, _lamp.lit * 0.3)  # the head lamp's spill on the hands just under it
 	var sky := clampf(env.ambient_light_energy / _vm_day.y, 0.0, 1.0) if env != null and _vm_day.y > 0.0 else 1.0
 	for l in _vm_lights:
 		l.light_energy = float(l.get_meta(&"day")) * sun
