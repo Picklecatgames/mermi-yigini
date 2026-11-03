@@ -48,12 +48,15 @@ func _initialize() -> void:
 	quit()
 
 
-## Open sky over a desert: a hot hazy blue going dusty at the horizon, the sun and a sandy fog that
-## swallows the far dunes. The day-night cycle (scripts/day_night.gd, coming) takes these over.
+## The default day (2026-11-03, the user on the PS1 critic's notes: not a holiday sky): choked,
+## dusty and pale under overcast, and a short, hard PS1 fog wall that swallows the far ground,
+## half gone by ~35 m, all dust by 75 m. The day-night cycle (scripts/day_night.gd, coming) takes
+## these over; its night: tools/psx_shots.gd `_night`.
 func _sky() -> void:
-	# Poly Haven's Kloofendal pure sky (CC0): a real midday sky with broken cloud, nothing below.
+	# Poly Haven's Kloofendal Overcast pure sky (CC0), 1k and unfiltered: its big pixels are the PS1's.
 	var sky_mat := PanoramaSkyMaterial.new()
-	sky_mat.panorama = load("res://assets/env/hdri/kloofendal_48d_partly_cloudy_puresky_4k.hdr")
+	sky_mat.panorama = load("res://assets/env/hdri/kloofendal_overcast_puresky_1k.hdr")
+	sky_mat.filter = false
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
@@ -62,7 +65,7 @@ func _sky() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 1.0
-	env.ambient_light_energy = 0.8
+	env.ambient_light_energy = 1.0  # overcast: more of the light comes from all round
 	env.sky_rotation = Vector3(0, deg_to_rad(SKY_TURN), 0)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
@@ -76,15 +79,18 @@ func _sky() -> void:
 	env.glow_intensity = 0.4
 	env.glow_bloom = 0.03
 	env.glow_hdr_threshold = 1.6
-	env.fog_enabled = true  # dust hanging over the desert: the far dunes fade into it
-	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
-	env.fog_light_color = Color(0.8, 0.74, 0.66)
-	env.fog_density = 0.0035
-	env.fog_sky_affect = 0.25
-	env.fog_aerial_perspective = 0.4
+	env.fog_enabled = true  # dust hanging over the desert: the far ground goes into it
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = Color(0.66, 0.56, 0.42)  # warm sandy dust, yellower than the sky
+	env.fog_density = 1.0  # depth fog: all the way to the colour at fog_depth_end
+	env.fog_depth_begin = 12.0
+	env.fog_depth_end = 75.0
+	env.fog_depth_curve = 0.6  # under 1 it thickens early: half way in at ~35 m
+	env.fog_sky_affect = 0.6  # the sky goes dusty too, the horizon one with the ground
+	env.fog_aerial_perspective = 0.0  # its colour from the dust, not the sky
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 1.08
+	env.adjustment_saturation = 0.75
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
@@ -92,12 +98,12 @@ func _sky() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = SUN_ANGLE
-	sun.light_color = Color(1.0, 0.9, 0.76)
-	sun.light_energy = 1.6
+	sun.light_color = Color(0.96, 0.89, 0.78)
+	sun.light_energy = 1.0  # through the overcast
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	sun.directional_shadow_max_distance = 120.0
-	sun.light_angular_distance = 0.5
+	sun.light_angular_distance = 3.0  # soft-edged shadows
 	add(sun)
 
 

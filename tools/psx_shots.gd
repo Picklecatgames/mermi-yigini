@@ -194,7 +194,7 @@ func _game() -> void:
 			for kv in a.trim_prefix("--set=").split(","):
 				more[kv.get_slice(":", 0)] = str_to_var(kv.get_slice(":", 1))
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-	await process_frame  # the autoloads join the tree after _initialize: Atmosphere must see the world come in
+	await process_frame  # the autoloads join the tree after _initialize, and their _ready after that
 	var settings: Node = root.get_node("Settings")
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
@@ -235,9 +235,24 @@ func _game() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.save_path))
 
 
-## Night: scripts/atmosphere.gd's.
+## Night, roughly, until the day-night cycle (2026-11-03, the PS1 critic: at full black the workshop
+## 10 m off was gone, and the hands): the sun out, the sky and the light it bounces nearly gone; a
+## deep blue-grey haze that what stands in it is a silhouette against, a little moonlight all round.
+## The workshop's lamps and the barrel fire are the light.
 func _night(main: Node) -> void:
-	root.get_node("Atmosphere").call(&"night", main)
+	var sun: DirectionalLight3D = main.get_node("World/Sun")
+	sun.visible = false
+	var env: Environment = main.get_node("World/WorldEnvironment").environment
+	env.background_energy_multiplier = 0.02
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.35, 0.42, 0.6)
+	env.ambient_light_energy = 0.16
+	env.ambient_light_sky_contribution = 0.0
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	env.fog_light_color = Color(0.07, 0.08, 0.1)
+	env.fog_sky_affect = 1.0
+	env.volumetric_fog_albedo = Color(0.05, 0.05, 0.06)
+	main.get_node("Ambience").set(&"night", true)
 
 
 func _frames(n: int) -> void:
