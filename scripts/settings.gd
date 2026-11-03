@@ -32,6 +32,7 @@ const SHADOW_ATLAS := [1024, 2048, 4096, 8192]  # px, per shadow level
 const SOFT_SHADOWS := [RenderingServer.SHADOW_QUALITY_HARD, RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM, RenderingServer.SHADOW_QUALITY_SOFT_HIGH]
 const SPEAKER_PAN := 0.6  # 3D panning on speakers: both ears hear both speakers anyway
 const PAUSE_MUFFLE_HZ := 900.0
+const CEILING_DB := -1.0  # the always-on limiter last on Master: a horde never clips the output
 const PSX_LINES := [0, 225, 270, 360, 480, 720]  # "PS1 ekranı": off, then how tall the 3D is drawn (scripts/psx_screen.gd)
 ## 480 by default (2026-11-03, the user: "oyun pixelart oldu, ben lowpoly PS1 tarzı istemiştim"): at
 ## 270 the screen's big pixels read as pixel art; low poly, unfiltered textures and the dither stay.
@@ -288,7 +289,8 @@ func _make_buses() -> void:
 	if vm and vm.can_instantiate():  # not when a check loads us before the autoloads it needs
 		var gun_bus: StringName = vm.gun_bus()
 		AudioServer.set_bus_send(AudioServer.get_bus_index(gun_bus), &"Silahlar")  # our own gun, panned right
-	# Master's own: night mode, mono, the pause muffle; switched in _apply_audio.
+	# Master's own: night mode, mono, the pause muffle; switched in _apply_audio. Last the limiter,
+	# always on.
 	var comp := AudioEffectCompressor.new()
 	comp.attack_us = 2000.0
 	comp.release_ms = 250.0
@@ -297,7 +299,9 @@ func _make_buses() -> void:
 	mono.pan_pullout = 0.0  # both sides summed into the middle
 	var muffle := AudioEffectLowPassFilter.new()
 	muffle.cutoff_hz = PAUSE_MUFFLE_HZ
-	for e in [comp, mono, muffle]:
+	var limit := AudioEffectHardLimiter.new()
+	limit.ceiling_db = CEILING_DB
+	for e in [comp, mono, muffle, limit]:
 		AudioServer.add_bus_effect(0, e)
 
 

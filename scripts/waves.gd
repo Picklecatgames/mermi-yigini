@@ -58,6 +58,8 @@ const FENCE := preload("res://scripts/fence.gd")
 const REACT := preload("res://scripts/zombie_hit_react.gd")
 const VOICE := preload("res://scripts/zombie_voice.gd")
 const SOUNDS := "res://assets/sounds/waves/"
+const SOUND_UNIT := 6.0  # m: lever, siren and gates at full level up to here (_sound)
+const SOUND_RANGE := 60.0  # m, silent past it
 const LEVER_TIME := 0.6  # s from the pull to the siren and the lights
 const GATES_AT := 1.2  # s after the pull the gates start to slide
 const GATE_TIME := 2.5  # s to slide open (or shut)
@@ -422,7 +424,6 @@ func _ready() -> void:
 	# The host is gone: its timers and hit points went with it, so the wave starts over here.
 	multiplayer.server_disconnected.connect(func() -> void: _reset())
 	_sign()
-	_pen_cries()
 
 
 ## The local player at `at` may pull the lever now (player.gd shows the hint, E pulls it).
@@ -1901,15 +1902,6 @@ func _kill(id: int, gib: StringName, weak := false, roll := 0, dir := Vector3.ZE
 		_zombies.erase(id)
 
 
-## While the gates are shut, now and then one of them screams somewhere behind them (each machine
-## its own, only a sound).
-func _pen_cries() -> void:
-	while is_inside_tree():
-		await get_tree().create_timer(randf_range(2.0, 5.0)).timeout
-		if not _gates_open and not _spawns.is_empty():
-			VOICE.distant(_spawns.pick_random().global_position + Vector3.UP * 1.5)
-
-
 ## The mechanical sign over the lever: the wave's number on flip plates, the state under it.
 func _sign() -> void:
 	if _status:
@@ -2162,6 +2154,9 @@ func _sound(slot: StringName, at: Node3D) -> void:
 		return
 	var p := AudioStreamPlayer3D.new()
 	p.stream = stream
+	p.bus = Ps1Sound.bus_of("dunya")  # PsAcik: the open land's echo
+	p.unit_size = SOUND_UNIT
+	p.max_distance = SOUND_RANGE
 	at.add_child(p)
 	p.play()
 	p.finished.connect(p.queue_free)

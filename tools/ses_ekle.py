@@ -10,14 +10,16 @@ user gave, it never makes a sound.
 What it does, in order:
   1. repair: clicks out (adeclick), clipped peaks rebuilt (adeclip), DC and rumble off (high-pass)
   2. --bol: split at silences into separate takes (each one a variant: name_01, name_02, ...);
-     otherwise the leading and trailing silence is cut
+     otherwise the leading and trailing silence is cut. --parca N: each take cut again into N
+     phrases at its quietest moments (a growl that never goes silent)
   3. --vurus S: the hit (first transient) lands S seconds into the file, so a sound started on an
      animation's frame lands on it; --sure S: stretched (0.8x-1.25x, pitch kept) to S seconds
   4. mono, or a narrow stereo for beds; beds get their seam closed with a crossfade (seamless loop)
   5. PS1 colour: down to the kind's sample rate (22.05 kHz, guns 32 kHz, music 37.8 kHz like the
      PS1's XA streams; --kaba: 11.025 kHz), the kind's low-pass if it has one, and a light 12-bit
      crush (none for music); short fades in and out
-  6. level: to the kind's LUFS (clips under a second: to its peak), peaks held under -1 dBFS
+  6. level: to the kind's LUFS (clips under a second: to its peak, unless --hep-lufs), peaks held
+     under -1 dBFS
   7. written as ogg into the kind's folder, numbered after what is already there; a line for the
      asset list in docs/ayrintilar.md is printed (fill in the source and licence)
 Needs ffmpeg on PATH.
@@ -33,6 +35,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TABLE = json.loads((ROOT / "data" / "ses_duzeni.json").read_text(encoding="utf-8"))
 MIN_TAKE = 0.12  # s: anything shorter after a split is a click, not a take
+ENV_RATE = 8000  # Hz the level is read at (--parca)
+ENV_STEP = 0.05  # s per level reading
+CUT_REACH = 0.3  # a --parca cut may move this share of a phrase off the even point, to a dip
+CUT_FADE = 0.03  # s of fade-in on a phrase cut from the middle of a sound (a hard start clicks)
 
 
 def ff(*args, capture=False):
@@ -75,6 +81,28 @@ def takes(path, gap, floor):
     return [(max(a - pad, 0.0), min(b + pad, total)) for a, b in edges if b - a >= MIN_TAKE]
 
 
+def envelope(path, start, end):
+    """[(seconds, RMS dB)] every ENV_STEP between start and end."""
+    out = ff("-ss", str(start), "-to", str(end), "-i", str(path), "-af",
+             f"aresample={ENV_RATE},asetnsamples=n={int(ENV_RATE * ENV_STEP)}:p=0,astats=metadata=1:reset=1,"
+             "ametadata=print:key=lavfi.astats.Overall.RMS_level", "-f", "null", "-", capture=True)
+    levels = [float(x) if "inf" not in x else -120.0 for x in re.findall(r"RMS_level=(-?[\d.inf]+)", out)]
+    return [(start + i * ENV_STEP, v) for i, v in enumerate(levels)]
+
+
+def pieces(path, span, n):
+    """A take with no silence in it (a long growl) cut into n phrases, each cut at the quietest
+    moment near where an even cut would fall, so a phrase ends on a breath, not mid-roar."""
+    s, e = span
+    env = envelope(path, s, e)
+    cuts = [s]
+    for k in range(1, n):
+        even = s + (e - s) * k / n
+        near = [(v, t) for t, v in env if abs(t - even) <= (e - s) / n * CUT_REACH and t - cuts[-1] >= MIN_TAKE]
+        cuts.append(min(near)[1] if near else even)
+    return list(zip(cuts, cuts[1:] + [e]))
+
+
 def onset(path, floor):
     """Seconds to the first moment above floor dB (the hit)."""
     out = ff("-i", str(path), "-af", f"silencedetect=n={floor}dB:d=0.005", "-f", "null", "-", capture=True)
@@ -97,10 +125,12 @@ def main():
     ap.add_argument("--sessizlik", type=float, default=0.25, help="s of silence that splits (--bol)")
     ap.add_argument("--esik", type=float, default=-45.0, help="dB under which it counts as silence")
     ap.add_argument("--en-cok", type=int, default=8, help="keep at most this many variants (the loudest)")
+    ap.add_argument("--parca", type=int, default=1, help="cut each take into this many phrases, at its dips (a long growl with no silence)")
     ap.add_argument("--bas", type=float, default=0.0, help="use the recording from this second")
     ap.add_argument("--son", type=float, default=0.0, help="... up to this second (0: the end)")
     ap.add_argument("--vurus", type=float, default=None, help="s: put the hit this far into the file")
     ap.add_argument("--sure", type=float, default=None, help="s: stretch each take to this length")
+    ap.add_argument("--hep-lufs", action="store_true", help="level short takes by LUFS too, not by peak (voice phrases: a bank stays even)")
     ap.add_argument("--kaba", action="store_true", help="11.025 kHz: rougher, for far or radio sounds")
     ap.add_argument("--ham", action="store_true", help="no 12-bit crush (keeps the rate drop)")
     ap.add_argument("--capraz", type=float, default=3.0, help="s of crossfade closing a bed's loop")
@@ -140,6 +170,15 @@ def main():
         spans = [(found[0][0], found[-1][1])] if found else []
     if not spans:
         sys.exit("nothing above the silence threshold; try a lower --esik")
+    mid_cut = set()  # phrases that start in the middle of a sound: a longer fade-in
+    if a.parca > 1 and not loop:
+        phrases = []
+        for span in spans:
+            for k, piece in enumerate(pieces(clean, span, a.parca)):
+                if k > 0:
+                    mid_cut.add(len(phrases))
+                phrases.append(piece)
+        spans = phrases
 
     first = next_index(folder, a.name) if not loop else 0
     written = []
@@ -174,7 +213,7 @@ def main():
             take = seam
             length = duration(take)
         # 5. PS1 colour and fades
-        fade = min(0.01, length / 10)
+        fade = min(CUT_FADE if n in mid_cut else 0.01, length / 10)
         colour = [f"aresample={rate}:resampler=soxr"]
         if kind.get("alcak"):
             colour.append(f"lowpass=f={kind['alcak']}:p=1")
@@ -187,7 +226,7 @@ def main():
         ff("-i", str(take), "-af", ",".join(colour), "-c:a", "pcm_f32le", str(coloured))
         # 6. level
         lufs, peak = loudness(coloured)
-        gain = (kind["lufs"] - lufs) if lufs is not None and length >= 1.0 else (kind["tepe"] - peak)
+        gain = (kind["lufs"] - lufs) if lufs is not None and (length >= 1.0 or a.hep_lufs) else (kind["tepe"] - peak)
         name = a.name if loop else f"{a.name}_{first + n:02d}"
         out = folder / f"{name}.ogg"
         if a.dene:

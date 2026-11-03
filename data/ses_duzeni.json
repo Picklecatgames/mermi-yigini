@@ -3,8 +3,8 @@
 	"voices": 24,
 	"kinds": {
 		"silah": {"dir": "weapons/sounds", "bus": "Silah", "lufs": -20, "tepe": -3, "hz": 32000, "perde": 0.03, "duzey": 1.0, "ses": 6, "stereo": 0},
-		"zombi": {"dir": "sounds/zombies", "bus": "Zombi", "lufs": -20, "tepe": -4, "hz": 22050, "perde": 0.07, "duzey": 2.0, "ses": 8, "stereo": 0},
-		"gore": {"dir": "sounds/gore", "bus": "PsAcik", "lufs": -19, "tepe": -3, "hz": 22050, "perde": 0.08, "duzey": 2.0, "ses": 6, "stereo": 0},
+		"zombi": {"dir": "sounds/zombies", "bus": "Zombi", "lufs": -20, "tepe": -4, "hz": 22050, "perde": 0.07, "duzey": 2.0, "ses": 6, "stereo": 0},
+		"gore": {"dir": "sounds/gore", "bus": "ZombiEt", "lufs": -19, "tepe": -3, "hz": 22050, "perde": 0.08, "duzey": 2.0, "ses": 6, "stereo": 0},
 		"dunya": {"dir": "sounds/world", "bus": "PsAcik", "lufs": -21, "tepe": -4, "hz": 22050, "perde": 0.06, "duzey": 2.0, "ses": 6, "stereo": 0},
 		"atolye": {"dir": "sounds/recipes", "bus": "PsOda", "lufs": -19, "tepe": -3, "hz": 22050, "perde": 0.04, "duzey": 1.5, "ses": 4, "stereo": 0},
 		"adim": {"dir": "characters/operator/sounds", "bus": "Adim", "lufs": -26, "tepe": -10, "hz": 22050, "perde": 0.08, "duzey": 2.0, "ses": 4, "stereo": 0},
