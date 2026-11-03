@@ -9,8 +9,11 @@ extends Node
 ## desert (materials/moon.gdshader) and a cold light of its own with hard shadows, the "Moon" beside
 ## the Sun, so the sun still goes out (scripts/head_lamp.gd lights when it does). By its light and
 ## the blue-grey haze the workshop, the railing, the heap's outline and the dead read at 20-30 m as
-## shapes, colours gone. Every night has it for now; `phase` is how full it is (docs/ayrintilar.md
-## "Gökyüzü çeşitleri": the full moon was to be a rare sky). The numbers are first guesses.
+## shapes, colours gone. Each night has its own moon (GameState.moon, the host's pick at dusk; the
+## user: "dolunay kızıl ay farklı ay çeşitleri, hatta boss günlerinde gece iyice garipleşsin, birkaç
+## ay olsun yukarıda"): MOONS gives each its discs, its light, and the night's ambient and haze, so
+## under the blood moon the whole night goes red, and a boss night has three moons, a sickly haze
+## and moonlight that wavers. The numbers are first guesses.
 ##
 ## N (debug builds) runs the clock on to the next night or morning in GameState.SKIP_TIME, every
 ## machine seeing it go. Check: tools/day_night_check.gd.
@@ -18,32 +21,42 @@ extends Node
 const SUN_SET := -4.0  # deg, the sun's pitch once it is under the horizon
 const SUN_WARM := Color(1.0, 0.55, 0.3)  # its colour low in the sky
 const SKY_NIGHT := 0.04  # of the sky's brightness left
-const AMBIENT_NIGHT := 0.3  # of the ambient light's energy left
-const AMBIENT_BLUE := Color(0.4, 0.48, 0.66)
-const FOG_NIGHT := Color(0.085, 0.1, 0.13)  # moonlit haze: what stands in front of it reads dark against it
 const FOG_THICK := 1.5  # an exponential haze's density, times, at night
 const REFLECT_OFF := 0.9  # darkness past which the sky's reflections go off
-const MOON_ANGLE := Vector3(-34.0, 75.0, 0.0)  # deg: low over the desert, away from the heap
-const MOON_COLOR := Color(0.62, 0.72, 0.92)
-const MOON_LIGHT := 0.6  # energy, full
-const MOON_FROM := [0.5, 0.85]  # darkness over which it rises in, after the sun is out
-const MOON_FAR := 300.0  # m off the eye, the disc
-const MOON_SIZE := 0.08  # of MOON_FAR across: ~4.5 deg, a big moon
-const MOON_PX := 48  # its face's pixels across
-
-## How full the moon is: 1 full (every night for now), 0.5 half, 0 none.
-var phase := 1.0:
-	set(v):
-		phase = clampf(v, 0.0, 1.0)
-		_dark = -1.0
+const MOON_FROM := [0.5, 0.85]  # darkness over which the moon rises in, after the sun is out
+const MOON_FAR := 300.0  # m off the eye, the discs
+const MOON_SIZE := 0.08  # of MOON_FAR across at size 1: ~4.5 deg, a big moon
+const MOON_PX := 48  # a face's pixels across
+## Per moon (GameState.MOONS, and "boss"): its discs [yaw, pitch (deg), size, tint, phase (1 full)],
+## the first one the light's; the light's colour and energy; the night's ambient colour and energy
+## (of the day's); its haze, which is also the sky's colour at night (moonlit haze: what stands in
+## front of it reads dark against it); how much the light wavers (0 steady).
+const MOONS := {
+	"full": {"discs": [[75.0, 34.0, 1.0, Color(0.85, 0.9, 1.0), 1.0]], "light": Color(0.62, 0.72, 0.92), "energy": 0.6,
+		"ambient": Color(0.4, 0.48, 0.66), "ambient_energy": 0.3, "fog": Color(0.085, 0.1, 0.13), "waver": 0.0},
+	"pale": {"discs": [[70.0, 24.0, 0.8, Color(0.72, 0.74, 0.76), 1.0]], "light": Color(0.6, 0.63, 0.68), "energy": 0.35,
+		"ambient": Color(0.38, 0.4, 0.45), "ambient_energy": 0.24, "fog": Color(0.075, 0.078, 0.085), "waver": 0.0},
+	"crescent": {"discs": [[80.0, 40.0, 1.0, Color(0.9, 0.9, 0.85), 0.22]], "light": Color(0.55, 0.62, 0.8), "energy": 0.18,
+		"ambient": Color(0.35, 0.4, 0.56), "ambient_energy": 0.2, "fog": Color(0.045, 0.052, 0.07), "waver": 0.0},
+	"blood": {"discs": [[75.0, 26.0, 1.2, Color(1.0, 0.32, 0.22), 1.0]], "light": Color(0.95, 0.28, 0.18), "energy": 0.55,
+		"ambient": Color(0.6, 0.22, 0.18), "ambient_energy": 0.3, "fog": Color(0.14, 0.035, 0.03), "waver": 0.0},
+	"boss": {"discs": [[75.0, 30.0, 1.35, Color(1.0, 0.3, 0.22), 1.0], [42.0, 38.0, 0.75, Color(0.55, 1.0, 0.6), 0.6],
+			[115.0, 18.0, 0.5, Color(0.75, 0.5, 1.0), 0.35]], "light": Color(0.65, 0.95, 0.55), "energy": 0.5,
+		"ambient": Color(0.5, 0.26, 0.6), "ambient_energy": 0.32, "fog": Color(0.09, 0.13, 0.055), "waver": 0.45},
+}
+const WAVER_SPEED := 1.7  # how fast a wavering moon's light comes and goes
 
 var _env: Environment
 var _sun: DirectionalLight3D
 var _day := {}  # what the scene was built with
 var _dark := -1.0  # what was last shown
+var _kind := ""  # the moon shown
 var _moon: DirectionalLight3D
-var _disc: MeshInstance3D
-var _disc_mat: ShaderMaterial
+var _world: Node
+var _discs: Array[MeshInstance3D] = []
+var _face: ImageTexture
+var _up := 0.0  # how far the moon has risen in
+var _t := 0.0
 
 
 func _ready() -> void:
@@ -56,17 +69,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not is_instance_valid(_env) or not is_instance_valid(_sun):
 		if not _find():
 			return
+	if GameState.moon != _kind:
+		_set_moon(GameState.moon)
 	var dark: float = GameState.night_of(GameState.hour)
-	if not is_equal_approx(dark, _dark):
+	if dark != _dark:  # exactly: a last few ten-thousandths of dusk must still give way to the day as built
 		_dark = dark
 		show_dark(dark)
+	var m: Dictionary = MOONS[_kind]
+	_t += delta
+	if m.waver > 0.0 and _up > 0.0:  # two slow waves against each other: never a beat
+		var w := 0.5 + 0.25 * sin(_t * WAVER_SPEED) + 0.25 * sin(_t * WAVER_SPEED * 2.37 + 1.3)
+		_moon.light_energy = m.energy * _up * (1.0 - m.waver * w)
 	var eye := get_viewport().get_camera_3d()
-	if _disc.visible and eye:  # far off along the moon's way, wherever the eye goes
-		_disc.global_position = eye.global_position + _moon.global_basis.z * MOON_FAR
+	if eye and _up > 0.0:  # far off along each moon's way, wherever the eye goes
+		for i in _discs.size():
+			var d: Array = m.discs[i]
+			_discs[i].global_position = eye.global_position + _toward(d[0], d[1]) * MOON_FAR
 
 
 ## The scene's sky and sun, and what they were built with; false while there are none (a menu).
@@ -80,58 +102,92 @@ func _find() -> bool:
 		return false
 	_env = we.environment
 	_sun = sun
-	_add_moon(sun.get_parent())
+	_world = sun.get_parent()
 	_day = {"pitch": sun.rotation_degrees.x, "color": sun.light_color, "energy": sun.light_energy,
 		"sky": _env.background_energy_multiplier, "ambient": _env.ambient_light_energy,
 		"sky_light": _env.ambient_light_sky_contribution, "ambient_color": _env.ambient_light_color,
 		"fog": _env.fog_light_color, "density": _env.fog_density, "fog_sky": _env.fog_sky_affect,
 		"aerial": _env.fog_aerial_perspective,
 		"vol_albedo": _env.volumetric_fog_albedo, "reflect": _env.reflected_light_source}
-	_dark = -1.0
+	_add_moon()
+	_set_moon(GameState.moon)
 	return true
 
 
 ## The world at darkness `dark` (0 day, 1 night). The sun sinks where it stands and comes up there
 ## again (turning it would swing every shadow across the yard).
 func show_dark(dark: float) -> void:
+	var m: Dictionary = MOONS[_kind]
 	# The sun: down to the horizon over the first half, warming; out under it.
 	var low := minf(1.0, dark * 2.0)
 	_sun.rotation_degrees.x = lerpf(_day.pitch, SUN_SET, low)
 	_sun.light_color = (_day.color as Color).lerp(SUN_WARM, sin(low * PI * 0.5) * (1.0 - smoothstep(0.6, 1.0, low) * 0.3))
 	_sun.light_energy = _day.energy * (1.0 - smoothstep(0.35, 0.55, dark))
 	_sun.visible = _sun.light_energy > 0.001
-	# The sky and what it lights.
+	# The sky and what it lights, towards tonight's.
 	var k := smoothstep(0.0, 1.0, dark)
 	_env.background_energy_multiplier = lerpf(_day.sky, _day.sky * SKY_NIGHT, k)
-	_env.ambient_light_energy = lerpf(_day.ambient, _day.ambient * AMBIENT_NIGHT, k)
+	_env.ambient_light_energy = lerpf(_day.ambient, _day.ambient * m.ambient_energy, k)
 	_env.ambient_light_sky_contribution = lerpf(_day.sky_light, 0.0, k)
-	_env.ambient_light_color = (_day.ambient_color as Color).lerp(AMBIENT_BLUE, k)
+	_env.ambient_light_color = (_day.ambient_color as Color).lerp(m.ambient, k)
 	_env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED if dark > REFLECT_OFF else _day.reflect
-	_env.fog_light_color = (_day.fog as Color).lerp(FOG_NIGHT, k)
+	_env.fog_light_color = (_day.fog as Color).lerp(m.fog, k)
 	if _env.fog_mode == Environment.FOG_MODE_EXPONENTIAL:  # a depth haze has its own reach
 		_env.fog_density = lerpf(_day.density, _day.density * FOG_THICK, k)
 	_env.fog_sky_affect = lerpf(_day.fog_sky, 1.0, k)
 	_env.fog_aerial_perspective = lerpf(_day.aerial, 0.0, k)  # it takes the sky's own (daylit) light: a pale band at the horizon
 	_env.volumetric_fog_albedo = (_day.vol_albedo as Color).lerp(Color(0.05, 0.05, 0.06), k)
 	# The moon, once the sun is out.
-	var up := smoothstep(MOON_FROM[0], MOON_FROM[1], dark)
-	_moon.light_energy = MOON_LIGHT * up * phase
+	_up = smoothstep(MOON_FROM[0], MOON_FROM[1], dark)
+	_moon.light_energy = m.energy * _up
 	_moon.visible = _moon.light_energy > 0.001
-	_disc_mat.set_shader_parameter(&"fade", up)
-	_disc_mat.set_shader_parameter(&"phase", phase)
-	_disc.visible = up > 0.0 and phase > 0.0
+	for d in _discs:
+		(d.material_override as ShaderMaterial).set_shader_parameter(&"fade", _up)
+		d.visible = _up > 0.0
 
 
-## The moon's light and disc, beside the sun. Its face is drawn here once, MOON_PX across: grey with
-## darker seas and a few craters, from a fixed seed, so it is the same moon every night everywhere.
-func _add_moon(world: Node) -> void:
+## Tonight's moon is `kind`: its discs and its light's colour and way; the rest follows at show_dark.
+func _set_moon(kind: String) -> void:
+	_kind = kind if MOONS.has(kind) else "full"
+	var m: Dictionary = MOONS[_kind]
+	for d in _discs:
+		d.queue_free()
+	_discs.clear()
+	for spec: Array in m.discs:
+		var mat := ShaderMaterial.new()
+		mat.shader = preload("res://materials/moon.gdshader")
+		mat.set_shader_parameter(&"face", _face)
+		mat.set_shader_parameter(&"tint", spec[3])
+		mat.set_shader_parameter(&"phase", spec[4])
+		var disc := MeshInstance3D.new()
+		disc.name = "MoonDisc"
+		var quad := QuadMesh.new()
+		quad.size = Vector2.ONE * MOON_FAR * MOON_SIZE * spec[2]
+		disc.mesh = quad
+		disc.material_override = mat
+		disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		disc.extra_cull_margin = 16384.0  # it moves with the eye; never culled by a stale box
+		disc.visible = false
+		_world.add_child(disc)
+		_discs.append(disc)
+	var first: Array = m.discs[0]
+	_moon.basis = Basis.looking_at(-_toward(first[0], first[1]))  # it shines from there
+	_moon.light_color = m.light
+	_dark = -1.0
+
+
+## The way to a moon `yaw` deg round (0 is +z, 90 is +x) and `pitch` deg over the horizon.
+static func _toward(yaw: float, pitch: float) -> Vector3:
+	return Basis.from_euler(Vector3(deg_to_rad(-pitch), deg_to_rad(yaw), 0.0)).z
+
+
+## The moon's light beside the sun, and the one face every disc wears, drawn here once MOON_PX
+## across: grey with darker seas and a few craters, from a fixed seed, the same on every machine.
+func _add_moon() -> void:
 	if is_instance_valid(_moon):
 		_moon.queue_free()
-		_disc.queue_free()
 	_moon = DirectionalLight3D.new()
 	_moon.name = "Moon"
-	_moon.rotation_degrees = MOON_ANGLE
-	_moon.light_color = MOON_COLOR
 	_moon.light_energy = 0.0
 	_moon.shadow_enabled = true
 	_moon.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
@@ -139,7 +195,7 @@ func _add_moon(world: Node) -> void:
 	_moon.light_angular_distance = 0.0  # hard edged, as the PS1 screen wants them
 	_moon.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	_moon.visible = false
-	world.add_child(_moon)
+	_world.add_child(_moon)
 	var img := Image.create(MOON_PX, MOON_PX, false, Image.FORMAT_RGB8)
 	var seas := FastNoiseLite.new()
 	seas.seed = 7
@@ -159,16 +215,4 @@ func _add_moon(world: Node) -> void:
 				elif d < c.z + 1.0:
 					v *= 1.08  # its lit rim
 			img.set_pixel(x, y, Color(v, v, v * 1.02))
-	_disc_mat = ShaderMaterial.new()
-	_disc_mat.shader = preload("res://materials/moon.gdshader")
-	_disc_mat.set_shader_parameter(&"face", ImageTexture.create_from_image(img))
-	_disc = MeshInstance3D.new()
-	_disc.name = "MoonDisc"
-	var quad := QuadMesh.new()
-	quad.size = Vector2.ONE * MOON_FAR * MOON_SIZE
-	_disc.mesh = quad
-	_disc.material_override = _disc_mat
-	_disc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_disc.extra_cull_margin = 16384.0  # it moves with the eye; never culled by a stale box
-	_disc.visible = false
-	world.add_child(_disc)
+	_face = ImageTexture.create_from_image(img)

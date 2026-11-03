@@ -51,7 +51,8 @@ func _host() -> void:
 	for i in 3:
 		await process_frame
 	if not _ok(dn._env == env and gs.night_of(gs.hour) == 0.0 and sun.visible and sun.light_energy == built[1], "by day the sun and sky are as built"): return
-	# To night.
+	# To night, under a full moon picked by hand for it (the Z menu's row) while it is still day.
+	gs.request_debug_moon("full")
 	gs.request_skip_time()
 	var t0 := Time.get_ticks_msec()
 	var samples := []  # [t, sun energy, sky, ambient]
@@ -68,7 +69,21 @@ func _host() -> void:
 	await process_frame
 	if not _ok(not sun.visible and env.background_energy_multiplier < built[2] * 0.05 and env.ambient_light_energy < built[3] * 0.35, "at night the sun is out, the sky and its light nearly gone"): return
 	var moon: DirectionalLight3D = main.get_node("World/Moon")
-	if not _ok(moon.visible and moon.light_energy > 0.3 and moon.shadow_enabled and dn._disc.visible, "the full moon is up, its light casting shadows"): return
+	if not _ok(gs.nights == 1 and gs.moon == "full", "dusk began night 1, under the moon picked for it"): return
+	if not _ok(moon.visible and moon.light_energy > 0.3 and moon.shadow_enabled and dn._discs.size() == 1 and dn._discs[0].visible, "the full moon is up, its light casting shadows"): return
+	gs.request_debug_moon("blood")
+	await process_frame
+	await process_frame
+	if not _ok(moon.light_color.r > moon.light_color.b * 2.0 and env.fog_light_color.r > env.fog_light_color.b * 2.0 and env.ambient_light_color.r > env.ambient_light_color.b, "under the blood moon the light, the haze and the dark go red"): return
+	gs.request_debug_moon("boss")
+	await process_frame
+	await process_frame
+	var e0 := moon.light_energy
+	var wavers := false
+	for i in 40:
+		await process_frame
+		wavers = wavers or absf(moon.light_energy - e0) > 0.02
+	if not _ok(dn._discs.size() == 3 and dn._discs.all(func(d: Node3D) -> bool: return d.visible) and wavers, "a boss night: three moons up, their light wavering"): return
 	var mids := 0
 	var worst := 0.0
 	for i in range(1, samples.size()):
@@ -91,7 +106,17 @@ func _host() -> void:
 	if not _ok(sun.visible and sun.rotation_degrees.is_equal_approx(built[0]) and is_equal_approx(sun.light_energy, built[1])
 			and is_equal_approx(env.background_energy_multiplier, built[2]) and is_equal_approx(env.ambient_light_energy, built[3])
 			and env.fog_light_color.is_equal_approx(built[4]), "the morning is the day as built"): return
-	if not _ok(not moon.visible and not dn._disc.visible, "the moon down by day"): return
+	if not _ok(not moon.visible and not dn._discs.any(func(d: Node3D) -> bool: return d.visible), "the moon down by day"): return
+	# Nights 2-5: each dusk a new night and a moon of its own, the fifth a boss night.
+	var seen_moons := []
+	for n in range(2, 6):
+		gs.hour = gs.NIGHT_FROM - gs.TWILIGHT + 0.3  # into dusk
+		await process_frame
+		await process_frame
+		seen_moons.append(gs.moon)
+		gs.hour = gs.SKIP_TO[true]
+		await process_frame
+	if not _ok(gs.nights == 5 and seen_moons[3] == "boss" and seen_moons.slice(0, 3).all(func(k: String) -> bool: return gs.MOONS.has(k)), "nights 2-5 rolled %s, the fifth a boss night" % [seen_moons]): return
 	# Every type from the menu.
 	var me: Node3D = main.get_node("Player")
 	me.global_position = STAND
@@ -177,6 +202,7 @@ func _online() -> void:
 	var ids: Array = waves._zombies.keys().map(func(id: int) -> String: return "Z%d" % id)
 	ids.sort()
 	if not _ok(ids.size() == 2 and ids == Array(seen.zombies), "the client asked for 2 zombies; both have %s" % [ids]): return
+	if not _ok(gs.moon == "crescent" and seen.moon == "crescent", "the client picked the crescent; both have it"): return
 	print("day_night_check: PASS")
 	quit(0)
 
@@ -204,6 +230,7 @@ func _client() -> void:
 			return _fail("the run never ended here")
 	if not _ok((gs.night_of(gs.hour) > 0.5) != night, "the client's N turned %s" % ("day" if night else "night")): return
 	main.get_node("Player").global_position = STAND
+	gs.request_debug_moon("crescent")
 	gs.request_debug_spawn("runner", STAND, YAW, 2)
 	t0 = Time.get_ticks_msec()
 	while waves._zombies.size() < 2:
@@ -214,7 +241,7 @@ func _client() -> void:
 	ids.sort()
 	for i in 10:
 		await process_frame
-	_log.push_front(JSON.stringify({"hour": gs.hour, "zombies": ids}))
+	_log.push_front(JSON.stringify({"hour": gs.hour, "zombies": ids, "moon": gs.moon}))
 	_write_log()
 	quit(0)
 

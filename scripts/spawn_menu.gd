@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Zombie test menu, debug builds only: Z opens it. Pick how many, then a type (waves.gd TYPES),
 ## and they come up a few metres in front of you, facing you, and come for you
 ## (GameState.request_debug_spawn; the host puts them up, waves.gd _debug_spawn). The menu closes
-## on the pick, so the gun is in hand at once. Net.gd adds it. Check: tools/day_night_check.gd.
+## on the pick, so the gun is in hand at once. Its last row picks the night's moon. Net.gd adds it. Check: tools/day_night_check.gd.
 
 ## waves.gd TYPES in the order they first come in, with the names docs/ayrintilar.md gives them.
 const NAMES := [["walker", "Yürüyen"], ["runner", "Koşan"], ["crawler", "Sürünen"], ["armored", "Zırhlı"],
@@ -11,6 +11,8 @@ const NAMES := [["walker", "Yürüyen"], ["runner", "Koşan"], ["crawler", "Sür
 	["swarm", "İskelet"], ["blob", "Blob"], ["leaper", "Sıçrayan"], ["creeper", "Altından geçen"],
 	["spiker", "Dikenli"]]
 const COUNTS := [1, 3, 5, 10]
+## Tonight's moon by hand (GameState.request_debug_moon; by day it is the coming night's).
+const MOON_NAMES := [["full", "Dolunay"], ["blood", "Kızıl"], ["crescent", "Hilal"], ["pale", "Soluk"], ["boss", "Boss"]]
 
 var count := 1
 var _count_buttons: Array[Button] = []
@@ -68,6 +70,10 @@ func _build() -> void:
 	for pair: Array in NAMES:
 		var b := _button(grid, pair[1], spawn.bind(pair[0]))
 		b.custom_minimum_size.x = 120
+	var moons := HBoxContainer.new()
+	box.add_child(moons)
+	for pair: Array in MOON_NAMES:
+		_button(moons, pair[1], GameState.request_debug_moon.bind(pair[0]))
 	_set_count(count)
 
 

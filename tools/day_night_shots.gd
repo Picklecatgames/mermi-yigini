@@ -6,6 +6,9 @@ extends SceneTree
 ## types called up in front of the player, a moment after they come up; user://night_far.png: from
 ## FAR_EYE, the workshop and the heap behind it ~30 m off, a few of the dead ~20 m off;
 ## user://night_moon.png: up at the moon.
+## `-- --moons` instead: every moon (GameState.MOONS and "boss") at midnight, user://moon_<kind>_sky.png
+## out over the desert at the moon(s), three of the dead ~20 m off, and moon_<kind>_yard.png the
+## workshop from ~30 m.
 
 const EYE := Vector3(17.0, 1.7, 4.0)  # psx_shots.gd's "yard" view
 const LOOK := Vector3(5.0, 1.4, -0.5)
@@ -28,6 +31,11 @@ func _initialize() -> void:
 	var player: Node3D = main.get_node("Player")
 	_stand(player, EYE, LOOK)
 	await _frames(200)  # shaders compile, the probes capture
+	if "--moons" in OS.get_cmdline_user_args():
+		await _moons(gs, player)
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.save_path))
+		quit()
+		return
 	_save("daynight_0_day")
 	gs.request_skip_time()
 	var t0 := Time.get_ticks_msec()
@@ -78,6 +86,31 @@ func _far(gs: Node, player: Node3D) -> void:
 	_stand(player, FAR_EYE, FAR_EYE + moon.global_basis.z * 10.0 + Vector3.DOWN * 3.0)
 	await _frames(5)
 	_save("night_moon")
+
+
+func _moons(gs: Node, player: Node3D) -> void:
+	var waves: Node = player.get_parent().get_node("Waves")
+	gs.request_skip_time()
+	while gs.hour_rate > 24.0 / gs.DAY_SECONDS * 1.01:
+		await process_frame
+	for kind: String in gs.MOONS.keys() + ["boss"]:
+		gs.request_debug_moon(kind)
+		for id: int in waves._zombies.keys():
+			waves._zombies[id].node.free()
+		waves._zombies.clear()
+		var eye := Vector3(13.0, 1.7, 1.0)
+		var out := Basis.from_euler(Vector3(deg_to_rad(-18.0), deg_to_rad(75.0), 0.0)).z  # day_night.gd _toward
+		_stand(player, eye, eye + out)
+		await _frames(3)
+		var flat := Vector3(out.x, 0.0, out.z).normalized()
+		for i in 3:
+			var at := player.global_position + flat * 14.0 + flat.cross(Vector3.UP) * (i - 1) * 3.0
+			gs.request_debug_spawn(["walker", "brute", "runner"][i], at, atan2(-flat.x, -flat.z), 1)
+		await _frames(15)
+		_save("moon_%s_sky" % kind)
+		_stand(player, FAR_EYE, FAR_LOOK)
+		await _frames(10)
+		_save("moon_%s_yard" % kind)
 
 
 func _stand(player: Node3D, eye: Vector3, look: Vector3) -> void:

@@ -97,6 +97,9 @@ signal all_down
 ## hours a game second. Host's, told to everyone whenever its pace changes; every machine runs it
 ## on from there.
 signal clock_changed(hour: float, rate: float)
+## Tonight's moon (MOONS, or "boss") and which night it is, counted from 1; the host picks it as
+## dusk begins (scripts/day_night.gd shows it).
+signal moon_changed(kind: String, night: int)
 ## Host only: the zombie test menu asked for `count` of waves.gd TYPES `type`, in front of someone
 ## standing at `at` looking along `yaw` (scripts/spawn_menu.gd, debug builds; waves.gd puts them up).
 signal debug_spawn_asked(type: String, at: Vector3, yaw: float, count: int)
@@ -111,6 +114,12 @@ const NIGHT_TO := 5.0
 const TWILIGHT := 2.5
 const SKIP_TO := {false: 21.5, true: 8.0}  # N (debug) by day runs the clock on to night, by night to morning
 const SKIP_TIME := 5.0  # s it takes, nearly all of it dusk (or dawn)
+## The moons (2026-11-03, the user: "dolunay kızıl ay farklı ay çeşitleri, hatta boss günlerinde gece
+## iyice garipleşsin, birkaç ay olsun yukarıda"): which one a night gets, with its odds (first
+## guesses). Every BOSS_EVERY-th night is a boss night instead, several moons up: a first guess too,
+## nothing in the game says which nights are boss nights yet.
+const MOONS := {"full": 0.4, "pale": 0.25, "crescent": 0.25, "blood": 0.1}
+const BOSS_EVERY := 5
 const CLOCK_SEND := 10.0  # s between the host's clock to clients, against drift
 const DEBUG_SPAWN_MAX := 20
 const MAX_PLAYERS := 4
@@ -374,7 +383,7 @@ const REQUESTS := {
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 	&"request_pull_lever": 0, &"request_repair_fence": 0, &"request_revive": 1,
-	&"request_skip_time": 0, &"request_debug_spawn": 4,
+	&"request_skip_time": 0, &"request_debug_spawn": 4, &"request_debug_moon": 1,
 }
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
@@ -387,7 +396,7 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"loose_taken", &"scrap_collapse", &"heap_clock", &"heap_piece_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
-	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed"]
+	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4}
 
@@ -472,6 +481,11 @@ var hour_rate := 24.0 / DAY_SECONDS  # hours a game second
 var _skip_left := 0.0  # host: s of N's run still to go
 var _skip_to := 0.0  # host: the hour it ends on
 var _clock_wait := CLOCK_SEND
+var moon := "full"  # tonight's (or the last night's, by day)
+var nights := 0  # nights begun so far
+var _in_night := false  # host: dusk has begun and it isn't day again yet
+var _moon_kept := false  # host: the test menu picked the coming night's moon
+var _moon_rng := RandomNumberGenerator.new()  # host
 var _fence_news := false
 var wave_phase := WAVE_READY  # from the wave cues, on every machine
 var wave_cleared := 0  # the last wave cleared, for the revive's price
@@ -529,6 +543,7 @@ func mag_capacity_of(peer: int) -> int:
 
 func _ready() -> void:
 	_reset_quests()  # Net isn't in the tree yet; a joiner gets the host's board on joining
+	_moon_rng.randomize()
 	fence_bays.resize(FENCE_BAYS)
 	fence_bays.fill(BAY_HP)
 	wave_cue.connect(_on_wave_cue)
@@ -541,6 +556,7 @@ func _ready() -> void:
 			_event.rpc_id(id, &"melter_changed", [melt_bin, brass, melt_level, press_level])
 			_event.rpc_id(id, &"fence_changed", [fence_bays])
 			_event.rpc_id(id, &"clock_changed", [hour, hour_rate])
+			_event.rpc_id(id, &"moon_changed", [moon, nights])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
 				_event.rpc_id(id, &"quest_done", [q, 0])
 			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress, quests_ready])
@@ -644,11 +660,44 @@ func _clock(delta: float) -> void:
 			hour = _skip_to
 			hour_rate = 24.0 / DAY_SECONDS
 			_world(&"clock_changed", [hour, hour_rate])
+	var dark := night_of(hour)
+	if dark > 0.0 and not _in_night:  # dusk begins: a new night, and its moon
+		_in_night = true
+		nights += 1
+		if _moon_kept:
+			_moon_kept = false
+		elif nights % BOSS_EVERY == 0:
+			moon = "boss"
+		else:
+			moon = _roll_moon()
+		_world(&"moon_changed", [moon, nights])
+	elif dark == 0.0:
+		_in_night = false
 	_clock_wait -= delta
 	if _clock_wait <= 0.0:
 		_clock_wait = CLOCK_SEND
 		if Net.online:
 			_event.rpc(&"clock_changed", [hour, hour_rate])
+
+
+func _roll_moon() -> String:
+	var r := _moon_rng.randf()
+	for kind: String in MOONS:
+		r -= MOONS[kind]
+		if r < 0.0:
+			return kind
+	return "full"
+
+
+## Debug builds: `kind` (MOONS or "boss") now, and for the coming night if it is day (the Z menu).
+func request_debug_moon(kind: String, peer := 0) -> void:
+	if not OS.is_debug_build() or _send(&"request_debug_moon", [kind], peer) or Net.is_client:
+		return
+	if kind != "boss" and not MOONS.has(kind):
+		return
+	moon = kind
+	_moon_kept = not _in_night
+	_world(&"moon_changed", [moon, nights])
 
 
 ## How dark the hour `h` is: 0 by day, 1 at night, easing through dusk and dawn.
@@ -1828,6 +1877,9 @@ func _event(event: StringName, args: Array) -> void:
 		&"clock_changed":
 			hour = args[0]
 			hour_rate = args[1]
+		&"moon_changed":
+			moon = args[0]
+			nights = args[1]
 		&"health_changed":
 			player(args[0]).hp = args[1]
 		&"player_downed":
