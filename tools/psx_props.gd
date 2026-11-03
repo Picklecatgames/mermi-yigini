@@ -73,9 +73,11 @@ const GROUND_VALUE := 0.82
 ## (every LOD node in it shares them), texture px]. A PS1 tree is a few hundred triangles and its
 ## leaves are cut out, not blended: the scans' see-through leaves become alpha-cut cards here.
 const NAMA := "res://assets/env/namaqualand/%s/%s_1k.gltf"
+## A fourth number, where there is one, darkens the texture: the quiver trees' and dead trunks'
+## pale bark stood out of the dust as white poles (2026-11-03, the PS1 critic).
 const NATURE := [
-	["quiver_tree_01", 1400, 128], ["quiver_tree_02", 800, 128], ["searsia_burchellii", 2400, 128],
-	["dead_quiver_trunk", 400, 128], ["dead_tree_trunk_02", 500, 128], ["dry_branches_medium_01", 600, 64],
+	["quiver_tree_01", 1400, 128, 0.6], ["quiver_tree_02", 800, 128, 0.6], ["searsia_burchellii", 2400, 128],
+	["dead_quiver_trunk", 400, 128, 0.5], ["dead_tree_trunk_02", 500, 128, 0.65], ["dry_branches_medium_01", 600, 64],
 	["wild_rooibos_bush", 1200, 64], ["namaqualand_boulder_02", 300, 128], ["namaqualand_boulder_04", 300, 128],
 	["namaqualand_boulder_05", 300, 128], ["namaqualand_rocks_01", 400, 64], ["namaqualand_stones_01", 400, 64],
 ]
@@ -94,6 +96,7 @@ var _rust_share := 0.0
 var _grade := false  # scrap: textures into the rust range (GRADE_*)
 var _nature := false  # trees and rocks: leaves cut out, textures into the desert's range (NATURE_*)
 var _ground := false  # the ground's textures: the desert's range, GROUND_*
+var _value := 1.0  # nature: the entry's darkening (NATURE's fourth number)
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
 
@@ -131,7 +134,9 @@ func _init() -> void:
 	if all or "nature" in args:
 		_nature = true
 		for e: Array in NATURE:
+			_value = e[3] if e.size() > 3 else 1.0
 			ok = _convert(NAMA % [e[0], e[0]], e[1], e[2]) and ok
+		_value = 1.0
 		_nature = false
 	if all or "hurda" in args:
 		_far = HURDA_FAR
@@ -473,7 +478,7 @@ func _keyed_once(tex: Texture2D) -> Texture2D:
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
 		return null
-	var key := [tex, px, webp, _grade, _nature, _ground]
+	var key := [tex, px, webp, _grade, _nature, _ground, _value]
 	if _texs.has(key):
 		return _texs[key]
 	var img: Image = tex.get_image().duplicate()
@@ -489,7 +494,7 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 		for y in img.get_height():
 			for x in img.get_width():
 				var c := img.get_pixel(x, y)
-				img.set_pixel(x, y, _graded(c, true) if _grade else (_desert(c, GROUND_SATURATION, GROUND_VALUE) if _ground else _desert(c)))
+				img.set_pixel(x, y, _graded(c, true) if _grade else (_desert(c, GROUND_SATURATION, GROUND_VALUE) if _ground else _desert(c, NATURE_SATURATION, _value)))
 	img.generate_mipmaps()
 	var last := img.duplicate() as Image
 	last.resize(1, 1, Image.INTERPOLATE_BILINEAR)
