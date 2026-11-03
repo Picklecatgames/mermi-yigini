@@ -20,37 +20,38 @@ const SCREEN := preload("res://scripts/screen_blood.gd")
 const FLESH := preload("res://materials/env/gore/flesh.tres")
 const STUMP := preload("res://materials/env/gore/meat_1.res")
 const LIB := preload("res://assets/characters/zombies/zombie_anims.res")
+## All PS1 horror (tools/lowpoly_zombie.gd psx): fewer triangles, the real texture small and unfiltered.
 const MODELS := {
-	&"prisoner": preload("res://assets/characters/zombies/prisoner/prisoner_psx.scn"),  # PS1 horror (tools/lowpoly_zombie.gd psx)
-	&"copzombie": preload("res://assets/characters/zombies/copzombie/copzombie_psx.scn"),  # PS1 horror (tools/lowpoly_zombie.gd psx)
-	&"parasite": preload("res://assets/characters/zombies/parasite/parasite.scn"),
-	&"warzombie": preload("res://assets/characters/zombies/warzombie/warzombie.scn"),
-	&"zombiegirl": preload("res://assets/characters/zombies/zombiegirl/zombiegirl_psx.scn"),  # PS1 horror (tools/lowpoly_zombie.gd psx)
-	&"yaku": preload("res://assets/characters/zombies/yaku/yaku.scn"),
-	&"romero": preload("res://assets/characters/zombies/romero/romero.scn"),
-	&"skeletonzombie": preload("res://assets/characters/zombies/skeletonzombie/skeletonzombie.scn"),
-	&"whiteclown": preload("res://assets/characters/zombies/whiteclown/whiteclown.scn"),
-	&"warrok": preload("res://assets/characters/zombies/warrok/warrok.scn"),
-	&"maw": preload("res://assets/characters/zombies/maw/maw.scn"),
-	&"demon": preload("res://assets/characters/zombies/demon/demon.scn"),
-	&"fleshzombie": preload("res://assets/characters/zombies/fleshzombie/fleshzombie.scn"),
-	&"hazmat": preload("res://assets/characters/zombies/hazmat/hazmat.scn"),
-	&"bloater": preload("res://assets/characters/zombies/bloater/bloater.scn"),
-	&"leaper": preload("res://assets/characters/zombies/leaper/leaper.scn"),  # no legs: its tail is the right leg
-	&"spiker": preload("res://assets/characters/zombies/spiker/spiker.scn"),
+	&"prisoner": preload("res://assets/characters/zombies/prisoner/prisoner_psx.scn"),
+	&"copzombie": preload("res://assets/characters/zombies/copzombie/copzombie_psx.scn"),
+	&"parasite": preload("res://assets/characters/zombies/parasite/parasite_psx.scn"),
+	&"warzombie": preload("res://assets/characters/zombies/warzombie/warzombie_psx.scn"),
+	&"zombiegirl": preload("res://assets/characters/zombies/zombiegirl/zombiegirl_psx.scn"),
+	&"yaku": preload("res://assets/characters/zombies/yaku/yaku_psx.scn"),
+	&"romero": preload("res://assets/characters/zombies/romero/romero_psx.scn"),
+	&"skeletonzombie": preload("res://assets/characters/zombies/skeletonzombie/skeletonzombie_psx.scn"),
+	&"whiteclown": preload("res://assets/characters/zombies/whiteclown/whiteclown_psx.scn"),
+	&"warrok": preload("res://assets/characters/zombies/warrok/warrok_psx.scn"),
+	&"maw": preload("res://assets/characters/zombies/maw/maw_psx.scn"),
+	&"demon": preload("res://assets/characters/zombies/demon/demon_psx.scn"),
+	&"fleshzombie": preload("res://assets/characters/zombies/fleshzombie/fleshzombie_psx.scn"),
+	&"hazmat": preload("res://assets/characters/zombies/hazmat/hazmat_psx.scn"),
+	&"bloater": preload("res://assets/characters/zombies/bloater/bloater_psx.scn"),
+	&"leaper": preload("res://assets/characters/zombies/leaper/leaper_psx.scn"),  # no legs: its tail is the right leg
+	&"spiker": preload("res://assets/characters/zombies/spiker/spiker_psx.scn"),
 }
-## Not Mixamo: its scene, the skeleton and the node the squash moves (paths in the scene), which bone
+## Not Mixamo (PS1 horror like the rest: tools/lowpoly_zombie.gd psx, the glb with its own clips kept): its scene, the skeleton and the node the squash moves (paths in the scene), which bone
 ## stands in for "Head" / "Hips" in attach(), its height in m at size 1 (0: as modelled), whether it
 ## faces +Z as modelled (turned like the Mixamo ones), and its own clips (_creature_library).
 const CREATURES := {
-	&"blob": {"scene": preload("res://assets/characters/zombies/blob/blob.glb"),
+	&"blob": {"scene": preload("res://assets/characters/zombies/blob/blob_psx.scn"),
 			"skeleton": "Armature/Skeleton3D", "squash": "Armature", "height": 0.0, "turn": false,
 			"bones": {"Head": "Bone.003", "Hips": "Bone.001"}},
-	&"melty": {"scene": preload("res://assets/characters/zombies/melty/melty.glb"),
+	&"melty": {"scene": preload("res://assets/characters/zombies/melty/melty_psx.scn"),
 			"skeleton": "Sketchfab_model/melty zombie_fbx/Object_2/RootNode/Object_4/Skeleton3D",
 			"squash": "Sketchfab_model", "height": 1.8, "turn": true,
 			"bones": {"Head": "head_014", "Hips": "hip_016"}},
-	&"dog": {"scene": preload("res://assets/characters/zombies/dog/dog.glb"),
+	&"dog": {"scene": preload("res://assets/characters/zombies/dog/dog_psx.scn"),
 			"skeleton": "Armature/Skeleton3D", "squash": "Armature", "height": 0.85, "turn": true,
 			"bones": {"Head": "Bone_WH_Head", "Hips": "Bone_WH_Pelvis"}},
 }
@@ -306,6 +307,9 @@ func _process(delta: float) -> void:
 
 
 func _step_clips(delta: float) -> void:
+	if ANIM_FPS > 0.0:  # PS1 steps, near or far (_step_ps1)
+		_step_ps1(delta)
+		return
 	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
 	var far := cam != null and not _dead and (cam.global_position.distance_squared_to(global_position) > LOD_FAR * LOD_FAR
 			or not _in_view(cam, global_position + Vector3.UP * height * 0.5))
@@ -324,6 +328,28 @@ func _step_clips(delta: float) -> void:
 	_lod_wait += delta
 	_lod_beat += 1
 	if (_lod_beat + _seed) % LOD_STEP == 0:
+		_ap.advance(_lod_wait)
+		_skel.advance(_lod_wait)
+		_lod_wait = 0.0
+
+
+## PS1 feel (2026-11-02, the user: the whole game in PS1 horror): the clips go on in steps,
+## ANIM_FPS of them a second whatever the frame rate, as on the old console, near or far (the LOD
+## steps above only count with it at 0). Where the body goes (waves.gd) and the player stay smooth;
+## the springs are laid on with the steps. Each body on its own beat, from `seed`, so a crowd
+## doesn't jerk all at once. catch_up() still brings the pose up to date before a round is traced.
+const ANIM_FPS := 12.0  # 0: smooth, every frame
+
+
+func _step_ps1(delta: float) -> void:
+	if _ap.callback_mode_process != AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL:
+		_ap.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+		_skel.modifier_callback_mode_process = Skeleton3D.MODIFIER_CALLBACK_MODE_PROCESS_MANUAL
+		_ap.advance(_lod_wait)  # posed at once, not standing in its rest pose till the first step
+		_skel.advance(_lod_wait)
+		_lod_wait = float(posmod(_seed, 1000)) / 1000.0 / ANIM_FPS
+	_lod_wait += delta
+	if _lod_wait >= 1.0 / ANIM_FPS:
 		_ap.advance(_lod_wait)
 		_skel.advance(_lod_wait)
 		_lod_wait = 0.0
@@ -1187,6 +1213,10 @@ static func _drops() -> void:
 		m.emission_energy_multiplier = 0.25
 		m.metallic_specular = 0.6
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		# PS1 horror: a blocky drop, unfiltered
+		dot.width = 8
+		dot.height = 8
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 		m.alpha_scissor_threshold = 0.5
 		m.roughness = 0.15
 		_drop_mesh = QuadMesh.new()

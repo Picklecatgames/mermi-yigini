@@ -4,6 +4,8 @@ extends SceneTree
 ## small (SCREEN), 15-bit colour with ordered dither, blown up unfiltered.
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1600x900 -s res://tools/psx_shots.gd
 ## Shots land in user:// as psx_<name>.png; psx_compare is the prisoner as built (left) and PS1.
+## psx_cast_zombies, psx_cast_brutes and psx_cast_players: every enemy and player character, as the
+## game loads them (zombie_body.gd, remote_players.gd), side by side under a row of lamps.
 ##
 ## `-- --game --psx=N` instead plays main.tscn as the player sees it, the PS1 screen
 ## (scripts/psx_screen.gd) at Settings' "PS1 ekranı" N (0 off, 1 225p, 2 270p, 3 360p), the gun in
@@ -13,6 +15,17 @@ extends SceneTree
 
 const ZOMBIES := ["prisoner", "copzombie", "zombiegirl"]
 const SCREEN := Vector2i(480, 270)  # 2026-11-03: the default "PS1 ekranı", 270p
+const BODY := preload("res://scripts/zombie_body.gd")
+const REMOTE := preload("res://scripts/remote_players.gd")
+## [model, kind it is dressed as] in rows: zombie_body.gd picks the clips by kind.
+const CAST := [
+	[["prisoner", "walker"], ["copzombie", "walker"], ["zombiegirl", "walker"], ["parasite", "walker"],
+		["warzombie", "walker"], ["yaku", "walker"], ["romero", "walker"], ["skeletonzombie", "walker"],
+		["fleshzombie", "walker"], ["hazmat", "walker"]],
+	[["whiteclown", "screamer"], ["leaper", "walker"], ["spiker", "walker"], ["bloater", "bloater"],
+		["warrok", "brute"], ["maw", "brute"], ["demon", "brute"], ["melty", "walker"], ["dog", "dog"],
+		["blob", "blob"]],
+]
 const BAYER := [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
 const GAME_VIEWS := {  # eye, looking at
 	"yard": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],
@@ -74,7 +87,52 @@ func _initialize() -> void:
 	_zombie(world, "res://assets/characters/zombies/prisoner/prisoner.scn", Vector3(-0.6, 0, 0), 0.3)
 	_zombie(world, "res://assets/characters/zombies/prisoner/prisoner_psx.scn", Vector3(0.6, 0, 0), 0.3)
 	await _shot(cam, Vector3(0, 1.4, 2.6), Vector3(0, 1.0, 0), "compare", false)
+
+	AudioServer.set_bus_mute(0, true)  # zombie_body.gd's voices moan
+	lamp.visible = false
+	for x in [-7.5, -2.5, 2.5, 7.5]:
+		var l := lamp.duplicate() as SpotLight3D
+		l.visible = true
+		l.position = Vector3(x, 5.0, 3.5)
+		l.spot_angle = 45.0
+		l.spot_range = 14.0
+		world.add_child(l)
+	for row in CAST.size():
+		_clear(world)
+		for i in CAST[row].size():
+			var b: Node3D = BODY.new()
+			b.setup(StringName(CAST[row][i][1]), 7 + i)
+			b.model = StringName(CAST[row][i][0])
+			b.size = 1.0
+			b.position = Vector3((i - 4.5) * 1.25, 0, 0)
+			b.rotation.y = PI  # face the camera
+			b.set_meta("zombie", true)
+			world.add_child(b)
+		for f in 20:  # into their idle, a step or two
+			await process_frame
+		await _shot(cam, Vector3(0, 1.8, 7.2), Vector3(0, 1.0, 0), "cast_" + ["zombies", "brutes"][row], true)
+	_clear(world)
+	var ids: Array = REMOTE.BODIES.keys()
+	for i in ids.size():
+		var body: Node3D = REMOTE.BODIES[ids[i]].instantiate()
+		body.position = Vector3((i - 2.0) * 1.3, 0, 0)
+		body.set_meta("zombie", true)
+		world.add_child(body)
+		var sk: Skeleton3D = body.get_node("Skeleton3D")
+		sk.motion_scale = sk.get_bone_global_rest(0).origin.y
+		var ap := AnimationPlayer.new()
+		body.add_child(ap)
+		ap.root_node = ^".."
+		ap.add_animation_library("", REMOTE.ANIMS)
+		ap.play(&"pistol_idle")
+	await _shot(cam, Vector3(0, 1.7, 5.5), Vector3(0, 1.0, 0), "cast_players", true)
 	quit()
+
+
+func _clear(world: Node3D) -> void:
+	for n in world.get_children():
+		if n.has_meta("zombie"):
+			n.free()
 
 
 func _zombie(world: Node3D, path: String, at: Vector3, t: float) -> void:

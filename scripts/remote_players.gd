@@ -20,11 +20,11 @@ extends Node3D
 ## comes from where its first-person hands are. Before they have picked, only the name tag shows.
 
 const BODIES := {
-	"boss": preload("res://assets/characters/players/boss/boss.scn"),
-	"masked": preload("res://assets/characters/players/masked/masked.scn"),
-	"worker": preload("res://assets/characters/players/worker/worker.scn"),
-	"brute": preload("res://assets/characters/players/brute/brute.scn"),
-	"chupacabra": preload("res://assets/characters/players/chupacabra/chupacabra.scn"),
+	"boss": preload("res://assets/characters/players/boss/boss_psx.scn"),
+	"masked": preload("res://assets/characters/players/masked/masked_psx.scn"),
+	"worker": preload("res://assets/characters/players/worker/worker_psx.scn"),
+	"brute": preload("res://assets/characters/players/brute/brute_psx.scn"),
+	"chupacabra": preload("res://assets/characters/players/chupacabra/chupacabra_psx.scn"),
 }
 const ANIMS := preload("res://assets/characters/players/player_anims.res")
 const ARMS := preload("res://assets/weapons/arms/arms.gltf")
