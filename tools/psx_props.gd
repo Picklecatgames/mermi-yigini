@@ -43,7 +43,17 @@ const HURDA_FAR := Vector2(6.0, 22.0)
 ## The scrap's far colours go most of the way to one shared rust: in the distance the heap is a
 ## few close browns, not a mosaic of blue tins and red rust.
 const HURDA_RUST := Color(0.42, 0.3, 0.24)
-const HURDA_RUST_SHARE := 0.6
+const HURDA_RUST_SHARE := 0.8
+## The scrap's colours (2026-11-03, the user: "the heap tires the eyes"; thousands of tins, gears and
+## pipes each its own colour crawled at 270p): every scrap texture is pulled into one narrow, dim
+## rust-dirt-grey range, so the heap reads as one scrap texture. Its brightness squeezed into
+## GRADE_LIGHT, its own colour kept GRADE_OWN of the way (the rest the rust ramp's), that at
+## GRADE_SATURATION of its saturation.
+const GRADE_DARK := Color(0.13, 0.095, 0.075)
+const GRADE_BRIGHT := Color(0.5, 0.38, 0.3)
+const GRADE_LIGHT := Vector2(0.15, 0.6)
+const GRADE_OWN := 0.3
+const GRADE_SATURATION := 0.35
 ## Wires, chains, cage bars thinner than this (m) are blown up to it along their normals: at 270p a
 ## thinner one is under a pixel from a few metres and sparkles (2026-11-03, the user). Plates and
 ## cards (one way facing) stay as they are.
@@ -58,6 +68,7 @@ var _texs := {}
 var _sum := [0, 0, 0, 0]  # triangles before, after; bytes before, after
 var _far := FAR
 var _rust_share := 0.0
+var _grade := false  # scrap: textures into the rust range (GRADE_*)
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
 
@@ -86,6 +97,7 @@ func _init() -> void:
 	if all or "hurda" in args:
 		_far = HURDA_FAR
 		_rust_share = HURDA_RUST_SHARE
+		_grade = true
 		for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(HURDA)):
 			var size: Array = p.boyut_m
 			var longest: float = size.max()
@@ -317,7 +329,7 @@ func _material(m: Material, px: int) -> Material:
 		sm.shader = SHADER_2S if b.cull_mode == BaseMaterial3D.CULL_DISABLED else SHADER
 		if b.albedo_texture:
 			sm.set_shader_parameter("albedo_tex", _small(b.albedo_texture, px))
-		sm.set_shader_parameter("tint", b.albedo_color)
+		sm.set_shader_parameter("tint", _graded(b.albedo_color) if _grade else b.albedo_color)
 		var avg: Color = _avg.get(sm.get_shader_parameter("albedo_tex"), Color.WHITE) * b.albedo_color
 		avg = avg.lerp(HURDA_RUST, _rust_share)
 		avg.a = 1.0
@@ -338,7 +350,7 @@ func _material(m: Material, px: int) -> Material:
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
 		return null
-	var key := [tex, px, webp]
+	var key := [tex, px, webp, _grade]
 	if _texs.has(key):
 		return _texs[key]
 	var img: Image = tex.get_image().duplicate()
@@ -349,6 +361,11 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if maxi(w, h) > px:
 		var k := float(px) / maxi(w, h)
 		img.resize(maxi(1, roundi(w * k)), maxi(1, roundi(h * k)), Image.INTERPOLATE_LANCZOS)
+	if _grade:
+		img.convert(Image.FORMAT_RGBA8)
+		for y in img.get_height():
+			for x in img.get_width():
+				img.set_pixel(x, y, _graded(img.get_pixel(x, y), true))
 	img.generate_mipmaps()
 	var last := img.duplicate() as Image
 	last.resize(1, 1, Image.INTERPOLATE_BILINEAR)
@@ -449,3 +466,17 @@ static func _root(parent: PackedInt32Array, x: int) -> int:
 		parent[x] = parent[parent[x]]
 		x = parent[x]
 	return x
+
+
+## `c` in the scrap's rust range (GRADE_*); a tint (`texel` false) only loses saturation, the
+## texture does the rest.
+static func _graded(c: Color, texel := false) -> Color:
+	var grey := c.get_luminance()
+	var own := Color(grey, grey, grey, c.a).lerp(c, GRADE_SATURATION)
+	if not texel:
+		return own
+	var l := lerpf(GRADE_LIGHT.x, GRADE_LIGHT.y, grey)
+	var ramp := GRADE_DARK.lerp(GRADE_BRIGHT, l)
+	var out := ramp.lerp(own * (l / maxf(grey, 0.02)), GRADE_OWN)
+	out.a = c.a
+	return out
