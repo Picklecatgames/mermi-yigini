@@ -554,9 +554,11 @@ var _sheet_mats: Array[Material] = []
 ## across `b.x`, bulging along `b.z`. Rusty most of them, every so often a galvanised patch.
 func _sheet(parent: Node, b: Basis, foot: Vector3, length: float, rng: RandomNumberGenerator, roof := false) -> void:
 	if _sheet_mats.is_empty():
-		for v in [["rusty_corrugated_iron", Color(1.0, 1.0, 1.0)], ["rusty_corrugated_iron", Color(0.86, 0.74, 0.66)],
-				["rusty_corrugated_iron", Color(1.0, 0.9, 0.78)], ["rusty_corrugated_iron", Color(0.7, 0.62, 0.56)],
-				["corrugated_iron_02", Color(0.82, 0.78, 0.72)], ["rusted_shutter", Color(0.9, 0.82, 0.74)]]:
+		# PS1 at 270p (2026-11-03, the user: the zigzag walls hurt the eyes): plain rust and plate
+		# textures, the ripples are the geometry's; each sheet its own tone.
+		for v in [["rust_coarse_01", Color(1.0, 0.92, 0.86)], ["rust_coarse_01", Color(0.8, 0.66, 0.58)],
+				["rust_coarse_01", Color(0.95, 0.8, 0.66)], ["rust_coarse_01", Color(0.64, 0.54, 0.48)],
+				["metal_plate_02", Color(0.78, 0.78, 0.76)], ["rust_coarse_01", Color(0.55, 0.47, 0.43)]]:
 			_sheet_mats.append(_psx_mat(v[0], v[1], "workshop_sheet_%d" % _sheet_mats.size()))
 	var key := snappedf(length, 0.05)
 	if not _sheet_meshes.has(key):
@@ -571,11 +573,11 @@ func _sheet(parent: Node, b: Basis, foot: Vector3, length: float, rng: RandomNum
 	add(mi, parent)
 
 
-## A corrugated sheet `w` wide, `h` long: sine ripples 7.6 cm apart, 1.8 cm deep; UVs in metres
+## A corrugated sheet `w` wide, `h` long: sine ripples 17 cm apart, 3.2 cm deep; UVs in metres
 ## over a 2 m texture so the rust doesn't stretch with the length.
 func _sheet_mesh(w: float, h: float) -> ArrayMesh:
-	const PERIOD := 0.076
-	const AMP := 0.009
+	const PERIOD := 0.172  # five to a sheet: at 270p a ripple is several pixels, not a shimmer
+	const AMP := 0.016
 	var segs := int(w / PERIOD * 4.0)  # PS1: four points a ripple, lit per vertex
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)

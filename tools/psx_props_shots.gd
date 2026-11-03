@@ -8,6 +8,8 @@ const VIEWS := {
 	"workshop": [Vector3(14.0, 2.2, 4.5), Vector3(5.0, 1.3, 0.0)],
 	"bench": [Vector3(4.9, 1.65, 1.0), Vector3(2.6, 1.0, 1.2)],
 	"lamp": [Vector3(6.0, 2.0, -1.0), Vector3(4.3, 2.5, -2.3)],
+	"inside": [Vector3(7.5, 1.7, 3.0), Vector3(2.0, 2.4, -3.0)],
+	"heap_far": [Vector3(14.0, 4.0, 14.0), Vector3(-12.0, 0.0, 0.0)],
 	"heap": [Vector3(0.5, 3.2, 6.0), Vector3(-12.0, 0.0, -1.0)],
 	"heap_close": [Vector3(-3.0, 1.8, 2.0), Vector3(-7.0, 0.2, 0.5)],
 }

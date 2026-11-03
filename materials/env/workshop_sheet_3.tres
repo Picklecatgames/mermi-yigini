@@ -1,13 +1,13 @@
 [gd_resource type="ShaderMaterial" format=3]
 
 [ext_resource type="Shader" path="res://materials/psx_prop_2s.gdshader" id="1_espbw"]
-[ext_resource type="Texture2D" path="res://assets/psx/tex/rusty_corrugated_iron.res" id="2_xdvc7"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/rust_coarse_01.res" id="2_xdvc7"]
 
 [resource]
 render_priority = 0
 shader = ExtResource("1_espbw")
 shader_parameter/albedo_tex = ExtResource("2_xdvc7")
-shader_parameter/tint = Color(0.7, 0.62, 0.56, 1)
+shader_parameter/tint = Color(0.64, 0.54, 0.48, 1)
 shader_parameter/snap = null
 shader_parameter/alpha_cut = null
 shader_parameter/snap_world = null
@@ -19,3 +19,5 @@ shader_parameter/uv_offset = null
 shader_parameter/vertex_tint = null
 shader_parameter/triplanar = null
 shader_parameter/tri_metres = null
+shader_parameter/far_colour = null
+shader_parameter/far_fade = null

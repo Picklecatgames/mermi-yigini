@@ -5,14 +5,18 @@
 //   vertex_tint: COLOR multiplies the texture: the scrap's MultiMesh copies carry their tone there
 //   triplanar: the texture by world position every tri_metres (boxes with no UVs worth having)
 //   uv_offset: glTF's texture offset, with uv_scale
+//   far_colour, far_fade: from far_fade.x to far_fade.y metres away the piece goes over to one flat
+//               colour (its texture's average; alpha 0: off), its copy's tone too: hundreds of small
+//               pieces in the distance stop boiling on the 270p screen (2026-11-03, the user)
+// Textures are unfiltered but mipmapped (filter_nearest_mipmap): far away they average, not sparkle.
 
-uniform sampler2D albedo_tex : source_color, filter_nearest, repeat_enable, hint_default_white;
+uniform sampler2D albedo_tex : source_color, filter_nearest_mipmap, repeat_enable, hint_default_white;
 uniform vec4 tint : source_color = vec4(1.0);
 uniform float snap = 180.0;
 uniform float alpha_cut = 0.0;
 uniform float snap_world = 0.0;
 uniform float affine : hint_range(0.0, 1.0) = 0.0;
-uniform sampler2D emission_tex : source_color, filter_nearest, repeat_enable, hint_default_white;
+uniform sampler2D emission_tex : source_color, filter_nearest_mipmap, repeat_enable, hint_default_white;
 uniform vec4 emission : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float emission_energy = 1.0;
 uniform vec2 uv_scale = vec2(1.0);
@@ -20,6 +24,8 @@ uniform vec2 uv_offset = vec2(0.0);
 uniform bool vertex_tint = false;
 uniform bool triplanar = false;
 uniform float tri_metres = 2.0;
+uniform vec4 far_colour : source_color = vec4(0.0);
+uniform vec2 far_fade = vec2(20.0, 60.0);
 
 varying vec3 affine_uv;
 varying vec3 world_pos;
@@ -60,7 +66,8 @@ void fragment() {
 	if (alpha_cut > 0.0 && c.a < alpha_cut) {
 		discard;
 	}
-	ALBEDO = c.rgb;
+	float far = smoothstep(far_fade.x, far_fade.y, length(VERTEX)) * far_colour.a;
+	ALBEDO = mix(c.rgb, far_colour.rgb, far);
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
 }

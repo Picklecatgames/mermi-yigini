@@ -36,15 +36,25 @@ const WORKSHOP := [
 	["rusted_wheel_rim_02", 500, 128],
 ]
 const HURDA := "res://assets/props/hurda/hurda.json"
-const HURDA_TEX := 128
+const HURDA_TEX := 64  # 2026-11-03, the user: hundreds of small pieces boiled at 270p
+## Pieces go over to their average colour this far away (m; materials/psx_prop.gdshaderinc far_fade).
+const FAR := Vector2(20.0, 60.0)
+const HURDA_FAR := Vector2(10.0, 30.0)
+## Wires, chains, cage bars thinner than this (m) are blown up to it along their normals: at 270p a
+## thinner one is under a pixel from a few metres and sparkles (2026-11-03, the user). Plates and
+## cards (one way facing) stay as they are.
+const MIN_THICK := 0.02
 const CUKUR := "res://assets/props/cukur/"
 const OGUTUCU := ["res://assets/props/ogutucu/ogutucu.glb", 3000, 256]
 ## Workshop sheets and steel (build_world.gd _sheet, _workshop_shed): 128 px over the 2 m they cover.
-const SHED_TEX := ["rusty_corrugated_iron", "corrugated_iron_02", "rusted_shutter", "rust_coarse_01"]
+const SHED_TEX := ["rust_coarse_01", "metal_plate_02"]
 
 var _mats := {}
 var _texs := {}
 var _sum := [0, 0, 0, 0]  # triangles before, after; bytes before, after
+var _far := FAR
+var _thickened := 0  # parts blown up in this scene (_thicken)
+var _avg := {}  # small texture: its average colour
 
 
 func _init() -> void:
@@ -69,6 +79,7 @@ func _init() -> void:
 			if f.get_extension() == "gltf":
 				ok = _convert(CUKUR + f, 1000, 128) and ok
 	if all or "hurda" in args:
+		_far = HURDA_FAR
 		for p: Dictionary in JSON.parse_string(FileAccess.get_file_as_string(HURDA)):
 			var size: Array = p.boyut_m
 			var longest: float = size.max()
@@ -83,6 +94,7 @@ static func out_path(src: String) -> String:
 
 
 func _convert(src: String, budget: int, px: int) -> bool:
+	_thickened = 0
 	var scene: Node = (load(src) as PackedScene).instantiate()
 	scene.scene_file_path = ""  # its own scene, not an instance of the source
 	var mis := scene.find_children("*", "MeshInstance3D", true, false)
@@ -117,7 +129,7 @@ func _convert(src: String, budget: int, px: int) -> bool:
 	_sum[1] += after
 	_sum[2] += size_in
 	_sum[3] += size_out
-	print("psx %s: %d -> %d tris, %d -> %d KB%s" % [src.get_file(), before, after, size_in / 1024, size_out / 1024,
+	print("psx %s: %d -> %d tris, %d -> %d KB, %d thin parts thickened%s" % [src.get_file(), before, after, size_in / 1024, size_out / 1024, _thickened,
 			"" if err == OK else " ERROR %d" % err])
 	return err == OK
 
@@ -137,6 +149,7 @@ func _mesh(src: Mesh, share: int, px: int) -> Mesh:
 		if src.surface_get_primitive_type(s) == Mesh.PRIMITIVE_TRIANGLES and not skinned:
 			idx = _fewer(arrays, maxi(4, share * (idx.size() / 3) / maxi(1, tris)))
 			arrays = _compact(arrays, idx)
+			_thicken(arrays)
 		arrays[Mesh.ARRAY_TANGENT] = null  # no normal map
 		out.add_surface_from_arrays(src.surface_get_primitive_type(s), arrays)
 		var name := (src as ArrayMesh).surface_get_name(s) if src is ArrayMesh else ""
@@ -280,7 +293,7 @@ func _material(m: Material, px: int) -> Material:
 		var c := b.duplicate() as BaseMaterial3D
 		c.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
 		c.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-		c.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		c.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 		c.normal_enabled = false
 		c.normal_texture = null
 		c.roughness = 1.0
@@ -299,6 +312,10 @@ func _material(m: Material, px: int) -> Material:
 		if b.albedo_texture:
 			sm.set_shader_parameter("albedo_tex", _small(b.albedo_texture, px))
 		sm.set_shader_parameter("tint", b.albedo_color)
+		var avg: Color = _avg.get(sm.get_shader_parameter("albedo_tex"), Color.WHITE) * b.albedo_color
+		avg.a = 1.0
+		sm.set_shader_parameter("far_colour", avg)
+		sm.set_shader_parameter("far_fade", _far)
 		if b.uv1_scale != Vector3.ONE or b.uv1_offset != Vector3.ZERO:
 			sm.set_shader_parameter("uv_scale", Vector2(b.uv1_scale.x, b.uv1_scale.y))
 			sm.set_shader_parameter("uv_offset", Vector2(b.uv1_offset.x, b.uv1_offset.y))
@@ -309,7 +326,7 @@ func _material(m: Material, px: int) -> Material:
 	return out
 
 
-## `tex` no bigger than `px` on its long side, WebP inside the scene (raw for a StandardMaterial3D:
+## `tex` no bigger than `px` on its long side, mipmapped, WebP inside the scene (raw for a StandardMaterial3D:
 ## a WebP texture drew the caged lamp magenta there).
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
@@ -325,11 +342,15 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if maxi(w, h) > px:
 		var k := float(px) / maxi(w, h)
 		img.resize(maxi(1, roundi(w * k)), maxi(1, roundi(h * k)), Image.INTERPOLATE_LANCZOS)
+	img.generate_mipmaps()
+	var last := img.duplicate() as Image
+	last.resize(1, 1, Image.INTERPOLATE_BILINEAR)
 	var out: Texture2D = ImageTexture.create_from_image(img)
 	if webp:
 		out = PortableCompressedTexture2D.new()
 		(out as PortableCompressedTexture2D).create_from_image(img, PortableCompressedTexture2D.COMPRESSION_MODE_LOSSY, false, 0.85)
 	_texs[key] = out
+	_avg[out] = last.get_pixel(0, 0)
 	return out
 
 
@@ -344,3 +365,80 @@ static func _tris(mesh: Mesh) -> int:
 static func _size(path: String) -> int:
 	var f := FileAccess.open(path, FileAccess.READ)
 	return f.get_length() if f else 0
+
+
+## Thin closed parts of the surface (wires, chains, cage bars, rails) blown up to MIN_THICK: each
+## part's thickness is 4 V / A (a tube's diameter, a plate's twice its thickness); plates and cards,
+## whose faces mostly look one way, are left alone. Corners at one spot move together, no cracks.
+func _thicken(arrays: Array) -> void:
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals = arrays[Mesh.ARRAY_NORMAL]
+	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	if normals == null or idx.is_empty():
+		return
+	var spot := {}
+	var at := PackedInt32Array()
+	at.resize(verts.size())
+	for i in verts.size():
+		var k := verts[i].snapped(Vector3.ONE * 1e-4)
+		if not spot.has(k):
+			spot[k] = spot.size()
+		at[i] = spot[k]
+	var parent := PackedInt32Array()
+	parent.resize(spot.size())
+	for i in parent.size():
+		parent[i] = i
+	for t in range(0, idx.size(), 3):
+		var a := _root(parent, at[idx[t]])
+		parent[_root(parent, at[idx[t + 1]])] = a
+		parent[_root(parent, at[idx[t + 2]])] = a
+	var parts := {}  # root: [area, volume, normal spread (Basis as a 3x3)]
+	for t in range(0, idx.size(), 3):
+		var a := verts[idx[t]]
+		var b := verts[idx[t + 1]]
+		var c := verts[idx[t + 2]]
+		var n := (b - a).cross(c - a)
+		var area := n.length() * 0.5
+		if area < 1e-12:
+			continue
+		n = n.normalized()
+		var r := _root(parent, at[idx[t]])
+		if not parts.has(r):
+			parts[r] = [0.0, 0.0, Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)]
+		var e: Array = parts[r]
+		e[0] += area
+		e[1] += a.dot(b.cross(c)) / 6.0
+		var m: Basis = e[2]
+		e[2] = Basis(m.x + n * n.x * area, m.y + n * n.y * area, m.z + n * n.z * area)
+	var grow := {}
+	for r in parts:
+		var e: Array = parts[r]
+		var thick: float = absf(e[1]) * 4.0 / e[0]
+		if thick >= MIN_THICK or thick < 1e-4:
+			continue
+		var m: Basis = e[2]
+		var v := Vector3(0.58, 0.57, 0.59)
+		for i in 8:
+			v = (m * v).normalized()
+		if v.dot(m * v) / e[0] > 0.7:
+			continue  # a plate
+		grow[r] = (MIN_THICK - thick) * 0.5
+	_thickened += grow.size()
+	if grow.is_empty():
+		return
+	var push := {}
+	for i in verts.size():
+		if grow.has(_root(parent, at[i])):
+			push[at[i]] = push.get(at[i], Vector3.ZERO) + (normals[i] as Vector3)
+	for i in verts.size():
+		var r := _root(parent, at[i])
+		if grow.has(r):
+			verts[i] += (push[at[i]] as Vector3).normalized() * grow[r]
+	arrays[Mesh.ARRAY_VERTEX] = verts
+
+
+static func _root(parent: PackedInt32Array, x: int) -> int:
+	while parent[x] != x:
+		parent[x] = parent[parent[x]]
+		x = parent[x]
+	return x

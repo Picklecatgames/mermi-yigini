@@ -19,3 +19,5 @@ shader_parameter/uv_offset = null
 shader_parameter/vertex_tint = null
 shader_parameter/triplanar = true
 shader_parameter/tri_metres = 1.5
+shader_parameter/far_colour = null
+shader_parameter/far_fade = null
