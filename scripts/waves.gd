@@ -318,6 +318,11 @@ const SWARM_FROM: int = TYPES[&"swarm"].from
 const SWARM_PACK := 4
 const SWARM_PACK_GROW := 3
 const SWARM_PACK_MAX := 8
+## The zombie test menu (scripts/spawn_menu.gd): they come up this far in front of the one who
+## asked, SUMMON_GAP apart side by side, in rows of SUMMON_ROW.
+const SUMMON_AHEAD := 6.0
+const SUMMON_GAP := 1.2
+const SUMMON_ROW := 5
 const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "HERKES DÜŞTÜ"}
 
 var wave := 1
@@ -395,6 +400,7 @@ func _ready() -> void:
 		_status = _lever.find_child("Status", true, false)
 	GameState.wave_cue.connect(_on_cue)
 	GameState.lever_pulled.connect(_on_lever)
+	GameState.debug_spawn_asked.connect(_debug_spawn)
 	GameState.shot_landed.connect(_on_shot)
 	GameState.fired.connect(func(_peer: int, from: Vector3, dir: Vector3) -> void: fit_along(from, dir))
 	BLOOD.warm()
@@ -501,6 +507,39 @@ func _on_lever(_peer: int) -> void:
 	if seq == _seq:
 		GameState.cue_wave([&"phase", wave, Phase.FIGHT, left])
 		_check_clear()  # shot down in the pens before the gates were wide enough
+
+
+## Host: the test menu's zombies (debug builds): `count` of TYPES `type` in rows in front of one
+## standing at `at` looking along `yaw`, facing them. They are inside from the start, so they go for
+## the nearest player standing at once (_hunt) and claw, wave or no wave; dressed as in the first
+## wave the type comes in, or this one if later. The next wave's lever coming back clears them.
+func _debug_spawn(type: String, at: Vector3, yaw: float, count: int) -> void:
+	var t: Dictionary = TYPES.get(StringName(type), {})
+	if Net.is_client or t.is_empty():
+		return
+	var w := maxi(wave, t.from)
+	var ahead := Vector3(-sin(yaw), 0.0, -cos(yaw))
+	var side := ahead.cross(Vector3.UP)
+	var space := get_world_3d().direct_space_state
+	for i in count:
+		var row := i / SUMMON_ROW
+		var in_row := mini(SUMMON_ROW, count - row * SUMMON_ROW)
+		var pos := at + ahead * (SUMMON_AHEAD + row * SUMMON_GAP * 1.5) + side * ((i % SUMMON_ROW) - (in_row - 1) / 2.0) * SUMMON_GAP
+		pos += Vector3(_rng.randf_range(-0.2, 0.2), 0.0, _rng.randf_range(-0.2, 0.2))
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 4.0, pos + Vector3.DOWN * 6.0, 1))
+		pos.y = hit.position.y if hit else at.y
+		var id := _next_id
+		_next_id += 1
+		_hp[id] = hp_of(StringName(type), w, false)
+		_hp_full[id] = _hp[id]
+		var speed: float = STATS[t.kind][0] * t.speed * minf(1.0 + SPEED_GROW * (w - 1), SPEED_MAX) * _rng.randf_range(SPEED_ROLL[0], SPEED_ROLL[1])
+		var worn := looks(StringName(type), w)
+		var model: StringName = worn[_rng.randi() % worn.size()] if worn else &""
+		GameState.cue_wave([&"spawn", id, t.kind, _rng.randi(), "", pos, yaw + PI, speed, 0.0, true, [],
+				StringName(type), model, false, -1, true])
+		var z: Dictionary = _zombies[id]
+		z.released = true  # the host sends where it has them (_send_at), wave or no wave
+		z.test = true
 
 
 ## What wave `w` sends, in order: the types (TYPES).
@@ -1762,7 +1801,7 @@ func _spread(delta: float) -> void:
 				moved[j] = true
 	for i in live.size():
 		if moved[i]:
-			(live[i].node as Node3D).global_position = _keep_side(at[i])
+			(live[i].node as Node3D).global_position = at[i] if live[i].has("test") else _keep_side(at[i])
 
 
 ## `at` kept out of the railing's band unless it is in a hole there (and then off its posts).
@@ -1944,7 +1983,7 @@ func _hunt(z: Dictionary, delta: float) -> void:
 			way = way.rotated(Vector3.UP, side * PI * 0.45)
 			step *= 0.5 if off.length() > REACH * 2.0 else 0.0
 			break
-	node.global_position = _keep_side(at + way * step)
+	node.global_position = at + way * step if z.has("test") else _keep_side(at + way * step)
 	z.walked += step
 	_turn_to(node, face, TAU * 2.0 * delta)
 	_moving(z, step / delta)
@@ -1956,7 +1995,9 @@ func _swing(z: Dictionary) -> void:
 	GameState.cue_wave([&"swing", z.id])
 	var t: float = z.swing
 	await get_tree().create_timer(t * 0.5).timeout
-	if not z.dead and phase == Phase.FIGHT and z.inside:
+	if not is_instance_valid(z.node):  # cleared away mid-swing (the next wave's lever coming back)
+		return
+	if not z.dead and (phase == Phase.FIGHT or z.has("test")) and z.inside:
 		var up := _standing()
 		var at := (z.node as Node3D).global_position
 		if up.has(z.prey) and at.distance_to(up[z.prey]) <= REACH + REACH_SLACK:

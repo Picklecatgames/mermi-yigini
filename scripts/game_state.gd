@@ -93,8 +93,26 @@ signal player_downed(peer: int)
 signal player_revived(peer: int)
 ## Host: nobody is standing any more, DOWN_TIME after the last went down (waves.gd makes it a lost wave).
 signal all_down
+## The day-night clock (scripts/day_night.gd shows it): the hour, 0..24, and how fast it runs, in
+## hours a game second. Host's, told to everyone whenever its pace changes; every machine runs it
+## on from there.
+signal clock_changed(hour: float, rate: float)
+## Host only: the zombie test menu asked for `count` of waves.gd TYPES `type`, in front of someone
+## standing at `at` looking along `yaw` (scripts/spawn_menu.gd, debug builds; waves.gd puts them up).
+signal debug_spawn_asked(type: String, at: Vector3, yaw: float, count: int)
 
 const PILE_START := 100_000_000
+## The day (2026-11-03, first guesses: the user hasn't set its length, docs/ayrintilar.md open
+## questions). Night is NIGHT_FROM..NIGHT_TO in full, dusk and dawn the TWILIGHT hours before and after.
+const DAY_SECONDS := 1440.0  # one day and night: an hour a minute
+const START_HOUR := 9.0
+const NIGHT_FROM := 21.0
+const NIGHT_TO := 5.0
+const TWILIGHT := 2.5
+const SKIP_TO := {false: 21.5, true: 8.0}  # F6 (debug) by day runs the clock on to night, by night to morning
+const SKIP_TIME := 5.0  # s it takes, nearly all of it dusk (or dawn)
+const CLOCK_SEND := 10.0  # s between the host's clock to clients, against drift
+const DEBUG_SPAWN_MAX := 20
 const MAX_PLAYERS := 4
 ## Loose bullet ids: the baked spill is 0 .. its size - 1, thrown bullets count up from here.
 const THROWN_ID_START := 1 << 20
@@ -356,6 +374,7 @@ const REQUESTS := {
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 	&"request_pull_lever": 0, &"request_repair_fence": 0, &"request_revive": 1,
+	&"request_skip_time": 0, &"request_debug_spawn": 4,
 }
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
@@ -368,7 +387,7 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"loose_taken", &"scrap_collapse", &"heap_clock", &"heap_piece_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
-	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down"]
+	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4}
 
@@ -448,6 +467,11 @@ var fence: int:  # what is left of them all (checks, the repair price; nothing s
 			n += hp
 		return n
 var _fence_wait := 0.0  # host: s until clients hear of the clawing again
+var hour := START_HOUR  # the day-night clock, 0..24
+var hour_rate := 24.0 / DAY_SECONDS  # hours a game second
+var _skip_left := 0.0  # host: s of F6's run still to go
+var _skip_to := 0.0  # host: the hour it ends on
+var _clock_wait := CLOCK_SEND
 var _fence_news := false
 var wave_phase := WAVE_READY  # from the wave cues, on every machine
 var wave_cleared := 0  # the last wave cleared, for the revive's price
@@ -516,6 +540,7 @@ func _ready() -> void:
 			_event.rpc_id(id, &"vault_changed", [vault])
 			_event.rpc_id(id, &"melter_changed", [melt_bin, brass, melt_level, press_level])
 			_event.rpc_id(id, &"fence_changed", [fence_bays])
+			_event.rpc_id(id, &"clock_changed", [hour, hour_rate])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
 				_event.rpc_id(id, &"quest_done", [q, 0])
 			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress, quests_ready])
@@ -587,8 +612,10 @@ func _process(delta: float) -> void:
 			p.weak_combo = 0
 		if p.down:
 			p.down_for += delta
+	hour = fposmod(hour + hour_rate * delta, 24.0)
 	if Net.is_client:
 		return  # the hopper melts on the host
+	_clock(delta)
 	_health(delta)
 	if melt_bin > 0:
 		_melt_part += MELT_RATES[melt_level] * delta
@@ -607,6 +634,50 @@ func _process(delta: float) -> void:
 	_fence_wait -= delta
 	if _fence_news and _fence_wait <= 0.0:
 		_fence_now(true)
+
+
+## Host: F6's run ends on its hour, and back to the day's own pace; clients hear of the clock now and then.
+func _clock(delta: float) -> void:
+	if _skip_left > 0.0:
+		_skip_left -= delta
+		if _skip_left <= 0.0:
+			hour = _skip_to
+			hour_rate = 24.0 / DAY_SECONDS
+			_world(&"clock_changed", [hour, hour_rate])
+	_clock_wait -= delta
+	if _clock_wait <= 0.0:
+		_clock_wait = CLOCK_SEND
+		if Net.online:
+			_event.rpc(&"clock_changed", [hour, hour_rate])
+
+
+## How dark the hour `h` is: 0 by day, 1 at night, easing through dusk and dawn.
+static func night_of(h: float) -> float:
+	var dusk := smoothstep(NIGHT_FROM - TWILIGHT, NIGHT_FROM, h)
+	var dawn := 1.0 - smoothstep(NIGHT_TO, NIGHT_TO + TWILIGHT, h)
+	return maxf(dusk, dawn)
+
+
+## Debug builds: the clock runs on to the night (by day) or the morning (by night) in SKIP_TIME,
+## so the change is seen happening. From full day it first jumps to where dusk begins (from full
+## night, dawn), which shows nothing: the light only follows how dark it is.
+func request_skip_time(peer := 0) -> void:
+	if not OS.is_debug_build() or _send(&"request_skip_time", [], peer) or Net.is_client:
+		return
+	var day := night_of(_skip_to if _skip_left > 0.0 else hour) < 0.5  # again mid-run: back the other way
+	if _skip_left <= 0.0 and night_of(hour) == (0.0 if day else 1.0):
+		hour = NIGHT_FROM - TWILIGHT if day else NIGHT_TO
+	_skip_to = SKIP_TO[not day]
+	_skip_left = SKIP_TIME
+	hour_rate = fposmod(_skip_to - hour, 24.0) / SKIP_TIME
+	_world(&"clock_changed", [hour, hour_rate])
+
+
+## Debug builds: `count` zombies of waves.gd TYPES `type` in front of the asker (scripts/spawn_menu.gd).
+func request_debug_spawn(type: String, at: Vector3, yaw: float, count: int, peer := 0) -> void:
+	if not OS.is_debug_build() or _send(&"request_debug_spawn", [type, at, yaw, count], peer) or Net.is_client:
+		return
+	debug_spawn_asked.emit(type, at, yaw, clampi(count, 1, DEBUG_SPAWN_MAX))
 
 
 ## Host: the hopper or the press changed. Here at once; to clients now if `send`, else at most
@@ -1754,6 +1825,9 @@ func _event(event: StringName, args: Array) -> void:
 			vault = args[0]
 		&"fence_changed":
 			fence_bays.assign(args[0])
+		&"clock_changed":
+			hour = args[0]
+			hour_rate = args[1]
 		&"health_changed":
 			player(args[0]).hp = args[1]
 		&"player_downed":
