@@ -62,6 +62,12 @@ const CUKUR := "res://assets/props/cukur/"
 const OGUTUCU := ["res://assets/props/ogutucu/ogutucu.glb", 3000, 256]
 ## Workshop sheets and steel (build_world.gd _sheet, _workshop_shed): 128 px over the 2 m they cover.
 const SHED_TEX := ["rust_coarse_01", "metal_plate_02"]
+## The ground's (build_world.gd: the desert's sand, cracked earth and gravel, the yard's concrete
+## and kerb; 2026-11-03, the user: "the surfaces are bad"): 128 px over their 3-6 m repeat, in the
+## desert's colours (NATURE_*), no normal or roughness map (flat_arm stands in).
+const GROUND_TEX := ["gravelly_sand", "mud_cracked_dry_03", "sandy_gravel_02", "dirty_concrete", "concrete_slab_wall"]
+const GROUND_SATURATION := 0.9
+const GROUND_VALUE := 0.82
 ## The desert's trees, bushes and rocks (Poly Haven's Namaqualand set; 2026-11-03, the user: the
 ## trees are bad, find PS1 ones, keep the desert's own kinds): [folder, triangles for the whole file
 ## (every LOD node in it shares them), texture px]. A PS1 tree is a few hundred triangles and its
@@ -87,6 +93,7 @@ var _far := FAR
 var _rust_share := 0.0
 var _grade := false  # scrap: textures into the rust range (GRADE_*)
 var _nature := false  # trees and rocks: leaves cut out, textures into the desert's range (NATURE_*)
+var _ground := false  # the ground's textures: the desert's range, GROUND_*
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
 
@@ -100,6 +107,15 @@ func _init() -> void:
 		DirAccess.make_dir_recursive_absolute(TEX_OUT.get_base_dir())
 		for id: String in SHED_TEX:
 			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128), TEX_OUT % id) == OK and ok
+		_nature = true
+		_ground = true
+		for id: String in GROUND_TEX:
+			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128), TEX_OUT % id) == OK and ok
+		_nature = false
+		_ground = false
+		var flat := Image.create(4, 4, false, Image.FORMAT_RGB8)
+		flat.fill(Color(1.0, 1.0, 0.0))  # ambient 1, rough 1, metal 0
+		ok = ResourceSaver.save(ImageTexture.create_from_image(flat), TEX_OUT % "flat_arm") == OK and ok
 	if all or "bench" in args:
 		for e: Array in BENCH:
 			ok = _convert(e[0], e[1], e[2]) and ok
@@ -457,7 +473,7 @@ func _keyed_once(tex: Texture2D) -> Texture2D:
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
 		return null
-	var key := [tex, px, webp, _grade, _nature]
+	var key := [tex, px, webp, _grade, _nature, _ground]
 	if _texs.has(key):
 		return _texs[key]
 	var img: Image = tex.get_image().duplicate()
@@ -473,7 +489,7 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 		for y in img.get_height():
 			for x in img.get_width():
 				var c := img.get_pixel(x, y)
-				img.set_pixel(x, y, _graded(c, true) if _grade else _desert(c))
+				img.set_pixel(x, y, _graded(c, true) if _grade else (_desert(c, GROUND_SATURATION, GROUND_VALUE) if _ground else _desert(c)))
 	img.generate_mipmaps()
 	var last := img.duplicate() as Image
 	last.resize(1, 1, Image.INTERPOLATE_BILINEAR)
@@ -599,10 +615,13 @@ static func keyed(tex: Texture2D) -> Texture2D:
 
 
 ## `c` in the desert's range (NATURE_*).
-static func _desert(c: Color) -> Color:
+## The ground keeps more of its own colour and goes a little darker (GROUND_*): graded like the
+## plants, the sand and the concrete came out a washed-out grey-white under the dusty sky.
+static func _desert(c: Color, saturation := NATURE_SATURATION, value := 1.0) -> Color:
 	var grey := c.get_luminance()
-	var out := Color(grey, grey, grey).lerp(c, NATURE_SATURATION)
+	var out := Color(grey, grey, grey).lerp(c, saturation)
 	out = out.lerp(NATURE_DUST * (grey / maxf(NATURE_DUST.get_luminance(), 0.02)), NATURE_DUST_SHARE)
+	out = out * value
 	out.a = c.a
 	return out
 

@@ -195,9 +195,10 @@ func _desert() -> void:
 	var mat := ShaderMaterial.new()
 	mat.shader = load("res://materials/env/desert.gdshader")
 	for slot in [["sand", "gravelly_sand"], ["earth", "mud_cracked_dry_03"], ["gravel", "sandy_gravel_02"]]:
-		mat.set_shader_parameter(slot[0] + "_albedo", load(TEX + "%s/%s_diff_2k.jpg" % [slot[1], slot[1]]))
-		mat.set_shader_parameter(slot[0] + "_normal", load(TEX + "%s/%s_nor_gl_2k.jpg" % [slot[1], slot[1]]))
-		mat.set_shader_parameter(slot[0] + "_arm", load(TEX + "%s/%s_arm_2k.jpg" % [slot[1], slot[1]]))
+		var small := _psx_tex(slot[1])  # the PS1 copy (worn, above)
+		mat.set_shader_parameter(slot[0] + "_albedo", small if small else load(TEX + "%s/%s_diff_2k.jpg" % [slot[1], slot[1]]))
+		mat.set_shader_parameter(slot[0] + "_normal", null if small else load(TEX + "%s/%s_nor_gl_2k.jpg" % [slot[1], slot[1]]))
+		mat.set_shader_parameter(slot[0] + "_arm", load(FLAT_ARM) if small else load(TEX + "%s/%s_arm_2k.jpg" % [slot[1], slot[1]]))
 	var n2 := FastNoiseLite.new()
 	n2.frequency = 0.02
 	n2.fractal_octaves = 4
@@ -644,6 +645,40 @@ func _ps1(path: String) -> String:
 
 func _prop(parent: Node, path: String, pos: Vector3, yaw: float, s := 1.0, tilt := Basis()) -> StaticBody3D:
 	return super(parent, _ps1(path), pos, yaw, s, tilt)
+
+
+## The ground's textures the PS1 way where there is one (2026-11-03, the user: "the surfaces are
+## bad"; tools/psx_props.gd tex): 128 px in the desert's colours, no normal map, flat roughness.
+const PSX_TEX := "res://assets/psx/tex/%s.res"
+const FLAT_ARM := "res://assets/psx/tex/flat_arm.res"
+
+
+func _psx_tex(id: String) -> Texture2D:
+	return load(PSX_TEX % id) if ResourceLoader.exists(PSX_TEX % id) else null
+
+
+func worn(id: String, save_as: String, params: Dictionary) -> ShaderMaterial:
+	var m: ShaderMaterial = super(id, save_as, params)
+	var tex := _psx_tex(id)
+	if tex:
+		m.set_shader_parameter("albedo_tex", tex)
+		m.set_shader_parameter("normal_tex", null)
+		m.set_shader_parameter("arm_tex", load(FLAT_ARM))
+		ResourceSaver.save(m, m.resource_path)
+	return m
+
+
+func pbr_box(id: String, metres: float, tint := Color.WHITE, world := true, save_as := "") -> ORMMaterial3D:
+	var m: ORMMaterial3D = super(id, metres, tint, world, save_as)
+	var tex := _psx_tex(id)
+	if tex:
+		m.albedo_texture = tex
+		m.normal_enabled = false
+		m.normal_texture = null
+		m.orm_texture = load(FLAT_ARM)
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+		ResourceSaver.save(m, m.resource_path)
+	return m
 
 
 func _cukur(piece: String, xf: Transform3D, parent: Node) -> void:
