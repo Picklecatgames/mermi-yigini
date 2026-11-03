@@ -45,7 +45,7 @@ const GLB := {"blob": "res://assets/characters/zombies/blob/blob.glb",
 ## they keep their looks, faded and dirty: the orange a rusted orange, the turquoise a washed grey-green.
 const DIRT := Color(0.3, 0.25, 0.2)
 const PSX_GRADE_OF := {"demon": [0.3, 0.62, 0.45, Color(0.36, 0.2, 0.16), 0.3],
-		"worker": [0.5, 0.9, 0.15, DIRT, 0.3], "masked": [0.4, 0.75, 0.2, DIRT, 0.45],
+		"worker": [0.65, 0.9, 0.12, DIRT, 0.3], "masked": [0.4, 0.75, 0.2, DIRT, 0.45],
 		"chupacabra": [0.5, 0.72, 0.15, DIRT, 0.45], "boss": [0.5, 0.78, 0.15, DIRT, 0.4],
 		"brute": [0.6, 0.82, 0.12, DIRT, 0.4]}
 const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra"]
