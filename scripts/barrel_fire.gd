@@ -164,9 +164,11 @@ func _curve(points: Array) -> CurveTexture:
 ## deep red as they thin out above the rim. Three emitters, one per flame shape, out of step.
 ## On the 270p screen small faint licks vanished and the barrel read as a glowing cube from across
 ## the yard (2026-11-03, the PS1 critic): fewer, bigger, brighter tongues that clear the rim by
-## half a metre, so the fire has a shape from 10 m off.
+## half a metre, so the fire has a shape from 10 m off. Mixed, not added: added up and through the
+## tonemap the licks burned out to cream-white and read as smoke (the critic, twice); mixed they are
+## the orange they are given, as a PS1 fire's sprites were.
 func _flames(tex: Texture2D, i: int) -> void:
-	var p := _sprites(tex, true, 14, 0.75 + 0.1 * i, 0.66 - 0.07 * i)
+	var p := _sprites(tex, false, 14, 0.75 + 0.1 * i, 0.66 - 0.07 * i)
 	p.position.y = rim - 0.06
 	p.preprocess = 1.0
 	p.randomness = 0.5
@@ -191,13 +193,13 @@ func _flames(tex: Texture2D, i: int) -> void:
 	pm.turbulence_influence_max = 0.15
 	# A yellow-white heart, then a saturated orange-red body: pale licks read as smoke or paper at
 	# 270p (2026-11-03, the PS1 critic).
-	pm.color_ramp = _ramp([[0.0, Color(1.0, 0.85, 0.5, 0.0)], [0.1, Color(1.0, 0.78, 0.35, 0.9)], [0.3, Color(1.0, 0.36, 0.04, 0.85)],
-		[0.7, Color(0.8, 0.1, 0.0, 0.5)], [1.0, Color(0.3, 0.02, 0.0, 0.0)]])
+	pm.color_ramp = _ramp([[0.0, Color(1.0, 0.75, 0.25, 0.0)], [0.08, Color(1.0, 0.62, 0.15, 0.95)], [0.3, Color(1.0, 0.35, 0.05, 0.9)],
+		[0.7, Color(0.75, 0.1, 0.0, 0.6)], [1.0, Color(0.3, 0.02, 0.0, 0.0)]])
 
 
 ## The hot heart of it: a soft glow sitting in the rim, so the flames grow out of light, not air.
 func _core() -> void:
-	var p := _sprites(CORE, true, 10, 1.0, 0.5)
+	var p := _sprites(CORE, true, 10, 1.0, 0.3)  # small: the heart, not a white blot over the flames
 	p.position.y = rim - 0.08
 	p.preprocess = 1.0
 	var pm := p.process_material as ParticleProcessMaterial

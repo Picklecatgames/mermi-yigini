@@ -235,22 +235,9 @@ func _game() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.save_path))
 
 
-## Night, roughly: the sun out, the sky and the light it bounces nearly gone, the haze dark; the
-## workshop's lamps and the barrel fire are the light.
+## Night: scripts/atmosphere.gd's.
 func _night(main: Node) -> void:
-	var sun: DirectionalLight3D = main.get_node("World/Sun")
-	sun.visible = false
-	var env: Environment = main.get_node("World/WorldEnvironment").environment
-	env.background_energy_multiplier = 0.02
-	env.ambient_light_energy *= 0.06
-	env.ambient_light_sky_contribution = 0.0
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.35, 0.42, 0.6)
-	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
-	env.fog_light_color = Color(0.045, 0.05, 0.065)  # a shade over black: what stands in it reads as a silhouette
-	env.fog_sky_affect = 1.0
-	env.volumetric_fog_albedo = Color(0.05, 0.05, 0.06)
-	main.get_node("Ambience").set(&"night", true)
+	root.get_node("Atmosphere").call(&"night", main)
 
 
 func _frames(n: int) -> void:

@@ -10,7 +10,13 @@ extends Node
 const WORLD := "res://scenes/world.tscn"
 ## Poly Haven's Kloofendal Overcast pure sky (CC0), 1k: drawn unfiltered, its big pixels are the PS1's.
 const SKY := preload("res://assets/env/hdri/kloofendal_overcast_puresky_1k.hdr")
-const DUST := Color(0.62, 0.55, 0.45)  # the fog by day: warm, sandy dust
+const DUST := Color(0.66, 0.56, 0.42)  # the fog by day: warm, sandy dust, yellower than the sky
+## Night (night()): dark, but not a black hole (2026-11-03, the PS1 critic: at full black the
+## workshop 10 m off was gone, and so were the hands): a deep blue-grey haze that what stands in
+## it is a silhouette against, a little moonlight all round, the sky one with the haze.
+const NIGHT_FOG := Color(0.07, 0.08, 0.1)
+const NIGHT_AMBIENT := Color(0.35, 0.42, 0.6)
+const NIGHT_AMBIENT_ENERGY := 0.16
 const FOG_BEGIN := 12.0  # m: clear air up to here
 const FOG_END := 75.0  # m: nothing but dust past here
 const FOG_CURVE := 0.6  # under 1 the fog thickens early: half way in at ~35 m
@@ -28,6 +34,26 @@ func _enter_tree() -> void:
 func _on_node_added(n: Node) -> void:
 	if n is WorldEnvironment and n.owner != null and n.owner.scene_file_path == WORLD:
 		_dust(n as WorldEnvironment)
+
+
+## Night over `main`'s world, roughly (the day and night cycle, to come, eases into it): the sun
+## out, the sky and the light it bounces nearly gone; the lamps and the barrel fire are the light.
+## tools/psx_shots.gd shoots its night with it.
+func night(main: Node) -> void:
+	(main.get_node("World/Sun") as DirectionalLight3D).visible = false
+	var env: Environment = (main.get_node("World/WorldEnvironment") as WorldEnvironment).environment
+	env.background_energy_multiplier = 0.02
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = NIGHT_AMBIENT
+	env.ambient_light_energy = NIGHT_AMBIENT_ENERGY
+	env.ambient_light_sky_contribution = 0.0
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	env.fog_light_color = NIGHT_FOG
+	env.fog_sky_affect = 1.0
+	env.volumetric_fog_albedo = Color(0.05, 0.05, 0.06)
+	var amb := main.get_node_or_null("Ambience")
+	if amb:
+		amb.set(&"night", true)
 
 
 func _dust(we: WorldEnvironment) -> void:
