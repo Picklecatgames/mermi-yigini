@@ -5,7 +5,7 @@ extends StaticBody3D
 ## sky"; "the mountain is the scrap: as it runs out it goes down bit by bit, hours later the player sees
 ## half the mountain gone"): one height field on the flat ground the count is carved out of
 ## (GameState.pile, 100M pieces; one piece is UNIT of the starting volume): a small heap in front,
-## behind it mountains up to TOP, all falling to nothing at the grid's edges. The node sits on the
+## behind it one great mountain (MOUNTAIN) with lesser heaps round its foot. The node sits on the
 ## ground. Real pieces cover the part the players reach (NEAR, _face_cell); the mountains above it are
 ## covered by bigger drawn pieces that ride the surface down as it goes (scripts/scrap_hills.gd).
 ## Scrap locks together: slopes up to LOCK_SLOPE stand, and every take that undercuts such a slope
@@ -23,19 +23,23 @@ extends StaticBody3D
 # never runs past the host's. Tumbling pieces are local visuals.
 
 const CELL := 0.25            # m per height field cell
-const GRID_X := 416           # cells along x -> 104 m
-const GRID_Z := 512           # cells along z -> 128 m
-## The junkyard: its middle on the ground (x, z) behind the workshop, and its peaks (world x, z,
-## height, slope), each a cone, the mountains' roughened; every side falls to the ground at
-## EDGE_SLOPE before the grid ends. A small heap in front; the mountains behind it (-x).
-const CENTER := Vector2(-60.0, 0.0)
-const PEAKS: Array[Vector4] = [
-	Vector4(-20.0, -6.0, 6.0, 0.8), Vector4(-22.0, 6.0, 5.0, 0.8), Vector4(-15.0, 0.0, 3.0, 0.8),  # the heap in front
-	Vector4(-74.0, -6.0, 64.0, 1.5), Vector4(-66.0, 34.0, 40.0, 1.4), Vector4(-70.0, -42.0, 38.0, 1.4),
-	Vector4(-96.0, 46.0, 52.0, 1.5), Vector4(-98.0, -38.0, 50.0, 1.5),
-	Vector4(-44.0, 40.0, 16.0, 1.1), Vector4(-44.0, -36.0, 14.0, 1.1)]
+const GRID_X := 512           # cells along x -> 128 m
+const GRID_Z := 640           # cells along z -> 160 m
+## The junkyard: its middle on the ground (x, z) behind the workshop. One great mountain (2026-11-03,
+## the user: "not sharp triangles: one big mountain with little hills round it, real, epic,
+## dramatic"): world x, z, height, radius; a massive rounded top, SHOULDERS lesser domes on its
+## flanks, gullies down it, a foot that spreads out, its outline wobbling round it. Out past its foot
+## HILLOCKS lesser heaps standing on their own (rolled from HILLOCK_SEED), and in front the heap
+## players dig into (FRONT, x, z, height, radius). Every side falls to the ground at EDGE_SLOPE
+## before the grid ends.
+const CENTER := Vector2(-72.0, 0.0)
+const MOUNTAIN := Vector4(-88.0, 0.0, 74.0, 58.0)
+const SHOULDERS := 4
+const FRONT: Array[Vector4] = [Vector4(-20.0, -6.0, 6.0, 10.0), Vector4(-23.0, 7.0, 5.0, 9.0), Vector4(-14.0, 1.0, 3.0, 6.0)]
+const HILLOCKS := 40
+const HILLOCK_SEED := 5
 const EDGE_SLOPE := 1.5
-const TOP := 66.0             # m: no cell starts higher
+const TOP := 78.0             # m: no cell starts higher
 ## Where players reach (world x, z) and how high up it: those cells carry real pieces
 ## (data/scrap_face.json); the rest, the mountains, are covered by scrap_hills.gd.
 const NEAR := Rect2(-40.0, -20.0, 32.0, 40.0)
@@ -484,36 +488,57 @@ func _pick_part(r: float, on_face := false) -> int:
 	return clampi(pick.bsearch(r), 0, pick.size() - 1)
 
 
-## The starting heap: the highest of PEAKS' cones over each cell, under the EDGE_SLOPE ramp off the
-## grid's edges, lumps all over, and no slope steeper than LOCK_SLOPE.
+## The starting heap: the mountain or the highest of the lesser heaps over each cell, under the
+## EDGE_SLOPE ramp off the grid's edges, lumps all over, and no slope steeper than LOCK_SLOPE.
 func _build_heights() -> void:
 	_h.resize(GRID_X * GRID_Z)
 	_ceil.resize(GRID_X * GRID_Z)
 	var half := Vector2(GRID_X, GRID_Z) * CELL * 0.5
-	# Each mountain with lesser tops round it, so the skyline is ragged.
-	var peaks := PEAKS.duplicate()
+	# The mountain's shoulders, then the lesser heaps out past its foot, lower the further out.
 	var prng := RandomNumberGenerator.new()
-	prng.seed = 5
-	for p in PEAKS:
-		if p.z < 12.0:
-			continue
-		for n in 5:
-			var a := prng.randf() * TAU
-			var r := prng.randf_range(0.25, 0.6) * p.z / p.w
-			peaks.append(Vector4(p.x + cos(a) * r, p.y + sin(a) * r, p.z * prng.randf_range(0.4, 0.75), p.w))
+	prng.seed = HILLOCK_SEED
+	var mid := Vector2(MOUNTAIN.x, MOUNTAIN.y)
+	var domes: Array[Vector4] = [MOUNTAIN]
+	for n in SHOULDERS:
+		var a := TAU * (n + prng.randf_range(0.2, 0.8)) / SHOULDERS
+		var at := mid + Vector2(cos(a), sin(a)) * MOUNTAIN.w * prng.randf_range(0.3, 0.5)
+		domes.append(Vector4(at.x, at.y, MOUNTAIN.z * prng.randf_range(0.5, 0.72), MOUNTAIN.w * prng.randf_range(0.45, 0.6)))
+	var hills: Array[Vector4] = FRONT.duplicate()
+	var tries := 0
+	while hills.size() < FRONT.size() + HILLOCKS and tries < 5000:
+		tries += 1
+		var a := prng.randf() * TAU
+		var d := MOUNTAIN.w * prng.randf_range(0.95, 1.7)
+		var at := mid + Vector2(cos(a), sin(a)) * d
+		var local := at - CENTER
+		if absf(local.x) > half.x - 8.0 or absf(local.y) > half.y - 8.0 or at.x > NEAR.position.x - 4.0:
+			continue  # off the grid, or in among the front heap
+		var hh := prng.randf_range(3.0, 16.0) * clampf(2.0 - d / MOUNTAIN.w, 0.35, 1.0)
+		hills.append(Vector4(at.x, at.y, hh, hh * prng.randf_range(2.6, 3.8)))
 	for j in GRID_Z:
 		for i in GRID_X:
 			var c := _cell_pos(Vector2i(i, j))
 			var k := j * GRID_X + i
 			_ceil[k] = TOP + 1.0
 			var w := Vector2(c.x, c.z) + CENTER
+			# The mountain and its shoulders: domes (a bell, round on top, spreading at the foot), their
+			# outline wobbling (the radius by direction from the mountain's middle), gullies running
+			# down them (ridged noise along the fall line).
+			var off := w - mid
+			var dir := off.normalized() if off.length() > 0.01 else Vector2.RIGHT
+			var wobble := 1.0 + 0.16 * _noise.get_noise_2d(dir.x * 40.0 + 300.0, dir.y * 40.0) + 0.07 * _noise.get_noise_2d(dir.x * 120.0, dir.y * 120.0 + 70.0)
 			var y := 0.0
-			for p in peaks:
-				# Dumped, not built: steep near the top, spreading out at the foot (no pyramids).
-				var t: float = w.distance_to(Vector2(p.x, p.y)) * p.w / p.z / 1.25
-				y = maxf(y, p.z * pow(maxf(1.0 - t, 0.0), 1.6))
-			# Big lumps and gullies down the mountains, growing with height; lumps all over.
-			y += (_noise.get_noise_2d(c.x * 0.035 + 50.0, c.z * 0.035) * 0.3 + _noise.get_noise_2d(c.x * 0.12, c.z * 0.12) * 0.12) * y
+			for d in domes:
+				var t := w.distance_to(Vector2(d.x, d.y)) / (d.w * wobble)
+				if t < 1.0:
+					y = maxf(y, d.z * (exp(-3.0 * t * t) - exp(-3.0)) / (1.0 - exp(-3.0)))
+			var gully := 1.0 - absf(_noise.get_noise_2d(dir.x * 90.0 + 900.0, dir.y * 90.0))
+			y *= 1.0 - 0.14 * gully * gully * smoothstep(0.15, 0.6, off.length() / MOUNTAIN.w)
+			for p in hills:
+				var q := w.distance_to(Vector2(p.x, p.y)) / p.w
+				y = maxf(y, p.z * (1.0 - smoothstep(0.0, 1.0, q)))
+			# Big lumps all over it, growing with height; small lumps everywhere.
+			y += (_noise.get_noise_2d(c.x * 0.035 + 50.0, c.z * 0.035) * 0.14 + _noise.get_noise_2d(c.x * 0.12, c.z * 0.12) * 0.06) * y
 			y += _noise.get_noise_2d(c.x * 0.8, c.z * 0.8) * 0.6 + _noise.get_noise_2d(c.x * 6.0, c.z * 6.0) * LUMP
 			var edge := minf(half.x - absf(c.x), half.y - absf(c.z)) - CELL
 			y = minf(y, EDGE_SLOPE * edge)
