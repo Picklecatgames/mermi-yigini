@@ -433,7 +433,7 @@ func _video_page() -> Control:
 	list.add_child(_toggle("vsync", "Dikey senkron (V-Sync)", ""))
 	list.add_child(_choice("fps_limit", "Kare sınırı", ["30", "60", "90", "120", "144", "165", "240", "Sınırsız"], ""))
 	list.add_child(_slider("brightness", "Parlaklık", 50, 150, 5, "%d%%", ""))
-	list.add_child(_choice("psx", "PS1 ekranı", ["Kapalı", "225p", "270p", "360p"], ""))
+	list.add_child(_choice("psx", "PS1 ekranı", ["Kapalı", "225p", "270p", "360p", "480p", "720p"], ""))
 	list.add_child(_toggle("psx_fine", "Titreme azaltma", ""))
 	list.add_child(_heading("KALİTE"))
 	list.add_child(_choice("preset", "Hazır ayar", Settings.PRESETS + ["Özel"], "Tek bir ayarı değiştirince Özel olur."))

@@ -32,7 +32,9 @@ const SHADOW_ATLAS := [1024, 2048, 4096, 8192]  # px, per shadow level
 const SOFT_SHADOWS := [RenderingServer.SHADOW_QUALITY_HARD, RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM, RenderingServer.SHADOW_QUALITY_SOFT_HIGH]
 const SPEAKER_PAN := 0.6  # 3D panning on speakers: both ears hear both speakers anyway
 const PAUSE_MUFFLE_HZ := 900.0
-const PSX_LINES := [0, 225, 270, 360]  # "PS1 ekranı": off, then how tall the 3D is drawn (scripts/psx_screen.gd)
+const PSX_LINES := [0, 225, 270, 360, 480, 720]  # "PS1 ekranı": off, then how tall the 3D is drawn (scripts/psx_screen.gd)
+## 480 by default (2026-11-03, the user: "oyun pixelart oldu, ben lowpoly PS1 tarzı istemiştim"): at
+## 270 the screen's big pixels read as pixel art; low poly, unfiltered textures and the dither stay.
 
 const DEFAULTS := {
 	# audio
@@ -45,7 +47,7 @@ const DEFAULTS := {
 	"preset": 2, "window_mode": 0, "vsync": true, "fps_limit": 7,
 	"render_scale": 100, "upscaler": 0, "antialias": 4, "shadows": 2,
 	"ssao": true, "ssil": true, "ssr": true, "fog": true, "glow": true, "brightness": 100,
-	"psx": 2, "psx_fine": true,
+	"psx": 4, "psx_fine": true,
 	# controls
 	"sensitivity": 1.0, "ads_sensitivity": 100, "invert_y": false,
 	# game
@@ -58,7 +60,7 @@ const RANGES := {
 	"ambience_vol": Vector2(0, 100), "music_vol": Vector2(0, 100), "output": Vector2(0, 2), "rear_cue": Vector2(0, 100),
 	"dynamic_range": Vector2(0, 2), "preset": Vector2(0, 4), "window_mode": Vector2(0, 2),
 	"fps_limit": Vector2(0, 7), "render_scale": Vector2(50, 100), "upscaler": Vector2(0, 2),
-	"antialias": Vector2(0, 5), "shadows": Vector2(0, 3), "brightness": Vector2(50, 150), "psx": Vector2(0, 3),
+	"antialias": Vector2(0, 5), "shadows": Vector2(0, 3), "brightness": Vector2(50, 150), "psx": Vector2(0, 5),
 	"sensitivity": Vector2(0.1, 4.0), "ads_sensitivity": Vector2(20, 150), "fov": Vector2(60, 110),
 	"head_bob": Vector2(0, 100), "screen_shake": Vector2(0, 100), "crosshair_color": Vector2(0, 4), "crosshair_size": Vector2(50, 200),
 }
