@@ -2,11 +2,11 @@ extends SceneTree
 ## Headless check of the day-night clock (scripts/day_night.gd) and the zombie test menu
 ## (scripts/spawn_menu.gd), host and client in two processes on 127.0.0.1:
 ##   Godot.exe --headless --path . -s res://tools/day_night_check.gd
-## Alone first: the day is what the scene was built with; F6 (GameState.request_skip_time) runs the
+## Alone first: the day is what the scene was built with; N (GameState.request_skip_time) runs the
 ## clock to night in SKIP_TIME, the sun sinking and going out, the sky, the ambient light and the
 ## haze darkening a little more every frame, never at once; again, back to morning and the built
 ## day exactly. Every TYPES type comes up from the menu in front of the player, facing it, and
-## comes for it; one shot down through GameState dies. Then online: the client presses F6 and asks
+## comes for it; one shot down through GameState dies. Then online: the client presses N and asks
 ## for zombies; the host runs the clock and puts them up, and both end on the same hour with the
 ## same zombies under the same paths.
 
@@ -63,7 +63,7 @@ func _host() -> void:
 		if Time.get_ticks_msec() - t0 > 15_000:
 			return _fail("the run to night never ended")
 	var took := (Time.get_ticks_msec() - t0) / 1000.0
-	if not _ok(absf(took - gs.SKIP_TIME) < 0.5, "F6 took %.2f s (SKIP_TIME %.1f)" % [took, gs.SKIP_TIME]): return
+	if not _ok(absf(took - gs.SKIP_TIME) < 0.5, "N took %.2f s (SKIP_TIME %.1f)" % [took, gs.SKIP_TIME]): return
 	if not _ok(absf(gs.hour - gs.SKIP_TO[false]) < 0.01 and gs.night_of(gs.hour) == 1.0, "it ends at %.0f, full night" % gs.SKIP_TO[false]): return
 	await process_frame
 	if not _ok(not sun.visible and env.background_energy_multiplier < built[2] * 0.05 and env.ambient_light_energy < built[3] * 0.2, "at night the sun is out, the sky and its light nearly gone"): return
@@ -199,7 +199,7 @@ func _client() -> void:
 		await process_frame
 		if Time.get_ticks_msec() - t0 > 15_000:
 			return _fail("the run never ended here")
-	if not _ok((gs.night_of(gs.hour) > 0.5) != night, "the client's F6 turned %s" % ("day" if night else "night")): return
+	if not _ok((gs.night_of(gs.hour) > 0.5) != night, "the client's N turned %s" % ("day" if night else "night")): return
 	main.get_node("Player").global_position = STAND
 	gs.request_debug_spawn("runner", STAND, YAW, 2)
 	t0 = Time.get_ticks_msec()

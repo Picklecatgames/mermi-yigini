@@ -1,5 +1,5 @@
 extends SceneTree
-## The day turning to night under F6 (scripts/day_night.gd) and the zombie test menu's pick
+## The day turning to night under N (scripts/day_night.gd) and the zombie test menu's pick
 ## (scripts/spawn_menu.gd), as the player sees them, the PS1 screen on, as PNGs:
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1600x900 -s res://tools/day_night_shots.gd
 ## user://daynight_<n>_<hour>.png along the run to night, then user://summon_<day|night>.png: a mix of
@@ -7,7 +7,7 @@ extends SceneTree
 
 const EYE := Vector3(17.0, 1.7, 4.0)  # psx_shots.gd's "yard" view
 const LOOK := Vector3(5.0, 1.4, -0.5)
-const AT := [0.8, 1.6, 2.4, 3.2, 4.0, 5.2]  # s into F6's run to night
+const AT := [0.8, 1.6, 2.4, 3.2, 4.0, 5.2]  # s into N's run to night
 const SUMMON := [["walker", 1], ["brute", 1], ["dog", 2], ["runner", 2], ["spiker", 1]]
 
 

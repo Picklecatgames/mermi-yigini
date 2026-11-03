@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Zombie test menu, debug builds only: F5 opens it. Pick how many, then a type (waves.gd TYPES),
+## Zombie test menu, debug builds only: Z opens it. Pick how many, then a type (waves.gd TYPES),
 ## and they come up a few metres in front of you, facing you, and come for you
 ## (GameState.request_debug_spawn; the host puts them up, waves.gd _debug_spawn). The menu closes
 ## on the pick, so the gun is in hand at once. Net.gd adds it. Check: tools/day_night_check.gd.
@@ -23,7 +23,7 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F5:
+	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_Z:  # Z: zombi (2026-11-03, the user: not an F key)
 		toggle()
 		get_viewport().set_input_as_handled()
 
@@ -54,7 +54,7 @@ func _build() -> void:
 	panel.add_child(box)
 	add_child(panel)
 	var title := Label.new()
-	title.text = "ZOMBİ (F5)"
+	title.text = "ZOMBİ (Z)"
 	box.add_child(title)
 	var row := HBoxContainer.new()
 	box.add_child(row)

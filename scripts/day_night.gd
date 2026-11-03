@@ -8,7 +8,7 @@ extends Node
 ## tools/psx_shots.gd, a little less black: shapes read in the open). The workshop's lamps and the
 ## barrel fire light it. The numbers are first guesses.
 ##
-## F6 (debug builds) runs the clock on to the next night or morning in GameState.SKIP_TIME, every
+## N (debug builds) runs the clock on to the next night or morning in GameState.SKIP_TIME, every
 ## machine seeing it go. Check: tools/day_night_check.gd.
 
 const SUN_SET := -4.0  # deg, the sun's pitch once it is under the horizon
@@ -31,7 +31,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if OS.is_debug_build() and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F6:
+	if OS.is_debug_build() and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:  # N: gece (2026-11-03, the user: not an F key)
 		GameState.request_skip_time()
 		get_viewport().set_input_as_handled()
 

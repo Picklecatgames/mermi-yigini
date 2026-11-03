@@ -109,7 +109,7 @@ const START_HOUR := 9.0
 const NIGHT_FROM := 21.0
 const NIGHT_TO := 5.0
 const TWILIGHT := 2.5
-const SKIP_TO := {false: 21.5, true: 8.0}  # F6 (debug) by day runs the clock on to night, by night to morning
+const SKIP_TO := {false: 21.5, true: 8.0}  # N (debug) by day runs the clock on to night, by night to morning
 const SKIP_TIME := 5.0  # s it takes, nearly all of it dusk (or dawn)
 const CLOCK_SEND := 10.0  # s between the host's clock to clients, against drift
 const DEBUG_SPAWN_MAX := 20
@@ -469,7 +469,7 @@ var fence: int:  # what is left of them all (checks, the repair price; nothing s
 var _fence_wait := 0.0  # host: s until clients hear of the clawing again
 var hour := START_HOUR  # the day-night clock, 0..24
 var hour_rate := 24.0 / DAY_SECONDS  # hours a game second
-var _skip_left := 0.0  # host: s of F6's run still to go
+var _skip_left := 0.0  # host: s of N's run still to go
 var _skip_to := 0.0  # host: the hour it ends on
 var _clock_wait := CLOCK_SEND
 var _fence_news := false
@@ -636,7 +636,7 @@ func _process(delta: float) -> void:
 		_fence_now(true)
 
 
-## Host: F6's run ends on its hour, and back to the day's own pace; clients hear of the clock now and then.
+## Host: N's run ends on its hour, and back to the day's own pace; clients hear of the clock now and then.
 func _clock(delta: float) -> void:
 	if _skip_left > 0.0:
 		_skip_left -= delta
