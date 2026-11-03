@@ -323,11 +323,16 @@ const SWARM_PACK_MAX := 8
 const SUMMON_AHEAD := 6.0
 const SUMMON_GAP := 1.2
 const SUMMON_ROW := 5
+## B's wave out of the wood (_debug_raid): from this many edge spots, one every RAID_EVERY s.
+const RAID_FROM := 3
+const RAID_EVERY := 0.6
+const GROUND_EVERY := 4  # frames between a test zombie's looks at the ground under it
 const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "HERKES DÜŞTÜ"}
 
 var wave := 1
 var phase := Phase.READY
 var left := 0  # zombies of this wave not yet down (waiting ones too)
+var _raiding := false  # host: B's wave is still coming out (_debug_raid)
 var fence: int:  # what is left of the railing's bays, all of them (GameState's)
 	get: return GameState.fence
 
@@ -401,6 +406,7 @@ func _ready() -> void:
 	GameState.wave_cue.connect(_on_cue)
 	GameState.lever_pulled.connect(_on_lever)
 	GameState.debug_spawn_asked.connect(_debug_spawn)
+	GameState.debug_raid_asked.connect(_debug_raid)
 	GameState.shot_landed.connect(_on_shot)
 	GameState.fired.connect(func(_peer: int, from: Vector3, dir: Vector3) -> void: fit_along(from, dir))
 	BLOOD.warm()
@@ -528,18 +534,72 @@ func _debug_spawn(type: String, at: Vector3, yaw: float, count: int) -> void:
 		pos += Vector3(_rng.randf_range(-0.2, 0.2), 0.0, _rng.randf_range(-0.2, 0.2))
 		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 4.0, pos + Vector3.DOWN * 6.0, 1))
 		pos.y = hit.position.y if hit else at.y
-		var id := _next_id
-		_next_id += 1
-		_hp[id] = hp_of(StringName(type), w, false)
-		_hp_full[id] = _hp[id]
-		var speed: float = STATS[t.kind][0] * t.speed * minf(1.0 + SPEED_GROW * (w - 1), SPEED_MAX) * _rng.randf_range(SPEED_ROLL[0], SPEED_ROLL[1])
-		var worn := looks(StringName(type), w)
-		var model: StringName = worn[_rng.randi() % worn.size()] if worn else &""
-		GameState.cue_wave([&"spawn", id, t.kind, _rng.randi(), "", pos, yaw + PI, speed, 0.0, true, [],
-				StringName(type), model, false, -1, true])
-		var z: Dictionary = _zombies[id]
-		z.released = true  # the host sends where it has them (_send_at), wave or no wave
-		z.test = true
+		_summon(StringName(type), pos, yaw + PI, w)
+
+
+## Host: one test zombie of TYPES `type` at `pos` facing `yaw`, dressed and paced for wave `w`.
+func _summon(type: StringName, pos: Vector3, yaw: float, w: int) -> void:
+	var t: Dictionary = TYPES[type]
+	var id := _next_id
+	_next_id += 1
+	_hp[id] = hp_of(type, w, false)
+	_hp_full[id] = _hp[id]
+	var speed: float = STATS[t.kind][0] * t.speed * minf(1.0 + SPEED_GROW * (w - 1), SPEED_MAX) * _rng.randf_range(SPEED_ROLL[0], SPEED_ROLL[1])
+	var worn := looks(type, w)
+	var model: StringName = worn[_rng.randi() % worn.size()] if worn else &""
+	GameState.cue_wave([&"spawn", id, t.kind, _rng.randi(), "", pos, yaw, speed, 0.0, true, [],
+			type, model, false, -1, true])
+	var z: Dictionary = _zombies[id]
+	z.released = true  # the host sends where it has them (_send_at), wave or no wave
+	z.test = true
+
+
+## Host: B's wave (debug builds; GameState.request_debug_raid). Once it is dark, wave `wave`'s plan
+## (_plan) steps out of the wood's edge (build_world.gd "forest_edge") at RAID_FROM spots, one every
+## RAID_EVERY s while fewer than MAX_ALIVE are up, and goes for the nearest player (_hunt). Each B
+## is the next wave, so harder. Until the night session ties waves to the dark, this stands in.
+func _debug_raid() -> void:
+	if Net.is_client or _raiding:
+		return
+	var edges: Array[Node3D] = []
+	for m: Node3D in get_tree().get_nodes_in_group("forest_edge"):
+		edges.append(m)
+	if edges.is_empty():
+		return
+	_raiding = true
+	var seq := _seq
+	while GameState.night_of(GameState.hour) < 0.6:  # the light goes first
+		await get_tree().process_frame
+		if seq != _seq:
+			_raiding = false
+			return
+	_shuffle(edges)
+	var from := edges.slice(0, mini(RAID_FROM, edges.size()))
+	var w := wave
+	wave += 1
+	var plan := _plan(w)
+	for i in plan.size():
+		while _alive() >= MAX_ALIVE:
+			await get_tree().create_timer(RAID_EVERY).timeout
+		if seq != _seq:
+			break
+		var edge: Node3D = from[i % from.size()]
+		var pos := edge.global_position + Vector3(_rng.randf_range(-3.0, 3.0), 0.0, _rng.randf_range(-3.0, 3.0))
+		var to := Vector3(GameState.LEVER_POS.x, 0.0, GameState.LEVER_POS.z) - pos
+		pos.y += 3.0  # the marker is on the ground; from over it, so a rise near it is found too
+		_summon(plan[i], _on_ground(pos), atan2(-to.x, -to.z), w)
+		await get_tree().create_timer(RAID_EVERY).timeout
+	_raiding = false
+
+
+## `at` dropped (or raised, a step at most) onto the world layer below it; as it was if there is none.
+## `body`: the zombie itself, which is on that layer too.
+func _on_ground(at: Vector3, body: CollisionObject3D = null) -> Vector3:
+	var ray := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 1.0, at + Vector3.DOWN * 8.0, 1)
+	if body:
+		ray.exclude = [body.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(ray)
+	return hit.position if hit else at
 
 
 ## What wave `w` sends, in order: the types (TYPES).
@@ -1984,6 +2044,8 @@ func _hunt(z: Dictionary, delta: float) -> void:
 			step *= 0.5 if off.length() > REACH * 2.0 else 0.0
 			break
 	node.global_position = at + way * step if z.has("test") else _keep_side(at + way * step)
+	if z.has("test") and (_beat + z.id) % GROUND_EVERY == 0:  # across the open ground, on it
+		node.global_position = _on_ground(node.global_position, node)
 	z.walked += step
 	_turn_to(node, face, TAU * 2.0 * delta)
 	_moving(z, step / delta)

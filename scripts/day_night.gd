@@ -77,6 +77,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if OS.is_debug_build() and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_N:  # N: gece (2026-11-03, the user: not an F key)
 		GameState.request_skip_time()
 		get_viewport().set_input_as_handled()
+	elif OS.is_debug_build() and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_B:  # B: gece ve dalga
+		GameState.request_debug_raid()
+		get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:

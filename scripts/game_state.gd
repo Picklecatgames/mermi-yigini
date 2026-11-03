@@ -103,6 +103,8 @@ signal moon_changed(kind: String, night: int)
 ## Host only: the zombie test menu asked for `count` of waves.gd TYPES `type`, in front of someone
 ## standing at `at` looking along `yaw` (scripts/spawn_menu.gd, debug builds; waves.gd puts them up).
 signal debug_spawn_asked(type: String, at: Vector3, yaw: float, count: int)
+## Host only: B asked for a night's wave out of the wood (debug builds; waves.gd _debug_raid).
+signal debug_raid_asked
 
 const PILE_START := 100_000_000
 ## The day (2026-11-03, first guesses: the user hasn't set its length, docs/ayrintilar.md open
@@ -383,7 +385,7 @@ const REQUESTS := {
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 	&"request_pull_lever": 0, &"request_repair_fence": 0, &"request_revive": 1,
-	&"request_skip_time": 0, &"request_debug_spawn": 4, &"request_debug_moon": 1,
+	&"request_skip_time": 0, &"request_debug_raid": 0, &"request_debug_spawn": 4, &"request_debug_moon": 1,
 }
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
@@ -720,6 +722,17 @@ func request_skip_time(peer := 0) -> void:
 	_skip_left = SKIP_TIME
 	hour_rate = fposmod(_skip_to - hour, 24.0) / SKIP_TIME
 	_world(&"clock_changed", [hour, hour_rate])
+
+
+## Debug builds: night and its dead at once (B; 2026-11-03, the user asked for a key for both). By day
+## the clock first runs on to the night as N does; waves.gd lets the wave out of the trees once dark.
+func request_debug_raid(peer := 0) -> void:
+	if not OS.is_debug_build() or _send(&"request_debug_raid", [], peer) or Net.is_client:
+		return
+	var going := _skip_to if _skip_left > 0.0 else hour
+	if night_of(going) < 0.5:
+		request_skip_time()
+	debug_raid_asked.emit()
 
 
 ## Debug builds: `count` zombies of waves.gd TYPES `type` in front of the asker (scripts/spawn_menu.gd).

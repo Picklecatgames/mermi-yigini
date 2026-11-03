@@ -173,7 +173,50 @@ func _host() -> void:
 	if not _ok(died[0], "a summoned walker shot down dies"): return
 	_clear()
 	gs.request_toggle_infinite_ammo()
+	if not await _raid(): return
 	await _online()
+
+
+## B by day: the clock runs to night, then a wave steps out of the wood's edge, on the ground, and
+## comes for the player.
+func _raid() -> bool:
+	var me: Node3D = main.get_node("Player")
+	var w0: int = waves.wave
+	gs.request_debug_raid()
+	if not _ok(gs.hour_rate > 24.0 / gs.DAY_SECONDS * 1.5 and waves._zombies.is_empty(), "B by day runs the clock on, nobody yet"): return false
+	var t0 := Time.get_ticks_msec()
+	while waves._zombies.is_empty():
+		await process_frame
+		if Time.get_ticks_msec() - t0 > 20_000:
+			_fail("B's wave never came")
+			return false
+	if not _ok(gs.night_of(gs.hour) >= 0.6 and waves.wave == w0 + 1, "they came once dark, wave %d -> %d" % [w0, waves.wave]): return false
+	var first: Dictionary = waves._zombies.values()[0]
+	var node: Node3D = first.node
+	var near := INF
+	for m: Node3D in tree_nodes("forest_edge"):
+		near = minf(near, Vector2(m.global_position.x - node.global_position.x, m.global_position.z - node.global_position.z).length())
+	if not _ok(near < 5.0, "the first came out at the wood's edge (%.1f m from a marker)" % near): return false
+	while waves._zombies.size() < 6:
+		await process_frame
+		if Time.get_ticks_msec() - t0 > 20_000:
+			_fail("only %d of B's wave came" % waves._zombies.size())
+			return false
+	var d0 := node.global_position.distance_to(me.global_position)
+	for i in 120:
+		await physics_frame
+	var d1 := node.global_position.distance_to(me.global_position)
+	var ground: Vector3 = waves._on_ground(node.global_position, node)
+	if not _ok(d1 < d0 - 1.0 and absf(ground.y - node.global_position.y) < 0.3, "it comes for the player on the ground (%.1f -> %.1f m, %.2f m off it)" % [d0, d1, ground.y - node.global_position.y]): return false
+	waves._seq += 1  # the rest stay in the wood
+	while waves._raiding:
+		await process_frame
+	_clear()
+	return true
+
+
+func tree_nodes(group: String) -> Array:
+	return get_nodes_in_group(group)
 
 
 func _clear() -> void:
