@@ -249,6 +249,7 @@ func _night(main: Node) -> void:
 	env.fog_light_color = Color(0.02, 0.025, 0.035)
 	env.fog_sky_affect = 1.0
 	env.volumetric_fog_albedo = Color(0.05, 0.05, 0.06)
+	main.get_node("Ambience").set(&"night", true)
 
 
 func _frames(n: int) -> void:
