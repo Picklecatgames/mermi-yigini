@@ -108,6 +108,9 @@ const SLUMP_RADIUS := Vector2(1.8, 3.6)  # m, the host rolls a face's size betwe
 const MAX_PER_CELL := 6
 const TOP_LAYER := 6          # pieces to a cell lying on top; the rest lie a layer down
 const SURFACE_MIN := 0.025   # m: only crumbs smaller than this stay off the face (the user: nuts and bolts too)
+## Each piece's hitbox: its box this much bigger, plus BOX_PAD_MIN m (_load_parts).
+const BOX_PAD := 1.15
+const BOX_PAD_MIN := 0.006
 const LOW_TRIS := 150         # surface pieces are drawn from a lighter copy of their part
 ## Loose pieces on the hall's floor round the pit's rim, thinning out with distance.
 @export var spill_pieces := 300
@@ -248,7 +251,9 @@ func _ready() -> void:
 	# Never drawn, only its shadow (the user, 2026-11-02: the "mud" under the scrap never shows):
 	# the light stays out of the heap's inside.
 	var heap := MeshInstance3D.new()
-	heap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	# Drawn too, black and sunk under the pieces (2026-11-03: the boxed pieces leave gaps): a chink
+	# looks into the dark, never onto mud (scrap_heap.gdshader).
+	heap.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	heap.mesh = plane
 	heap.custom_aabb = AABB(Vector3(-GRID_X * CELL * 0.5, -0.1, -GRID_Z * CELL * 0.5), Vector3(GRID_X * CELL, DEPTH + 0.5, GRID_Z * CELL))
 	add_child(heap)
@@ -324,9 +329,13 @@ func _load_parts() -> void:
 		var mi: MeshInstance3D = glb.find_children("*", "MeshInstance3D", true, false)[0]
 		var mesh: Mesh = mi.mesh
 		_part_mesh.append(mesh)
-		var hull: CollisionShape3D = glb.find_children("*", "CollisionShape3D", true, false)[0]
-		_part_hull.append(hull.shape)
-		_part_hull_at.append(Transform3D(Basis(), -mesh.get_aabb().get_center()) * _to_root(mi).affine_inverse() * _to_root(hull))
+		# Each piece an invisible box a little bigger than it (2026-11-03, the user: "lay the pieces
+		# apart, not like dust: draw a gear as a box, an invisible hitbox"): boxes touch, the pieces
+		# in them never do, a gap is left round each; cheap and steady to stack and to fall.
+		var box := BoxShape3D.new()
+		box.size = mesh.get_aabb().size * BOX_PAD + Vector3.ONE * BOX_PAD_MIN
+		_part_hull.append(box)
+		_part_hull_at.append(Transform3D())
 		_part_mass.append(clampf(p.kutle_kg, 0.05, 30.0))
 		glb.free()
 		_part_low.append(_low_poly(mesh))
