@@ -90,6 +90,7 @@ func _psx(model: String) -> bool:
 					var img: Image = std.albedo_texture.get_image().duplicate()
 					img.decompress()
 					img.resize(PSX_TEX, PSX_TEX, Image.INTERPOLATE_LANCZOS)
+					img.generate_mipmaps()  # far off a smaller copy, not a boiling one (psx.gdshader)
 					mat.set_shader_parameter("albedo_tex", ImageTexture.create_from_image(img))
 				if std:
 					mat.set_shader_parameter("tint", std.albedo_color)

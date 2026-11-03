@@ -8,14 +8,19 @@ extends CanvasLayer
 ## (materials/psx_view.gdshader).
 ##
 ## Settings sets `lines` (the "PS1 ekranı" choice); 0 is off and leaves the viewports to Settings.
+## `fine` ("Titreme azaltma", on by default): the 3D drawn twice as tall and each pixel the mean of
+## its 2x2 (2026-11-03, the user: zigzag walls and boiling far things "göz kanatıyor"); textures
+## on materials/psx.gdshader then take the next smaller mip (psx_mip_bias), as the pixel shown.
 ## Cost: the 3D draws ~1/20 of the pixels at 1080p and the colour pass is one screen copy, so the
 ## frame gets cheaper, not dearer: RTX 3090, 1920x1080, GPU 10.1 -> 4.9 ms in the yard by day,
 ## 8.8 -> 4.1 ms in the workshop at night (tools/psx_shots.gd --game). Each machine draws only its
 ## own screen, so four players in co-op cost the same per machine.
 
 const VIEWS := ["ViewmodelView"]  # SubViewportContainers that draw 3D over the world
+const MIP_BIAS := 1.5  # mips softer on the root viewport's ordinary materials, the PS1 screen on
 
 var lines := 0
+var fine := true
 var _rect := ColorRect.new()
 var _view_mat := ShaderMaterial.new()
 var _views: Array[SubViewportContainer] = []
@@ -39,8 +44,9 @@ func _ready() -> void:
 
 
 ## Settings calls this after it has set the root viewport's own scaling and smoothing.
-func apply(n: int) -> void:
+func apply(n: int, twice := true) -> void:
 	lines = n
+	fine = twice
 	_fit()
 
 
@@ -54,8 +60,14 @@ func _on_node_added(n: Node) -> void:
 func _fit() -> void:
 	var vp := get_viewport()
 	var size := vp.get_visible_rect().size
-	var scale := minf(1.0, lines / maxf(size.y, 1.0))
-	var small := (size * scale).floor().max(Vector2.ONE)
+	var taps := 2.0 if fine else 1.0
+	var scale := minf(1.0, lines * taps / maxf(size.y, 1.0))
+	var small := (size * lines / maxf(size.y, 1.0)).floor().max(Vector2.ONE)
+	RenderingServer.global_shader_parameter_set(&"psx_mip_bias", log(taps) / log(2.0) if lines > 0 else 0.0)
+	# The materials not yet on psx.gdshader (the scrap, the world's scans) read their textures a
+	# mip softer too, or their fine detail boils at 270 lines (2026-11-03, the user: the scrap tires
+	# the eyes).
+	vp.texture_mipmap_bias = MIP_BIAS if lines > 0 else 0.0
 	_rect.visible = lines > 0
 	if lines > 0:
 		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_NEAREST
@@ -63,8 +75,9 @@ func _fit() -> void:
 		vp.msaa_3d = Viewport.MSAA_DISABLED
 		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
 		vp.use_taa = false
-		(_rect.material as ShaderMaterial).set_shader_parameter(&"psx_size", small)
-		_view_mat.set_shader_parameter(&"psx_size", small)
+		for m: ShaderMaterial in [_rect.material, _view_mat]:
+			m.set_shader_parameter(&"psx_size", small)
+			m.set_shader_parameter(&"psx_taps", taps)
 	for c in _views:
 		var sub: SubViewport = c.get_child(0) if c.get_child_count() > 0 else null
 		if sub == null:

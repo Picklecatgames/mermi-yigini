@@ -112,6 +112,15 @@ const BODY_RADIUS := 0.35
 const BODY_HEIGHT := 1.8
 const TAG_FONT := 24
 const TAG_PAD := Vector2(8, 2)  # px around the name
+## The name tag as in Minecraft (2026-11-03, the user: a player may vanish in the dark, the tag
+## should taste like Minecraft's): white pixel letters in a see-through black box, drawn flat over
+## the PS1 screen in its own big pixels (TAG_PX letters, TAG_LINES screen lines when the PS1 screen
+## is off), full behind nothing, faint through walls, and a crouching one's not through walls.
+const TAG_PX := 8
+const TAG_LINES := 270
+const TAG_BOX := Color(0, 0, 0, 0.3)
+const TAG_THROUGH := 0.35
+const TAG_LOOK := 0.15  # s between the checks of what stands between us and the tag
 const FALLEN_HEIGHT := 0.6  # m, the capsule of one lying down
 const FALLEN_TAG := 0.9  # m, their name tag over them
 
@@ -250,6 +259,10 @@ class Character extends Node3D:
 	var _tag_box: MeshInstance3D
 	var _tag_mat: StandardMaterial3D
 	var _tag_label: Label3D
+	var _tag_ui: PanelContainer
+	var _tag_text: Label
+	var _tag_seen := true
+	var _tag_look := 0.0
 	var _tag_y := LABEL_HEIGHT  # standing
 	var _shape: CapsuleShape3D
 	## What others collide with and shoot at; carries the peer id as meta "peer".
@@ -561,11 +574,69 @@ class Character extends Node3D:
 		_tag_box.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_tag_box.position.y = LABEL_HEIGHT
 		add_child(_tag_box)
+		# The label and its box above stay as the tag's place and its shown or hidden (crouching,
+		# lying down, watched) but draw nothing: the Minecraft tag is drawn flat (_place_tag_ui).
+		label.transparency = 1.0
+		_tag_box.transparency = 1.0
+		var layer := CanvasLayer.new()
+		layer.layer = 1  # over the PS1 screen (-1) and the gun, under the HUD and the menus
+		add_child(layer)
+		_tag_ui = PanelContainer.new()
+		var box := StyleBoxFlat.new()
+		box.bg_color = TAG_BOX
+		box.set_content_margin_all(1)
+		box.content_margin_left = 2
+		box.content_margin_right = 2
+		_tag_ui.add_theme_stylebox_override(&"panel", box)
+		_tag_ui.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_tag_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_tag_ui.visible = false
+		_tag_text = Label.new()
+		_tag_text.add_theme_font_override(&"font", _pixel_font())
+		_tag_text.add_theme_font_size_override(&"font_size", TAG_PX)
+		_tag_text.add_theme_color_override(&"font_color", Color.WHITE)
+		_tag_ui.add_child(_tag_text)
+		layer.add_child(_tag_ui)
 		_tint_tag()
 		GameState.player_slots.connect(_tint_tag.unbind(1))
 
+	static var _font: FontFile
+
+	## The UI font with its edges unsmoothed: blown up unfiltered, its letters are pixel blocks.
+	static func _pixel_font() -> FontFile:
+		if _font == null:
+			_font = (load("res://assets/fonts/IBMPlexSansCondensed-Bold.ttf") as FontFile).duplicate()
+			_font.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+			_font.hinting = TextServer.HINTING_NORMAL
+			_font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+			_font.multichannel_signed_distance_field = false
+		return _font
+
+	## The flat tag over the head's place on our screen, in whole PS1 pixels.
+	func _place_tag_ui(delta: float) -> void:
+		var cam := get_viewport().get_camera_3d()
+		var at := _tag_label.global_position
+		var shown := _tag_label.visible and visible and cam != null and not cam.is_position_behind(at)
+		_tag_ui.visible = shown
+		if not shown:
+			return
+		_tag_look -= delta
+		if _tag_look <= 0.0:
+			_tag_look = TAG_LOOK
+			var ray := PhysicsRayQueryParameters3D.create(cam.global_position, at)
+			ray.exclude = [body.get_rid()] if body else []
+			_tag_seen = get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
+		_tag_ui.modulate.a = 1.0 if _tag_seen else (0.0 if crouch else TAG_THROUGH)
+		var lines: int = PsxScreen.lines if PsxScreen.lines > 0 else TAG_LINES
+		var k := maxf(1.0, floorf(get_viewport().get_visible_rect().size.y / lines))
+		_tag_ui.scale = Vector2(k, k)
+		_tag_ui.size = Vector2.ZERO  # down to the name
+		var p := cam.unproject_position(at)
+		_tag_ui.position = (p - Vector2(_tag_ui.size.x * k * 0.5, _tag_ui.size.y * k)).snapped(Vector2(k, k))
+
 	func _tint_tag() -> void:
 		_tag_label.text = GameState.display_name(peer)  # the slot may come after the player
+		_tag_text.text = _tag_label.text
 		var c := GameState.color_of(peer)
 		c.a = 0.8
 		_tag_mat.albedo_color = c
@@ -752,6 +823,7 @@ class Character extends Node3D:
 		if not shadow_only:
 			_tag_label.visible = not watched
 			_tag_box.visible = not watched
+			_place_tag_ui(delta)
 		if _model == null:
 			return
 		_model.visible = not watched
