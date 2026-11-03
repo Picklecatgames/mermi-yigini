@@ -15,8 +15,10 @@ extends SceneTree
 
 const ZOMBIES := ["prisoner", "copzombie", "zombiegirl"]
 const SCREEN := Vector2i(480, 270)  # 2026-11-03: the default "PS1 ekranı", 270p
-const BODY := preload("res://scripts/zombie_body.gd")
-const REMOTE := preload("res://scripts/remote_players.gd")
+## zombie_body.gd and remote_players.gd are loaded when the cast is shot, not preloaded: they use
+## the autoloads, which a -s script compiles before (the --game shots would break).
+const BODY := "res://scripts/zombie_body.gd"
+const REMOTE := "res://scripts/remote_players.gd"
 ## [model, kind it is dressed as] in rows: zombie_body.gd picks the clips by kind.
 const CAST := [
 	[["prisoner", "walker"], ["copzombie", "walker"], ["zombiegirl", "walker"], ["parasite", "walker"],
@@ -100,7 +102,7 @@ func _initialize() -> void:
 	for row in CAST.size():
 		_clear(world)
 		for i in CAST[row].size():
-			var b: Node3D = BODY.new()
+			var b: Node3D = load(BODY).new()
 			b.setup(StringName(CAST[row][i][1]), 7 + i)
 			b.model = StringName(CAST[row][i][0])
 			b.size = 1.0
@@ -112,9 +114,10 @@ func _initialize() -> void:
 			await process_frame
 		await _shot(cam, Vector3(0, 1.8, 7.2), Vector3(0, 1.0, 0), "cast_" + ["zombies", "brutes"][row], true)
 	_clear(world)
-	var ids: Array = REMOTE.BODIES.keys()
+	var remote: GDScript = load(REMOTE)
+	var ids: Array = remote.BODIES.keys()
 	for i in ids.size():
-		var body: Node3D = REMOTE.BODIES[ids[i]].instantiate()
+		var body: Node3D = remote.BODIES[ids[i]].instantiate()
 		body.position = Vector3((i - 2.0) * 1.3, 0, 0)
 		body.set_meta("zombie", true)
 		world.add_child(body)
@@ -123,7 +126,7 @@ func _initialize() -> void:
 		var ap := AnimationPlayer.new()
 		body.add_child(ap)
 		ap.root_node = ^".."
-		ap.add_animation_library("", REMOTE.ANIMS)
+		ap.add_animation_library("", remote.ANIMS)
 		ap.play(&"pistol_idle")
 	await _shot(cam, Vector3(0, 1.7, 5.5), Vector3(0, 1.0, 0), "cast_players", true)
 	quit()
