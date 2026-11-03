@@ -11,6 +11,7 @@ const APP_ID := 0
 const STORE := "https://store.steampowered.com/app/%d/"
 const SAVE := "user://rewards.cfg"
 const GOLD := Color(1.0, 0.78, 0.34)  # gold's own reflectance (F0)
+const GOLD_LIFT := 3.0
 const SHEEN := preload("res://materials/gold_sheen.gdshader")
 
 
@@ -31,20 +32,14 @@ static func claim(tree: SceneTree) -> void:
 	tree.call_group("first_person_gun", "gild")
 
 
-## Turns every surface of `mi` to polished gold, the kind CS cases sell: full metal, near mirror,
-## so it is the reflections that draw it (the hall sky's lamp streaks sliding over warm dark gold),
-## not a flat yellow. The roughness map stays at a fraction, so the parts still read; a glint
-## sweeps across now and then.
+## Turns every surface of `mi` to gold: the PS1 material (tools/psx_import.gd) with its colour map
+## kept, so the parts and the wear still read, tinted warm gold and lifted (the Deagle's map is dark
+## steel); a glint sweeps across now and then.
 static func gild(mi: MeshInstance3D) -> void:
 	var sheen := ShaderMaterial.new()
 	sheen.shader = SHEEN
 	for i in mi.mesh.get_surface_count():
-		var gold := mi.get_active_material(i).duplicate() as StandardMaterial3D
-		gold.albedo_texture = null
-		gold.albedo_color = GOLD
-		gold.metallic = 1.0
-		gold.metallic_texture = null
-		gold.roughness = 0.35  # scales the map: polished, but not one smooth blob
-		gold.rim_enabled = false
+		var gold := mi.get_active_material(i).duplicate() as ShaderMaterial
+		gold.set_shader_parameter("tint", GOLD * GOLD_LIFT)
 		gold.next_pass = sheen
 		mi.set_surface_override_material(i, gold)

@@ -10,6 +10,7 @@ const PARTS := ["frame_tape", "trigger_tape", "slide", "hammer", "magazine"]
 const FADE := 1.5  # s
 const FADE_DELAY := 0.6  # s: the draw starts first
 const GLOW := Color(0.55, 0.4, 0.15)
+const GLOW_SHADER := preload("res://materials/psx_glow.gdshader")
 
 var _gun := Node3D.new()
 var _fading := false
@@ -34,15 +35,13 @@ func _ready() -> void:
 	_gun.transform = Transform3D(lay, Vector3(0.0, top + b.size.x * 0.5, 0.0) - lay * b.get_center())
 	add_child(_gun)
 	# It breathes a warm glow: the first thing to take.
-	var glow := StandardMaterial3D.new()
-	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	glow.albedo_color = Color.BLACK
+	var glow := ShaderMaterial.new()
+	glow.shader = GLOW_SHADER  # on the PS1 pistol's jitter (tools/psx_import.gd)
 	for mi in meshes:
 		mi.material_overlay = glow
 	var tw := create_tween().set_loops().set_trans(Tween.TRANS_SINE)
-	tw.tween_property(glow, "albedo_color", GLOW, 0.7)
-	tw.tween_property(glow, "albedo_color", Color.BLACK, 0.7)
+	tw.tween_property(glow, "shader_parameter/glow", GLOW, 0.7)
+	tw.tween_property(glow, "shader_parameter/glow", Color.BLACK, 0.7)
 
 
 ## The pistol is ours (player.gd calls it): the gun goes, the desk fades out and is gone.
