@@ -1,5 +1,5 @@
 {
-	"_not": "PS1 ses düzeni (docs/ayrintilar.md). Klasör = tür = yol. Okuyanlar: scripts/ps1_sound.gd (çalarken), tools/ses_ekle.py (eklerken). lufs: dosyanın hedef seviyesi; tepe: 1 sn'den kısa kliplerde LUFS yerine tepe hedefi (dBFS); hz: kaydedilen örnek hızı; perde: her çalışta ± oran; duzey: her çalışta ± dB; ses: bu türden aynı anda en çok kaç ses; dongu: yatak, ek yeri çapraz geçişle kapatılır; stereo: 0 mono, 0-1 dar stereo genişliği.",
+	"_not": "PS1 ses düzeni (docs/ayrintilar.md). Klasör = tür = yol. Okuyanlar: scripts/ps1_sound.gd (çalarken), tools/ses_ekle.py (eklerken). lufs: dosyanın hedef seviyesi; tepe: 1 sn'den kısa kliplerde LUFS yerine tepe hedefi (dBFS); hz: kaydedilen örnek hızı; perde: her çalışta ± oran; duzey: her çalışta ± dB; ses: bu türden aynı anda en çok kaç ses; dongu: yatak, ek yeri çapraz geçişle kapatılır; stereo: 0 mono, 0-1 dar stereo genişliği; bit: ezme (varsayılan 12, 0 yok); alcak: alçak geçiren Hz (yoksa yok). Müzik PS1'in XA akışı gibi 37,8 kHz, ezmesiz.",
 	"voices": 24,
 	"kinds": {
 		"silah": {"dir": "weapons/sounds", "bus": "Silah", "lufs": -20, "tepe": -3, "hz": 32000, "perde": 0.03, "duzey": 1.0, "ses": 6, "stereo": 0},
@@ -11,6 +11,7 @@
 		"ozel": {"dir": "sounds/specials", "bus": "PsAcik", "lufs": -19, "tepe": -3, "hz": 22050, "perde": 0.03, "duzey": 1.0, "ses": 2, "stereo": 0},
 		"ortam_olay": {"dir": "sounds/ambience/wild", "bus": "PsUzak", "lufs": -23, "tepe": -8, "hz": 22050, "perde": 0.03, "duzey": 3.0, "ses": 2, "stereo": 0},
 		"ortam_yatak": {"dir": "sounds/ambience", "bus": "Ambiyans", "lufs": -26, "tepe": -12, "hz": 22050, "perde": 0.0, "duzey": 0.0, "ses": 4, "stereo": 0.5, "dongu": true},
+		"muzik": {"dir": "sounds/music", "bus": "Muzik", "lufs": -23, "tepe": -6, "hz": 37800, "bit": 0, "alcak": 13000, "perde": 0.0, "duzey": 0.0, "ses": 1, "stereo": 0.7},
 		"arayuz": {"dir": "sounds/ui", "bus": "Arayuz", "lufs": -20, "tepe": -4, "hz": 22050, "perde": 0.05, "duzey": 1.0, "ses": 2, "stereo": 0}
 	}
 }

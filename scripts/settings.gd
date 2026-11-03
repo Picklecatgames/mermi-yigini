@@ -10,7 +10,7 @@ extends Node
 signal changed(key: String)
 
 const PATH := "user://settings.cfg"
-const BUSES := {"Silahlar": "weapon_vol", "Efekt": "effect_vol", "Ambiyans": "ambience_vol"}
+const BUSES := {"Silahlar": "weapon_vol", "Efekt": "effect_vol", "Ambiyans": "ambience_vol", "Muzik": "music_vol"}
 const GUN_SOUNDS := ["ShotSound", "DrySound", "SlideSound", "MagSound", "Tink"]  # viewmodel.tscn
 # The actions the player may move to another key, in the order the page lists them.
 const ACTIONS := [
@@ -36,7 +36,7 @@ const PSX_LINES := [0, 225, 270, 360]  # "PS1 ekranı": off, then how tall the 3
 
 const DEFAULTS := {
 	# audio
-	"master_vol": 100, "weapon_vol": 100, "effect_vol": 100, "ambience_vol": 100,
+	"master_vol": 100, "weapon_vol": 100, "effect_vol": 100, "ambience_vol": 100, "music_vol": 100,
 	"output": 0,  # 0 headphones, 1 stereo speakers, 2 surround
 	"rear_cue": 100,  # % of the "behind you" cue (headphones and stereo cannot say front from back)
 	"dynamic_range": 0,  # 0 wide, 1 medium, 2 night (loud shots squeezed)
@@ -55,7 +55,7 @@ const DEFAULTS := {
 # What a loaded number may be: the pause menu's own slider and choice ranges.
 const RANGES := {
 	"master_vol": Vector2(0, 100), "weapon_vol": Vector2(0, 100), "effect_vol": Vector2(0, 100),
-	"ambience_vol": Vector2(0, 100), "output": Vector2(0, 2), "rear_cue": Vector2(0, 100),
+	"ambience_vol": Vector2(0, 100), "music_vol": Vector2(0, 100), "output": Vector2(0, 2), "rear_cue": Vector2(0, 100),
 	"dynamic_range": Vector2(0, 2), "preset": Vector2(0, 4), "window_mode": Vector2(0, 2),
 	"fps_limit": Vector2(0, 7), "render_scale": Vector2(50, 100), "upscaler": Vector2(0, 2),
 	"antialias": Vector2(0, 5), "shadows": Vector2(0, 3), "brightness": Vector2(50, 150), "psx": Vector2(0, 3),

@@ -14,8 +14,9 @@ What it does, in order:
   3. --vurus S: the hit (first transient) lands S seconds into the file, so a sound started on an
      animation's frame lands on it; --sure S: stretched (0.8x-1.25x, pitch kept) to S seconds
   4. mono, or a narrow stereo for beds; beds get their seam closed with a crossfade (seamless loop)
-  5. PS1 colour: down to the kind's sample rate (22.05 kHz, guns 32 kHz; --kaba: 11.025 kHz) and a
-     light 12-bit crush; short fades in and out
+  5. PS1 colour: down to the kind's sample rate (22.05 kHz, guns 32 kHz, music 37.8 kHz like the
+     PS1's XA streams; --kaba: 11.025 kHz), the kind's low-pass if it has one, and a light 12-bit
+     crush (none for music); short fades in and out
   6. level: to the kind's LUFS (clips under a second: to its peak), peaks held under -1 dBFS
   7. written as ogg into the kind's folder, numbered after what is already there; a line for the
      asset list in docs/ayrintilar.md is printed (fill in the source and licence)
@@ -175,8 +176,11 @@ def main():
         # 5. PS1 colour and fades
         fade = min(0.01, length / 10)
         colour = [f"aresample={rate}:resampler=soxr"]
-        if not a.ham:
-            colour.append("acrusher=bits=12:mix=1:mode=lin:aa=1")
+        if kind.get("alcak"):
+            colour.append(f"lowpass=f={kind['alcak']}:p=1")
+        bits = kind.get("bit", 12)
+        if bits and not a.ham:
+            colour.append(f"acrusher=bits={bits}:mix=1:mode=lin:aa=1")
         if not loop:
             colour += [f"afade=t=in:d={fade:.3f}", f"afade=t=out:st={max(length - 0.06, 0):.3f}:d={min(0.06, length / 4):.3f}"]
         coloured = work / f"col{n}.wav"

@@ -398,7 +398,7 @@ func _fill_keys_list() -> void:
 
 
 func _audio_page() -> Control:
-	var keys := ["master_vol", "weapon_vol", "effect_vol", "ambience_vol", "output", "rear_cue", "dynamic_range", "mono", "mute_unfocused", "pause_muffle", "device"]
+	var keys := ["master_vol", "weapon_vol", "effect_vol", "ambience_vol", "music_vol", "output", "rear_cue", "dynamic_range", "mono", "mute_unfocused", "pause_muffle", "device"]
 	var pl := _scroll_page(keys)
 	var list: VBoxContainer = pl[1]
 	list.add_child(_heading("SEVİYELER"))
@@ -406,6 +406,7 @@ func _audio_page() -> Control:
 	list.add_child(_slider("weapon_vol", "Silahlar", 0, 100, 1, "%d%%", ""))
 	list.add_child(_slider("effect_vol", "Efektler", 0, 100, 1, "%d%%", ""))
 	list.add_child(_slider("ambience_vol", "Ambiyans", 0, 100, 1, "%d%%", ""))
+	list.add_child(_slider("music_vol", "Müzik", 0, 100, 1, "%d%%", ""))
 	list.add_child(_heading("3B SES"))
 	list.add_child(_choice("output", "Çıkış türü", ["Kulaklık", "Stereo hoparlör", "Surround 5.1 / 7.1"],
 		"Surround için Windows'ta 5.1/7.1 açık olmalı."))

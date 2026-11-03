@@ -47,6 +47,7 @@ func _ready() -> void:
 		layer.add_child(_label)
 		add_child(layer)
 	add_child(preload("res://scripts/day_night.gd").new())
+	add_child(preload("res://scripts/music.gd").new())  # follows the same clock
 	if OS.is_debug_build():
 		add_child(preload("res://scripts/cheat_menu.gd").new())
 		add_child(preload("res://scripts/spawn_menu.gd").new())
