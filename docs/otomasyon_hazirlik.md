@@ -6,29 +6,33 @@ Bu dosyada kullanıcı kararı olarak yazılan yalnız yukarıdaki paragraftır.
 
 ## 1. Kontrollerin durumu
 
-48 headless kontrol 2026-11-05'te main'de (`7d79f864`) çalıştırıldı. Godot penceresi açılmadı. Beckett bağlanamadı (`ECONNREFUSED`, yalnız editör açıkken çalışıyor), Godot MCP yalnız proje bilgisi için kullanıldı.
+2026-11-05 onarımından sonra 47 headless kontrolün hepsi çıkış kodu 0 ile geçiyor; hata satırlarını ve sonuçlarını okudum. Godot penceresi açılmadı. `net_check` ve `join_check` boşta 4'er kez, `net_check` ağır yük altında 3 kez daha üst üste geçti. Bunlar iki pencereli gerçek bir co-op oturumunun ya da elle oynamanın yerini tutmaz: dalgaları oyun içinde hareketle denemedim.
 
-**`net_check` geçiyor:** yığın iki tarafta bit bit aynı (fark 0), istemci isabeti, itme, dost ateşi, görevler tamam. `join_check` de geçiyor.
-
-41 temiz geçti, 6 düştü, 1'i geçti ama hatası var:
-
-| Kontrol | Sonuç | İlk okuma |
+| Kontrol | Kök neden | Ne yaptım |
 |---|---|---|
-| `fence_check` | korkuluk direği bulamıyor (0) | Korkuluk açık alanda yok; kontrol eski |
-| `hitbox_check` | "the railing is there" düşüyor | Aynı, kontrol eski |
-| `head_pop_check` | kafadan öldürme ipucu gelmiyor (0) | Korkuluğa bağlı kurulum olabilir, doğrulanmadı |
-| `keys_check` | 240 sn'de bitmedi, doğrulama hatası | Kontrol hâlâ eski çukuru bekliyor olabilir |
-| `waves_check` | 240 sn'de bitmedi, satır 79'da boş düğüm | Kontrol eski arayüze bakıyor olabilir |
-| `zombie_roles_check` | `waves.gd:703` sıfıra bölme, 69 hata | **Gerçek hata olabilir,** doğma listesi boş kalıyor |
-| `wood_mix_check` | geçti, ama başta derleme hatası yazıyor | Araç `GameState` görmeden yüklüyor; kontrol sonucunu etkilemiyor |
+| `zombie_roles_check` | **Gerçek hata.** Açık alanda ağıl işaretçisi yok, `_spawns` boş; şalterin eski yerinde (8,2; -27,6) görünmeyen şalter E'ye açıktı, dalga başlıyor, `_spawn_next` sıfıra bölüyordu. Kuyruk boşalıyor, zombi çıkmıyor, dalga FIGHT'ta takılı kalıyordu | Şalter yoksa E teklif edilmiyor. Dalga çağrılırsa orman kenarından çıkıp en yakın oyuncuyu avlıyor. Kontrolü bu akışa yazdım; korkuluğa bağlı adımlar çıktı |
+| `waves_check` | Eski salonu bekliyordu (ağıl, kapı, tabela) | Açık alana yeniden yazdım: ormandan çıkış, temizleme, oyuncu gerçekten düşünce kayıp dalga, ortada katılma, istemcinin dalga çağırması, host gidince sıfırlanma |
+| `fence_check` | Korkuluk yok; denediği her şey korkuluğun kendisi | **Kaldırdım.** Kayıp dalga ve ağ eşitliği `waves_check`'te |
+| `hitbox_check` | Yalnız korkuluk adımı eskiydi | O adımı çıkardım, zombi isabetleri aynen duruyor |
+| `head_pop_check` | Dalganın ağılda hazır beklemesini varsayıyordu | Kuyruğu gerçek doğma yolundan boşaltıyor |
+| `keys_check` | `assert` düşünce kontrol hiç bitmiyordu (240 sn'lik zaman aşımı buydu). Düşme nedeni: kazı sınırı artık tutmuyor | `assert` yerine çıkış koduyla düşüyor. **Sınır denetimini ve nadir anahtar kazısını çıkardım, oyunda bir şey düzeltmedim:** aşağıdaki açık maddeye bak |
+| `wood_mix_check` | `_init`'te yüklüyordu, autoload'lar henüz yoktu | `_initialize`'a aldım, derleme hatası gitti |
 
-Çalışırken görülen hatalar (kontrolleri düşürmüyor):
-- `gun_table.gd:43`: `shader_parameter/glow` diye bir parametre yok, tween boşa gidiyor.
-- `Tween started with no Tweeners` (`GunTable`).
-- Dalga gezinme ağında "aynı yere 2'den çok kenar" uyarısı.
-- `net_check`te dost ateşi için beklemeyi 0,5 sn'den 2 sn'ye çıkarmıştım; poz neden geç geliyor, bilinmiyor.
+Oyunda düzelen diğer hatalar:
+- **`net_check` poz gecikmesi:** ENet'in güvenilir olmayan paket kısması. Tek bir uzun kare gidiş-dönüşü uzatınca kısma 0'a kadar iniyor, pozlar atılıyor. Ölçtüm: düşen koşuda istemcide kısma 0'dı, host 0,9 sn poz almadı, atış pozdan önce vardı ve dost ateşi olayı hiç gelmedi. Yani bekleme süresi değil gerçek bir co-op hatasıydı: yavaş bir anda oyuncunun atışları yutulabiliyordu. `net.gd` artık kısmayı kapatıyor, bekleme yine 0,5 sn, kontrol kısmanın kapalı olduğuna da bakıyor. Steam'e geçince bu ayar ENet'le birlikte gider, oradaki davranış ayrıca bakılmalı.
+- **Gezinme ağı uyarısı:** eski düz zemin katmanı gerçek zeminin üstüne ikinci yüzey olarak ekleniyordu. Kaldırdım, uyarı gitti, yedi orman noktasından yollar aynı çıktı.
+- **`gun_table.gd`:** `glow` parametresi aslında var; renderer'sız çalışınca malzeme parametre listelemediği için `tween_property` ölüyor (benim okumam), boş tween hatası da ondan geliyordu. Artık ada göre ayarlanıyor, iki hata da gitti. Pencerede parlamaya bakmadım.
+- **`Tween started with no Tweeners`:** `GunTable`'ınkine ek olarak `Waves` de veriyordu (kayacak kapı yok). Kapı yoksa tween kurulmuyor.
+- Açık alanda: şişko patlaması görünmeyen korkuluğa hasar vermiyor, pençe mesafesi tepede yanlış ölçülmüyor, istemcideki zombi yüksekliği host'u izliyor.
 
-Hâlâ doğrulanmayanlar: hiçbir görsel iş oyun içinde hareketle denenmedi; `tools/*_check.gd` iki pencereli gerçek bir co-op oturumunun yerini tutmuyor.
+Açık kalanlar (kontrolleri düşürmüyor):
+- **Anahtarların kazı sınırı artık geçerli değil.** `min_take`, yığının `LOCK_SLOPE`'tan dik durmadığını varsayıyor, hurda dağları ise daha dik (benim okumam). Bir denemede 508 sınırlı anahtar 150 parçada çıktı. Anahtarlar temizlik listesinde; tutulacaksa sınır yeniden düşünülmeli.
+- **Zıplayan, atlayan ve altından geçen türler açık alanda özelliklerini kullanmıyor,** yalnız yürüyüp pençe atıyorlar; bu davranışlar korkuluk yoluna bağlı. Çığlıkçı da yalnız `x < 28`'de bağırıyor.
+- **B baskını FIGHT dışında çalışıyor:** bu yüzden çığlık, kükreme ve can yenileme onda devreye girmiyor. Çağrılan dalgada giriyor.
+- **Oyunda dalgayı çağıran bir şey yok:** `request_pull_lever` duruyor ama şalter olmadığı için oyuncu ulaşamıyor; gerçek dalga yalnız B ile geliyor. 4. bölüm madde 7 (gece akışı) bunu bağlayacak.
+- `psx_screen.gd:63`: `_ps1_materials.call_deferred` silinmiş düğümle çağrılabiliyor (`zombie_body_check` ve `specials_check` çıktısında yüzlerce satır). Zararsız görünüyor, çıktıyı kirletiyor.
+- `press_check`: bir malzemenin üretilen shader'ı derlenmiyor (`ROUGHNESS = roughness`, köşe başına gölgeleme). Hangi malzeme olduğuna bakmadım.
+- Her ana sahneli kontrolde: `psx_screen.gd:47` shader uyarısı (`custom_samplers`), çıkışta RID sızıntısı satırları. Sonuçları etkilemiyor.
 
 ## 2. Factorio'ya bağlanmak için kodda ne var, ne yok
 
@@ -47,8 +51,8 @@ Hâlâ doğrulanmayanlar: hiçbir görsel iş oyun içinde hareketle denenmedi; 
 | Enerji | Yok | **Yok,** kullanıcı henüz karar vermedi |
 | Kayıt | Yok; yalnız `_saved` oturum içi kişisel durum | **Yok.** Fabrikasız da gerekli |
 | Ortada katılan fabrikayı görür | `pile.snapshot()` dağ için var, fabrika için yok | **Yok** |
-| Düşmanların yapılara saldırması | Yalnız çit ve oyuncu (`fence_bays`) | **Yok** |
-| Açık alanda dalga | B tuşuyla ormandan baskın var, gece döngüsüne bağlı gerçek gece akışı yok | **Kısmen** |
+| Düşmanların yapılara saldırması | Yalnız oyuncu (çit yolu ölü kod) | **Yok** |
+| Açık alanda dalga | Dalga akışı ormandan çalışıyor (`waves_check`), ama yalnız B tetikliyor; geceye bağlı değil | **Kısmen** |
 
 ## 3. Önerdiğim teknik temel (kural değil)
 
@@ -64,7 +68,7 @@ Hâlâ doğrulanmayanlar: hiçbir görsel iş oyun içinde hareketle denenmedi; 
 ## 4. Yapılacaklar
 
 ### Olmazsa olmaz (demo için)
-1. Düşen kontrolleri onar ya da eskiyse kaldır; sıfıra bölmeyi çöz.
+1. ~~Düşen kontrolleri onar ya da eskiyse kaldır; sıfıra bölmeyi çöz.~~ Yapıldı, bkz. 1. bölüm.
 2. Hurda dağının önü: gerçek fizikli sıkı yığın (`tools/heap_proof.gd`, kullanıcı referansı patates yığını), yalnız çekilen yerin çevresi hareketli.
 3. Üretim temeli: envanter, ortak kasa, tarifler, ızgara, yerleştirme, bant simülasyonu, ağ, kayıt.
 4. Dönüştürme zinciri: hurda → sökme → malzeme → kasa. Eski eritme ve mermi presi bununla değişir.

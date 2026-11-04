@@ -39,9 +39,12 @@ func _ready() -> void:
 	glow.shader = GLOW_SHADER  # on the PS1 pistol's jitter (tools/psx_import.gd)
 	for mi in meshes:
 		mi.material_overlay = glow
+	# (Set by name, not tween_property: without a renderer the material lists no parameters, and a
+	# property tween on one dies at once and leaves an empty looping tween.)
+	var set_glow := func(c: Color) -> void: glow.set_shader_parameter("glow", c)
 	var tw := create_tween().set_loops().set_trans(Tween.TRANS_SINE)
-	tw.tween_property(glow, "shader_parameter/glow", GLOW, 0.7)
-	tw.tween_property(glow, "shader_parameter/glow", Color.BLACK, 0.7)
+	tw.tween_method(set_glow, Color.BLACK, GLOW, 0.7)
+	tw.tween_method(set_glow, GLOW, Color.BLACK, 0.7)
 
 
 ## The pistol is ours (player.gd calls it): the gun goes, the desk fades out and is gone.

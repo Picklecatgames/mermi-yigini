@@ -9,6 +9,13 @@ extends Node
 signal status_changed(text: String)
 
 const PORT := 24680
+## ENet's own brake on unreliable packets (a pose is one): a round trip slower than usual, one long
+## frame is enough, and it starts dropping them, down to all of them for a second or more. The host
+## then has our body where it stood a second ago, and a round from where we really are is refused as
+## forged (GameState.FIRE_FROM_SLACK). A pose every 50 ms is small; nothing here needs braking.
+const THROTTLE_INTERVAL := 5000  # ms (ENet's default)
+const THROTTLE_UP := 32  # back to full at once
+const THROTTLE_DOWN := 0  # never down
 
 var status := ""
 var _label: Label
@@ -27,14 +34,19 @@ var is_client: bool:
 
 
 func _ready() -> void:
-	multiplayer.connected_to_server.connect(func() -> void: _set_status("İSTEMCİ"))
+	multiplayer.connected_to_server.connect(func() -> void:
+		_no_throttle(1)
+		_set_status("İSTEMCİ"))
 	multiplayer.connection_failed.connect(func() -> void:
 		leave()
 		_set_status("Bağlanamadı"))
 	multiplayer.server_disconnected.connect(func() -> void:
 		leave()
 		_set_status("Host ayrıldı"))
-	multiplayer.peer_connected.connect(func(_id: int) -> void: _refresh_host())
+	multiplayer.peer_connected.connect(func(id: int) -> void:
+		if multiplayer.is_server():
+			_no_throttle(id)
+		_refresh_host())
 	multiplayer.peer_disconnected.connect(func(_id: int) -> void: _refresh_host())
 	if DisplayServer.get_name() != "headless":
 		var layer := CanvasLayer.new()
@@ -65,6 +77,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		host()
 	elif event.keycode == KEY_F8 and not online and not multiplayer.multiplayer_peer is ENetMultiplayerPeer:
 		join()  # not again while still connecting: the first peer would be left half open
+
+
+## See THROTTLE_DOWN. Set once connected: the handshake sets it back to ENet's own.
+func _no_throttle(id: int) -> void:
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	var link := enet.get_peer(id) if enet else null
+	if link:
+		link.throttle_configure(THROTTLE_INTERVAL, THROTTLE_UP, THROTTLE_DOWN)
 
 
 ## Seconds a message from the host takes to get here (half the round trip); 0 when not a client.

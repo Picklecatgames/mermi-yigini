@@ -84,7 +84,9 @@ func _host() -> void:
 	me.global_position = gs.LEVER_POS + Vector3(0, 0, 0.6)
 	me.reset_physics_interpolation()
 	await create_timer(0.3).timeout  # our pose catches up
-	gs.request_pull_lever()  # the wave's dead wait in the pens, hit points and all
+	gs.request_pull_lever()
+	while not waves._queue.is_empty():  # the whole wave out of the wood's edge, hit points and all
+		waves._spawn_next()
 	var dir := Vector3(1, 0, 0.1).normalized()
 	for z: Dictionary in waves._zombies.values().duplicate():
 		if z.dead or not waves._hp.has(z.id):
