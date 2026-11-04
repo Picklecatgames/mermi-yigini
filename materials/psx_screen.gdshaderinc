@@ -9,6 +9,7 @@ uniform vec2 psx_size = vec2(480.0, 270.0);  // the small screen, pixels
 uniform float psx_dither = 0.0;  // 0..1, how strong the ordered dither is; 2026-11-03: 0.5 was grain, 0.3 still crawled as the view moved, then off (the user: the game read as pixel art; the references show none)
 uniform float psx_grade = 1.0;  // 0..1, how much of psx_graded()
 uniform float psx_taps = 1.0;  // 1 or 2: samples per small pixel each way
+uniform float psx_levels = 31.0;  // steps a channel; 31 is the PS1's 15-bit colour, which bands a soft fog (tools/ps1_demo.gd F)
 
 const float PSX_BAYER[16] = float[](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
@@ -29,7 +30,7 @@ vec3 psx_colour(vec3 c, vec2 px) {
 	c = psx_graded(c, (px + 0.5) / psx_size);
 	ivec2 p = ivec2(mod(px, 4.0));
 	float d = ((PSX_BAYER[p.y * 4 + p.x] + 0.5) / 16.0 - 0.5) * psx_dither;
-	return clamp(floor(c * 31.0 + 0.5 + d) / 31.0, 0.0, 1.0);
+	return clamp(floor(c * psx_levels + 0.5 + d) / psx_levels, 0.0, 1.0);
 }
 
 // The small pixel `px` of a texture drawn psx_taps times finer: the mean of its samples. Colour

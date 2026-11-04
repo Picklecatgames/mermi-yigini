@@ -15,14 +15,38 @@ extends SceneTree
 ## Keys: 1 the full window, 2 480 lines, 3 the old screen (270 lines, dithered) to compare;
 ## H blows the head of the zombie nearest the middle of the view, Q slow motion on and off,
 ## R stands them all up again. Esc quits.
+## Silent Hill 2's air (2026-11-04, the user asked to try it): F steps through the yard's own night,
+## a dark that swallows all but a torch, and a grey fog by day; G grain on and off. Three more of
+## the dead stand out on the open side, behind the first view, to be lost in it.
 
 const ZOMBIE_BODY := preload("res://scripts/zombie_body.gd")
 const TEX := "res://assets/psx/tex/%s.res"
 const SKY := "res://assets/env/hdri/kloofendal_48d_partly_cloudy_puresky_4k.hdr"
 const ZOMBIES := ["prisoner", "copzombie", "zombiegirl"]
 const TEXELS := 64.0  # texture pixels a metre: a 128 px texture covers 2 m
+const FAR := [Vector3(-1.5, 0, 8.0), Vector3(1.8, 0, 12.0), Vector3(-0.5, 0, 17.0)]
 const MODES := ["Tam ekran", "480p", "Eski 270p"]
 const SLOW := 0.15  # time scale in slow motion
+## F's airs: fog colour, density, ambient energy, moon energy, the lamp, the torch.
+const AIRS := [
+	{"name": "Gece", "fog": Color(0.03, 0.035, 0.05), "density": 0.07, "ambient": 0.3, "moon": 0.22, "sky": 0.15, "lamp": true, "torch": false, "grade": 1.0, "levels": 31.0},
+	{"name": "Karanlık + fener", "fog": Color(0.006, 0.007, 0.009), "density": 0.13, "ambient": 0.1, "moon": 0.0, "sky": 1.0, "lamp": false, "torch": true, "grade": 0.6, "levels": 255.0},
+	{"name": "Gri sis", "fog": Color(0.4, 0.42, 0.42), "density": 0.17, "ambient": 1.1, "moon": 0.0, "sky": 1.0, "lamp": false, "torch": false, "grade": 0.25, "levels": 255.0},
+]
+const GRAIN_AMOUNT := 0.07
+const GRAIN := """
+shader_type canvas_item;
+uniform sampler2D screen : hint_screen_texture, filter_nearest;
+uniform float amount = 0.07;
+void fragment() {
+	vec3 c = texture(screen, SCREEN_UV).rgb;
+	vec3 p = fract(vec3(floor(FRAGCOORD.xy / 2.0), floor(TIME * 18.0)).xyx * 0.1031);  // 18 new grains a second
+	p += dot(p, p.yzx + 33.33);
+	float n = fract((p.x + p.y) * p.z) - 0.5;
+	float l = dot(c, vec3(0.299, 0.587, 0.114));
+	COLOR = vec4(c + n * amount * mix(1.0, 0.45, l), 1.0);
+}
+"""
 const GRADE := """
 shader_type canvas_item;
 uniform sampler2D screen : hint_screen_texture, filter_nearest;
@@ -63,6 +87,12 @@ var _world := Node3D.new()
 var _zombies: Array[Node3D] = []
 var _mode_now := 1
 var _grade := ColorRect.new()  # the screen's own grade (psx_screen.gdshaderinc) where the PS1 screen is off
+var _grain := ColorRect.new()
+var _env: Environment
+var _flicker: OmniLight3D
+var _moon: DirectionalLight3D
+var _torch: Torch
+var _air_now := 0
 
 
 func _initialize() -> void:
@@ -88,6 +118,22 @@ func _initialize() -> void:
 	gm.shader.code = GRADE
 	rect.material = gm
 	grade.add_child(rect)
+	var grain := CanvasLayer.new()
+	grain.layer = 1  # over the grade, under the label
+	root.add_child(grain)
+	_grain.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_grain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var gr := ShaderMaterial.new()
+	gr.shader = Shader.new()
+	gr.shader.code = GRAIN
+	gr.set_shader_parameter(&"amount", GRAIN_AMOUNT)
+	_grain.material = gr
+	_grain.visible = false
+	grain.add_child(_grain)
+	_torch = Torch.new()
+	_torch.eye = _cam
+	_torch.visible = false
+	_world.add_child(_torch)
 	var ui := CanvasLayer.new()
 	ui.layer = 10
 	root.add_child(ui)
@@ -101,6 +147,17 @@ func _run() -> void:
 	for i in 3:
 		await process_frame  # Settings puts its own PS1 screen on first
 	_mode(1)
+	if "--sh2" in OS.get_cmdline_user_args():
+		_grain.visible = true
+		for a in [1, 2]:
+			_air(a)
+			for dir: Vector3 in [Vector3(0, 1.3, -1.5), Vector3(0.3, 1.3, 12.0)]:
+				_cam.look_at_from_position(Vector3(0.3, 1.65, 3.2), dir)
+				for i in 90:
+					await process_frame
+				_save(10 * a + int(dir.z > 0.0))
+		quit()
+		return
 	if "--shot" in OS.get_cmdline_user_args():
 		for i in 20:
 			await process_frame
@@ -121,6 +178,33 @@ func _run() -> void:
 			_mode(_mode_now)
 		elif k == KEY_R:
 			_stand_up()
+		elif k == KEY_F:
+			_air((_air_now + 1) % AIRS.size())
+		elif k == KEY_G:
+			_grain.visible = not _grain.visible
+			_mode(_mode_now)
+
+
+func _air(a: int) -> void:
+	_air_now = a
+	var air: Dictionary = AIRS[a]
+	_env.fog_light_color = air.fog
+	_env.fog_density = air.density
+	_env.fog_sky_affect = air.sky
+	_env.ambient_light_energy = air.ambient
+	_moon.light_energy = air.moon
+	_moon.visible = air.moon > 0.0
+	_flicker.visible = air.lamp
+	_torch.visible = air.torch
+	_mode(_mode_now)
+	_screen_air()
+
+
+## The air's own grade and colour steps on the PS1 screen, which apply() may have just made anew.
+func _screen_air() -> void:
+	var rect: ColorRect = root.get_node("PsxScreen")._rect
+	rect.material.set_shader_parameter(&"psx_grade", AIRS[_air_now].grade)
+	rect.material.set_shader_parameter(&"psx_levels", AIRS[_air_now].levels)
 
 
 func _save(n: int) -> void:
@@ -140,8 +224,9 @@ func _mode(m: int) -> void:
 	if m == 0:
 		vp.scaling_3d_scale = 1.0
 		vp.msaa_3d = Viewport.MSAA_DISABLED
-	_label.text = "1 Tam ekran   2 480p   3 Eski 270p   H Kafa   Q Yavaş çekim   R Yeniden      %s%s" % [
-			MODES[m], "   YAVAŞ" if Engine.time_scale < 1.0 else ""]
+	_screen_air()
+	_label.text = "1 Tam ekran   2 480p   3 Eski 270p   H Kafa   Q Yavaş çekim   R Yeniden   F Hava   G Gren      %s   %s%s%s" % [
+			MODES[m], AIRS[_air_now].name, "   GREN" if _grain.visible else "", "   YAVAŞ" if Engine.time_scale < 1.0 else ""]
 
 
 ## The zombie nearest the middle of the view loses its head.
@@ -180,6 +265,16 @@ func _stand_up() -> void:
 		_world.add_child(holder)
 		_zombies.append(holder)
 		_unjitter.call_deferred(body)
+	for i in FAR.size():  # out on the open side, facing the yard
+		var holder := Node3D.new()
+		holder.position = FAR[i]
+		var body: Node3D = ZOMBIE_BODY.new()
+		body.setup(&"walker", 21 + i)
+		body.model = StringName(ZOMBIES[i % ZOMBIES.size()])
+		holder.add_child(body)
+		_world.add_child(holder)
+		_zombies.append(holder)
+		_unjitter.call_deferred(body)
 
 
 func _unjitter(body: Node3D) -> void:
@@ -210,6 +305,7 @@ func _environment() -> void:
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	var env := Environment.new()
+	_env = env
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -287,11 +383,13 @@ func _lamp() -> void:
 	lamp.omni_attenuation = 1.6
 	lamp.shadow_enabled = true
 	_world.add_child(lamp)
+	_flicker = lamp
 	var moon := DirectionalLight3D.new()
 	moon.rotation_degrees = Vector3(-35, 40, 0)
 	moon.light_color = Color(0.5, 0.6, 0.8)
 	moon.light_energy = 0.22
 	_world.add_child(moon)
+	_moon = moon
 
 
 ## A work lamp on a tired line: mostly steady, now and then it sags and catches again.
@@ -306,6 +404,28 @@ class Flicker extends OmniLight3D:
 			_dip = randf_range(0.3, 0.7)
 		_dip = move_toward(_dip, 0.0, dt * 2.5)
 		light_energy = BASE * (1.0 - _dip) * (0.96 + 0.04 * sin(_t * 23.0))
+
+
+## A torch in the hand: it follows the eye a moment late, so its shadows swing as the view turns.
+class Torch extends SpotLight3D:
+	const LAG := 9.0
+	var eye: Camera3D
+
+	func _ready() -> void:
+		light_color = Color(1.0, 0.93, 0.78)
+		light_energy = 10.0
+		spot_range = 18.0
+		spot_angle = 24.0
+		spot_attenuation = 0.8
+		spot_angle_attenuation = 1.6
+		shadow_enabled = true
+
+	func _process(dt: float) -> void:
+		if not eye.is_inside_tree():
+			return
+		global_position = eye.global_transform * Vector3(0.22, -0.22, 0.0)
+		var k := 1.0 - exp(-LAG * dt / Engine.time_scale)
+		global_basis = global_basis.orthonormalized().slerp(eye.global_basis.orthonormalized(), k)
 
 
 class FlyCam extends Camera3D:
