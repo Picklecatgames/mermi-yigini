@@ -134,11 +134,12 @@ const TOP_LAYER := 6          # pieces to a cell lying on top; the rest lie a la
 ## reads apart; pull one from below and what is above slides down step by step"): only chunky pieces lie
 ## on it, this long (m, longest side) and no thinner, each as its own convex hull, packed tight.
 ## Sizes are my guess, not a rule; bolts, coins and wires stay in the spill and in what is thrown.
-const FACE_SIZE := Vector2(0.10, 0.50)
-const FACE_THIN := 0.02
+const FACE_SIZE := Vector2(0.10, 0.90)
+const FACE_THIN := 0.015
 ## ...and each drawn and held this much bigger than its model, so a piece shows as one from where players
 ## stand and the face takes a few tens of thousands of them (picked from shots, 1.0-2.2: my guess).
 const FACE_SCALE := 1.8
+const FACE_LONGEST := 0.9     # m: a long one is scaled only up to this
 ## Only what a take let go of moves; everything else on the face is a still body or just data. A woken
 ## piece that has moved WAKE_MOVE lets go of what rested on it in turn, so a pull runs up the face
 ## link by link. WAKE_PER_FRAME and MAX_CHAIN hold the physics to its budget: what is left waits.
@@ -157,6 +158,7 @@ const MAX_CHAIN := 90
 ## (800 and more): the big falls are the slump's (_collapse), when takes have strained a slope.
 const WAKES_PER_TAKE := 60
 const SAME_SPOT := 0.015      # m: a woken piece this near where it lay goes back to lying there as it was
+const SETTLE_PER_FRAME := 3  # woken pieces coming to rest in a frame: all at once they were a hitch
 const CHAIN_AGE := 5.0        # s: longest a woken piece stays a body
 const OPEN_ROUND := 0.8       # m round a moving piece the buried ones are laid open: it needs them to land on
 const LAID_OPEN_TONE := 0.62  # how dark a piece from under the face is, as it was in the shade
@@ -393,7 +395,7 @@ func _load_parts() -> void:
 		var chunky: bool = sorted[2] >= FACE_SIZE.x and sorted[2] <= FACE_SIZE.y and sorted[0] >= FACE_THIN
 		_part_face.append(int(chunky))
 		if chunky:
-			mesh = _scaled_mesh(mesh, FACE_SCALE)
+			mesh = _scaled_mesh(mesh, minf(FACE_SCALE, maxf(FACE_LONGEST / sorted[2], 1.0)))
 		_part_mesh.append(mesh)
 		# Each piece its own convex hull, so pieces lie against one another with nothing between
 		# (2026-11-05, the user's tight heap; the invisible boxes of 2026-11-03 left gaps on purpose).
@@ -824,7 +826,8 @@ func _build_spill() -> void:
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.use_colors = true
 		mm.mesh = _part_low[p]
-		mm.instance_count = 16
+		# Room from the start for what a pull lays open: growing it mid-take was a hitch.
+		mm.instance_count = 256 if _part_face[p] == 1 else 16
 		mm.visible_instance_count = 0
 		var node := MultiMeshInstance3D.new()
 		node.multimesh = mm
@@ -1557,6 +1560,7 @@ func _tumble(cell: Vector2i, top: Vector2, radius: int, seed: int) -> void:
 ## piece of its own (its id kept), which sinks into the heap or falls again as the heap moves.
 func _update_debris(delta: float) -> void:
 	var walkers := get_tree().get_nodes_in_group("walker")
+	var settled := 0
 	for i in range(_debris.size() - 1, -1, -1):
 		var body := _debris[i]
 		var v := body.linear_velocity
@@ -1583,9 +1587,12 @@ func _update_debris(delta: float) -> void:
 			body.set_meta("since", 0.0 if since < 0.0 else since + delta)
 		else:
 			body.set_meta("since", -1.0)
+		if settled >= SETTLE_PER_FRAME and body.has_meta("start"):
+			continue
 		if since > 0.5 or (body.has_meta("born") and Engine.get_physics_frames() - int(body.get_meta("born")) > CHAIN_AGE * Engine.physics_ticks_per_second):
 			_settle(body)
 			_debris.remove_at(i)
+			settled += 1
 
 
 ## A moving piece comes to rest: it lies there as a loose piece with its id (bodies only while

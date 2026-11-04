@@ -50,6 +50,8 @@ var _rect := Rect2()
 ## A kind with few models in a layer gets less of its share, or its one model repeats all over the
 ## face (a single motor was every tenth piece): full share from this many models.
 const KIND_MODELS := 4.0
+## No model more than this share of what has been laid: the one chunky gear was every tenth piece.
+const MODEL_SHARE := 0.035
 ## A model heavier than this (triangles in the face's light copy) turns up that much less often:
 ## the face draws ~30 000 pieces, and some light copies keep 1 500-2 000 triangles (the simplifier
 ## stops at UV seams).
@@ -70,6 +72,8 @@ var _layer_parts := []  # per layer: {kind: [part, ...]}
 var _layer_kind_foot := []  # per layer: {kind: mean footprint}
 var _layer_kind_share := []  # per layer: {kind: its weight to be picked}
 var _part_cost := {}  # part -> how much less often it is picked for its triangles
+var _laid := {}  # part -> pieces picked so far
+var _laid_all := 0
 # Settled pieces: part, transform (heap space), body (an invalid RID once buried and let go).
 var _part := PackedInt32Array()
 var _xform: Array[Transform3D] = []
@@ -235,6 +239,17 @@ func _sort_parts() -> void:
 ## A part for layer `l` at `at` (heap space): the kind by its share of the area, then a part of
 ## that kind, light ones more likely, brass and copper more or less as the mix drifts along the face.
 func _pick(l: int, at: Vector3) -> int:
+	var part := _pick_once(l, at)
+	for n in 6:
+		if _laid.get(part, 0) <= 40 + _laid_all * MODEL_SHARE:
+			break
+		part = _pick_once(l, at)
+	_laid[part] = _laid.get(part, 0) + 1
+	_laid_all += 1
+	return part
+
+
+func _pick_once(l: int, at: Vector3) -> int:
 	var by_kind: Dictionary = _layer_parts[l]
 	var shares: Dictionary = _layer_kind_share[l]
 	var total := 0.0

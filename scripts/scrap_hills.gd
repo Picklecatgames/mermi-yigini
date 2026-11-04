@@ -37,6 +37,7 @@ var _inst_i := PackedInt32Array()      # and its instance there
 var _inst_xf: Array[Transform3D] = []  # as laid, its origin's y over the surface
 var _inst_k := PackedInt32Array()      # the cell it lies on
 var _inst_light := PackedFloat32Array() # how much lighter than its tone, by how near the real pieces
+var _inst_at := PackedVector2Array()   # the middle of the piece (x, z): where the surface is read for it
 var _tile := {}                        # pile tile index -> PackedInt32Array of pieces
 var _hazed: Array[ShaderMaterial] = [] # materials moved onto FAR_SHADER (its haze: _process)
 ## One colour for every far piece: a mosaic of near browns boiled at 270p, grey at night
@@ -110,6 +111,7 @@ func build(pile: Node) -> void:
 				groups[key].append(_inst_xf.size())
 				_inst_xf.append(Transform3D(basis, pos).translated_local(-part[3]))
 				_inst_k.append(ck.y * gx + ck.x)
+				_inst_at.append(Vector2(pos.x, pos.z))
 				_inst_light.append(lerpf(EDGE_TONE, 1.0, smoothstep(0.0, EDGE_TONE_FADE, away)))
 				var tile: int = (ck.y / pile.TILE) * pile.TILES_X + ck.x / pile.TILE
 				if not _tile.has(tile):
@@ -220,6 +222,7 @@ func _fringe(parts: Array, groups: Dictionary, rng: RandomNumberGenerator) -> vo
 				groups[key].append(_inst_xf.size())
 				_inst_xf.append(Transform3D(basis, pos).translated_local(-part[3]))
 				_inst_k.append(-1)
+				_inst_at.append(Vector2.ZERO)
 				_inst_light.append(1.0)
 
 
@@ -239,7 +242,9 @@ func _place(s: int) -> void:
 	elif _pile._h[_inst_k[s]] < 0.03:
 		xf = Transform3D(Basis().scaled(Vector3.ZERO), xf.origin)  # the scrap under it is gone
 	else:
-		xf.origin.y += _pile._height_smooth(Vector3(xf.origin.x, 0.0, xf.origin.z))
+		# Read under its middle, not under the mesh's origin: on a piece 12 times too big that lies metres
+		# off, and on a ridge it hung pieces in the air (2026-11-05, specks over the skyline).
+		xf.origin.y += _pile._height_smooth(Vector3(_inst_at[s].x, 0.0, _inst_at[s].y))
 	_mm[_inst_mm[s]].set_instance_transform(_inst_i[s], xf)
 
 

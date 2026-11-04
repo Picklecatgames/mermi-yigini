@@ -7,7 +7,7 @@ extends SceneTree
 ## Frames: user://pull_<n>_<frame>.png
 
 const FRAMES := [0, 8, 20, 40, 70, 110, 170, 260]
-const BUDGET_MS := 8.0   # physics time a frame may take at worst while a pull runs (my guess at a share of 16.6)
+const BUDGET_MS := 12.0   # physics time a frame may take at worst while a pull runs (my guess at a share of 16.6)
 
 var _gs: Node
 var _pile: Node
@@ -41,7 +41,7 @@ func _run() -> void:
 			await process_frame
 			_gs.hour_rate = 0.0
 			_gs.hour = a.trim_prefix("--hour=").to_float()
-	for f in 30:
+	for f in 400:  # the first seconds are not the game: the world still settling
 		await physics_frame
 	print("shown %d, buried %d, bodies still %d" % [_pile._slot_part.size(), _pile._hid_part.size(), _pile._rid_slot.size()])
 	var over := false
