@@ -21,3 +21,4 @@ shader_parameter/triplanar = null
 shader_parameter/tri_metres = null
 shader_parameter/far_colour = null
 shader_parameter/far_fade = null
+shader_parameter/shade_below = null

@@ -27,6 +27,7 @@ uniform bool triplanar = false;
 uniform float tri_metres = 2.0;
 uniform vec4 far_colour : source_color = vec4(0.0);
 uniform vec2 far_fade = vec2(20.0, 60.0);
+uniform vec2 shade_below = vec2(0.0, 1.0);  // x m above the world's floor down to it the light goes to y of itself (0: off): under a wood's canopy
 #ifdef PSX_HAZE
 // Instead of the scene's fog (psx_far.gdshader): into psx_haze_colour from psx_haze_range.x to .y
 // metres, at most psx_haze_max of the way. Globals (scrap_hills.gd sets them from the fog): the PS1
@@ -77,6 +78,9 @@ void fragment() {
 	}
 	float far = smoothstep(far_fade.x, far_fade.y, length(VERTEX)) * far_colour.a;
 	ALBEDO = mix(c.rgb, far_colour.rgb, far);
+	if (shade_below.x > 0.0) {
+		ALBEDO *= mix(shade_below.y, 1.0, smoothstep(0.0, shade_below.x, world_pos.y));
+	}
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
 #ifdef PSX_HAZE

@@ -89,11 +89,14 @@ const NATURE_SATURATION := 0.5
 ## models): [file, triangles, texture px]. The pack's trees are 40-340 triangles already and share
 ## one atlas, so it keeps its triangles and gets a bigger texture; the two scans come down to a
 ## PS1 tree. Their colours: less of a pull towards the dust than the desert's, an olive one.
-const ORMAN := [["res://assets/env/orman/forest_pack.glb", 4000, 512], ["res://assets/env/orman/cypress.glb", 1800, 128], ["res://assets/env/orman/cherry.glb", 2200, 128]]
+const ORMAN := [["res://assets/env/orman/forest_pack.glb", 4000, 512], ["res://assets/env/orman/cypress.glb", 3000, 256], ["res://assets/env/orman/cherry.glb", 4000, 256]]
 const ORMAN_GROUND := ["forest_leaves_04", "mud_forest", "forest_ground_04"]  # the wood's floor, 128 px like the rest of the ground
 const ORMAN_SATURATION := 1.05
 const ORMAN_DUST := Color(0.36, 0.36, 0.2)
 const ORMAN_DUST_SHARE := 0.05
+## Under the canopy it's dark (2026-11-04, the user: more unknown, as if something's there): from
+## this height (m in the world) down to the ground a tree goes to this share of its light.
+const ORMAN_SHADE := Vector2(9.0, 0.5)
 const ORMAN_ROCK := Color(0.5, 0.52, 0.42)  # the pack's pale stones stood out of the floor white
 const NATURE_DUST := Color(0.5, 0.42, 0.31)
 const NATURE_DUST_SHARE := 0.22
@@ -238,7 +241,14 @@ func _mesh(src: Mesh, share: int, px: int) -> Mesh:
 				idx = _sparse(arrays, idx, want)
 			else:
 				idx = _fewer(arrays, want)
-				if _nature and idx.size() / 3 > want * 1.5:
+				if _orman:
+					# A scan in one skin stays whole: corners merged on a grid. Thinned card by
+					# card (below) the cherry came apart into floating shreds.
+					var cells := 96
+					while idx.size() / 3 > want * 1.5 and cells >= 8:
+						idx = _cluster(arrays, arrays[Mesh.ARRAY_INDEX], cells)
+						cells = int(cells * 0.8)
+				elif _nature and idx.size() / 3 > want * 1.5:
 					idx = _sparse(arrays, idx, want)
 			arrays = _compact(arrays, idx)
 			if leaves:
@@ -473,6 +483,13 @@ func _material(m: Material, px: int) -> Material:
 		avg.a = 1.0
 		sm.set_shader_parameter("far_colour", avg)
 		sm.set_shader_parameter("far_fade", _far)
+		if _orman:
+			# No flat far colour: from 20 m it turned whole trees to one dark blob that came alive
+			# only as you walked up. Each copy's tone in COLOR (build_world.gd _forest).
+			sm.set_shader_parameter("far_colour", Color(0, 0, 0, 0))
+			sm.set_shader_parameter("vertex_tint", true)
+			if b.resource_name != "Rocks":
+				sm.set_shader_parameter("shade_below", ORMAN_SHADE)
 		if b.uv1_scale != Vector3.ONE or b.uv1_offset != Vector3.ZERO:
 			sm.set_shader_parameter("uv_scale", Vector2(b.uv1_scale.x, b.uv1_scale.y))
 			sm.set_shader_parameter("uv_offset", Vector2(b.uv1_offset.x, b.uv1_offset.y))
@@ -504,6 +521,8 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	var img: Image = tex.get_image().duplicate()
 	img.decompress()
 	img.clear_mipmaps()
+	if _orman:
+		_bleed(img)
 	var w := img.get_width()
 	var h := img.get_height()
 	if maxi(w, h) > px:
@@ -525,6 +544,28 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	_texs[key] = out
 	_avg[out] = last.get_pixel(0, 0)
 	return out
+
+
+## The colour under a texture's cut-out pixels made its leaves' average: they're black in these
+## files, and every smaller size and mip then drew each leaf with a dark rim.
+static func _bleed(img: Image) -> void:
+	img.convert(Image.FORMAT_RGBA8)
+	var sum := Color(0, 0, 0, 0)
+	var n := 0
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a > 0.5:
+				sum += c
+				n += 1
+	if n == 0 or n == img.get_width() * img.get_height():
+		return
+	var avg := Color(sum.r / n, sum.g / n, sum.b / n)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			if c.a <= 0.5:
+				img.set_pixel(x, y, Color(avg.r, avg.g, avg.b, c.a))
 
 
 static func _tris(mesh: Mesh) -> int:

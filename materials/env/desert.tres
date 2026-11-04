@@ -33,3 +33,6 @@ shader_parameter/pad = Vector4(-6, -14, 26, 14)
 shader_parameter/gravel_reach = null
 shader_parameter/sand_tint = Color(0.62, 0.68, 0.36, 1)
 shader_parameter/earth_tint = Color(1, 1, 0.7, 1)
+shader_parameter/wood_oval = Vector4(8, 0, 40, 34)
+shader_parameter/wood_dark = null
+shader_parameter/wood_dark_reach = null

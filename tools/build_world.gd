@@ -80,7 +80,8 @@ func _sky() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.ambient_light_sky_contribution = 1.0
-	env.ambient_light_energy = 0.75  # overcast, but corners and the shade under trees stay dark
+	env.ambient_light_energy = 0.8  # 2026-11-04, the user: more unknown: a dim day, the shade under the trees dark
+	env.background_energy_multiplier = 0.8
 	env.sky_rotation = Vector3(0, deg_to_rad(SKY_TURN), 0)
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
@@ -96,16 +97,16 @@ func _sky() -> void:
 	env.glow_hdr_threshold = 1.6
 	env.fog_enabled = true  # dust hanging over the desert: the far ground goes into it
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_light_color = Color(0.42, 0.5, 0.42)  # the old wood's haze: a damp grey-green, the trees going into it
+	env.fog_light_color = Color(0.17, 0.2, 0.17)  # the old wood's haze: a damp grey-green, the trees going into it
 	env.fog_density = 1.0  # depth fog: all the way to the colour at fog_depth_end
-	env.fog_depth_begin = 25.0
-	env.fog_depth_end = 110.0
+	env.fog_depth_begin = 14.0
+	env.fog_depth_end = 85.0
 	env.fog_depth_curve = 0.6  # under 1 it thickens early: half way in at ~35 m
-	env.fog_sky_affect = 0.25  # the sky goes dusty too, the horizon one with the ground
+	env.fog_sky_affect = 0.45  # the sky goes dusty too, the horizon one with the ground
 	env.fog_aerial_perspective = 0.0  # its colour from the dust, not the sky
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 1.1
+	env.adjustment_saturation = 0.95
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
@@ -114,7 +115,7 @@ func _sky() -> void:
 	sun.name = "Sun"
 	sun.rotation_degrees = SUN_ANGLE
 	sun.light_color = Color(0.96, 0.89, 0.78)
-	sun.light_energy = 1.15  # through the overcast; a little over the ambient, so the shadows read
+	sun.light_energy = 1.05  # through the overcast; a little over the ambient, so the shadows read
 	sun.shadow_enabled = true
 	# Short and coarse, PS1 taste (2026-11-03, the user: the lighting PS1-fit): past 50 m the fog
 	# has it all anyway, and the shadow map spent on 50 m draws the near shadows hard and clean.
@@ -225,6 +226,7 @@ func _desert() -> void:
 	tex.width = 256
 	tex.height = 256
 	mat.set_shader_parameter("noise_tex", tex)
+	mat.set_shader_parameter("wood_oval", Vector4(CLEARING_CENTRE.x, CLEARING_CENTRE.y, CLEARING_RADII.x, CLEARING_RADII.y))
 	mat.set_shader_parameter("pad", Vector4(PAD.position.x, PAD.position.y, PAD.end.x, PAD.end.y))
 	mat.set_shader_parameter("sand_tint", Color(0.62, 0.68, 0.36))
 	mat.set_shader_parameter("earth_tint", Color(1.0, 1.0, 0.7))
@@ -290,11 +292,11 @@ func _wasteland() -> void:
 	for p: Vector3 in spots.call(10, 12.0, 26.0, false, 8.0):
 		_wood_tree(root, wood.trees[_weighted(rng, wood.trees)], p, rng)
 	for p: Vector3 in spots.call(120, 3.0, 120.0, true, 2.5):
-		_wood_low(root, wood.under[rng.randi() % wood.under.size()], p, rng, Vector2(0.5, 0.9))
+		_wood_low(wood.under[rng.randi() % wood.under.size()], p, rng, Vector2(0.5, 0.9))
 	for p: Vector3 in spots.call(50, 3.0, 60.0, true, 2.0):
-		_wood_low(root, wood.rocks[rng.randi() % wood.rocks.size()], p, rng, Vector2(0.8, 2.2))
+		_wood_low(wood.rocks[rng.randi() % wood.rocks.size()], p, rng, Vector2(0.8, 2.2))
 	for p: Vector3 in spots.call(9, 6.0, 40.0, false, 7.0):
-		_wood_low(root, wood.log, p, rng, Vector2(0.8, 1.1))
+		_wood_low(wood.log, p, rng, Vector2(0.8, 1.1))
 	for p: Vector3 in spots.call(3, 14.0, 60.0, false, 12.0):
 		_prop(root, MODELS + "covered_car/covered_car_1k.gltf", p, rng.randf() * TAU, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.05, 0.05)))
 	for p: Vector3 in spots.call(10, 3.0, 50.0, true, 3.0):
@@ -338,8 +340,8 @@ const WOOD_TREES := [
 	# Half dead: the same trunks with nothing left on them.
 	[WOOD_PACK, ["Tree_Trunk_01_001_Tree_Trunk_01_0"], 0.03, Vector2(0.6, 1.0), 0.6],
 	[WOOD_PACK, ["Tree_Trunk_01_002_Tree_Trunk_01_0"], 0.03, Vector2(0.6, 1.0), 0.6],
-	[WOOD_CYPRESS, [], 0.04, Vector2(2.2, 3.4), 0.12],
-	[WOOD_CHERRY, [], 0.02, Vector2(2.2, 3.4), 0.2],
+	[WOOD_CYPRESS, [], 0.05, Vector2(2.2, 3.4), 0.12],
+	[WOOD_CHERRY, [], 0.05, Vector2(2.2, 3.4), 0.2],
 ]
 var _wood_kinds := {}
 
@@ -408,14 +410,28 @@ func _wood_tree(parent: Node, kind: Array, at: Vector3, rng: RandomNumberGenerat
 	add(cs, body)
 
 
-## Something low on the floor, no collision: a fern, a stone, a log.
-func _wood_low(parent: Node, parts: Array, at: Vector3, rng: RandomNumberGenerator, size: Vector2) -> void:
-	var xf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(size.x, size.y)), at - Vector3(0, 0.05, 0))
-	for part: Array in parts:
-		var mi := MeshInstance3D.new()
-		mi.mesh = part[0]
-		mi.transform = xf * part[1]
-		add(mi, parent)
+## Something low on the floor, no collision: a fern, a stone, a log. Drawn with the wood (_forest).
+func _wood_low(parts: Array, at: Vector3, rng: RandomNumberGenerator, size: Vector2) -> void:
+	_floor_things.append([parts, Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(size.x, size.y)), at - Vector3(0, 0.05, 0))])
+
+
+var _floor_things := []
+
+
+## A copy's tone: from the clearing's edge into the wood it goes dark, so the first trees show and
+## behind them it's black between the trunks; some yellower, some browner, a few half dead.
+func _wood_tone(p: Vector2, rng: RandomNumberGenerator) -> Color:
+	var deep := smoothstep(WOOD_DARK_FROM, WOOD_DARK_FROM + WOOD_DARK_REACH, _out_of_clearing(p) + rng.randf_range(-3.0, 3.0))
+	var kind := rng.randf()
+	var hue := Color(1.0, 1.0, 0.95)
+	if kind < 0.3:
+		hue = Color(1.08, 1.0, 0.68)  # yellowing
+	elif kind < 0.45:
+		hue = Color(1.05, 0.82, 0.6)  # going brown
+	elif kind < 0.65:
+		hue = Color(0.82, 0.92, 0.82)  # the darker, greyer ones
+	var light := lerpf(1.0, WOOD_DARK, deep) * rng.randf_range(0.85, 1.1)
+	return Color(hue.r * light, hue.g * light, hue.b * light)
 
 
 ## Where the dead come from (2026-11-02, the user: "the spawn ground is too open; they'll come from
@@ -435,7 +451,9 @@ const FOREST_FULL := 7.0  # m: as thick as it gets from here out
 const FOREST_SPACING := Vector2(2.0, 3.6)  # m to the nearest tree: thickest, thinnest
 const FOREST_DARTS := 90000
 const FOREST_CHUNK := 40.0
-const FOREST_SHADOW_END := 70.0  # m: past it the same trees, no shadows (the sun's reach ends at 50 anyway)
+const WOOD_DARK := 0.42  # a tree's light deep in the wood...
+const WOOD_DARK_FROM := 8.0  # ...from this far in from the clearing's edge (m)...
+const WOOD_DARK_REACH := 22.0  # ...over this many metres
 
 
 func _forest() -> void:
@@ -449,21 +467,25 @@ func _forest() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 97
 	var wood := _wood()
-	var chunks := {}  # Vector2i -> Mesh -> [flat transforms, low on the floor]
+	var chunks := {}  # Vector2i -> Mesh -> [flat transforms, low on the floor, tones]
 	var stood := {}  # Vector2i (16 m cell) -> Array[Vector2], the trees so far
 	var plant := func(parts: Array, xf: Transform3D, low: bool) -> void:
+		var tone := _wood_tone(Vector2(xf.origin.x, xf.origin.z), rng)
 		var key := Vector2i(floori(xf.origin.x / FOREST_CHUNK), floori(xf.origin.z / FOREST_CHUNK))
 		if not chunks.has(key):
 			chunks[key] = {}
 		for part: Array in parts:
 			var m: Mesh = part[0]
 			if not chunks[key].has(m):
-				chunks[key][m] = [PackedFloat32Array(), low]
+				chunks[key][m] = [PackedFloat32Array(), low, PackedColorArray()]
 			var x: Transform3D = xf * part[1]
 			var flat: PackedFloat32Array = chunks[key][m][0]
 			flat.append_array(PackedFloat32Array([x.basis.x.x, x.basis.x.y, x.basis.x.z, x.basis.y.x, x.basis.y.y, x.basis.y.z,
 				x.basis.z.x, x.basis.z.y, x.basis.z.z, x.origin.x, x.origin.y, x.origin.z]))
 			chunks[key][m][0] = flat
+			var tones: PackedColorArray = chunks[key][m][2]
+			tones.append(tone)
+			chunks[key][m][2] = tones
 	var count := 0
 	for dart in FOREST_DARTS:
 		var p := Vector2(rng.randf_range(WORLD.position.x, WORLD.end.x), rng.randf_range(WORLD.position.y, WORLD.end.y))
@@ -507,14 +529,16 @@ func _forest() -> void:
 				var stone := rng.randf() < 0.2
 				var parts: Array = wood.rocks[rng.randi() % wood.rocks.size()] if stone else wood.under[rng.randi() % wood.under.size()]
 				plant.call(parts, Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.5, 1.0)), b), true)
+	for thing: Array in _floor_things:
+		plant.call(thing[0], thing[1], true)
+	# No distance limits at all (2026-11-04, the user: "they load in as you get closer, very
+	# annoying"): a range counts from a chunk's middle, so 40 m of ferns and trees came on at once.
+	# The fog hides the far ones, and they're a few hundred triangles each.
 	var groups := []
 	for key: Vector2i in chunks:
 		for m: Mesh in chunks[key]:
 			var e: Array = chunks[key][m]
-			if e[1]:
-				groups.append([m, null, 60.0, 60.0, false, e[0]])
-			else:
-				groups.append([m, m, FOREST_SHADOW_END, 260.0, true, e[0]])
+			groups.append([m, null, 0.0, 0.0, not e[1], e[0], e[2]])
 	root.set("groups", groups)
 	print("forest: ", count, " trees in ", chunks.size(), " chunks")
 	# The wood's inner edge, every 30 degrees round the pad: where the dead can step out.

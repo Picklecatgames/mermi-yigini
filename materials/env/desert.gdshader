@@ -24,6 +24,10 @@ uniform float gravel_reach = 9.0;  // m out from the pad's edge
 uniform vec3 sand_tint : source_color = vec3(1.0, 0.86, 0.66);
 uniform vec3 earth_tint : source_color = vec3(0.86, 0.72, 0.56);
 
+uniform vec4 wood_oval = vec4(0.0);  // the clearing (centre x, z; radii): the floor darkens going into the wood; radii 0: off
+uniform float wood_dark = 0.45;  // how dark, deep in
+uniform float wood_dark_reach = 16.0;  // m in from the clearing's edge
+
 varying vec3 world_pos;
 
 void vertex() {
@@ -57,6 +61,10 @@ void fragment() {
 	// desert from reading as one flat colour up to the horizon.
 	float patch = smoothstep(0.3, 0.7, texture(noise_tex, p * 0.0019 + 0.13).r);
 	alb *= mix(0.88, 1.12, patch) * mix(0.9, 1.06, n);
+	if (wood_oval.z > 0.0) {
+		float deep = (length((p - wood_oval.xy) / wood_oval.zw) - 1.0) * min(wood_oval.z, wood_oval.w);
+		alb *= mix(1.0, wood_dark, smoothstep(0.0, wood_dark_reach, deep + (n - 0.5) * 8.0) * smoothstep(-10.0, -4.0, p.x));
+	}
 	ALBEDO = alb;
 	AO = arm.r;
 	ROUGHNESS = mix(0.82, 1.0, arm.g);
