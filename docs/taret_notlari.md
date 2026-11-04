@@ -17,7 +17,7 @@ Kullanıcının "videodaki gibi" sözünü bu yüzden **makinelerin dili** olara
 ## Nasıl baktım
 
 - **Alt yazı:** otomatik Türkçe alt yazının tamamını okudum. Çoğu yayıncının konuşması, oyundaki yazıları yüksek sesle okuyor; hata içerir. Fiyatlar buradan, yaklaşık.
-- **Kareler:** yaklaşık 30 duraklatılmış kareye baktım. Videoyu baştan sona izlemedim, sesi hiç duymadım. Hareket ve ses hakkındaki her şey yayıncının sözünden.
+- **Kareler:** yaklaşık 50 duraklatılmış kareye baktım. Videoyu baştan sona izlemedim, sesi hiç duymadım. Hareket ve ses hakkındaki her şey yayıncının sözünden.
 - **Steam sayfası:** Golden Horn Studios, 3 Kasım 2026, yaklaşık 6,5 dolar, tek oyunculu, 513 incelemede %88 olumlu.
 - Etiketler: **[kare]** gördüm, **[yazı]** alt yazıdan, **[Steam]** mağaza sayfasından. Zamanlar saat:dakika:saniye.
 
@@ -106,7 +106,7 @@ Burası bizim için en önemli kısım. Hepsi düşmansız yapılıyor.
 | Para | Kişisel oyun, tek kasa | Kasa yüzde yüz ortak (kullanıcı) |
 | Tehdit | Yok, yalnız bomba ve otorite | Gece dalgaları, çok daha güçlü bir kaynak |
 | Süre | Sınırsız | Gece-gündüz saati, bu baskıyı zaten veriyor |
-| Uzunluk | 1,5-4 saat | Demo ~1 saat: merdiven kısalmalı |
+| Uzunluk | 1,5-4 saat | Kullanıcı: 5-6 saat (bkz. Ek); `CLAUDE.md` demo ~1 saat |
 
 ## Önerilerim (benim önerim, kural değil)
 
@@ -123,7 +123,7 @@ Burası bizim için en önemli kısım. Hepsi düşmansız yapılıyor.
 
 ### Otomasyon: Factorio değil, ağır işçilik
 
-1. **Merdiven kullan.** Hurda için el → torba → çuval → el arabası → kollu sökücü → motorlu sökücü → vinç → teleferik ya da uzun hat → pençe. Ortak hurda dağı için çok iyi uyar; 1 saatlik demoda 8-10 basamak yeter.
+1. **Merdiven kullan.** Hurda için el → torba → çuval → el arabası → kollu sökücü → motorlu sökücü → vinç → teleferik ya da uzun hat → pençe. Ortak hurda dağı için çok iyi uyar; takvimi Ek'te.
 2. **Her basamak bir acıyı silsin.** Yeni makine yeni sayı değil, biten bir eziyet. "Çuvalı taşımaktan kurtuldum" hissi.
 3. **Hiç tam otomatik olma.** Dar boğaz hep bir yere kaysın, oyuncu hep elle bir şey yapsın (kullanıcının "küt" dediği bu olabilir, Sorular 4).
 4. **Az ve iri parça.** Bant 300 kare değil, ağır, tıkırtılı, 10-20 parçalık tek hat. Kanal, ip, ray gibi başka taşıyıcılar. `machines.json` bunu değiştirmiyor, yalnız sayı ve görünüş; `bant` satırı duruyor.
@@ -147,11 +147,113 @@ Burası bizim için en önemli kısım. Hepsi düşmansız yapılıyor.
 
 ### Almayalım
 
-- İlk 45 dakikalık eziyet: 1 saatlik demoda çok uzun; 3-5 dakikaya insin.
+- İlk 45 dakikalık eziyet: 5-6 saatlik oyunda bile çok; 10-15 dakikaya insin.
 - Bir tek sesin zorla dinletilmesi (köpek) ve kapatılamayan mektup.
 - Her patatesi fizikte tutmak: FPS 30'a düştü; kuralımız zaten MultiMesh ve simülasyon.
 - Yalnız hızı artıran son basamaklar: yayıncı orada yapacak iş kalmadığını, beklediğini söylüyor [yazı 3:45].
 - Hikayesi, ortamı, görselleri: Sovyet, patates, köy, Pavel bu oyunun, biz yalnız mekanik ve duygu dersi alıyoruz.
+
+## Ek: tek dağ ve oyun süresi
+
+### Kullanıcının sözü (kural)
+
+"Dağı da o oyundaki gibi tek dağ yapmak istiyorum. Süre, oyun süresi 5-6 saat olsun."
+
+Bu söz iki eski yazıyla çelişiyor, kararı kullanıcı verir (Sorular 8, 9):
+- `docs/ayrintilar.md`: tek ana dağın çevresinde minik dağcıklar, gökyüzüne değen dağlar (2026-11-03).
+- `CLAUDE.md`: ~1 saatlik ücretsiz demo.
+
+### Videodaki dağ: gördüklerim
+
+**Şekil [kare 0:19:45, 1:18:50, 2:45:00]:** çevresinde başka yığın olmayan tek kütle. Sivri ve düzgün bir koni, altında geniş, yayvan bir etek. Omuz ve oluk görmedim; kayalık dağ gibi değil, dökülmüş yığın gibi.
+
+**Boyut (kareden kaba tahminim, ölçüm değil):** tepesi yanındaki çamların boyuna yakın, 15-25 m. Taban 40-60 m. Tek tek patates uzaktan bile seçiliyor, yani gerçek boydan iri.
+
+**Üsse uzaklık:** çok yakın. Hangar kapısından asfaltın hemen ötesinde, tahminen 30-50 m; kapıdan bakınca ekranın ortasında **tamamı** görünüyor, tepesi dahil [kare 0:19:45]. Yayıncı dağın üstüne de çıkıyor [yazı 2:14].
+
+**Çevresi [kare 0:34:45, 2:48:10, 3:25:30, 3:44:40]:** soluk karlı orman, kayalar, kütük barikat, tank enkazı. Sonradan aynı meydanda teleferik istasyonu ve dev vinç görünüyor; dağla makineler yan yana duruyor.
+
+**Küçülme:**
+- Yakından parçalar duruyor, yüz düzensiz; etekte yuvarlanan tek tek patatesler kalıyor [kare 3:15:00, 3:33:20, 3:44:40].
+- Yayıncı sonunda yığının tamamını bitiriyor [yazı 3:58].
+- 2:51'de bildiri stoğun yarısının trenle gittiğini söylüyor [kare 2:52:55]. **Dağın o anda görünür şekilde yarıya inip inmediğini doğrulayamadım;** aynı açıdan önce ve sonra karem yok.
+- Kaymayı hareket hâlinde izlemedim.
+
+**Otomasyon dağdan nasıl çekiyor:**
+1. Elle ya da kovayla tek tek.
+2. E ile "Paketleniyor": dağın önünde çuval doldurma [kare 3:15:00, 3:41:00].
+3. Çuvalı arabaya atıp içeri çekme [kare 3:03:20].
+4. Teleferik: yığından hangara çuval taşır [kare 3:25:30, kataloğu 3:10:00].
+5. Pençeli vinç: büyük vinç dağın yanında durur, oyuncu kullanır, bir hamlede yüzlerce alır [kare 3:39:10, 3:44:40].
+6. Otopilot: pençe hazneyi kendi doldurur [katalog, kare 3:37:30]. Oyuncu artık çoğunlukla tıkanıklıkla uğraşıyor [yazı 3:45-3:52].
+
+Baktığım karelerde çekim fiziksel görünüyor: halat ve kol dağa kadar uzanıyor. Uzaktan görünmez çekim görmedim.
+
+### Süre ve aşamalar
+
+**Doğrulama:** Steam sayfasında süre yok. Arattım, HowLongToBeat ya da inceleme verisi bulamadım; oyun iki gün önce çıktı. Sayılar yalnız bu yayından. Yayıncı sohbet ediyor, ara veriyor, çocuğuyla ilgileniyor, yani süreler şişkin olabilir. Oyun içi listede 1,5 saatte bitiren varmış [yazı 4:06].
+
+| Video | Aşama | Kayıt % [yazı] |
+|---|---|---|
+| 0:00-0:45 | Eziyet: titreme, öksürük, paslı bıçak | |
+| 0:45-2:05 | Tezgâh: bıçak, soyacak, köpek, kova; yalnız el | |
+| 2:05-2:47 | Kollu makine, çuval, el arabası | 53 (2:22) |
+| 2:47-2:53 | Otomatik makine, fırtına, **kota açılır** | 65 (2:48) |
+| 2:53-3:25 | Çuval vinci, palto, teleferik | 77 (3:18) |
+| 3:25-3:46 | Hız aşırtma, pençe, otopilot | 89 (3:47) |
+| 3:46-4:02 | Süpürge, tıkanma, yığın biter | 95 (3:57) |
+| 4:02-4:18 | Demir kapı, tren, dört son | |
+
+**En önemli sayı: dağın neredeyse tamamı son çeyrekte bitiyor.** İlk satır yazıdan, gerisi karelerdeki kota sayacından, yaklaşık:
+
+| Dönem | Soyulan | Hız |
+|---|---|---|
+| 0:00-2:16 | 663 | ~5/dk |
+| 2:53-3:25 | ~13.000 | ~410/dk |
+| 3:25-3:44 | ~16.000 | ~840/dk |
+| 3:44-4:00 | ~29.000 | ~1.800/dk |
+
+Yani yaklaşık 360 kat hız farkı. İlk 2 saatte dağ azalmıyor gibi; son 16 dakikada kotanın yarısı gidiyor. Bu fark oyunun asıl ödülü gibi duruyor (benim yorumum).
+
+### Önerim: 5-6 saatlik oyun (benim önerim, kural değil)
+
+Bütün sayılar kaba tahminim. Oyunda ölçülmedi, bizim parça alma hızımızı da ölçmedim. Kod değiştirmedim.
+
+**Dağ biçimi (`scripts/pile.gd`):**
+- `HILLOCKS := 40` → 0, `SHOULDERS := 4` → 0.
+- `FRONT` üç ayrı yığın yerine tek eteğe karışsın: oyuncu tek dağdan kazar.
+- `MOUNTAIN := Vector4(-88, 0, 74, 58)`: merkez x = -88, ayak x = -30 civarı. Videodaki gibi tamamı kapıdan görünsün diye önerim **yükseklik ~40 m, yarıçap ~38 m, merkez x ≈ -55.** Videodakinden iki kat büyük. 74 m de kalabilir ama sis içinde tepesi kaybolur, tek koni okunmaz (Sorular 8).
+- Sonucu olarak `NEAR`, `data/heap_mask.json`, orman ve `scrap_hills.gd` kurucu betiklerden yeniden çıkar. `claude/busy-gagarin-6b30aa` dalındaki gerçek yığın işi ön yüzü değiştirdi; önce o birleşmeli, kod işi ayrı oturum.
+
+**`GameState.pile` (`PILE_START`):** bugün 100.000.000. Saniyede onlarca parçayla bile bitmez: 2.000/dk ile 830 saat. Önerim **~170.000** (4 oyuncu), 1 oyuncuda ~%40'ı:
+
+| Süre | Dönem | Hız/dk | Giden |
+|---|---|---|---|
+| 0:00-1:00 | El, torba | 30 | ~2.000 |
+| 1:00-2:30 | Araba, kollu sökücü | 100 | ~9.000 |
+| 2:30-4:00 | Motorlu makine, hat | 300 | ~27.000 |
+| 4:00-5:30 | Vinç, otopilot | 1.500 | ~135.000 |
+
+Bu dağın hacmi yaklaşık 60.000 m³ (koni), bir sayı ≈ 0,35 m³. `docs/ayrintilar.md`'deki "bir parça ≈ 1,9 litre" gider; sayı artık bir parça değil, bir miktar yığındır. Küçülme hız eğrisini izler: ilk 4 saatte dağın yaklaşık %20'si, son 1,5 saatte kalanı. Bu, "saatler sonra oyuncu dağın yarısının bittiğini görecek" sözüne uyuyor. `pile` sayısı ağ ve kontrollere bağlı; değiştirmeden önce ölçülmeli.
+
+**Gece sayısı:** `DAY_SECONDS := 1440` (24 dk) kalırsa 5,5 saat = **~14 gece**. Gün süresini değiştirmem. `BOSS_EVERY := 5` ile 5. ve 10. gece boss, 14. gece son gece.
+
+**Otomasyon açılışı:**
+
+| Gece (saat) | Açılan |
+|---|---|
+| 1-2 (0:00-0:50) | Yalnız el ve torba, ilk silah |
+| 3 (~1:00) | El arabası, kollu sökücü, kasa |
+| 5, boss (~2:00) | İlk sabit taret; boss öncesi kurulur |
+| 6-7 (~2:30) | Motorlu makine, kısa hat |
+| 9 (~3:30) | Teleferik ya da uzun hat, ikinci taret grubu |
+| 10, boss (~4:00) | Pençeli vinç, dağın yanına kurulur |
+| 12 (~4:45) | Vinç otopilotu |
+| 14 (~5:30) | Son gece |
+
+Videoda ilk makine sürenin yaklaşık %50'sinde, otomatik makine %68'inde açılıyor. Bizde daha erken (%20, %45): aynı oran 5,5 saatte 2,5 saat yalnız el demek, yayıncı ilk saatte bile yoruldu. Bizde el işini gece silahla bölüyor; yine de oynayıp görmeden kesinleştirmem.
+
+**Dağ ve gece:** vinç dağın yanında kalır, üsten uzak; gece savunması ayrı bir iş olur ve gerilim doğurur. Dağ çevresinden gelen dalgayla iyi birleşir. Demo için: 5,5 saatlik oyunda demo ilk 3-4 gece (~1-1,5 saat) ve 5. gece boss'unun önünde bitebilir (Sorular 9).
 
 ## Kullanıcıya sorular
 
@@ -162,3 +264,6 @@ Burası bizim için en önemli kısım. Hepsi düşmansız yapılıyor.
 5. Taret mermiyi kasadan kendi mi alsın, yoksa elle ya da hatla mı doldurulsun?
 6. Karakterin bedeninin engel olması (öksürük, soğuk, yavaşlama) bizde de olsun mu, ne kadar?
 7. Mektuplar, kısa bildiriler, sonu değiştiren kararlar gibi bir hikaye katmanı demoda istiyor musun?
+8. Tek dağ: videodaki gibi kapıdan tamamı görünen ~40 m'lik bir kütle mi, yoksa bugünkü 74 m gibi gökyüzüne değen ama tek bir dağ mı? Çevredeki minik dağcıklar tamamen gidiyor mu?
+9. 5-6 saat oyunun tamamı mı? Öyleyse ücretsiz Steam demosu bunun ilk 1-1,5 saati mi, yoksa demo fikri değişti mi?
+10. Dağ bitince oyun bitsin mi (videoda öyle), yoksa son gece mi belirlesin?
