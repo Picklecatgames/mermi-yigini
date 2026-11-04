@@ -6,11 +6,11 @@ Bu dosyada kullanıcı kararı olarak yazılan yalnız yukarıdaki paragraftır.
 
 ## 1. Kontrollerin durumu
 
-50 headless kontrol 2026-11-05'te `f8d31158` sonrası main'de (`7d79f864`) çalıştırıldı. Godot penceresi açılmadı. Beckett bağlanamadı (`ECONNREFUSED`, yalnız editör açıkken çalışıyor), Godot MCP yalnız proje bilgisi için kullanıldı.
+48 headless kontrol 2026-11-05'te main'de (`7d79f864`) çalıştırıldı. Godot penceresi açılmadı. Beckett bağlanamadı (`ECONNREFUSED`, yalnız editör açıkken çalışıyor), Godot MCP yalnız proje bilgisi için kullanıldı.
 
 **`net_check` geçiyor:** yığın iki tarafta bit bit aynı (fark 0), istemci isabeti, itme, dost ateşi, görevler tamam. `join_check` de geçiyor.
 
-43 geçti, 6 düştü, 1'i geçti ama hatası var:
+41 temiz geçti, 6 düştü, 1'i geçti ama hatası var:
 
 | Kontrol | Sonuç | İlk okuma |
 |---|---|---|
@@ -112,7 +112,7 @@ Her oturum kendi çalışma ağacında; dosya sahipliği çakışmaz.
 
 | Oturum | Sahibi | Bitti sayılması |
 |---|---|---|
-| `kontrol-onarim` | `tools/*_check.gd`, `waves.gd` hatası, `gun_table.gd` | 50 kontrol geçiyor ya da gerekçeyle kaldırıldı |
+| `kontrol-onarim` | `tools/*_check.gd`, `waves.gd` hatası, `gun_table.gd` | Bütün kontroller geçiyor ya da gerekçeyle kaldırıldı |
 | `hurda-dagi` | `scripts/pile.gd`, `scrap_hills.gd`, `build_scrap_face.gd`, `heap_proof.gd` | Ön kısım gerçek fizikli, alttan çekince kayıyor, performans ölçülmüş |
 | `uretim-temeli` | yeni `scripts/factory/`, `data/`, `tools/factory_check.gd`, `GameState` yeni blok | Hurda → dönüştürücü → bant → kasa headless iki oyuncuda çalışıyor |
 | `aset-uretim` | yeni `assets/factory/`, `docs/aset_adaylari_otomasyon.md` | Aday listesi ve işlenmiş asetler, sahneye konmadan |
