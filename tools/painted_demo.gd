@@ -1,8 +1,11 @@
 extends SceneTree
 ## The game's zombies in another look, to compare (2026-11-04, the user sent a shot: a low-poly figure
 ## close up, bright flat light, strong colours, fine dotted screen, colours slipping apart at the
-## edges). A small lit room: nearly no shadow, so the texture is what you read. The screen: 480 lines,
-## 15-bit colour with the ordered dither on, more saturation, red and blue a little apart (LOOK).
+## edges, and above all textures that look painted by hand). So every texture is repainted when it
+## first shows: flat strokes (PAINT, a Kuwahara filter), then dark lines where the strokes meet and
+## stronger colour (INK). A small lit room: nearly no shadow, so the texture is what you read. The
+## screen: 480 lines, single pass, 15-bit colour with the ordered dither on, red and blue a little
+## apart (LOOK).
 ##   Godot.exe --path . -s res://tools/painted_demo.gd     WASD, mouse, Shift fast
 ##   ... -- --shot                                           user://painted_demo_<n>.png, quits
 ## Keys: G the look on and off, H the head of the zombie nearest the view's middle, R up again. Esc quits.
@@ -13,12 +16,62 @@ const TEX := "res://assets/psx/tex/%s.res"
 const ZOMBIES := ["zombiegirl", "copzombie", "prisoner"]
 const TEXELS := 64.0  # texture pixels a metre, as in tools/ps1_demo.gd
 const DITHER := 0.55
-const FLAGS := [Color(0.95, 0.72, 0.1), Color(0.1, 0.62, 0.8), Color(0.14, 0.66, 0.2), Color(0.85, 0.16, 0.14)]
+const PAINTED := 512  # px, each texture repainted this big: strokes finer than the 128-256 px source
+const PAINT := """
+shader_type canvas_item;
+render_mode blend_disabled;
+uniform sampler2D src : filter_linear, repeat_enable;
+const int R = 4;  // the stroke, in painted pixels
+void fragment() {
+	vec2 px = vec2(1.0 / 512.0);
+	vec3 best = vec3(0.0);
+	float least = 1e9;
+	for (int q = 0; q < 4; q++) {
+		vec2 dir = vec2(q % 2 == 0 ? 1.0 : -1.0, q < 2 ? 1.0 : -1.0);
+		vec3 sum = vec3(0.0);
+		vec3 sq = vec3(0.0);
+		for (int y = 0; y <= R; y++) {
+			for (int x = 0; x <= R; x++) {
+				vec3 c = texture(src, UV + vec2(float(x), float(y)) * dir * px).rgb;
+				sum += c;
+				sq += c * c;
+			}
+		}
+		float n = float((R + 1) * (R + 1));
+		vec3 v = sq / n - (sum / n) * (sum / n);
+		float spread = v.r + v.g + v.b;
+		if (spread < least) {
+			least = spread;
+			best = sum / n;
+		}
+	}
+	COLOR = vec4(best, texture(src, UV).a);
+}
+"""
+const INK := """
+shader_type canvas_item;
+render_mode blend_disabled;
+uniform sampler2D src : filter_linear, repeat_enable;
+float lum(vec2 uv) { return dot(texture(src, uv).rgb, vec3(0.299, 0.587, 0.114)); }
+void fragment() {
+	vec2 px = vec2(1.5 / 512.0);
+	vec4 c = texture(src, UV);
+	float dx = lum(UV + vec2(px.x, 0.0)) - lum(UV - vec2(px.x, 0.0));
+	float dy = lum(UV + vec2(0.0, px.y)) - lum(UV - vec2(0.0, px.y));
+	float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+	float bands = floor(l * 7.0 + 0.5) / 7.0;  // shading in flat steps
+	vec3 g = c.rgb * mix(1.0, bands / max(l, 0.04), 0.4);
+	g = mix(vec3(dot(g, vec3(0.299, 0.587, 0.114))), g, 1.22);
+	g = mix(g * vec3(0.8, 0.86, 1.05), g * vec3(1.06, 1.0, 0.92), smoothstep(0.1, 0.55, l));  // cool darks, warm lights
+	float ink = smoothstep(0.1, 0.28, length(vec2(dx, dy)));
+	COLOR = vec4(mix(g, vec3(0.03, 0.02, 0.04), ink * 0.7), c.a);
+}
+"""
 const LOOK := """
 shader_type canvas_item;
 uniform sampler2D screen : hint_screen_texture, filter_nearest;
 uniform float slip = 1.5;  // pixels red and blue slip apart, more toward the edges
-uniform float saturation = 1.4;
+uniform float saturation = 1.08;
 void fragment() {
 	vec2 from = SCREEN_UV - 0.5;
 	vec2 off = (from * length(from) * 2.0 * slip + vec2(slip * 0.5, 0.0)) * SCREEN_PIXEL_SIZE;
@@ -34,6 +87,10 @@ var _cam: Camera3D
 var _rect := ColorRect.new()
 var _label := Label.new()
 var _on := true
+var _painted := {}  # the source texture -> its painted copy
+var _mats: Array[ShaderMaterial] = []  # every material painted, with its source in meta "source"
+var _queue: Array[ShaderMaterial] = []
+var _painting := false
 
 
 func _initialize() -> void:
@@ -83,6 +140,10 @@ func _run() -> void:
 		await process_frame  # Settings puts its own PS1 screen on first
 	_look(true)
 	if "--shot" in OS.get_cmdline_user_args():
+		for i in 10:
+			await process_frame
+		while _painting:
+			await process_frame
 		var views := [[Vector3(-1.2, 1.5, 0.15), Vector3(-1.5, 1.35, -1.5)], [Vector3(0.2, 1.6, 2.4), Vector3(0.0, 1.2, -1.5)]]
 		for n in views.size():
 			_cam.look_at_from_position(views[n][0], views[n][1])
@@ -105,10 +166,13 @@ func _run() -> void:
 func _look(on: bool) -> void:
 	_on = on
 	var psx: Node = root.get_node("PsxScreen")
-	psx.apply(480 if on else 0, on)
+	psx.apply(480 if on else 0, false)
 	psx._rect.material.set_shader_parameter(&"psx_dither", DITHER)
 	psx._rect.material.set_shader_parameter(&"psx_grade", 0.0)
 	_rect.visible = on
+	for m in _mats:
+		var source: Texture2D = m.get_meta(&"source")
+		m.set_shader_parameter(&"albedo_tex", _painted.get(source, source) if on else source)
 	_label.text = "G Tarz   H Kafa   R Yeniden      %s" % ("Açık" if on else "Kapalı")
 
 
@@ -140,7 +204,7 @@ func _stand_up() -> void:
 		holder.position = Vector3(-1.6 + i * 1.6, 0, -1.5)
 		holder.rotation.y = PI + (i - 1) * 0.3  # the body faces -Z: turned round to the camera
 		var body: Node3D = ZOMBIE_BODY.new()
-		body.setup(&"walker", 11 + i)
+		body.setup(&"walker", 11)  # the upright idle (idle_f), the look is what is on show
 		body.model = StringName(ZOMBIES[i])
 		holder.add_child(body)
 		_world.add_child(holder)
@@ -156,9 +220,58 @@ func _unjitter(body: Node3D) -> void:
 				mat = mat.duplicate()
 				mat.set_shader_parameter(&"snap", 0.0)
 				mi.set_surface_override_material(s, mat)
+				_paint(mat)
 
 
-func _plane(tex: String, size: Vector2, at: Vector3, rot: Vector3) -> void:
+## `m` wears the painted copy of its texture, as soon as there is one.
+func _paint(m: ShaderMaterial) -> void:
+	var source: Texture2D = m.get_shader_parameter(&"albedo_tex")
+	if source == null:
+		return
+	m.set_meta(&"source", source)
+	_mats.append(m)
+	_queue.append(m)
+	if not _painting:
+		_paint_all()
+
+
+func _paint_all() -> void:
+	_painting = true
+	while not _queue.is_empty():
+		var m: ShaderMaterial = _queue.pop_back()
+		var source: Texture2D = m.get_meta(&"source")
+		if not _painted.has(source):
+			var strokes := await _pass(source, PAINT)
+			_painted[source] = await _pass(strokes, INK)
+		if _on:
+			m.set_shader_parameter(&"albedo_tex", _painted[source])
+	_painting = false
+
+
+## `tex` drawn through `code` in a small viewport of its own, read back.
+func _pass(tex: Texture2D, code: String) -> ImageTexture:
+	var vp := SubViewport.new()
+	vp.size = Vector2i(PAINTED, PAINTED)
+	vp.transparent_bg = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var rect := ColorRect.new()
+	rect.size = Vector2(PAINTED, PAINTED)
+	var m := ShaderMaterial.new()
+	m.shader = Shader.new()
+	m.shader.code = code
+	m.set_shader_parameter(&"src", tex)
+	rect.material = m
+	vp.add_child(rect)
+	root.add_child(vp)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var image := vp.get_texture().get_image()
+	vp.queue_free()
+	image.generate_mipmaps()
+	return ImageTexture.create_from_image(image)
+
+
+func _plane(tex: String, size: Vector2, at: Vector3, rot: Vector3, tint: Color) -> void:
 	var p := PlaneMesh.new()
 	p.orientation = PlaneMesh.FACE_Z
 	p.size = size
@@ -173,7 +286,9 @@ func _plane(tex: String, size: Vector2, at: Vector3, rot: Vector3) -> void:
 	m.set_shader_parameter(&"albedo_tex", load(TEX % tex))
 	m.set_shader_parameter(&"uv_scale", size * TEXELS / 128.0)
 	m.set_shader_parameter(&"snap", 0.0)
+	m.set_shader_parameter(&"tint", tint)
 	mi.material_override = m
+	_paint(m)
 	_world.add_child(mi)
 	var body := StaticBody3D.new()  # so blood finds it
 	var shape := CollisionShape3D.new()
@@ -184,23 +299,7 @@ func _plane(tex: String, size: Vector2, at: Vector3, rot: Vector3) -> void:
 
 
 func _room() -> void:
-	_plane("gravelly_sand", Vector2(10, 10), Vector3.ZERO, Vector3(-PI * 0.5, 0, 0))
-	_plane("concrete_slab_wall", Vector2(10, 3.4), Vector3(0, 1.7, -3.0), Vector3.ZERO)
-	_plane("rust_coarse_01", Vector2(10, 3.4), Vector3(-4.0, 1.7, 0), Vector3(0, PI * 0.5, 0))
-	_plane("metal_plate_02", Vector2(10, 3.4), Vector3(4.0, 1.7, 0), Vector3(0, -PI * 0.5, 0))
-	# A row of flags on the back wall: strong flat colours, what the look is for.
-	for i in 12:
-		var a := []
-		a.resize(Mesh.ARRAY_MAX)
-		a[Mesh.ARRAY_VERTEX] = PackedVector3Array([Vector3(-0.2, 0, 0), Vector3(0.2, 0, 0), Vector3(0, -0.5, 0)])
-		var mesh := ArrayMesh.new()
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a)
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		m.albedo_color = FLAGS[i % FLAGS.size()]
-		mesh.surface_set_material(0, m)
-		var flag := MeshInstance3D.new()
-		flag.mesh = mesh
-		flag.position = Vector3(-3.0 + i * 0.55, 2.8 - 0.12 * sin(float(i) / 11.0 * PI), -2.9)
-		_world.add_child(flag)
+	_plane("gravelly_sand", Vector2(10, 10), Vector3.ZERO, Vector3(-PI * 0.5, 0, 0), Color(0.34, 0.31, 0.3))
+	_plane("concrete_slab_wall", Vector2(10, 3.4), Vector3(0, 1.7, -3.0), Vector3.ZERO, Color(0.42, 0.44, 0.47))
+	_plane("dirty_concrete", Vector2(10, 3.4), Vector3(-4.0, 1.7, 0), Vector3(0, PI * 0.5, 0), Color(0.42, 0.44, 0.47))
+	_plane("dirty_concrete", Vector2(10, 3.4), Vector3(4.0, 1.7, 0), Vector3(0, -PI * 0.5, 0), Color(0.42, 0.44, 0.47))
