@@ -105,6 +105,14 @@ signal moon_changed(kind: String, night: int)
 signal debug_spawn_asked(type: String, at: Vector3, yaw: float, count: int)
 ## Host only: B asked for a night's wave out of the wood (debug builds; waves.gd _debug_raid).
 signal debug_raid_asked
+## The factory (scripts/factory/factory.gd; see the block near the end): a command stamped with the
+## step it goes in at; the host's step, with the state's hash now and then (0 otherwise); the whole
+## state, for a joiner or a peer that fell out of step.
+signal factory_cmd(step: int, cmd: Array)
+signal factory_clock(step: int, check: int)
+signal factory_snapshot(state: Dictionary)
+## The shared kasa changed here; every peer works it out itself, it doesn't cross the network.
+signal stock_changed
 
 const PILE_START := 100_000_000
 ## The day (2026-11-03, first guesses: the user hasn't set its length, docs/ayrintilar.md open
@@ -386,6 +394,7 @@ const REQUESTS := {
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 	&"request_pull_lever": 0, &"request_repair_fence": 0, &"request_revive": 1,
 	&"request_skip_time": 0, &"request_debug_raid": 0, &"request_debug_spawn": 4, &"request_debug_moon": 1,
+	&"request_factory_place": 4, &"request_factory_remove": 2, &"request_factory_resync": 0,
 }
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
@@ -398,7 +407,8 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"loose_taken", &"scrap_collapse", &"heap_clock", &"heap_piece_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
-	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed"]
+	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed",
+	&"factory_cmd", &"factory_clock", &"factory_snapshot"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4}
 
@@ -493,6 +503,7 @@ var wave_phase := WAVE_READY  # from the wave cues, on every machine
 var wave_cleared := 0  # the last wave cleared, for the revive's price
 var _hp_wait := 0.0
 var _all_down_sent := false  # host: once until the next READY
+var factory: Node  # scripts/factory/factory.gd: the belts, the machines and the shared kasa
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -544,6 +555,8 @@ func mag_capacity_of(peer: int) -> int:
 
 
 func _ready() -> void:
+	factory = preload("res://scripts/factory/factory.gd").new()
+	add_child(factory)
 	_reset_quests()  # Net isn't in the tree yet; a joiner gets the host's board on joining
 	_moon_rng.randomize()
 	fence_bays.resize(FENCE_BAYS)
@@ -1091,6 +1104,42 @@ func request_buy_upgrade(id: String, peer := 0) -> bool:
 		upgraded.emit(id, level + 1)
 		gold_changed.emit(p.gold)
 	return true
+
+
+## The factory (scripts/factory/): here only what the network needs, the requests that go through
+## _request. The kasa is one and the team's, alone too: factory.sim.stock, by item.
+
+## How much of `id` (data/items.json, or hurda/<id>) the kasa holds, as of this peer's step.
+func stock_of(id: String) -> int:
+	var i: int = factory.sim.data.item_index.get(id, -1)
+	return factory.sim.stock[i] if i >= 0 else 0
+
+
+## Put up a data/machines.json `id` at grid cell x, z facing dir (0 +x, 1 +z, 2 -x, 3 -z). The host
+## decides; nothing shows until its command comes back, so no guess to take back. True: it went up.
+func request_factory_place(id: String, x: int, z: int, dir: int, peer := 0) -> bool:
+	if _send(&"request_factory_place", [id, x, z, dir], peer):
+		return false
+	return factory.request_place(id, x, z, dir, peer)
+
+
+## Take down whatever stands on grid cell x, z. What it cost and held goes to the kasa.
+func request_factory_remove(x: int, z: int, peer := 0) -> bool:
+	if _send(&"request_factory_remove", [x, z], peer):
+		return false
+	return factory.request_remove(x, z, peer)
+
+
+## A client out of step asks for the factory again (factory.gd).
+func request_factory_resync(peer := 0) -> void:
+	if _send(&"request_factory_resync", [], peer) or peer == 0:
+		return
+	if factory.resync_allowed(peer):
+		send_factory_snapshot(peer)
+
+
+func send_factory_snapshot(id: int) -> void:
+	_event.rpc_id(id, &"factory_snapshot", [factory.sim.to_save()])
 
 
 ## The team's shared vault is a co-op thing: alone, all the money is the player's.
