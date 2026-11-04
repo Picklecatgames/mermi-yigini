@@ -10,7 +10,11 @@
 //               pieces in the distance stop boiling on the 270p screen (2026-11-03, the user)
 // Textures are unfiltered but mipmapped (filter_nearest_mipmap): far away they average, not sparkle.
 
+#ifdef PSX_SOFT
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap, repeat_enable, hint_default_white;
+#else
 uniform sampler2D albedo_tex : source_color, filter_nearest_mipmap, repeat_enable, hint_default_white;
+#endif
 uniform vec4 tint : source_color = vec4(1.0);
 uniform float snap = 180.0;
 uniform float alpha_cut = 0.0;

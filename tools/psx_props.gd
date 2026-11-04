@@ -15,6 +15,7 @@ extends SceneTree
 
 const SHADER := preload("res://materials/psx_prop.gdshader")
 const SHADER_2S := preload("res://materials/psx_prop_2s.gdshader")
+const SHADER_SOFT := preload("res://materials/psx_prop_soft.gdshader")
 const M := "res://assets/env/models/%s/%s_1k.gltf"
 const TEX_SRC := "res://assets/env/textures/%s/%s_diff_2k.jpg"
 const TEX_OUT := "res://assets/psx/tex/%s.res"
@@ -89,7 +90,7 @@ const NATURE_SATURATION := 0.5
 ## models): [file, triangles, texture px]. The pack's trees are 40-340 triangles already and share
 ## one atlas, so it keeps its triangles and gets a bigger texture; the two scans come down to a
 ## PS1 tree. Their colours: less of a pull towards the dust than the desert's, an olive one.
-const ORMAN := [["res://assets/env/orman/forest_pack.glb", 4000, 512], ["res://assets/env/orman/cypress.glb", 3000, 256], ["res://assets/env/orman/cherry.glb", 4000, 256]]
+const ORMAN := [["res://assets/env/orman/forest_pack.glb", 4000, 1024], ["res://assets/env/orman/cypress.glb", 3000, 512], ["res://assets/env/orman/cherry.glb", 4000, 512]]
 const ORMAN_GROUND := ["forest_leaves_04", "mud_forest", "forest_ground_04"]  # the wood's floor, 128 px like the rest of the ground
 const ORMAN_VALUE := 0.95  # darker: up close, out of the dark fog, the pale bark went white (2026-11-04, the user)
 const ORMAN_GAMMA := 1.1
@@ -474,7 +475,7 @@ func _material(m: Material, px: int) -> Material:
 		out = c
 	else:
 		var sm := ShaderMaterial.new()
-		sm.shader = SHADER_2S if b.cull_mode == BaseMaterial3D.CULL_DISABLED else SHADER
+		sm.shader = SHADER_SOFT if _orman else (SHADER_2S if b.cull_mode == BaseMaterial3D.CULL_DISABLED else SHADER)
 		if b.albedo_texture:
 			var tex := b.albedo_texture
 			if _nature and b.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:

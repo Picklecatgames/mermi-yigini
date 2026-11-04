@@ -290,7 +290,7 @@ func _wasteland() -> void:
 	# The clearing's floor: ferns and shrubs, fallen logs, stones (the pack); a tree only here and there.
 	var wood := _wood()
 	for p: Vector3 in spots.call(10, 12.0, 26.0, false, 8.0):
-		_wood_tree(root, wood.trees[_weighted(rng, wood.trees)], p, rng)
+		_wood_tree(root, wood.close[_weighted(rng, wood.close)], p, rng)
 	for p: Vector3 in spots.call(120, 3.0, 120.0, true, 2.5):
 		_wood_low(wood.under[rng.randi() % wood.under.size()], p, rng, Vector2(0.5, 0.9))
 	for p: Vector3 in spots.call(50, 3.0, 60.0, true, 2.0):
@@ -333,10 +333,10 @@ const WOOD_TREES := [
 	[WOOD_PACK, [AT % "_005"], 0.08, Vector2(0.6, 0.95), 0.5],
 	[WOOD_PACK, [AT % "_006"], 0.08, Vector2(0.65, 1.1), 0.5],
 	[WOOD_PACK, [AT % "_007"], 0.08, Vector2(0.65, 1.1), 0.5],
-	[WOOD_PACK, ["Tree_Trunk_01_Tree_Trunk_01_0", "Tree_Branches_01_001_Tree_Branches_01_0"], 0.05, Vector2(1.0, 1.6), 0.4],
-	[WOOD_PACK, ["Tree_Trunk_01_001_Tree_Trunk_01_0", "Tree_Branches_01_Tree_Branches_01_0"], 0.05, Vector2(0.7, 1.1), 0.6],
-	[WOOD_PACK, ["Tree_Trunk_01_002_Tree_Trunk_01_0", "Tree_Branches_01_002_Tree_Branches_01_0"], 0.05, Vector2(0.8, 1.2), 0.6],
-	[WOOD_PACK, ["Tree_Trunk_02_Tree_Trunk_02_0", "Tree_Branches_02_Tree_Branches_02_0"], 0.05, Vector2(1.0, 1.6), 0.4],
+	[WOOD_PACK, ["Tree_Trunk_01_Tree_Trunk_01_0", "Tree_Branches_01_001_Tree_Branches_01_0"], 0.05, Vector2(1.25, 1.9), 0.4],
+	[WOOD_PACK, ["Tree_Trunk_01_001_Tree_Trunk_01_0", "Tree_Branches_01_Tree_Branches_01_0"], 0.05, Vector2(0.9, 1.35), 0.6],
+	[WOOD_PACK, ["Tree_Trunk_01_002_Tree_Trunk_01_0", "Tree_Branches_01_002_Tree_Branches_01_0"], 0.05, Vector2(1.0, 1.45), 0.6],
+	[WOOD_PACK, ["Tree_Trunk_02_Tree_Trunk_02_0", "Tree_Branches_02_Tree_Branches_02_0"], 0.05, Vector2(1.25, 1.9), 0.4],
 	# Half dead: the same trunks with nothing left on them.
 	[WOOD_PACK, ["Tree_Trunk_01_001_Tree_Trunk_01_0"], 0.03, Vector2(0.6, 1.0), 0.6],
 	[WOOD_PACK, ["Tree_Trunk_01_002_Tree_Trunk_01_0"], 0.03, Vector2(0.6, 1.0), 0.6],
@@ -344,6 +344,10 @@ const WOOD_TREES := [
 	[WOOD_CHERRY, [], 0.05, Vector2(2.2, 3.4), 0.2],
 ]
 var _wood_kinds := {}
+
+
+const WOOD_NEAR_EDGE := 14.0  # m in from the clearing's edge: only trees with real branches, where players walk up to them;
+# the pack's background trees (one card for a whole crown, big blocks from under it) further in
 
 
 ## One kind: [[mesh, its transform], ...] standing on its origin: over its trunk if it has one
@@ -378,15 +382,18 @@ func _wood_kind(file: String, names: Array) -> Array:
 func _wood() -> Dictionary:
 	if _wood_kinds.is_empty():
 		var trees := []
+		var close := []
 		for k: Array in WOOD_TREES:
 			trees.append([_wood_kind(k[0], k[1]), k[2], k[3], k[4]])
+			if k[1].is_empty() or not String(k[1][0]).begins_with("Background"):
+				close.append([trees[-1][0], k[2] / 0.34, k[3], k[4]])  # shares that add up to about 1 again
 		var under := []
 		for n in ["_009", "_010", "_011", "_012"]:
 			under.append(_wood_kind(WOOD_PACK, [AT % n]))
 		var rocks := []
 		for n in ["", "_001", "_002", "_003", "_004", "_005", "_006", "_007", "_008"]:
 			rocks.append(_wood_kind(WOOD_PACK, ["Rocks%s_Rocks_0" % n]))
-		_wood_kinds = {"trees": trees, "under": under, "rocks": rocks}
+		_wood_kinds = {"trees": trees, "close": close, "under": under, "rocks": rocks}
 	return _wood_kinds
 
 
@@ -514,7 +521,8 @@ func _forest() -> void:
 		if not stood.has(cell):
 			stood[cell] = []
 		stood[cell].append(p)
-		var kind: Array = wood.trees[_weighted(rng, wood.trees)]
+		var kinds: Array = wood.close if _out_of_clearing(p) < WOOD_NEAR_EDGE else wood.trees
+		var kind: Array = kinds[_weighted(rng, kinds)]
 		var sc: float = rng.randf_range(kind[2].x, kind[2].y)
 		var at := Vector3(p.x, _ground_y(p.x, p.y, _desert_noise) - 0.08, p.y)
 		plant.call(kind[0], Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), at), false)

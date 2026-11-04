@@ -18,6 +18,7 @@ const SHOTS := {
 	"junk_edge": [Vector3(8.0, 1.7, 22.0), Vector3(-30.0, 6.0, 45.0)],
 	"junk_side": [Vector3(0.0, 1.7, -24.0), Vector3(-35.0, 6.0, -45.0)],
 	"junk_top": [Vector3(35.0, 70.0, 0.0), Vector3(-30.0, 0.0, 0.0)],
+	"wood_up": [Vector3(46.0, 1.7, -2.0), Vector3(50.0, 14.0, 1.0)],
 	"wood_front": [Vector3(11.0, 1.7, 1.0), Vector3(60.0, 9.0, 0.0)],
 	"wood_near": [Vector3(38.0, 1.7, -6.0), Vector3(70.0, 8.0, 6.0)],
 	"wood_in": [Vector3(70.0, 1.7, 20.0), Vector3(100.0, 5.0, 30.0)],
