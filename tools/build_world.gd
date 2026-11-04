@@ -453,11 +453,11 @@ const FOREST_DARTS := 90000
 const FOREST_CHUNK := 40.0
 const HEAP_TREE_LINE := 0.5  # m of scrap a tree still stands in
 const HEAP_NEAR := Rect2(-40.0, -20.0, 32.0, 40.0)  # pile.gd NEAR
-const VEIL_ROWS := [[9.0, 0.85], [15.0, 0.92], [22.0, 1.0], [32.0, 1.0]]  # m in from the clearing's edge, how black
+const VEIL_ROWS := [[12.0, 0.6], [18.0, 0.8], [25.0, 0.95], [34.0, 1.0]]  # m in from the clearing's edge, how black
 const VEIL_H := 19.0  # under the crowns: above them it showed against the sky as pale rays
-const WOOD_DARK := 0.42  # a tree's light deep in the wood...
-const WOOD_DARK_FROM := 8.0  # ...from this far in from the clearing's edge (m)...
-const WOOD_DARK_REACH := 22.0  # ...over this many metres
+const WOOD_DARK := 0.32  # a tree's light deep in the wood...
+const WOOD_DARK_FROM := 4.0  # ...from this far in from the clearing's edge (m)...
+const WOOD_DARK_REACH := 14.0  # ...over this many metres
 
 
 func _forest() -> void:

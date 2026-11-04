@@ -20,7 +20,8 @@ vec3 psx_graded(vec3 c, vec2 uv) {
 	float l = dot(c, vec3(0.299, 0.587, 0.114));
 	float red = clamp((c.r - max(c.g, c.b)) * 3.0, 0.0, 1.0);
 	vec3 g = mix(vec3(l), c, mix(0.45, 0.9, red));
-	g *= mix(vec3(0.62, 0.84, 0.92), vec3(1.1, 0.96, 0.8), smoothstep(0.02, 0.4, l));
+	// Shadows cool, not teal (2026-11-04, the user: the night sky went green; red fell away first).
+	g *= mix(vec3(0.8, 0.82, 0.95), vec3(1.1, 0.96, 0.8), smoothstep(0.02, 0.4, l));
 	g = pow(max(g, 0.0), vec3(1.12));
 	g *= mix(1.0, 0.5, smoothstep(0.35, 0.85, length((uv - 0.5) * vec2(1.1, 1.0))));
 	return mix(c, g, psx_grade);
@@ -30,7 +31,12 @@ vec3 psx_colour(vec3 c, vec2 px) {
 	c = psx_graded(c, (px + 0.5) / psx_size);
 	ivec2 p = ivec2(mod(px, 4.0));
 	float d = ((PSX_BAYER[p.y * 4 + p.x] + 0.5) / 16.0 - 0.5) * psx_dither;
-	return clamp(floor(c * psx_levels + 0.5 + d) / psx_levels, 0.0, 1.0);
+	// The steps closer together in the dark (2026-11-04, the user: the night and the black between
+	// the trees looked blocky, glitched): even steps left a dark soft shade only two or three colours,
+	// each a hard patch, and one channel dropping to 0 before the others tinted it.
+	float n = psx_levels * 1.25;
+	vec3 q = clamp(floor(sqrt(max(c, 0.0)) * n + 0.5 + d) / n, 0.0, 1.0);
+	return q * q;
 }
 
 // The small pixel `px` of a texture drawn psx_taps times finer: the mean of its samples. Colour
