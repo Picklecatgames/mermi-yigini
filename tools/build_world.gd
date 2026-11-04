@@ -9,7 +9,7 @@ extends "res://tools/build_arena.gd"
 ##   godot --headless --path . -s res://tools/build_world.gd
 ## The helpers (add, worn, pbr_box, _prop, block, collide, pendant, _pit...) are build_arena.gd's.
 
-const WORLD := Rect2(-100.0, -80.0, 220.0, 160.0)  # x, z: everything the players can see the ground of (2026-11-02, the user: smaller, the zombies' ground was needlessly big)
+const WORLD := Rect2(-136.0, -80.0, 256.0, 160.0)  # x, z: the ground, the junkyard's grid included, so the ring of dunes closes behind the mountain too
 const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; edges on the desert grid (CELL)
 ## The back yard (2026-11-03, the user: "the pit goes; the back yard is flat ground and heaps and heaps
 ## of junk, as if we were a scrap dealer in the desert; some mountains touching the sky"): flat ground
@@ -23,6 +23,11 @@ const CELL := 2.0  # m, the desert mesh's grid
 const DUNE_START := 6.0  # m from the pad's edge where the ground starts to roll
 const EDGE_RISE := 12.0  # m the dunes climb to at the world's edge: the players' natural border
 const EDGE_REACH := 28.0  # m in from the edge over which they climb
+## What ends the walk: no wall, the dunes turn into a sand cliff too steep to climb (the player's
+## floor_max_angle is 60 degrees, tan 1.73), its foot wandering in and out through the fog.
+const RIM_REACH := 3.0  # m in from the edge where the cliff's foot lies at the closest...
+const RIM_WANDER := 4.0  # m ...and this much further in at the furthest
+const RIM_SLOPE := 3.0  # m up per m in
 
 ## The workshop: back wall on x = WS.position.x, open towards +x (the yard, the spawns).
 const WS := Rect2(2.0, -4.5, 7.0, 9.0)  # 2026-11-02, the user: half as long, compact like a van
@@ -162,7 +167,15 @@ func _ground_y(x: float, z: float, noise: FastNoiseLite) -> float:
 	var edge := minf(minf(x - WORLD.position.x, WORLD.end.x - x), minf(z - WORLD.position.y, WORLD.end.y - z))
 	var ridge := noise.get_noise_2d(x * 0.45 + 300.0, z * 0.45) * 0.5 + 0.5
 	h += pow(1.0 - clampf(edge / EDGE_REACH, 0.0, 1.0), 1.8) * EDGE_RISE * (0.45 + 0.9 * ridge)
+	h += _past_rim(x, z, noise) * RIM_SLOPE
 	return h
+
+
+## How far (x, z) lies up the cliff at the world's edge, in metres past its foot; 0 off it.
+func _past_rim(x: float, z: float, noise: FastNoiseLite) -> float:
+	var edge := minf(minf(x - WORLD.position.x, WORLD.end.x - x), minf(z - WORLD.position.y, WORLD.end.y - z))
+	var wander := noise.get_noise_2d(x * 0.6 + 700.0, z * 0.6) * 0.5 + 0.5
+	return maxf(RIM_REACH + wander * RIM_WANDER - edge, 0.0)
 
 
 ## The desert: one grid mesh over WORLD with the pad's cells left out, its collision the same
@@ -232,20 +245,24 @@ func _desert() -> void:
 var _desert_noise: FastNoiseLite
 
 
-## Out on the sand (Poly Haven's Namaqualand set, CC0): quiver trees and thorn trees in loose
-## clumps, so it reads as a thinned-out dry wood; low bushes everywhere; boulders, more and bigger
-## up the edge hills; stones and dead branches near the pad; a wrecked car, tyres and drums.
+## Out on the sand (Poly Haven's Namaqualand set, CC0): one tree here and there, one bush, one
+## stone; each spot one single thing. Those glTFs are catalogues, every variant of a kind side by
+## side in one file (wild_rooibos_bush a-e in a row 2 m long): _part takes one of them out. Boulders
+## more and bigger towards the edge hills, a wrecked car, tyres and drums.
 func _wasteland() -> void:
 	var root := Node3D.new()
 	root.name = "Wasteland"
 	add(root)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 23
+	var taken: Array[Vector2] = []  # nothing lands on anything else
 	# `in_yard`: it may lie in the back yard too (junk, bushes), not only out on the sand; never on
-	# the scrap heap or the giant heaps.
-	var spots := func(count: int, near: float, far: float, in_yard := false) -> Array[Vector3]:
+	# the scrap heap or the giant heaps, never on the cliff.
+	var spots := func(count: int, near: float, far: float, in_yard := false, apart := 3.0) -> Array[Vector3]:
 		var out: Array[Vector3] = []
-		while out.size() < count:
+		var tries := 0
+		while out.size() < count and tries < count * 400:
+			tries += 1
 			var p := Vector2(rng.randf_range(WORLD.position.x + 8.0, WORLD.end.x - 8.0), rng.randf_range(WORLD.position.y + 8.0, WORLD.end.y - 8.0))
 			var away := Rect2(PAD.position - Vector2(near, near), PAD.size + Vector2(near, near) * 2.0)
 			var too_far := Rect2(PAD.position - Vector2(far, far), PAD.size + Vector2(far, far) * 2.0)
@@ -253,42 +270,40 @@ func _wasteland() -> void:
 				continue
 			if (not in_yard and YARD.has_point(p)) or HEAP_AREA.grow(3.0).has_point(p):
 				continue
+			if _past_rim(p.x, p.y, _desert_noise) > 0.0:
+				continue
+			var gap := apart * rng.randf_range(1.0, 2.2)
+			var clear := true
+			for o: Vector2 in taken:
+				if o.distance_to(p) < gap:
+					clear = false
+					break
+			if not clear:
+				continue
+			taken.append(p)
 			out.append(Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y))
 		return out
-	var on_ground := func(p: Vector3) -> Vector3: return Vector3(p.x, _ground_y(p.x, p.z, _desert_noise) - 0.05, p.z)
-	for centre: Vector3 in spots.call(8, 10.0, 34.0):
-		for k in rng.randi_range(2, 5):
-			var p: Vector3 = on_ground.call(centre + Vector3(rng.randf_range(-9.0, 9.0), 0, rng.randf_range(-9.0, 9.0)))
-			if PAD.grow(3.0).has_point(Vector2(p.x, p.z)) or YARD.has_point(Vector2(p.x, p.z)):
-				continue
-			var r := rng.randf()
-			if r < 0.4:
-				_tree(root, "quiver_tree_01", p, rng.randf() * TAU, rng.randf_range(1.4, 2.4), 0.22)
-			elif r < 0.6:
-				_tree(root, "quiver_tree_02", p, rng.randf() * TAU, rng.randf_range(1.6, 2.6), 0.2)
-			elif r < 0.85:
-				_tree(root, "searsia_burchellii", p, rng.randf() * TAU, rng.randf_range(0.7, 1.1), 0.25)
-			else:
-				_tree(root, "dead_quiver_trunk", p, rng.randf() * TAU, rng.randf_range(1.5, 2.5), 0.2)
-		for k in rng.randi_range(3, 6):  # bushes round the foot of each clump, never on the concrete
-			var b: Vector3 = on_ground.call(centre + Vector3(rng.randf_range(-12.0, 12.0), 0, rng.randf_range(-12.0, 12.0)))
-			if not PAD.grow(3.0).has_point(Vector2(b.x, b.z)):
-				_plant(root, "wild_rooibos_bush", b, rng)
-	for p: Vector3 in spots.call(60, 3.0, 120.0, true):
-		_plant(root, "wild_rooibos_bush", p, rng)
-	for p: Vector3 in spots.call(40, 3.0, 40.0, true):
-		var clutter: String = ["dry_branches_medium_01", "namaqualand_stones_01", "namaqualand_rocks_01"][rng.randi() % 3]
-		_plant(root, clutter, p, rng)
-	for p: Vector3 in spots.call(45, 10.0, 120.0):
+	for p: Vector3 in spots.call(26, 9.0, 60.0, false, 7.0):  # the clearing's own few trees, far apart
+		var kind: Array = TREE_KINDS[_weighted(rng, TREE_KINDS)]
+		_tree(root, kind[0], p - Vector3(0, 0.05, 0), rng.randf() * TAU, rng.randf_range(kind[2].x, kind[2].y), kind[3])
+	for p: Vector3 in spots.call(90, 3.0, 120.0, true, 3.0):
+		_part(root, "wild_rooibos_bush", BUSHES[rng.randi() % BUSHES.size()], p, rng, Vector2(0.8, 1.6))
+	for p: Vector3 in spots.call(24, 3.0, 60.0, true, 2.0):
+		_part(root, "dry_branches_medium_01", ["dry_branches_medium_01_a", "dry_branches_medium_01_b", "dry_branches_medium_01_c"][rng.randi() % 3], p, rng, Vector2(0.8, 1.5))
+	for p: Vector3 in spots.call(24, 3.0, 60.0, true, 2.0):  # a stone is a hand wide in the file: stones you can see at 270p
+		_part(root, "namaqualand_stones_01", "namaqualand_stones_01_" + "abcde"[rng.randi() % 5], p, rng, Vector2(1.5, 3.0))
+	for p: Vector3 in spots.call(24, 3.0, 60.0, true, 2.0):
+		_part(root, "namaqualand_rocks_01", "namaqualand_rocks_02_" + "abcd"[rng.randi() % 4], p, rng, Vector2(1.5, 3.0))
+	for p: Vector3 in spots.call(110, 10.0, 130.0, false, 6.0):
 		var edge := minf(minf(p.x - WORLD.position.x, WORLD.end.x - p.x), minf(p.z - WORLD.position.y, WORLD.end.y - p.z))
 		var big := 1.0 + 2.5 * (1.0 - clampf(edge / EDGE_REACH, 0.0, 1.0))
 		var id: String = ["namaqualand_boulder_02", "namaqualand_boulder_04", "namaqualand_boulder_05"][rng.randi() % 3]
 		_prop(root, NAMA + "%s/%s_1k.gltf" % [id, id], p - Vector3(0, 0.15 * big, 0), rng.randf() * TAU, big * rng.randf_range(0.8, 1.6))
-	for p: Vector3 in spots.call(5, 6.0, 60.0):
+	for p: Vector3 in spots.call(5, 6.0, 60.0, false, 8.0):
 		_prop(root, NAMA + "dead_tree_trunk_02/dead_tree_trunk_02_1k.gltf", p + Vector3(0, 0.12, 0), rng.randf() * TAU)
-	for p: Vector3 in spots.call(3, 14.0, 60.0):
+	for p: Vector3 in spots.call(3, 14.0, 60.0, false, 12.0):
 		_prop(root, MODELS + "covered_car/covered_car_1k.gltf", p, rng.randf() * TAU, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.05, 0.05)))
-	for p: Vector3 in spots.call(10, 3.0, 50.0, true):
+	for p: Vector3 in spots.call(10, 3.0, 50.0, true, 3.0):
 		var junk: String = ["old_tyre/old_tyre_1k.gltf", "rusted_wheel_rim_01/rusted_wheel_rim_01_1k.gltf", "rusted_wheel_rim_02/rusted_wheel_rim_02_1k.gltf"][rng.randi() % 3]
 		_prop(root, MODELS + junk, p, rng.randf() * TAU)
 
@@ -328,9 +343,24 @@ const TREES := {
 	"quiver_tree_02": ["quiver_tree_02", 7000, 1200],
 	"searsia_burchellii": ["searsia_burchellii_large_LOD0", 16000, 2500],
 	"searsia_medium": ["searsia_burchellii_medium_LOD0", 9000, 1500],
+	"searsia_small": ["searsia_burchellii_small_LOD0", 5000, 900],
 	"dead_quiver_trunk": ["dead_quiver_trunk_LOD0", 5000, 900],
 }
+## [id, share of the wood, scale, trunk radius]
+const TREE_KINDS := [["quiver_tree_01", 0.22, Vector2(1.5, 2.9), 0.22], ["quiver_tree_02", 0.14, Vector2(1.7, 3.2), 0.2],
+	["searsia_burchellii", 0.14, Vector2(0.75, 1.15), 0.25], ["searsia_medium", 0.18, Vector2(0.8, 1.3), 0.2],
+	["searsia_small", 0.18, Vector2(0.8, 1.5), 0.15], ["dead_quiver_trunk", 0.14, Vector2(1.5, 3.0), 0.2]]
+const BUSHES := ["wild_rooibos_bush_a", "wild_rooibos_bush_b", "wild_rooibos_bush_c", "wild_rooibos_bush_d", "wild_rooibos_bush_e"]
 var _lites := {}
+
+
+func _weighted(rng: RandomNumberGenerator, kinds: Array) -> int:
+	var r := rng.randf()
+	for i in kinds.size():
+		r -= kinds[i][1]
+		if r <= 0.0:
+			return i
+	return kinds.size() - 1
 
 
 ## A light copy of a scan's mesh, about `tris` triangles: Godot's importer already made LODs for
@@ -340,7 +370,7 @@ func _lite(id: String, node_name: String, tris: int) -> Mesh:
 	var key := "%s_%d" % [node_name, tris]
 	if _lites.has(key):
 		return _lites[key]
-	var file := id if id != "searsia_medium" else "searsia_burchellii"
+	var file := "searsia_burchellii" if id.begins_with("searsia") else id
 	# The PS1 copy (tools/psx_props.gd nature, 2026-11-03, the user: the trees are bad, PS1 ones):
 	# a few hundred triangles, alpha-cut cards, small textures in the desert's colours. Near and far
 	# are the one mesh then.
@@ -386,7 +416,9 @@ func _u16(bytes: PackedByteArray) -> PackedInt32Array:
 ## Where the dead come from (2026-11-02, the user: "the spawn ground is too open; they'll come from
 ## far off; cover it in trees so they come at us out of a wood, fit for a desert climate"): past
 ## FOREST_START from the pad a dry wood thickens to the world's edge, the kind that grows in such
-## a desert: quiver trees (a kokerboom forest), thorn trees, dead trunks, bushes under them. Drawn
+## a desert: quiver trees (a kokerboom forest), thorn trees, dead trunks, bushes under them. Each
+## tree is a dart thrown at the ground that sticks only if nothing stands within a spacing that
+## itself changes from place to place, so no grid shows through: glades here, thickets there. Drawn
 ## as MultiMeshes in FOREST_CHUNK squares, a light copy near and a lighter one far; each trunk a
 ## collision post. Markers in group "forest_edge" round the wood's inner edge are where waves
 ## (scripts/waves.gd, the night session) can let the dead out of the trees.
@@ -396,7 +428,8 @@ const CLEARING_CENTRE := Vector2(8.0, 0.0)
 const CLEARING_RADII := Vector2(62.0, 50.0)
 const FOREST_START := 0.0  # m out from the clearing's edge: the first trees
 const FOREST_FULL := 16.0  # m: as thick as it gets from here out
-const FOREST_STEP := 3.6  # m between candidate spots
+const FOREST_SPACING := Vector2(2.4, 5.5)  # m to the nearest tree: in a thicket, in a glade
+const FOREST_DARTS := 70000
 const FOREST_CHUNK := 40.0
 
 
@@ -410,51 +443,57 @@ func _forest() -> void:
 	add(trunks, root)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 97
-	var kinds := [["quiver_tree_01", 0.24, Vector2(1.6, 2.8), 0.22], ["quiver_tree_02", 0.14, Vector2(1.8, 3.0), 0.2],
-		["searsia_burchellii", 0.24, Vector2(0.8, 1.2), 0.25], ["searsia_medium", 0.24, Vector2(0.9, 1.3), 0.2],
-		["dead_quiver_trunk", 0.14, Vector2(1.6, 2.8), 0.2]]
 	var chunks := {}  # Vector2i -> kind -> Array[Transform3D]
-	var x := WORLD.position.x + 4.0
-	while x < WORLD.end.x - 2.0:
-		var z := WORLD.position.y + 4.0
-		while z < WORLD.end.y - 2.0:
-			var p := Vector2(x + rng.randf_range(-1.6, 1.6), z + rng.randf_range(-1.6, 1.6))
-			z += FOREST_STEP
-			var away := _out_of_clearing(p) + _desert_noise.get_noise_2d(p.x * 2.0, p.y * 2.0) * 10.0
-			var thick := smoothstep(FOREST_START, FOREST_FULL, away) * 0.92
-			if rng.randf() > thick or YARD.grow(2.0).has_point(p):
-				continue
-			var r := rng.randf()
-			var kind: Array = kinds[0]
-			for k: Array in kinds:
-				r -= k[1]
-				kind = k
-				if r <= 0.0:
-					break
-			var sc := rng.randf_range(kind[2].x, kind[2].y)
-			var at := Vector3(p.x, _ground_y(p.x, p.y, _desert_noise) - 0.08, p.y)
-			var xf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), at)
-			var key := Vector2i(floori(p.x / FOREST_CHUNK), floori(p.y / FOREST_CHUNK))
-			if not chunks.has(key):
-				chunks[key] = {}
-			if not chunks[key].has(kind[0]):
-				chunks[key][kind[0]] = []
-			chunks[key][kind[0]].append(xf)
-			var cs := CollisionShape3D.new()
-			var cyl := CylinderShape3D.new()
-			cyl.radius = kind[3] * sc * 0.6
-			cyl.height = 2.4
-			cs.shape = cyl
-			cs.position = at + Vector3(0, 1.2, 0)
-			add(cs, trunks)
-			# Bushes at the feet of the trees, the wood's undergrowth.
-			if rng.randf() < 0.35:
-				var b := at + Vector3(rng.randf_range(-2.5, 2.5), 0, rng.randf_range(-2.5, 2.5))
+	var stood := {}  # Vector2i (8 m cell) -> Array[Vector2], the trees so far
+	for dart in FOREST_DARTS:
+		var p := Vector2(rng.randf_range(WORLD.position.x, WORLD.end.x), rng.randf_range(WORLD.position.y, WORLD.end.y))
+		if YARD.grow(2.0).has_point(p) or _past_rim(p.x, p.y, _desert_noise) > 0.0:
+			continue
+		var away := _out_of_clearing(p) + _desert_noise.get_noise_2d(p.x * 2.0, p.y * 2.0) * 10.0
+		var thick := smoothstep(FOREST_START, FOREST_FULL, away) * 0.92
+		if rng.randf() > thick:
+			continue
+		# Glades and thickets: the spacing follows its own slow noise, and the wood's thin edge is wider.
+		var open := clampf(_desert_noise.get_noise_2d(p.x * 1.4 + 500.0, p.y * 1.4 - 200.0) * 1.8 + 0.5, 0.0, 1.0)
+		var apart := minf(lerpf(FOREST_SPACING.x, FOREST_SPACING.y, open) / maxf(thick, 0.4), 16.0)
+		var cell := Vector2i(floori(p.x / 16.0), floori(p.y / 16.0))
+		var free := true
+		for i in range(-1, 2):
+			for j in range(-1, 2):
+				for o: Vector2 in stood.get(cell + Vector2i(i, j), []):
+					free = free and o.distance_to(p) >= apart
+		if not free:
+			continue
+		if not stood.has(cell):
+			stood[cell] = []
+		stood[cell].append(p)
+		var kind: Array = TREE_KINDS[_weighted(rng, TREE_KINDS)]
+		var sc := rng.randf_range(kind[2].x, kind[2].y)
+		var at := Vector3(p.x, _ground_y(p.x, p.y, _desert_noise) - 0.08, p.y)
+		var xf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), at)
+		var key := Vector2i(floori(p.x / FOREST_CHUNK), floori(p.y / FOREST_CHUNK))
+		if not chunks.has(key):
+			chunks[key] = {}
+		if not chunks[key].has(kind[0]):
+			chunks[key][kind[0]] = []
+		chunks[key][kind[0]].append(xf)
+		var cs := CollisionShape3D.new()
+		var cyl := CylinderShape3D.new()
+		cyl.radius = kind[3] * sc * 0.6
+		cyl.height = 2.4
+		cs.shape = cyl
+		cs.position = at + Vector3(0, 1.2, 0)
+		add(cs, trunks)
+		# A bush of any of the five kinds somewhere near some of the trees, the wood's undergrowth.
+		if rng.randf() < 0.4:
+			var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(1.2, 4.0)
+			var b := at + Vector3(off.x, 0, off.y)
+			if _past_rim(b.x, b.z, _desert_noise) == 0.0:
 				b.y = _ground_y(b.x, b.z, _desert_noise) - 0.04
-				if not chunks[key].has("bush"):
-					chunks[key]["bush"] = []
-				chunks[key]["bush"].append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.8, 1.5)), b))
-		x += FOREST_STEP
+				var bush: String = BUSHES[rng.randi() % BUSHES.size()]
+				if not chunks[key].has(bush):
+					chunks[key][bush] = []
+				chunks[key][bush].append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.8, 1.6)), b))
 	var count := 0
 	var groups := []
 	for key: Vector2i in chunks:
@@ -465,8 +504,8 @@ func _forest() -> void:
 			for xf: Transform3D in xfs:
 				flat.append_array([xf.basis.x.x, xf.basis.x.y, xf.basis.x.z, xf.basis.y.x, xf.basis.y.y, xf.basis.y.z,
 					xf.basis.z.x, xf.basis.z.y, xf.basis.z.z, xf.origin.x, xf.origin.y, xf.origin.z])
-			if kind == "bush":
-				groups.append([_bush_mesh(), null, 80.0, 80.0, true, flat])
+			if kind in BUSHES:
+				groups.append([_lite("wild_rooibos_bush", kind, 1500), null, 80.0, 80.0, true, flat])
 				continue
 			var spec: Array = TREES[kind]
 			groups.append([_lite(kind, spec[0], spec[1]), _lite(kind, spec[0], spec[2]), 90.0, 260.0, true, flat])
@@ -493,16 +532,16 @@ func _out_of_clearing(p: Vector2) -> float:
 	return (q.length() - 1.0) * minf(CLEARING_RADII.x, CLEARING_RADII.y)
 
 
-func _bush_mesh() -> Mesh:
-	return _lite("wild_rooibos_bush", "wild_rooibos_bush_a", 1500)
-
-
-## Something low with no collision: a bush, dry branches, a spill of stones.
-func _plant(parent: Node, id: String, at: Vector3, rng: RandomNumberGenerator) -> void:
-	var inst: Node3D = (load(_ps1(NAMA + "%s/%s_1k.gltf" % [id, id])) as PackedScene).instantiate()
-	inst.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.4)), at)
-	add(inst, parent)
-	_own(inst)
+## One part of a catalogue glTF, low with no collision: a bush, a dry branch, a stone. Some files
+## bake the row into the meshes' own vertices, so the part is stood on `at` by its box, not its origin.
+func _part(parent: Node, id: String, part: String, at: Vector3, rng: RandomNumberGenerator, size: Vector2) -> void:
+	var mesh := _lite(id, part, 1500)
+	var mid := mesh.get_aabb().get_center()
+	var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(size.x, size.y))
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.transform = Transform3D(b, at - b * Vector3(mid.x, 0.0, mid.z) - Vector3(0, 0.05, 0))
+	add(mi, parent)
 
 
 ## The workshop's shell (2026-11-02, the user: "it looks like a sharp box"): nothing in it is one

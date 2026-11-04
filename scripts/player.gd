@@ -46,12 +46,6 @@ const DIZZY_TIME := 4.0    # s from the hit, fading out
 const DIZZY_ROLL := 0.28   # rad the view sways to either side
 const DIZZY_DRIFT := Vector2(0.9, 0.5)  # rad/s the aim wanders, sideways and up/down
 const DIZZY_WALK := 1.1    # rad the legs head off from where we steer
-## The hall: nothing may throw us out of it or over the railing (walls stop 4 m up, the railing
-## 3 m, a punch flies higher).
-const HALL_IN := 27.6  # m from the centre to a wall's inner face, less our radius
-const ROOF_IN := 6.0   # m: the feet stay this low, under the roof beams
-const LANTERN_IN := Vector2(14.6, 13.6)  # the glass roof's footprint (build_arena LANTERN) less our radius
-const LANTERN_ROOF_IN := 9.5  # m: under the glass the roof is 11.6 m up, so the ~7 m heap's top stays climbable
 ## Balloon: up for BALLOON_TIME, then a slow drift down; ~8 s in all from the floor (4 m up, under
 ## the 8 m roof beam even from a step).
 const BALLOON_TIME := 4.0  # s
@@ -317,18 +311,6 @@ static func punch_shove(dir: Vector3) -> Vector3:
 ## A punch round's one bounce: landing still going fast, off again somewhere else.
 static func punch_bounce(shove: Vector3) -> Vector3:
 	return shove.rotated(Vector3.UP, randf_range(-1.6, 1.6)) * PUNCH_BOUNCE
-
-
-## Keeps `body` in the hall and on its side of the railing (`inside`: it was there before moving).
-static func keep_in_hall(body: CharacterBody3D, inside: bool) -> void:
-	var p := body.global_position
-	var x_max := GameState.FIRING_LINE_X - 0.4 if inside else INF
-	var roof := LANTERN_ROOF_IN if absf(p.x) < LANTERN_IN.x and absf(p.z) < LANTERN_IN.y else ROOF_IN
-	var c := Vector3(clampf(p.x, -HALL_IN, x_max), minf(p.y, roof), clampf(p.z, -HALL_IN, HALL_IN))
-	if c != p:
-		body.global_position = c
-		if c.y < p.y:
-			body.velocity.y = minf(body.velocity.y, 0.0)
 
 
 ## A teammate's special round hit us (GameState.SPECIALS); "" was a plain one. Everyone moves
@@ -843,14 +825,9 @@ func _physics_process(delta: float) -> void:
 	_shove = _shove * exp(-(SHOVE_DECAY if is_on_floor() else AIR_DRAG) * delta)
 	velocity.x = dir.x * speed + _shove.x
 	velocity.z = dir.z * speed + _shove.z
-	# The firing line always stops you (targets go up from behind it); caught past it somehow you
-	# can still walk back out, never in.
-	set_collision_mask_value(GameState.FENCE_LAYER, global_position.x < GameState.FIRING_LINE_X)
 	var walked := Vector3(velocity.x, 0.0, velocity.z)  # before sliding takes the bump out of it
-	var inside := global_position.x <= GameState.FIRING_LINE_X
 	var flying := not is_on_floor()
 	move_and_slide()
-	keep_in_hall(self, inside)
 	if flying and is_on_floor() and _bounces > 0 and _shove.length() > 6.0:
 		_bounces -= 1
 		_shove = punch_bounce(_shove)

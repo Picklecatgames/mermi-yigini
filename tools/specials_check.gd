@@ -78,16 +78,13 @@ func _initialize() -> void:
 	assert(me._dizzy > 0.0, "and leaves us dizzy")
 	for i in 90:
 		await physics_frame
-	# Hit again and again, in the air too, toward a wall: never out of the hall, never over the
-	# railing or the roof beams (it used to stack up and fly over the 4 m walls).
+	# Hit again and again, in the air too: it throws us about, never through the ground.
 	for hit in 8:
 		me._hit_by_special("punch", Vector3(-1, 0, 0) if hit % 2 else Vector3(0, 0, -1))
 		for i in 12:
 			await physics_frame
 			var at: Vector3 = me.global_position
-			var lantern: bool = absf(at.x) < me.LANTERN_IN.x and absf(at.z) < me.LANTERN_IN.y  # the glass roof is higher
-			var roof: float = me.LANTERN_ROOF_IN if lantern else me.ROOF_IN
-			assert(absf(at.x) <= me.HALL_IN + 0.01 and absf(at.z) <= me.HALL_IN + 0.01 and at.y <= roof + 0.01 and at.x <= gs.FIRING_LINE_X, "stays in the hall: %s" % at)
+			assert(at.y > -1.0, "stays above the ground: %s" % at)
 	for i in 600:  # down, and dizzy no more
 		await physics_frame
 		if me.is_on_floor() and me._dizzy == 0.0:

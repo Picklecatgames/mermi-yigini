@@ -1395,11 +1395,10 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 	var gold := 0
 	var weak := false
 	var chain := 0
-	# Pays only from the shooter's side of the firing line, at a target on the far side.
-	# A zombie counts wherever it is: leaning over the railing, or come over, under or through it
-	# (waves.gd) to our side; it could not be killed there otherwise.
+	# Out in the open a zombie pays wherever it and the shooter stand; the old range's targets only
+	# from the shooter's side of the firing line.
 	var zombie := target.has_meta("zombie")
-	if target.is_in_group("target") and from.x <= FIRING_LINE_X and (zombie or hit.position.x > FIRING_LINE_X):
+	if target.is_in_group("target") and (zombie or (from.x <= FIRING_LINE_X and hit.position.x > FIRING_LINE_X)):
 		var shape: Node = target.shape_owner_get_owner(target.shape_find_owner(hit.shape))
 		weak = shape.is_in_group("weak_spot")
 		var cap := upgrade_value("combo_cap", peer)
@@ -1411,7 +1410,7 @@ func request_fire(from: Vector3, dir: Vector3, peer := 0) -> bool:
 			p.combo = mini(p.combo + 1, cap)
 			p.combo_left = COMBO_WINDOW
 			chain = p.combo
-		gold = hit_pay(peer, 1, weak, chain, FIRING_LINE_X - from.x)  # a zombie hit is $1 before the multipliers
+		gold = hit_pay(peer, 1, weak, chain, maxf(FIRING_LINE_X - from.x, 0.0))  # a zombie hit is $1 before the multipliers
 		p.gold += gold
 		if _is_local(peer):
 			gold_changed.emit(p.gold)

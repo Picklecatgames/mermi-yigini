@@ -55,9 +55,9 @@ func _initialize() -> void:
 	gs.player().cooldown = 0.0
 	gs.request_fire(Vector3(SHOOT_X, 8.0, AT.z), Vector3(1, 0, 0))  # over its head: a miss
 	assert(gs.player().combo == 0, "a miss breaks the chain")
-	# Past the firing line a hit pays nothing and builds no chain.
+	# Out in the open a zombie pays from wherever we stand, past the old firing line too.
 	var close := Vector3(AT.x - 3.0, 1.3, AT.z)
-	assert(shot.call(false, close.x) == 0 and gs.player().combo == 0, "no pay from past the line")
+	assert(shot.call(false, close.x) > 0, "pays from past the old line")
 	# The chain is the multiplier all the way to COMBO_MAX, then holds there.
 	gs._process(gs.COMBO_WINDOW + 0.1)
 	var got := 0
@@ -98,13 +98,7 @@ func _initialize() -> void:
 	gs.request_toggle_infinite_ammo()
 	gs.request_toggle_infinite_ammo()
 	assert(gs.player().loaded == 2, "T on and off leaves no free rounds")
-	# The firing line stops the player.
 	var pl: CharacterBody3D = main.get_node("Player")
-	pl.global_position = Vector3(gs.FIRING_LINE_X - 1.5, 0.05, 0)
-	await physics_frame
-	await physics_frame
-	var col := pl.move_and_collide(Vector3(3, 0, 0), true)
-	assert(col != null and col.get_collider().name == "FiringLine", "the railing stops the player")
 	# Moving costs accuracy, and stopping wins it back within a quarter second.
 	var vm: Node3D = pl.get_node("ViewmodelView/SubViewport/Camera/Viewmodel")
 	vm.set_process(false)
