@@ -55,6 +55,14 @@ void vertex() {
 		clip.xy = round(clip.xy / clip.w * grid) / grid * clip.w;
 	}
 	POSITION = clip;
+#ifdef PSX_HAZE
+	// Going flat with distance, its light goes flat too: a thousand pieces each turned its own way
+	// to the sun were the mountain's "ants" at 270p (2026-11-04, the user).
+	if (far_colour.a > 0.0) {
+		vec3 up = normalize(transpose(mat3(MODEL_MATRIX)) * vec3(0.0, 1.0, 0.0));
+		NORMAL = normalize(mix(NORMAL, up, smoothstep(far_fade.x, far_fade.y, length(view.xyz))));
+	}
+#endif
 	affine_uv = vec3(UV * clip.w, clip.w);
 }
 
@@ -84,6 +92,13 @@ void fragment() {
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
 #ifdef PSX_HAZE
+	// The far colour broken into big soft patches, by place, never by piece: they can't crawl.
+	vec2 q = world_pos.xz * 0.11 + vec2(world_pos.y * 0.07);
+	float patch = 0.5 + 0.25 * (sin(q.x + 1.7 * sin(q.y * 0.6)) + sin(q.y * 1.3 + 1.4 * sin(q.x * 0.7)));
+	ALBEDO *= mix(1.0, mix(0.62, 1.15, patch), far);
+	if (!FRONT_FACING) {
+		ALBEDO *= 0.6;
+	}
 	float haze = smoothstep(psx_haze_range.x, psx_haze_range.y, length(VERTEX)) * psx_haze_max;
 	ALBEDO *= 1.0 - haze;
 	EMISSION = EMISSION * (1.0 - haze) + psx_haze_colour.rgb * haze;

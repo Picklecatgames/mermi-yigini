@@ -45,6 +45,10 @@ const TOP := 78.0             # m: no cell starts higher
 const NEAR := Rect2(-40.0, -20.0, 32.0, 40.0)
 const NEAR_TOP := 14.0
 const LOCK_SLOPE := 1.8       # tan(61°): scrap hooked into scrap stands this steep
+## A pile's foot spreads out like a real dump's (2026-11-04, the user: player friendly, more natural):
+## up to this high it starts no steeper than this, nothing to wedge a walker between two heaps.
+const FOOT_TOP := 10.0        # m
+const FOOT_SLOPE := 0.9
 const REPOSE_SLOPE := 0.75    # tan(37°): a face that gave way slumps to this
 const LOCK_STEP := LOCK_SLOPE * CELL
 const REPOSE_STEP := REPOSE_SLOPE * CELL
@@ -97,13 +101,13 @@ const OUT_KINDS := ["silah", "sac", "alet", "motor", "sandik"]
 const MAX_SHARE := 0.015
 ## Each copy of a model a little darker or more rust-brown than the next, so repeats don't match;
 ## only a little, or neighbours flicker light and dark and the face reads as noise.
-const TONE := Vector2(0.76, 1.08)
+const TONE := Vector2(0.86, 1.04)
 const RUST_TINT := Color(0.86, 0.74, 0.62)
 const RUST_SHARE := 0.6
 ## Old paint showing on some pieces (_tone): faded red, blue-grey, olive, ochre.
 const PAINT: Array[Color] = [Color(1.12, 0.78, 0.7), Color(0.82, 0.9, 1.02), Color(0.9, 0.98, 0.78), Color(1.12, 0.98, 0.7)]
-const PAINT_SHARE := 0.16
-const LUMP := 0.12            # m of height noise on the scrap's top
+const PAINT_SHARE := 0.08
+const LUMP := 0.05            # m of height noise on the scrap's top
 const SCRAP_LAYER := 1 << 2   # physics layer 3: loose pieces; the player's body ignores it
 const BULLET_LAYER := SCRAP_LAYER  # the old name (player.gd's reach ray masks it)
 const WAKE_RADIUS := 0.45     # m round a walker's feet where resting pieces turn into bodies
@@ -132,8 +136,8 @@ const BOX_PAD := 1.15
 const BOX_PAD_MIN := 0.006
 const LOW_TRIS := 150         # surface pieces are drawn from a lighter copy of their part
 ## Loose pieces on the ground round the heap's foot, thinning out with distance.
-@export var spill_pieces := 300
-@export var spill_reach := 2.2  # m past the grid's edge
+@export var spill_pieces := 700
+@export var spill_reach := 6.0  # m past the grid's edge
 ## False: only the heap's shape and collision, no pieces (tools/build_scrap_face.gd settles them).
 var with_pieces := true
 
@@ -557,9 +561,9 @@ func _build_heights() -> void:
 				var k := j * GRID_X + i
 				var lim := _h[k]
 				if i - dir >= 0 and i - dir < GRID_X:
-					lim = minf(lim, _h[k - dir] + LOCK_STEP)
+					lim = minf(lim, _h[k - dir] + (FOOT_SLOPE * CELL if _h[k - dir] < FOOT_TOP else LOCK_STEP))
 				if j - dir >= 0 and j - dir < GRID_Z:
-					lim = minf(lim, _h[k - dir * GRID_X] + LOCK_STEP)
+					lim = minf(lim, _h[k - dir * GRID_X] + (FOOT_SLOPE * CELL if _h[k - dir * GRID_X] < FOOT_TOP else LOCK_STEP))
 				_h[k] = lim
 	for k in _h.size():
 		if _h[k] < 0.004:
@@ -858,6 +862,24 @@ func _remove_loose(id: int) -> void:
 
 ## True if a ray hit on `collider` / `rid` is a piece of scrap: one on the heap's face, one lying
 ## loose, or one moving. The heap's own surface between them is not: only pieces are taken.
+## Where a ray from `from` to `to` (world) first meets the mountains: scrap with no piece of its own
+## to aim at (scrap_hills.gd only draws it). Taking from there digs the surface like any take
+## (2026-11-04, the user: parts of the junkyard couldn't be collected). null: it doesn't.
+func far_hit(from: Vector3, to: Vector3) -> Variant:
+	var a := to_local(from)
+	var b := to_local(to)
+	var steps := int(ceilf(a.distance_to(b) / (CELL * 0.5)))
+	for n in range(1, steps + 1):
+		var p := a.lerp(b, float(n) / steps)
+		var c := _cell_of(p)
+		if not _in_grid(c):
+			continue
+		var k := c.y * GRID_X + c.x
+		if _h[k] >= 0.03 and p.y <= _height_smooth(p):
+			return null if _near[k] == 1 else to_global(p)
+	return null
+
+
 func is_grabbable(collider: Object, rid: RID, _at: Vector3) -> bool:
 	return loose_id(collider, rid) >= 0
 

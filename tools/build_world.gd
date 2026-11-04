@@ -97,9 +97,9 @@ func _sky() -> void:
 	env.glow_hdr_threshold = 1.6
 	env.fog_enabled = true  # dust hanging over the desert: the far ground goes into it
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_light_color = Color(0.17, 0.2, 0.17)  # the old wood's haze: a damp grey-green, the trees going into it
+	env.fog_light_color = Color(0.1, 0.12, 0.095)  # the old wood's haze: a damp grey-green, the trees going into it
 	env.fog_density = 1.0  # depth fog: all the way to the colour at fog_depth_end
-	env.fog_depth_begin = 14.0
+	env.fog_depth_begin = 22.0
 	env.fog_depth_end = 85.0
 	env.fog_depth_curve = 0.6  # under 1 it thickens early: half way in at ~35 m
 	env.fog_sky_affect = 0.45  # the sky goes dusty too, the horizon one with the ground
@@ -115,7 +115,7 @@ func _sky() -> void:
 	sun.name = "Sun"
 	sun.rotation_degrees = SUN_ANGLE
 	sun.light_color = Color(0.96, 0.89, 0.78)
-	sun.light_energy = 1.05  # through the overcast; a little over the ambient, so the shadows read
+	sun.light_energy = 1.25  # through the overcast; a little over the ambient, so the shadows read
 	sun.shadow_enabled = true
 	# Short and coarse, PS1 taste (2026-11-03, the user: the lighting PS1-fit): past 50 m the fog
 	# has it all anyway, and the shadow map spent on 50 m draws the near shadows hard and clean.
@@ -228,8 +228,8 @@ func _desert() -> void:
 	mat.set_shader_parameter("noise_tex", tex)
 	mat.set_shader_parameter("wood_oval", Vector4(CLEARING_CENTRE.x, CLEARING_CENTRE.y, CLEARING_RADII.x, CLEARING_RADII.y))
 	mat.set_shader_parameter("pad", Vector4(PAD.position.x, PAD.position.y, PAD.end.x, PAD.end.y))
-	mat.set_shader_parameter("sand_tint", Color(0.62, 0.68, 0.36))
-	mat.set_shader_parameter("earth_tint", Color(1.0, 1.0, 0.7))
+	mat.set_shader_parameter("sand_tint", Color(0.56, 0.58, 0.32))
+	mat.set_shader_parameter("earth_tint", Color(0.9, 0.9, 0.62))
 	ResourceSaver.save(mat, "res://materials/env/desert.tres")
 	var body := StaticBody3D.new()
 	body.name = "Desert"
@@ -272,7 +272,7 @@ func _wasteland() -> void:
 			var too_far := Rect2(PAD.position - Vector2(far, far), PAD.size + Vector2(far, far) * 2.0)
 			if away.has_point(p) or not too_far.has_point(p):
 				continue
-			if (not in_yard and YARD.has_point(p)) or HEAP_AREA.grow(3.0).has_point(p):
+			if (not in_yard and YARD.has_point(p)) or _heap_h(p) > 0.05 or HEAP_NEAR.grow(2.0).has_point(p):
 				continue
 			if _past_rim(p.x, p.y, _desert_noise) > 0.0:
 				continue
@@ -295,13 +295,13 @@ func _wasteland() -> void:
 		_wood_low(wood.under[rng.randi() % wood.under.size()], p, rng, Vector2(0.5, 0.9))
 	for p: Vector3 in spots.call(50, 3.0, 60.0, true, 2.0):
 		_wood_low(wood.rocks[rng.randi() % wood.rocks.size()], p, rng, Vector2(0.8, 2.2))
-	for p: Vector3 in spots.call(9, 6.0, 40.0, false, 7.0):
-		_wood_low(wood.log, p, rng, Vector2(0.8, 1.1))
 	for p: Vector3 in spots.call(3, 14.0, 60.0, false, 12.0):
 		_prop(root, MODELS + "covered_car/covered_car_1k.gltf", p, rng.randf() * TAU, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.05, 0.05)))
 	for p: Vector3 in spots.call(10, 3.0, 50.0, true, 3.0):
 		var junk: String = ["old_tyre/old_tyre_1k.gltf", "rusted_wheel_rim_01/rusted_wheel_rim_01_1k.gltf", "rusted_wheel_rim_02/rusted_wheel_rim_02_1k.gltf"][rng.randi() % 3]
-		_prop(root, MODELS + junk, p, rng.randf() * TAU)
+		var thing := _prop(root, MODELS + junk, p, rng.randf() * TAU)
+		thing.collision_layer = 0  # walked over, not snagged on (2026-11-04, the user: player friendly)
+		thing.collision_mask = 0
 
 
 const NAMA := "res://assets/env/namaqualand/"
@@ -386,7 +386,7 @@ func _wood() -> Dictionary:
 		var rocks := []
 		for n in ["", "_001", "_002", "_003", "_004", "_005", "_006", "_007", "_008"]:
 			rocks.append(_wood_kind(WOOD_PACK, ["Rocks%s_Rocks_0" % n]))
-		_wood_kinds = {"trees": trees, "under": under, "rocks": rocks, "log": _wood_kind(WOOD_PACK, [AT % "_008"])}
+		_wood_kinds = {"trees": trees, "under": under, "rocks": rocks}
 	return _wood_kinds
 
 
@@ -451,6 +451,10 @@ const FOREST_FULL := 7.0  # m: as thick as it gets from here out
 const FOREST_SPACING := Vector2(2.0, 3.6)  # m to the nearest tree: thickest, thinnest
 const FOREST_DARTS := 90000
 const FOREST_CHUNK := 40.0
+const HEAP_TREE_LINE := 0.5  # m of scrap a tree still stands in
+const HEAP_NEAR := Rect2(-40.0, -20.0, 32.0, 40.0)  # pile.gd NEAR
+const VEIL_ROWS := [[9.0, 0.85], [15.0, 0.92], [22.0, 1.0], [32.0, 1.0]]  # m in from the clearing's edge, how black
+const VEIL_H := 19.0  # under the crowns: above them it showed against the sky as pale rays
 const WOOD_DARK := 0.42  # a tree's light deep in the wood...
 const WOOD_DARK_FROM := 8.0  # ...from this far in from the clearing's edge (m)...
 const WOOD_DARK_REACH := 22.0  # ...over this many metres
@@ -489,7 +493,9 @@ func _forest() -> void:
 	var count := 0
 	for dart in FOREST_DARTS:
 		var p := Vector2(rng.randf_range(WORLD.position.x, WORLD.end.x), rng.randf_range(WORLD.position.y, WORLD.end.y))
-		if YARD.grow(2.0).has_point(p) or _past_rim(p.x, p.y, _desert_noise) > 0.0:
+		# 2026-11-04, the user: the trees stopped at a line before the junk. Now right up to the heaps'
+		# foot and in among its lowest edge, all round; only the ground players work on stays clear.
+		if _heap_h(p) > HEAP_TREE_LINE or HEAP_NEAR.grow(5.0).has_point(p) or _past_rim(p.x, p.y, _desert_noise) > 0.0:
 			continue
 		var away := _out_of_clearing(p) + _desert_noise.get_noise_2d(p.x * 2.0, p.y * 2.0) * 5.0
 		var thick := smoothstep(FOREST_START, FOREST_FULL, away)
@@ -541,6 +547,7 @@ func _forest() -> void:
 			groups.append([m, null, 0.0, 0.0, not e[1], e[0], e[2]])
 	root.set("groups", groups)
 	print("forest: ", count, " trees in ", chunks.size(), " chunks")
+	_veils(root)
 	# The wood's inner edge, every 30 degrees round the pad: where the dead can step out.
 	for i in 12:
 		var a := TAU * i / 12.0
@@ -554,6 +561,64 @@ func _forest() -> void:
 		m.position = Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y)
 		add(m, root)
 		m.add_to_group("forest_edge", true)
+
+
+## Black between the trees (2026-11-04, the user: "the gaps are grey and show too far; put blackness
+## between them, nothing physical, only for the eye"): tall sheets winding through the wood behind
+## its first trees, no collision, thinning into nothing near the eye (materials/env/wood_veil.gdshader).
+## Who walks in walks through them; what's behind them isn't seen until it steps out.
+func _veils(root: Node) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for row: Array in VEIL_ROWS:
+		var along := 0.0
+		var last := Vector3.INF
+		var steps := 220
+		for n in steps + 1:
+			var a := TAU * n / steps
+			var dir := Vector2(cos(a), sin(a))
+			var wander := _desert_noise.get_noise_2d(dir.x * 90.0 + row[0], dir.y * 90.0) * 7.0
+			var scale_out: float = 1.0 + (row[0] + wander) / minf(CLEARING_RADII.x, CLEARING_RADII.y)
+			var p: Vector2 = CLEARING_CENTRE + dir * CLEARING_RADII * scale_out
+			p = p.clamp(WORLD.position + Vector2(2, 2), WORLD.end - Vector2(2, 2))
+			var at := Vector3(p.x, _ground_y(p.x, p.y, _desert_noise) - 1.0, p.y)
+			var open := _heap_h(p) > 0.2 or HEAP_NEAR.grow(4.0).has_point(p)
+			if last != Vector3.INF and not open:
+				var d := last.distance_to(at)
+				var u0 := along / 7.0
+				var u1 := (along + d) / 7.0
+				for v: Array in [[last, u0, 0.0], [at, u1, 0.0], [at, u1, 1.0], [last, u0, 0.0], [at, u1, 1.0], [last, u0, 1.0]]:
+					st.set_uv(Vector2(v[1], v[2]))
+					st.set_color(Color(1, 1, 1, row[1]))
+					st.add_vertex(v[0] + Vector3.UP * VEIL_H * v[2])
+				along += d
+			last = Vector3.INF if open else at
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://materials/env/wood_veil.gdshader")
+	var mi := MeshInstance3D.new()
+	mi.name = "Veils"
+	mi.mesh = st.commit()
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add(mi, root)
+
+
+## Metres of scrap at (x, z) as the game starts (data/heap_mask.json, tools/heap_mask.gd: the height
+## field is pile.gd's, which can't load here).
+func _heap_h(p: Vector2) -> float:
+	if _mask.is_empty():
+		var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/heap_mask.json"))
+		_mask = d
+		_mask_data = Marshalls.base64_to_raw(d.data)
+	var i := floori((p.x - _mask.x0) / _mask.cell)
+	var j := floori((p.y - _mask.z0) / _mask.cell)
+	if i < 0 or j < 0 or i >= int(_mask.w) or j >= int(_mask.h):
+		return 0.0
+	return _mask_data[j * int(_mask.w) + i] * 0.1
+
+
+var _mask := {}
+var _mask_data := PackedByteArray()
 
 
 ## How far `p` (x, z) lies outside the clearing's oval, in metres (negative inside).

@@ -270,7 +270,7 @@ func _client() -> void:
 	me.global_position = host_at + Vector3(0, 0, -2.5)
 	me._yaw = PI  # facing the host (+Z)
 	me.reset_physics_interpolation()
-	await create_timer(0.5).timeout
+	await create_timer(2.0).timeout  # the pose reaches the host; under load 0.5 s was not always enough
 	var ff := []
 	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3, _special: String) -> void: ff.append([shooter, victim]))
 	gs.player().cooldown = 0.0

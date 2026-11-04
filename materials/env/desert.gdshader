@@ -63,7 +63,7 @@ void fragment() {
 	alb *= mix(0.88, 1.12, patch) * mix(0.9, 1.06, n);
 	if (wood_oval.z > 0.0) {
 		float deep = (length((p - wood_oval.xy) / wood_oval.zw) - 1.0) * min(wood_oval.z, wood_oval.w);
-		alb *= mix(1.0, wood_dark, smoothstep(0.0, wood_dark_reach, deep + (n - 0.5) * 8.0) * smoothstep(-10.0, -4.0, p.x));
+		alb *= mix(1.0, wood_dark, smoothstep(0.0, wood_dark_reach, deep + (n - 0.5) * 8.0));
 	}
 	ALBEDO = alb;
 	AO = arm.r;

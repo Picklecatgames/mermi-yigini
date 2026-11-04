@@ -4,6 +4,9 @@
 // go into a haze of the fog's own colour only up to haze_max, so the mountain always reads as a
 // dark, broken rust silhouette in the dust.
 shader_type spatial;
-render_mode vertex_lighting, specular_disabled, diffuse_lambert, fog_disabled;
+// Both sides: through a gap between pieces the eye found the backs of the mountain's far side, culled,
+// so the bright sky behind it, and the whole slope sparkled (2026-11-04, the user). FRONT_FACING below
+// makes those backs the heap's dark.
+render_mode vertex_lighting, specular_disabled, diffuse_lambert, fog_disabled, cull_disabled;
 #define PSX_HAZE
 #include "res://materials/psx_prop.gdshaderinc"

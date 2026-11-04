@@ -13,6 +13,11 @@ const SHOTS := {
 	"ws_wide": [Vector3(44.0, 9.0, 26.0), Vector3(4.0, 1.0, -2.0)],
 	"overview": [Vector3(80.0, 45.0, 0.0), Vector3(0.0, 0.0, 0.0)],
 	"desert": [Vector3(18.0, 1.7, 4.0), Vector3(80.0, 2.0, 40.0)],
+	"junk_front": [Vector3(-3.0, 1.7, 0.0), Vector3(-40.0, 5.0, 0.0)],
+	"junk_near": [Vector3(-14.0, 1.7, 12.0), Vector3(-36.0, 2.0, -4.0)],
+	"junk_edge": [Vector3(8.0, 1.7, 22.0), Vector3(-30.0, 6.0, 45.0)],
+	"junk_side": [Vector3(0.0, 1.7, -24.0), Vector3(-35.0, 6.0, -45.0)],
+	"junk_top": [Vector3(35.0, 70.0, 0.0), Vector3(-30.0, 0.0, 0.0)],
 	"wood_front": [Vector3(11.0, 1.7, 1.0), Vector3(60.0, 9.0, 0.0)],
 	"wood_near": [Vector3(38.0, 1.7, -6.0), Vector3(70.0, 8.0, 6.0)],
 	"wood_in": [Vector3(70.0, 1.7, 20.0), Vector3(100.0, 5.0, 30.0)],
@@ -129,11 +134,21 @@ func _initialize() -> void:
 	if "--collapse" in OS.get_cmdline_user_args():
 		await process_frame
 		root.get_node("GameState").collapse_scrap(Vector2i(95, 120), 12, 5)
+	var tag := ""
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--hour="):  # the clock stopped at this hour (22: night), the moon's light with it
+			await process_frame
+			var gs := root.get_node("GameState")
+			gs.hour_rate = 0.0
+			gs.hour = a.trim_prefix("--hour=").to_float()
+			tag = "_h" + a.trim_prefix("--hour=")
+			for f in 10:
+				await process_frame
 	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return SHOTS.has(a))
 	for shot_name in (only if not only.is_empty() else SHOTS.keys()):
 		cam.look_at_from_position(SHOTS[shot_name][0], SHOTS[shot_name][1])
 		for f in 30:  # let TAA settle
 			await process_frame
-		root.get_texture().get_image().save_png("user://shot_%s.png" % shot_name)
+		root.get_texture().get_image().save_png("user://shot_%s%s.png" % [shot_name, tag])
 		print("saved ", ProjectSettings.globalize_path("user://shot_%s.png" % shot_name))
 	quit()

@@ -91,12 +91,15 @@ const NATURE_SATURATION := 0.5
 ## PS1 tree. Their colours: less of a pull towards the dust than the desert's, an olive one.
 const ORMAN := [["res://assets/env/orman/forest_pack.glb", 4000, 512], ["res://assets/env/orman/cypress.glb", 3000, 256], ["res://assets/env/orman/cherry.glb", 4000, 256]]
 const ORMAN_GROUND := ["forest_leaves_04", "mud_forest", "forest_ground_04"]  # the wood's floor, 128 px like the rest of the ground
-const ORMAN_SATURATION := 1.05
+const ORMAN_VALUE := 0.95  # darker: up close, out of the dark fog, the pale bark went white (2026-11-04, the user)
+const ORMAN_GAMMA := 1.1
+const ORMAN_SATURATION := 1.0
 const ORMAN_DUST := Color(0.36, 0.36, 0.2)
 const ORMAN_DUST_SHARE := 0.05
 ## Under the canopy it's dark (2026-11-04, the user: more unknown, as if something's there): from
 ## this height (m in the world) down to the ground a tree goes to this share of its light.
-const ORMAN_SHADE := Vector2(9.0, 0.5)
+const ORMAN_SHADE := Vector2(9.0, 0.42)
+const ORMAN_BARK := Color(0.55, 0.52, 0.48)  # dark bark, leaves kept lit: too dark a leaf goes flat in 15-bit colour
 const ORMAN_ROCK := Color(0.5, 0.52, 0.42)  # the pack's pale stones stood out of the floor white
 const NATURE_DUST := Color(0.5, 0.42, 0.31)
 const NATURE_DUST_SHARE := 0.22
@@ -477,7 +480,7 @@ func _material(m: Material, px: int) -> Material:
 			if _nature and b.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 				tex = _keyed_once(tex)
 			sm.set_shader_parameter("albedo_tex", _small(tex, px))
-		sm.set_shader_parameter("tint", _graded(b.albedo_color) if _grade else (b.albedo_color * ORMAN_ROCK if _orman and b.resource_name == "Rocks" else b.albedo_color))
+		sm.set_shader_parameter("tint", _graded(b.albedo_color) if _grade else (b.albedo_color * ORMAN_ROCK if _orman and b.resource_name == "Rocks" else (b.albedo_color * ORMAN_BARK if _orman and b.resource_name.contains("Trunk") else b.albedo_color)))
 		var avg: Color = _avg.get(sm.get_shader_parameter("albedo_tex"), Color.WHITE) * b.albedo_color
 		avg = avg.lerp(HURDA_RUST, _rust_share)
 		avg.a = 1.0
@@ -685,6 +688,7 @@ static func _old_wood(c: Color) -> Color:
 	var grey := c.get_luminance()
 	var out := Color(grey, grey, grey).lerp(c, ORMAN_SATURATION)
 	out = out.lerp(ORMAN_DUST * (grey / maxf(ORMAN_DUST.get_luminance(), 0.02)), ORMAN_DUST_SHARE)
+	out = Color(pow(out.r, ORMAN_GAMMA), pow(out.g, ORMAN_GAMMA), pow(out.b, ORMAN_GAMMA)) * ORMAN_VALUE
 	out.a = c.a
 	return out
 

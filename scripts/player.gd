@@ -202,7 +202,9 @@ func _ready() -> void:
 	_reach_past_pile.call_deferred()
 	# The heap stands at 45° and its height field's diagonals reach ~55°: at the default 45° those
 	# faces were walls and we snagged on its sides.
-	floor_max_angle = deg_to_rad(60.0)
+	# 70: a settled face's diagonals (tan 1.8 * root 2) never make a wall to get stuck against; the
+	# world's edge cliff is steeper (tools/world_limit_check.gd).
+	floor_max_angle = deg_to_rad(70.0)
 	_collision.shape = _collision.shape.duplicate()  # crouching resizes it
 	_go_to_spawn(GameState.spawn_index)
 	GameState.spawn_assigned.connect(_go_to_spawn)
@@ -855,11 +857,11 @@ func _physics_process(delta: float) -> void:
 		heap.highlight(_reach.get_collision_point(), looking, _reach.get_collider_rid())
 	if Input.is_action_pressed("pick_up") and _grab_timer <= 0.0 and looking and not _hands_busy():
 		_grab_timer = GRAB_REPEAT
-		var at := _reach.get_collision_point()
+		var at: Vector3 = _reach.get_collision_point() if _far_scrap == null else _far_scrap
 		var shown_before := mini(GameState.carried, HAND_MAX)
 		# A loose bullet goes by its id, so every peer removes the same one; else it is the heap.
-		var id: int = heap.loose_id(_reach.get_collider(), _reach.get_collider_rid())
-		var look: Array = heap.piece_look(_reach.get_collider(), _reach.get_collider_rid())
+		var id: int = -1 if _far_scrap != null else heap.loose_id(_reach.get_collider(), _reach.get_collider_rid())
+		var look: Array = [] if _far_scrap != null else heap.piece_look(_reach.get_collider(), _reach.get_collider_rid())
 		var got := GameState.request_pick_up_loose(id) if id >= 0 else GameState.request_pick_up(at, 1)
 		if got > 0:
 			if look.is_empty():
@@ -950,10 +952,18 @@ func _looking_at_table() -> bool:
 
 
 func _looking_at_pile() -> bool:
-	if not _reach.is_colliding():
-		return false
+	_far_scrap = null
 	var pile := _pile()
-	return pile != null and pile.is_grabbable(_reach.get_collider(), _reach.get_collider_rid(), _reach.get_collision_point())
+	if pile == null:
+		return false
+	if _reach.is_colliding() and pile.is_grabbable(_reach.get_collider(), _reach.get_collider_rid(), _reach.get_collision_point()):
+		return true
+	# The mountains' scrap: drawn, nothing for the ray to hit.
+	_far_scrap = pile.far_hit(_reach.global_position, _reach.to_global(_reach.target_position))
+	return _far_scrap != null
+
+
+var _far_scrap: Variant = null  # where the view meets the mountains' scrap, this frame (_looking_at_pile)
 
 
 func _pile() -> Node:

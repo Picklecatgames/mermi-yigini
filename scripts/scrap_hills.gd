@@ -9,11 +9,11 @@ extends Node3D
 const PARTS := 24            # models used: of the CANDIDATES widest, the lightest once simplified
 const CANDIDATES := 60
 const TRIS := 60             # each drawn from a copy this light
-const COVER := 1.4           # their footprints over the mountains' area
+const COVER := 2.2           # their footprints over the mountains' area
 const BLOCK := 4             # cells (1 m) a block: pieces are scattered block by block
 ## Piece scale by distance (m) from the reach of players (Pile.NEAR): SCALE.x at its edge, SCALE.y
 ## from SCALE_FAR.y on.
-const SCALE := Vector2(1.3, 10.0)
+const SCALE := Vector2(1.8, 14.0)
 const SCALE_FAR := Vector2(0.0, 60.0)
 const GROUP := 128           # cells: pieces grouped per GROUP × GROUP, so a far side is culled whole
 
@@ -25,11 +25,18 @@ var _inst_xf: Array[Transform3D] = []  # as laid, its origin's y over the surfac
 var _inst_k := PackedInt32Array()      # the cell it lies on
 var _tile := {}                        # pile tile index -> PackedInt32Array of pieces
 var _hazed: Array[ShaderMaterial] = [] # materials moved onto FAR_SHADER (its haze: _process)
+## One colour for every far piece: a mosaic of near browns boiled at 270p, grey at night
+## (2026-11-04, the user: "ants", "a grey pile by night"). The shader breaks it into big patches.
+const FAR_RUST := Color(0.15, 0.088, 0.062)
+## Scrap thrown out on the ground round the mountains' foot, thinning out into the trees; looks only.
+const FRINGE := 9.0  # m
+const FRINGE_COVER := 0.55
 const FAR_SHADER := preload("res://materials/psx_far.gdshader")
 const HAZE_MAX := 0.55        # the most the mountain goes into the dust
 const HAZE_REACH := 2.2       # times the scene's fog end: where the haze is full
-const NIGHT_HAZE := 0.93      # by night (dark fog), how far into it
-const NIGHT_SHADE := 0.6      # and the haze that much darker than the fog: against the sky
+const NIGHT_HAZE := 0.72      # by night (dark fog), how far into it
+const NIGHT_RUST := Color(0.022, 0.014, 0.01)  # a rust dark, not a grey one
+const NIGHT_SHADE := 0.3      # and the haze that much darker than the fog: against the sky
 
 
 func build(pile: Node) -> void:
@@ -80,7 +87,7 @@ func build(pile: Node) -> void:
 					lay = Basis(Vector3.RIGHT, PI * 0.5)
 				var side := n.cross(Vector3.FORWARD if absf(n.z) < 0.9 else Vector3.RIGHT).normalized()
 				var on := Basis(side, n, side.cross(n))
-				var tip := Basis(Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized(), rng.randf_range(0.0, 0.6))
+				var tip := Basis(Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized(), rng.randf_range(0.0, 0.3))
 				var basis := (on * tip * Basis(Vector3.UP, rng.randf() * TAU) * lay).scaled_local(Vector3.ONE * sc)
 				pos.y = size[thin] * sc * rng.randf_range(0.05, 0.35)
 				var key := Vector3i(ck.x / GROUP, ck.y / GROUP, pi)
@@ -93,6 +100,7 @@ func build(pile: Node) -> void:
 				if not _tile.has(tile):
 					_tile[tile] = PackedInt32Array()
 				_tile[tile].append(_inst_xf.size() - 1)
+	_fringe(parts, groups, rng)
 	_inst_mm.resize(_inst_xf.size())
 	_inst_i.resize(_inst_xf.size())
 	var tris := 0
@@ -124,6 +132,8 @@ func build(pile: Node) -> void:
 		if m and not m in _hazed:
 			m.shader = FAR_SHADER
 			_hazed.append(m)
+	for m: ShaderMaterial in _hazed:
+		m.set_shader_parameter("far_colour", FAR_RUST)
 	print("scrap hills: %d pieces of %d models in %d groups, %d triangles (%d ms)" % [_inst_xf.size(), parts.size(), groups.size(), tris, Time.get_ticks_msec() - t0])
 
 
@@ -140,13 +150,59 @@ func _process(_delta: float) -> void:
 		reach = Vector2(env.fog_depth_begin, env.fog_depth_end * HAZE_REACH) if env.fog_mode == Environment.FOG_MODE_DEPTH else Vector2(10.0, 0.6 / maxf(env.fog_density, 1e-4))
 		# By night the dust is dark: the mountain goes almost all into it, a little darker than the
 		# sky, a silhouette; by day its scrap shows through.
-		day = smoothstep(0.05, 0.35, env.fog_light_color.get_luminance())
-		col = env.fog_light_color * lerpf(NIGHT_SHADE, 1.0, day)
+		day = smoothstep(0.1, 0.5, env.background_energy_multiplier)  # the fog is dark by day too now
+		col = env.fog_light_color * lerpf(NIGHT_SHADE, 1.0, day) + NIGHT_RUST * (1.0 - day)
 		most = lerpf(NIGHT_HAZE, HAZE_MAX, day)
 	RenderingServer.global_shader_parameter_set(&"psx_haze_colour", col)
 	RenderingServer.global_shader_parameter_set(&"psx_haze_range", reach)
 	RenderingServer.global_shader_parameter_set(&"psx_haze_max", most)
 	RenderingServer.global_shader_parameter_set(&"psx_haze_day", day)
+
+
+## Pieces lying flat on bare ground near the foot, fewer further off; they don't ride anything.
+func _fringe(parts: Array, groups: Dictionary, rng: RandomNumberGenerator) -> void:
+	var gx: int = _pile.GRID_X
+	var gz: int = _pile.GRID_Z
+	var cell: float = _pile.CELL
+	var reach := int(FRINGE / cell)
+	for bj in range(1, gz - 1, BLOCK):
+		for bi in range(1, gx - 1, BLOCK):
+			var k: int = bj * gx + bi
+			if _pile._h[k] >= 0.03:
+				continue
+			var at: Vector3 = _pile._cell_pos(Vector2i(bi, bj))
+			var w: Vector2 = Vector2(at.x, at.z) + _pile.CENTER
+			if _pile.NEAR.grow(FRINGE).has_point(w):
+				continue  # the real spill's (pile.gd _build_spill)
+			var away := 1.0
+			for step in [0.25, 0.5, 1.0]:
+				for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+					var c := Vector2i(bi, bj) + Vector2i(Vector2(d) * step * reach)
+					if _pile._in_grid(c) and _pile._h[c.y * gx + c.x] >= 0.03:
+						away = minf(away, step)
+			if away >= 1.0 and rng.randf() > 0.15:
+				continue
+			var want := pow(BLOCK * cell, 2.0) * FRINGE_COVER * (1.0 - away * 0.8) / 0.5
+			for m in int(want) + int(rng.randf() < want - floorf(want)):
+				var pi := rng.randi() % parts.size()
+				var part: Array = parts[pi]
+				var size: Vector3 = part[1]
+				var sc := rng.randf_range(1.0, 1.7)
+				var thin := size.min_axis_index()
+				var lay := Basis()
+				if thin == 0:
+					lay = Basis(Vector3.BACK, PI * 0.5)
+				elif thin == 2:
+					lay = Basis(Vector3.RIGHT, PI * 0.5)
+				var basis := (Basis(Vector3.UP, rng.randf() * TAU) * lay).scaled_local(Vector3.ONE * sc)
+				var pos := at + Vector3(rng.randf() * BLOCK, 0.0, rng.randf() * BLOCK) * cell
+				pos.y = size[thin] * sc * 0.3
+				var key := Vector3i(bi / GROUP, bj / GROUP, pi)
+				if not groups.has(key):
+					groups[key] = []
+				groups[key].append(_inst_xf.size())
+				_inst_xf.append(Transform3D(basis, pos).translated_local(-part[3]))
+				_inst_k.append(-1)
 
 
 ## The pieces over cells `area` follow the surface (pile.gd, as it redraws its own).
@@ -160,7 +216,9 @@ func redraw(area: Rect2i) -> void:
 
 func _place(s: int) -> void:
 	var xf := _inst_xf[s]
-	if _pile._h[_inst_k[s]] < 0.03:
+	if _inst_k[s] < 0:
+		pass  # on the bare ground
+	elif _pile._h[_inst_k[s]] < 0.03:
 		xf = Transform3D(Basis().scaled(Vector3.ZERO), xf.origin)  # the scrap under it is gone
 	else:
 		xf.origin.y += _pile._height_smooth(Vector3(xf.origin.x, 0.0, xf.origin.z))
