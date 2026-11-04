@@ -6,6 +6,7 @@ extends SceneTree
 ## with it off from the start (toggling mid-run left the GPU timer stuck):
 ##   ... -s res://tools/perf_probe.gd -- off=ssr,ssil,ssao,fog,glow,shadows,lamp_shadows,decals
 ## (lamp_shadows: only the hall lamps', the ones that fade with distance, as Settings' low does not)
+## Add `hour=23` to stop the clock there.
 
 const VIEWS := {
 	"spawn": [Vector3(8.7, 1.7, 0.0), Vector3(-9.0, 2.5, 0.0)],
@@ -29,6 +30,11 @@ func _initialize() -> void:
 	_switch_off(main)
 	var vp := root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("hour="):
+			await process_frame
+			root.get_node("GameState").hour_rate = 0.0
+			root.get_node("GameState").hour = a.trim_prefix("hour=").to_float()
 	for f in 300:  # shaders compile, the probes capture: the first seconds are not the game
 		await process_frame
 	for v: String in VIEWS:

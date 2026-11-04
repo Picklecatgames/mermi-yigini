@@ -6,6 +6,10 @@ extends SceneTree
 ## Add `-- --dig` to drain 3M pieces from one spot at the foot of the scrap heap's face first, and
 ## `--collapse` to make the face give way there just before the shots (pieces still tumbling in the
 ## first); name shots after `--` to take only those.
+## Add `--lamp` for a player's head lamp at the camera (it lights itself when the sun goes), `--moon=KIND`
+## for tonight's moon (GameState.MOONS, or boss), `--tag=NAME` to add a name to the files, `--psx=N` for
+## Settings' "PS1 ekranı" N (2: 270 lines), as the player sees it, not from the developer's own settings.
+## `--zombie=X,Z` puts a walker up there, facing -x, seen a moment after it's up.
 
 const SHOTS := {
 	"ws_front": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],  # build_world.gd: the workshop from the yard
@@ -23,6 +27,13 @@ const SHOTS := {
 	"wood_near": [Vector3(38.0, 1.7, -6.0), Vector3(70.0, 8.0, 6.0)],
 	"wood_in": [Vector3(70.0, 1.7, 20.0), Vector3(100.0, 5.0, 30.0)],
 	"forest_edge": [Vector3(30.0, 1.7, 8.0), Vector3(90.0, 3.0, 25.0)],
+	"night_yard": [Vector3(4.0, 1.7, -9.0), Vector3(60.0, 4.0, -9.0)],  # the yard to the wood, the burn barrel in frame on the right
+	"night_edge": [Vector3(30.0, 1.7, -6.0), Vector3(70.0, 3.0, -8.0)],  # standing a few metres off the first trees
+	"night_foot": [Vector3(16.0, 1.7, -9.0), Vector3(21.0, 0.2, -5.0)],  # the ground at the player's feet
+	"night_close": [Vector3(46.0, 1.7, -2.0), Vector3(55.0, 1.5, -2.0)],  # the first trees, lamp on them
+	"night_walk1": [Vector3(52.0, 1.7, -2.0), Vector3(70.0, 2.0, -2.0)],  # walking in: nothing pops, no sheet's edge
+	"night_walk2": [Vector3(58.0, 1.7, -2.0), Vector3(76.0, 2.0, -2.0)],
+	"night_walk3": [Vector3(64.0, 1.7, -2.0), Vector3(82.0, 2.0, -2.0)],
 	"forest_in": [Vector3(75.0, 1.9, 30.0), Vector3(100.0, 2.0, 55.0)],
 	"desert_back": [Vector3(10.0, 2.5, 18.0), Vector3(-80.0, 4.0, 50.0)],
 	"far": [Vector3(0, 1.6, 15), Vector3(0, 2.0, 0)],
@@ -111,6 +122,12 @@ func _initialize() -> void:
 	main.add_child(cam)
 	cam.make_current()
 	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--psx="):
+			await process_frame
+			var settings: Node = root.get_node("Settings")
+			settings.save_path = "user://settings_shots.cfg"  # never the developer's own
+			settings.set_value("psx", a.trim_prefix("--psx=").to_int())
+	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--gold="):
 			await process_frame
 			var gs := root.get_node("GameState")
@@ -143,13 +160,37 @@ func _initialize() -> void:
 			gs.hour_rate = 0.0
 			gs.hour = a.trim_prefix("--hour=").to_float()
 			tag = "_h" + a.trim_prefix("--hour=")
+			for f in 3:  # crossing dusk rolls a moon: pick after it
+				await process_frame
+			for b: String in OS.get_cmdline_user_args():
+				if b.begins_with("--moon="):
+					gs.moon = b.trim_prefix("--moon=")
 			for f in 10:
 				await process_frame
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--zombie="):
+			var at := a.trim_prefix("--zombie=").split_floats(",")
+			root.get_node("GameState").request_debug_spawn("walker", Vector3(at[0], 0.0, at[1]), PI / 2.0, 1)
+	var lamp: SpotLight3D = null
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--moon="):
+			tag += "_" + a.trim_prefix("--moon=")
+		elif a.begins_with("--tag="):
+			tag += "_" + a.trim_prefix("--tag=")
+		elif a == "--lamp":
+			tag += "_lamp"
+			lamp = preload("res://scripts/head_lamp.gd").new()
+			main.add_child(lamp)
 	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return SHOTS.has(a))
 	for shot_name in (only if not only.is_empty() else SHOTS.keys()):
 		cam.look_at_from_position(SHOTS[shot_name][0], SHOTS[shot_name][1])
+		if lamp:
+			lamp.set(&"_placed", false)
+			lamp.call(&"follow", cam.global_transform, 0.0)
+			for f in 60:  # it eases on
+				await process_frame
 		for f in 30:  # let TAA settle
 			await process_frame
 		root.get_texture().get_image().save_png("user://shot_%s%s.png" % [shot_name, tag])
-		print("saved ", ProjectSettings.globalize_path("user://shot_%s.png" % shot_name))
+		print("saved ", ProjectSettings.globalize_path("user://shot_%s%s.png" % [shot_name, tag]))
 	quit()

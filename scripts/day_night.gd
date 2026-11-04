@@ -4,7 +4,8 @@ extends Node
 ## WorldEnvironment and its Sun and takes what they were built with (tools/build_world.gd _sky())
 ## as the day, so whatever the sky is rebuilt with, the day stays that. Towards night the sun goes
 ## down, warming as it nears the horizon, and out; the sky and the light it gives go nearly black,
-## what is left is a cold dim blue, and the haze darkens. Then the moon (2026-11-03, the user: "gece
+## what is left is a cold dim blue, the sky is tonight's dome (_add_dome), the haze the wood's dark
+## under it. Then the moon (2026-11-03, the user: "gece
 ## çok karanlık oluyor, dolunay falan ekle; çevre ve zombiler görünebilsin"): a low-res disc over the
 ## desert (materials/moon.gdshader) and a cold light of its own with hard shadows, the "Moon" beside
 ## the Sun, so the sun still goes out (scripts/head_lamp.gd lights when it does). By its light and
@@ -38,22 +39,37 @@ const MOON_PX := 48  # a face's pixels across
 ## one and a black eclipse with a burning rim over a murky brown haze, the light wavering.
 const MOONS := {
 	"full": {"discs": [[75.0, 34.0, 1.0, Color(0.85, 0.9, 1.0), 1.0, {"halo": 0.18, "halo_color": Color(0.5, 0.56, 0.68)}]],
-		"light": Color(0.62, 0.72, 0.92), "energy": 0.6,
-		"ambient": Color(0.4, 0.48, 0.66), "ambient_energy": 0.3, "fog": Color(0.085, 0.1, 0.13), "waver": 0.0},
+		"light": Color(0.62, 0.72, 0.92), "energy": 1.0,
+		"ambient": Color(0.6, 0.67, 0.82), "ambient_energy": 0.33, "fog": Color(0.082, 0.092, 0.12), "waver": 0.0,
+		"sky": [Color(0.13, 0.15, 0.21), Color(0.25, 0.29, 0.38), Color(0.3, 0.34, 0.44)]},
 	"pale": {"discs": [[70.0, 24.0, 0.8, Color(0.72, 0.74, 0.76), 1.0, {"halo": 0.25, "halo_color": Color(0.4, 0.42, 0.44)}]],
-		"light": Color(0.6, 0.63, 0.68), "energy": 0.35,
-		"ambient": Color(0.38, 0.4, 0.45), "ambient_energy": 0.24, "fog": Color(0.075, 0.078, 0.085), "waver": 0.0},
-	"crescent": {"discs": [[80.0, 40.0, 1.0, Color(0.9, 0.9, 0.85), 0.22, {}]], "light": Color(0.55, 0.62, 0.8), "energy": 0.18,
-		"ambient": Color(0.35, 0.4, 0.56), "ambient_energy": 0.2, "fog": Color(0.045, 0.052, 0.07), "waver": 0.0},
+		"light": Color(0.6, 0.63, 0.68), "energy": 0.7,
+		"ambient": Color(0.58, 0.6, 0.66), "ambient_energy": 0.3, "fog": Color(0.075, 0.078, 0.086), "waver": 0.0,
+		"sky": [Color(0.12, 0.125, 0.14), Color(0.23, 0.24, 0.265), Color(0.22, 0.23, 0.25)]},
+	"crescent": {"discs": [[80.0, 40.0, 1.0, Color(0.9, 0.9, 0.85), 0.22, {}]], "light": Color(0.55, 0.62, 0.8), "energy": 0.4,
+		"ambient": Color(0.52, 0.58, 0.74), "ambient_energy": 0.28, "fog": Color(0.058, 0.064, 0.082), "waver": 0.0,
+		"sky": [Color(0.075, 0.085, 0.12), Color(0.15, 0.17, 0.23), Color(0.1, 0.11, 0.15)]},
 	"blood": {"discs": [[75.0, 22.0, 1.6, Color(0.52, 0.17, 0.1), 1.0, {"limb": 0.4, "halo": 0.22, "halo_color": Color(0.3, 0.09, 0.05)}]],
-		"light": Color(0.62, 0.3, 0.22), "energy": 0.45,
-		"ambient": Color(0.42, 0.27, 0.24), "ambient_energy": 0.24, "fog": Color(0.07, 0.035, 0.03), "waver": 0.0},
+		"light": Color(0.62, 0.3, 0.22), "energy": 0.8,
+		"ambient": Color(0.66, 0.46, 0.42), "ambient_energy": 0.3, "fog": Color(0.082, 0.038, 0.032), "waver": 0.0,
+		"sky": [Color(0.13, 0.065, 0.055), Color(0.27, 0.12, 0.09), Color(0.3, 0.1, 0.06)]},
 	"boss": {"discs": [[75.0, 18.0, 2.5, Color(0.45, 0.16, 0.1), 1.0, {"limb": 0.4, "halo": 0.3, "halo_color": Color(0.25, 0.08, 0.05)}],
 			[44.0, 36.0, 0.55, Color(0.78, 0.74, 0.64), 0.62, {"limb": 0.5}],
 			[112.0, 16.0, 0.8, Color(0.85, 0.42, 0.2), 1.0, {"eclipse": 1.0, "halo": 0.16, "halo_color": Color(0.35, 0.14, 0.06)}]],
-		"light": Color(0.6, 0.48, 0.4), "energy": 0.45,
-		"ambient": Color(0.38, 0.3, 0.3), "ambient_energy": 0.32, "fog": Color(0.055, 0.045, 0.038), "waver": 0.45},
+		"light": Color(0.6, 0.48, 0.4), "energy": 0.8,
+		"ambient": Color(0.6, 0.5, 0.48), "ambient_energy": 0.3, "fog": Color(0.07, 0.056, 0.046), "waver": 0.45,
+		"sky": [Color(0.11, 0.085, 0.07), Color(0.24, 0.17, 0.12), Color(0.26, 0.12, 0.07)]},
 }
+## Each moon's "sky": zenith, horizon, the glow round it (materials/env/night_dome.gdshader). Its "fog"
+## is the wood's darkness, darker than the sky, and the black between the trees takes it too: a tree
+## far off and the gap beside it end nearly alike, nothing grey on black (2026-11-04, the user).
+const DOME_FAR := 280.0  # m round the eye, inside the moons
+const DOME_NIGHT := 0.8  # the night's share over the day's photo: under it its clouds, dim
+const DUSK_BAND := Color(0.85, 0.36, 0.15)  # the sun's side of the sky, low, at dusk and dawn
+const DUSK_FOG := Color(0.16, 0.085, 0.05)  # the air at the sun's going down: warm, before it goes dark
+const VEIL_DAY := Color(0.008, 0.008, 0.009)  # by day the gaps between the trees are black
+const FOG_NIGHT := Vector2(30.0, 85.0)  # the fog's depth begin and end by night: the wood's first rows stay out of it
+const VEIL_NIGHT := 0.75  # the gaps by night, of the fog: a little under what stands in front of them
 const WAVER_SPEED := 1.7  # how fast a wavering moon's light comes and goes
 
 var _env: Environment
@@ -65,6 +81,8 @@ var _moon: DirectionalLight3D
 var _world: Node
 var _discs: Array[MeshInstance3D] = []
 var _face: ImageTexture
+var _dome: MeshInstance3D
+var _veil: ShaderMaterial  # the wood's black (materials/env/wood_veil.gdshader), none in a scene with no wood
 var _up := 0.0  # how far the moon has risen in
 var _t := 0.0
 
@@ -102,6 +120,8 @@ func _process(delta: float) -> void:
 		for i in _discs.size():
 			var d: Array = m.discs[i]
 			_discs[i].global_position = eye.global_position + _toward(d[0], d[1]) * MOON_FAR
+	if eye and _dome.visible:
+		_dome.global_position = eye.global_position
 
 
 ## The scene's sky and sun, and what they were built with; false while there are none (a menu).
@@ -120,9 +140,12 @@ func _find() -> bool:
 		"sky": _env.background_energy_multiplier, "ambient": _env.ambient_light_energy,
 		"sky_light": _env.ambient_light_sky_contribution, "ambient_color": _env.ambient_light_color,
 		"fog": _env.fog_light_color, "density": _env.fog_density, "fog_sky": _env.fog_sky_affect,
-		"aerial": _env.fog_aerial_perspective,
+		"aerial": _env.fog_aerial_perspective, "fog_begin": _env.fog_depth_begin, "fog_end": _env.fog_depth_end,
 		"vol_albedo": _env.volumetric_fog_albedo, "reflect": _env.reflected_light_source}
 	_add_moon()
+	_add_dome()
+	var veils := scene.find_child("Veils", true, false) as MeshInstance3D
+	_veil = veils.material_override as ShaderMaterial if veils else null
 	_set_moon(GameState.moon)
 	return true
 
@@ -139,15 +162,20 @@ func show_dark(dark: float) -> void:
 	_sun.visible = _sun.light_energy > 0.001
 	# The sky and what it lights, towards tonight's.
 	var k := smoothstep(0.0, 1.0, dark)
-	_env.background_energy_multiplier = lerpf(_day.sky, _day.sky * SKY_NIGHT, k)
+	# Ahead of the rest: with the sun out and the ground dark, a sky still bright looked pasted on.
+	_env.background_energy_multiplier = lerpf(_day.sky, _day.sky * SKY_NIGHT, smoothstep(0.0, 0.72, dark))
 	_env.ambient_light_energy = lerpf(_day.ambient, _day.ambient * m.ambient_energy, k)
 	_env.ambient_light_sky_contribution = lerpf(_day.sky_light, 0.0, k)
 	_env.ambient_light_color = (_day.ambient_color as Color).lerp(m.ambient, k)
 	_env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED if dark > REFLECT_OFF else _day.reflect
-	_env.fog_light_color = (_day.fog as Color).lerp(m.fog, k)
+	# Warm for the sun's last hour, whichever way the clock runs; gone by the time it's out.
+	var dusk := smoothstep(0.08, 0.32, dark) * (1.0 - smoothstep(0.45, 0.72, dark))
+	_env.fog_light_color = (_day.fog as Color).lerp(DUSK_FOG, dusk).lerp(m.fog, smoothstep(0.35, 0.9, dark))
+	_env.fog_depth_begin = lerpf(_day.fog_begin, FOG_NIGHT.x, k)
+	_env.fog_depth_end = lerpf(_day.fog_end, FOG_NIGHT.y, k)
 	if _env.fog_mode == Environment.FOG_MODE_EXPONENTIAL:  # a depth haze has its own reach
 		_env.fog_density = lerpf(_day.density, _day.density * FOG_THICK, k)
-	_env.fog_sky_affect = lerpf(_day.fog_sky, 1.0, k)
+	_env.fog_sky_affect = lerpf(_day.fog_sky, 0.0, k)  # the sky is the dome's, not the fog's: see DOME_NIGHT
 	_env.fog_aerial_perspective = lerpf(_day.aerial, 0.0, k)  # it takes the sky's own (daylit) light: a pale band at the horizon
 	_env.volumetric_fog_albedo = (_day.vol_albedo as Color).lerp(Color(0.05, 0.05, 0.06), k)
 	# The moon, once the sun is out.
@@ -157,6 +185,27 @@ func show_dark(dark: float) -> void:
 	for d in _discs:
 		(d.material_override as ShaderMaterial).set_shader_parameter(&"fade", _up)
 		d.visible = _up > 0.0
+	_show_dome(dark, m, dusk)
+	if _veil:
+		_veil.set_shader_parameter(&"colour", VEIL_DAY.lerp((m.fog as Color) * VEIL_NIGHT, k))
+
+
+## The sky over the photo at darkness `dark`: dusk's band on the sun's side, tonight's sky over it.
+func _show_dome(dark: float, m: Dictionary, dusk: float) -> void:
+	var night := smoothstep(0.25, 0.8, dark) * DOME_NIGHT
+	var band := dusk * 0.85
+	_dome.visible = night > 0.001 or band > 0.001
+	if not _dome.visible:
+		return
+	var mat := _dome.material_override as ShaderMaterial
+	mat.set_shader_parameter(&"zenith", m.sky[0])
+	mat.set_shader_parameter(&"horizon", m.sky[1])
+	mat.set_shader_parameter(&"glow", (m.sky[2] as Color) * _up)
+	mat.set_shader_parameter(&"amount", night)
+	mat.set_shader_parameter(&"band", DUSK_BAND)
+	mat.set_shader_parameter(&"band_amount", band)
+	mat.set_shader_parameter(&"sun_dir", _sun.global_basis.z)
+	mat.set_shader_parameter(&"moon_dir", _toward(m.discs[0][0], m.discs[0][1]))
 
 
 ## Tonight's moon is `kind`: its discs and its light's colour and way; the rest follows at show_dark.
@@ -194,6 +243,28 @@ func _set_moon(kind: String) -> void:
 ## The way to a moon `yaw` deg round (0 is +z, 90 is +x) and `pitch` deg over the horizon.
 static func _toward(yaw: float, pitch: float) -> Vector3:
 	return Basis.from_euler(Vector3(deg_to_rad(-pitch), deg_to_rad(yaw), 0.0)).z
+
+
+## The sky's dome, over the day's sky and under the moons (render_priority).
+func _add_dome() -> void:
+	if is_instance_valid(_dome):
+		_dome.queue_free()
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://materials/env/night_dome.gdshader")
+	mat.render_priority = -1
+	var ball := SphereMesh.new()
+	ball.radius = DOME_FAR
+	ball.height = DOME_FAR * 2.0
+	ball.radial_segments = 24
+	ball.rings = 12
+	_dome = MeshInstance3D.new()
+	_dome.name = "SkyDome"
+	_dome.mesh = ball
+	_dome.material_override = mat
+	_dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_dome.extra_cull_margin = 16384.0  # it moves with the eye
+	_dome.visible = false
+	_world.add_child(_dome)
 
 
 ## The moon's light beside the sun, and the one face every disc wears, drawn here once MOON_PX

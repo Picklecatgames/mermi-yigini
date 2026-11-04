@@ -38,7 +38,8 @@ func _ready() -> void:
 	# critic). Far enough to give the hands of whoever stands by it a warm edge.
 	_light.position = Vector3(0, rim + 0.5, 0)
 	_light.light_color = Color(1.0, 0.45, 0.15)
-	_light.omni_range = 5.0
+	_light.omni_range = 13.0  # its warmth reaches across the yard: the one warm thing at night
+	_light.omni_attenuation = 1.2
 	_light.shadow_enabled = false  # from over the rim the drum threw a hard black disc on the floor round itself
 	_light.light_volumetric_fog_energy = 0.6
 	add_child(_light)
@@ -63,7 +64,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	var n := _noise.get_noise_1d(_t * 10.0) * 0.6 + _noise.get_noise_1d(_t * 37.0) * 0.4  # slow sway and quick flutter
-	_light.light_energy = 2.0 + 0.55 * n
+	_light.light_energy = 3.0 + 0.8 * n
 	_inside.light_energy = 1.5 + 0.4 * n
 	_bed.emission_energy_multiplier = 2.2 + 0.6 * _noise.get_noise_1d(_t * 2.0 + 50.0)
 

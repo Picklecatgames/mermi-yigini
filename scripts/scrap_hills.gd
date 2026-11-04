@@ -35,8 +35,8 @@ const FAR_SHADER := preload("res://materials/psx_far.gdshader")
 const HAZE_MAX := 0.55        # the most the mountain goes into the dust
 const HAZE_REACH := 2.2       # times the scene's fog end: where the haze is full
 const NIGHT_HAZE := 0.86      # by night (dark fog), how far into it
-const NIGHT_RUST := Color(0.02, 0.012, 0.012)  # a rust dark, not a grey one
-const NIGHT_SHADE := 0.55      # and the haze that much darker than the fog: against the sky
+const NIGHT_RUST := Color(0.008, 0.0045, 0.0045)  # a rust dark, not a grey one
+const NIGHT_SHADE := 0.12      # and the haze that much darker than the fog: against the sky
 
 
 func build(pile: Node) -> void:

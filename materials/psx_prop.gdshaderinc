@@ -32,6 +32,10 @@ uniform float tri_metres = 2.0;
 uniform vec4 far_colour : source_color = vec4(0.0);
 uniform vec2 far_fade = vec2(20.0, 60.0);
 uniform vec2 shade_below = vec2(0.0, 1.0);  // x m above the world's floor down to it the light goes to y of itself (0: off): under a wood's canopy
+#ifdef PSX_SOFT
+global uniform float psx_haze_day;  // 1 by day, 0 by night (scripts/scrap_hills.gd)
+uniform float night_fill = 5.0;  // by night the sky's light on the first trees, times: the dark sky lights so little that 15-bit colour shows them as black
+#endif
 #ifdef PSX_HAZE
 // Instead of the scene's fog (psx_far.gdshader): into psx_haze_colour from psx_haze_range.x to .y
 // metres, at most psx_haze_max of the way. Globals (scrap_hills.gd sets them from the fog): the PS1
@@ -82,6 +86,7 @@ void fragment() {
 		c = texture(albedo_tex, uv);
 	}
 	c *= tint;
+	float shade = 1.0;
 	if (vertex_tint) {
 		c.rgb *= COLOR.rgb;
 	}
@@ -91,8 +96,21 @@ void fragment() {
 	float far = smoothstep(far_fade.x, far_fade.y, length(VERTEX)) * far_colour.a;
 	ALBEDO = mix(c.rgb, far_colour.rgb, far);
 	if (shade_below.x > 0.0) {
-		ALBEDO *= mix(shade_below.y, 1.0, smoothstep(0.0, shade_below.x, world_pos.y));
+		shade = mix(shade_below.y, 1.0, smoothstep(0.0, shade_below.x, world_pos.y));
 	}
+#ifdef PSX_SOFT
+	// The wood's dark (each copy's tone, the canopy's shade) is where the sky's light doesn't reach, not
+	// a black bark: by night the lamp and the fire still show a tree's colours deep in the wood.
+	float night = 1.0 - psx_haze_day;
+	float tone = vertex_tint ? clamp(dot(COLOR.rgb, vec3(0.333)), 0.05, 1.0) : 1.0;
+	ALBEDO *= mix(shade, 1.0 / tone, night);
+	// Pale textures lifted less: by the sky's light alone a pale fir stood out grey among the others.
+	float pale = 1.0 / (1.0 + 5.0 * dot(ALBEDO, vec3(0.333)));
+	AO = mix(1.0, shade * mix(tone, 1.0, 0.2) * night_fill * pale * 1.3, night);
+	AO_LIGHT_AFFECT = 0.0;
+#else
+	ALBEDO *= shade;
+#endif
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
 #ifdef PSX_HAZE

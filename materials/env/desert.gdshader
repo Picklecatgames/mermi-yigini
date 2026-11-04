@@ -27,6 +27,9 @@ uniform vec3 earth_tint : source_color = vec3(0.86, 0.72, 0.56);
 uniform vec4 wood_oval = vec4(0.0);  // the clearing (centre x, z; radii): the floor darkens going into the wood; radii 0: off
 uniform float wood_dark = 0.45;  // how dark, deep in
 uniform float wood_dark_reach = 16.0;  // m in from the clearing's edge
+uniform vec2 night_shade = vec2(-14.0, 7.0);  // m from the clearing's edge: by night the floor goes dark from x to y...
+uniform float night_shade_to = 0.1;  // ...to this share of its light, so it meets the trees' dark with no line
+global uniform float psx_haze_day;  // 1 by day, 0 by night (scripts/scrap_hills.gd)
 
 varying vec3 world_pos;
 
@@ -64,6 +67,7 @@ void fragment() {
 	if (wood_oval.z > 0.0) {
 		float deep = (length((p - wood_oval.xy) / wood_oval.zw) - 1.0) * min(wood_oval.z, wood_oval.w);
 		alb *= mix(1.0, wood_dark, smoothstep(0.0, wood_dark_reach, deep + (n - 0.5) * 8.0));
+		alb *= mix(1.0, night_shade_to, smoothstep(night_shade.x, night_shade.y, deep + (n - 0.5) * 6.0) * (1.0 - psx_haze_day));
 	}
 	ALBEDO = alb;
 	AO = arm.r;
