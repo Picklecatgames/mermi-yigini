@@ -1,5 +1,7 @@
 # Yol haritası (2026-10-20, co-op demo)
 
+**Güncel durum, eksikler ve otomasyon planı için önce `docs/otomasyon_hazirlik.md`; aşağıdaki Faz 3-5 eski yönden kalma.**
+
 **Hedef:** Steam'de, 4 kişilik co-op oynanabilen, yaklaşık 1 saatlik ücretsiz demo. Co-op demonun satış noktası: yayıncılar ve arkadaş davetleriyle yayılır.
 
 Sıra kuralı: her adım bir sonrakinin sayılarını belirler. **Co-op en başta kurulur**, sonraki her sistem iki pencereyle denenerek yapılır. Steam, dışarıdan testten önce gelir: test edenler uzaktan bağlanabilmeli. Bir adım bitmeden sonrakine geçilmez; her adım sonunda commit. Ayrıntılı gerekçeler: `oyun_kritigi_2026-10-19.md`.
