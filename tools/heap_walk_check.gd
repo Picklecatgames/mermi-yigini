@@ -55,7 +55,20 @@ func _run() -> void:
 			if left < 12.0 or still > 8.0:
 				break
 		Input.action_release("move_forward")
-		var ok: bool = still <= 8.0
+		# Stopped on the bare floor, it was trunks in the wood round the heap: this walker is no pathfinder.
+		var ok: bool = still <= 8.0 or pile.surface_y(me.global_position) < 0.02
+		if not ok:
+			# Held up on the way, then: is it a trap? Anyone would try another way out.
+			var stop := me.global_position
+			for n in 8:
+				me.rotation.y = TAU * n / 8.0
+				me.set("_yaw", me.rotation.y)
+				Input.action_press("move_forward")
+				for i in 120:
+					await physics_frame
+				Input.action_release("move_forward")
+				ok = ok or me.global_position.distance_to(stop) > 4.0
+			print("     held up at %v, tried every way: %s" % [stop, "got out" if ok else "TRAPPED"])
 		print(("ok   " if ok else "FAIL ") + "from (%.0f, %.1f, %.0f): got to %.1f m of the workshop, at (%.0f, %.1f, %.0f)" % [p.x, ground, p.z, left, me.global_position.x, me.global_position.y, me.global_position.z])
 		_failed = _failed or not ok
 	# And the mountains' scrap, which has no pieces of its own, can be taken.

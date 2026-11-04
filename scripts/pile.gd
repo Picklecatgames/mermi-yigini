@@ -546,7 +546,9 @@ func _build_heights() -> void:
 				y = maxf(y, p.z * (1.0 - smoothstep(0.0, 1.0, q)))
 			# Big lumps all over it, growing with height; small lumps everywhere.
 			y += (_noise.get_noise_2d(c.x * 0.035 + 50.0, c.z * 0.035) * 0.14 + _noise.get_noise_2d(c.x * 0.12, c.z * 0.12) * 0.06) * y
-			y += _noise.get_noise_2d(c.x * 0.8, c.z * 0.8) * 0.6 + _noise.get_noise_2d(c.x * 6.0, c.z * 6.0) * LUMP
+			# Not at the very foot: there these lumps dug little pockets ringed by scrap, on bare ground,
+			# and walkers stayed in them (tools/heap_walk_check.gd).
+			y += (_noise.get_noise_2d(c.x * 0.8, c.z * 0.8) * 0.6 + _noise.get_noise_2d(c.x * 6.0, c.z * 6.0) * LUMP) * smoothstep(0.3, 2.5, y)
 			var edge := minf(half.x - absf(c.x), half.y - absf(c.z)) - CELL
 			y = minf(y, EDGE_SLOPE * edge)
 			_h[k] = clampf(y, 0.0, TOP)
