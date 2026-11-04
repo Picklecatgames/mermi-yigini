@@ -1,6 +1,6 @@
 # Mermi Yığını
 
-Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğün önündeki üs; gündüz topla ve üret, gece gelen dalgalara karşı savun. "Mermi Yığını" yalnız geçici proje adı; tasarımı ada bağlama. Hedef: ~1 saatlik ücretsiz Steam demosu. Sistem ayrıntıları ve sayılar: `docs/ayrintilar.md` (yalnız dokunduğun sistemin bölümünü oku). Sıra: `docs/yol_haritasi.md`.
+Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğün önündeki üs; gündüz topla ve üret, gece gelen dalgalara karşı savun. "Mermi Yığını" yalnız geçici proje adı; tasarımı ada bağlama. Hedef: 5-6 saatlik tam oyun (2026-11-05, kullanıcı kararı), ondan kısa, ~1 saatlik ücretsiz Steam demosu. Sistem ayrıntıları ve sayılar: `docs/ayrintilar.md` (yalnız dokunduğun sistemin bölümünü oku). Sıra: `docs/yol_haritasi.md`.
 
 ## Oyun özeti
 

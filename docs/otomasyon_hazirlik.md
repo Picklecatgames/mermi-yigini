@@ -2,7 +2,7 @@
 
 Kullanıcının kararı (2026-11-05): dağ bir yerden sonra otomatikleşir, oyun Factorio'ya bağlanır. Bant sistemi, taret sistemi, hurdaları dönüştürme, dönüşenleri kasaya alma. **Kasa yüzde yüz ortak.** Kişisel geliştirmelerde otomatikleştirmeler olur. Gereken aset, shader ve HDRI indirilebilir (lisans kuralları CLAUDE.md'de).
 
-Kullanıcının kararı (2026-11-05, referans `https://www.youtube.com/watch?v=UGv-JDV7V1M&t=15290s`): "Dağı da o oyundaki gibi tek dağ yapmak istiyorum. Süre, oyun süresi 5-6 saat olsun." Taretler için: "Oyuna Factorio ekleyip de oyunun o küt, o tekinsiz havasını gezen taretlerle yapmak istemiyorum, bu videoda görünen gibi olmasını istiyorum." Tek dağ kararı, 2026-11-03'teki "büyük dağın etrafında minik dağcıklar" sözünün önüne geçer.
+Kullanıcının kararı (2026-11-05, referans `https://www.youtube.com/watch?v=UGv-JDV7V1M&t=15290s`): "Dağı da o oyundaki gibi tek dağ yapmak istiyorum. Süre, oyun süresi 5-6 saat olsun." Bu süre tam oyunun, demo kısa kalır (kullanıcı, aynı gün). Taretler için: "Oyuna Factorio ekleyip de oyunun o küt, o tekinsiz havasını gezen taretlerle yapmak istemiyorum, bu videoda görünen gibi olmasını istiyorum." Tek dağ kararı, 2026-11-03'teki "büyük dağın etrafında minik dağcıklar" sözünün önüne geçer.
 
 Bu dosyada kullanıcı kararı olarak yazılanlar yalnız yukarıdaki iki paragraftır. Geri kalan her öneri ve sayı benim tahminimdir, kural değil.
 
