@@ -4,7 +4,7 @@ extends SceneTree
 ## Lands in user://orman_lineup_<row>.png, the kinds left to right in build_world.gd WOOD_TREES' order.
 const P := "res://assets/env/orman/forest_pack_psx.scn"
 const AT := "Background_Tree_Atlas%s_Background_Tree_Atlas_0"
-const ROWS := [
+var _rows := [
 	[[P, [AT % ""]], [P, [AT % "_001"]], [P, [AT % "_002"]], [P, [AT % "_003"]], [P, [AT % "_004"]], [P, [AT % "_005"]], [P, [AT % "_006"]], [P, [AT % "_007"]]],
 	[[P, ["Tree_Trunk_01_Tree_Trunk_01_0", "Tree_Branches_01_001_Tree_Branches_01_0"]], [P, ["Tree_Trunk_01_001_Tree_Trunk_01_0", "Tree_Branches_01_Tree_Branches_01_0"]],
 		[P, ["Tree_Trunk_01_002_Tree_Trunk_01_0", "Tree_Branches_01_002_Tree_Branches_01_0"]], [P, ["Tree_Trunk_02_Tree_Trunk_02_0", "Tree_Branches_02_Tree_Branches_02_0"]],
@@ -12,8 +12,29 @@ const ROWS := [
 ]
 
 
+const KINDS := preload("res://tools/orman_kinds.gd")
+
+
 func _initialize() -> void:
+	# `-- ek`: the kinds of tools/orman_kinds.gd instead, a row per group, 12 to a sheet.
+	if "ek" in OS.get_cmdline_user_args():
+		_rows.clear()
+		var trees := []
+		for k: Array in KINDS.TREES:
+			trees.append([KINDS.scene(k[0]), k[1]])
+		_add_rows(trees)
+		for g: String in KINDS.FLOOR:
+			var row := []
+			for k: Array in KINDS.FLOOR[g]:
+				row.append([KINDS.scene(k[0]), k[1]])
+			_add_rows(row)
 	_run.call_deferred()
+
+
+func _add_rows(all: Array) -> void:
+	while not all.is_empty():
+		_rows.append(all.slice(0, 12))
+		all = all.slice(12)
 
 
 func _run() -> void:
@@ -34,10 +55,10 @@ func _run() -> void:
 	var cam := Camera3D.new()
 	cam.fov = 40.0
 	w.add_child(cam)
-	for r in ROWS.size():
+	for r in _rows.size():
 		var row := Node3D.new()
 		w.add_child(row)
-		var kinds: Array = ROWS[r]
+		var kinds: Array = _rows[r]
 		for i in kinds.size():
 			var scene: Node = (load(kinds[i][0]) as PackedScene).instantiate()
 			var names: Array = kinds[i][1]
@@ -58,7 +79,7 @@ func _run() -> void:
 				var b: AABB = x * mi.mesh.get_aabb()
 				box = b if parts.size() == 1 else box.merge(b)
 			scene.free()
-			var fit := 24.0 / box.size.y
+			var fit := 24.0 / maxf(box.size.y, maxf(box.size.x, box.size.z) * 1.9)
 			for p: Array in parts:
 				var m := MeshInstance3D.new()
 				m.mesh = p[0]

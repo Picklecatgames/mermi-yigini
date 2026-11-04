@@ -10,7 +10,7 @@ extends SceneTree
 ## barrel_fire.gd tune their emission) stay StandardMaterial3D, made PS1 the same way: lit per
 ## vertex, unfiltered, small textures.
 ## tools/build_world.gd (_prop, _cukur) and scripts/pile.gd take the _psx.scn wherever there is one.
-##   Godot.exe --headless --path . -s res://tools/psx_props.gd -- [bench workshop hurda cukur ogutucu tex]
+##   Godot.exe --headless --path . -s res://tools/psx_props.gd -- [bench workshop hurda cukur ogutucu tex orman orman_ek]
 ## No group: all of them. tex: the workshop's sheet and steel textures (assets/psx/tex/, build_world).
 
 const SHADER := preload("res://materials/psx_prop.gdshader")
@@ -114,6 +114,9 @@ var _grade := false  # scrap: textures into the rust range (GRADE_*)
 var _nature := false  # trees and rocks: leaves cut out, textures into the desert's range (NATURE_*)
 var _ground := false  # the ground's textures: the desert's range, GROUND_*
 var _orman := false  # nature, in the old wood's colours (ORMAN_*)
+var _tint := Color.WHITE  # the wood's added kinds: this file's colour (tools/orman_kinds.gd)
+var _floor := false  # ...and it lies on the floor: no dark foot
+var _sat := ORMAN_SATURATION  # ...and how much of its colour stays
 var _value := 1.0  # nature: the entry's darkening (NATURE's fourth number)
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
@@ -163,6 +166,13 @@ func _init() -> void:
 			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128, false), TEX_OUT % id) == OK and ok
 		for e: Array in ORMAN:
 			ok = _convert(e[0], e[1], e[2]) and ok
+		ok = _orman_ek() and ok
+		_orman = false
+		_nature = false
+	if "orman_ek" in args:  # only the wood's added kinds (tools/orman_kinds.gd)
+		_nature = true
+		_orman = true
+		ok = _orman_ek() and ok
 		_orman = false
 		_nature = false
 	if all or "hurda" in args:
@@ -176,6 +186,19 @@ func _init() -> void:
 					500 if longest > 0.6 else (300 if longest > 0.25 else 200), HURDA_TEX) and ok
 	print("psx total: %d -> %d tris, %.1f -> %.1f MB" % [_sum[0], _sum[1], _sum[2] / 1048576.0, _sum[3] / 1048576.0])
 	quit(0 if ok else 1)
+
+
+func _orman_ek() -> bool:
+	var ok := true
+	for e: Array in preload("res://tools/orman_kinds.gd").CONVERT:
+		_tint = e[4]
+		_floor = e[5]
+		_sat = e[6] if e.size() > 6 else ORMAN_SATURATION
+		ok = _convert("%s%s/%s" % [preload("res://tools/orman_kinds.gd").DIR, e[0], e[1]], e[2], e[3]) and ok
+	_tint = Color.WHITE
+	_floor = false
+	_sat = ORMAN_SATURATION
+	return ok
 
 
 static func out_path(src: String) -> String:
@@ -341,6 +364,8 @@ func _sparse(arrays: Array, idx: PackedInt32Array, want: int) -> PackedInt32Arra
 		for t: int in tris:
 			out.append_array([idx[t], idx[t + 1], idx[t + 2]])
 	arrays[Mesh.ARRAY_VERTEX] = verts
+	if out.is_empty():
+		out = idx  # one big joined piece, and the dice dropped it: thinned below, not kept whole
 	if out.size() / 3 > want * 1.5:
 		# Cards joined into a few big pieces (the thorn tree's leaves along their twigs): thinned
 		# triangle by triangle then, each kept leaf a ragged triangle, PS1 enough.
@@ -492,7 +517,9 @@ func _material(m: Material, px: int) -> Material:
 			# only as you walked up. Each copy's tone in COLOR (build_world.gd _forest).
 			sm.set_shader_parameter("far_colour", Color(0, 0, 0, 0))
 			sm.set_shader_parameter("vertex_tint", true)
-			if b.resource_name != "Rocks":
+			if _tint != Color.WHITE:
+				sm.set_shader_parameter("tint", b.albedo_color * _tint)
+			if b.resource_name != "Rocks" and not _floor:
 				sm.set_shader_parameter("shade_below", ORMAN_SHADE)
 		if b.uv1_scale != Vector3.ONE or b.uv1_offset != Vector3.ZERO:
 			sm.set_shader_parameter("uv_scale", Vector2(b.uv1_scale.x, b.uv1_scale.y))
@@ -519,7 +546,7 @@ func _keyed_once(tex: Texture2D) -> Texture2D:
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
 		return null
-	var key := [tex, px, webp, _grade, _nature, _ground, _value, _orman]
+	var key := [tex, px, webp, _grade, _nature, _ground, _value, _orman, _sat]
 	if _texs.has(key):
 		return _texs[key]
 	var img: Image = tex.get_image().duplicate()
@@ -685,9 +712,9 @@ static func keyed(tex: Texture2D) -> Texture2D:
 
 
 ## `c` in the old wood's range (ORMAN_*).
-static func _old_wood(c: Color) -> Color:
+func _old_wood(c: Color) -> Color:
 	var grey := c.get_luminance()
-	var out := Color(grey, grey, grey).lerp(c, ORMAN_SATURATION)
+	var out := Color(grey, grey, grey).lerp(c, _sat)
 	out = out.lerp(ORMAN_DUST * (grey / maxf(ORMAN_DUST.get_luminance(), 0.02)), ORMAN_DUST_SHARE)
 	out = Color(pow(out.r, ORMAN_GAMMA), pow(out.g, ORMAN_GAMMA), pow(out.b, ORMAN_GAMMA)) * ORMAN_VALUE
 	out.a = c.a

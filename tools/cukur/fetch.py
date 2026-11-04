@@ -1,4 +1,4 @@
-# python -I fetch.py <indirme klasörü> ph:<id> pht:<id> acg:<id> sf:<uid> ...
+# python -I fetch.py <indirme klasörü> ph:<id> ph1:<id> pht:<id> acg:<id> sf:<uid> ...   (ph 2k, ph1 1k)
 # Sketchfab token'ı yalnız SKETCHFAB_API_TOKEN ortam değişkeninden okunur
 import json,os,sys,urllib.request,zipfile,io,re,subprocess
 sys.stdout.reconfigure(encoding="utf8",errors="replace")
@@ -12,9 +12,9 @@ for a in sys.argv[2:]:
     if os.path.isdir(out) and os.listdir(out): continue
     os.makedirs(out,exist_ok=True)
     try:
-        if kind=='ph':
+        if kind in('ph','ph1'):
             f=json.loads(get('https://api.polyhaven.com/files/'+i))
-            res='2k'
+            res='1k' if kind=='ph1' else '2k'
             g=f['gltf'][res]['gltf']
             for rel,v in g['include'].items():
                 p=os.path.join(out,rel); os.makedirs(os.path.dirname(p),exist_ok=True); open(p,'wb').write(get(v['url']))
