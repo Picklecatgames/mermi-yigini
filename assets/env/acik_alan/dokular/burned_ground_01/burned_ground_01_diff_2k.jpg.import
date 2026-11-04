@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cipk588bcagu8"
-path="res://.godot/imported/burned_ground_01_diff_2k.jpg-126e2114218bd21d2f23162af87388a4.ctex"
+path.s3tc="res://.godot/imported/burned_ground_01_diff_2k.jpg-126e2114218bd21d2f23162af87388a4.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/burned_ground_01/burned_ground_01_diff_2k.jpg"
-dest_files=["res://.godot/imported/burned_ground_01_diff_2k.jpg-126e2114218bd21d2f23162af87388a4.ctex"]
+dest_files=["res://.godot/imported/burned_ground_01_diff_2k.jpg-126e2114218bd21d2f23162af87388a4.s3tc.ctex"]
 
 [params]
 

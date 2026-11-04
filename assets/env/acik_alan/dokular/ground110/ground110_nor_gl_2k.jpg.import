@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d3k0nyti2arxf"
-path="res://.godot/imported/ground110_nor_gl_2k.jpg-db7792fbcf71f0dabc182c4170d876b0.ctex"
+path.s3tc="res://.godot/imported/ground110_nor_gl_2k.jpg-db7792fbcf71f0dabc182c4170d876b0.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/ground110/ground110_nor_gl_2k.jpg"
-dest_files=["res://.godot/imported/ground110_nor_gl_2k.jpg-db7792fbcf71f0dabc182c4170d876b0.ctex"]
+dest_files=["res://.godot/imported/ground110_nor_gl_2k.jpg-db7792fbcf71f0dabc182c4170d876b0.s3tc.ctex"]
 
 [params]
 

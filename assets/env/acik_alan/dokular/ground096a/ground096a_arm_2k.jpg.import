@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bsf075pwg58a1"
-path="res://.godot/imported/ground096a_arm_2k.jpg-13592174791ac06c36665079fc481cbd.ctex"
+path.s3tc="res://.godot/imported/ground096a_arm_2k.jpg-13592174791ac06c36665079fc481cbd.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/ground096a/ground096a_arm_2k.jpg"
-dest_files=["res://.godot/imported/ground096a_arm_2k.jpg-13592174791ac06c36665079fc481cbd.ctex"]
+dest_files=["res://.godot/imported/ground096a_arm_2k.jpg-13592174791ac06c36665079fc481cbd.s3tc.ctex"]
 
 [params]
 

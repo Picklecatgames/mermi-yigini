@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c5cdwhmd54p4v"
-path="res://.godot/imported/dry_ground_rocks_nor_gl_2k.jpg-d3c82a7d4f1b3604ca4cb035ddbb2629.ctex"
+path.s3tc="res://.godot/imported/dry_ground_rocks_nor_gl_2k.jpg-d3c82a7d4f1b3604ca4cb035ddbb2629.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/dry_ground_rocks/dry_ground_rocks_nor_gl_2k.jpg"
-dest_files=["res://.godot/imported/dry_ground_rocks_nor_gl_2k.jpg-d3c82a7d4f1b3604ca4cb035ddbb2629.ctex"]
+dest_files=["res://.godot/imported/dry_ground_rocks_nor_gl_2k.jpg-d3c82a7d4f1b3604ca4cb035ddbb2629.s3tc.ctex"]
 
 [params]
 

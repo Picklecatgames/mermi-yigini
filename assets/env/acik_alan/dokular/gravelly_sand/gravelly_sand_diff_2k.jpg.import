@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bknxx0c1oqded"
-path="res://.godot/imported/gravelly_sand_diff_2k.jpg-7a8786f4cff9cc8468a919c2843adfd4.ctex"
+path.s3tc="res://.godot/imported/gravelly_sand_diff_2k.jpg-7a8786f4cff9cc8468a919c2843adfd4.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/gravelly_sand/gravelly_sand_diff_2k.jpg"
-dest_files=["res://.godot/imported/gravelly_sand_diff_2k.jpg-7a8786f4cff9cc8468a919c2843adfd4.ctex"]
+dest_files=["res://.godot/imported/gravelly_sand_diff_2k.jpg-7a8786f4cff9cc8468a919c2843adfd4.s3tc.ctex"]
 
 [params]
 

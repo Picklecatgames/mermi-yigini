@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://vm3fnb3x6667"
-path="res://.godot/imported/burned_ground_01_nor_gl_2k.jpg-405856ecdbbb63e63c9e9ba52404f257.ctex"
+path.s3tc="res://.godot/imported/burned_ground_01_nor_gl_2k.jpg-405856ecdbbb63e63c9e9ba52404f257.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/burned_ground_01/burned_ground_01_nor_gl_2k.jpg"
-dest_files=["res://.godot/imported/burned_ground_01_nor_gl_2k.jpg-405856ecdbbb63e63c9e9ba52404f257.ctex"]
+dest_files=["res://.godot/imported/burned_ground_01_nor_gl_2k.jpg-405856ecdbbb63e63c9e9ba52404f257.s3tc.ctex"]
 
 [params]
 

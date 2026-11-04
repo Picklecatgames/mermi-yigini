@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cgh0h3d0wj0ic"
-path="res://.godot/imported/gravelly_sand_arm_2k.jpg-b19e75b7b7a7025d8ac677c835673d76.ctex"
+path.s3tc="res://.godot/imported/gravelly_sand_arm_2k.jpg-b19e75b7b7a7025d8ac677c835673d76.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/gravelly_sand/gravelly_sand_arm_2k.jpg"
-dest_files=["res://.godot/imported/gravelly_sand_arm_2k.jpg-b19e75b7b7a7025d8ac677c835673d76.ctex"]
+dest_files=["res://.godot/imported/gravelly_sand_arm_2k.jpg-b19e75b7b7a7025d8ac677c835673d76.s3tc.ctex"]
 
 [params]
 

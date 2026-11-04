@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://uyuq0nk7lu7c"
-path="res://.godot/imported/cracked_concrete_diff_2k.jpg-43ac1dfd0113ccd48cdc16170e4f5fad.ctex"
+path.s3tc="res://.godot/imported/cracked_concrete_diff_2k.jpg-43ac1dfd0113ccd48cdc16170e4f5fad.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/cracked_concrete/cracked_concrete_diff_2k.jpg"
-dest_files=["res://.godot/imported/cracked_concrete_diff_2k.jpg-43ac1dfd0113ccd48cdc16170e4f5fad.ctex"]
+dest_files=["res://.godot/imported/cracked_concrete_diff_2k.jpg-43ac1dfd0113ccd48cdc16170e4f5fad.s3tc.ctex"]
 
 [params]
 

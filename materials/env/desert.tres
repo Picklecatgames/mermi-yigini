@@ -1,10 +1,10 @@
 [gd_resource type="ShaderMaterial" format=3]
 
 [ext_resource type="Shader" path="res://materials/env/desert.gdshader" id="1_j1l0h"]
-[ext_resource type="Texture2D" path="res://assets/psx/tex/mud_cracked_dry_03.res" id="2_mfmef"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/mud_forest.res" id="2_mfmef"]
 [ext_resource type="Texture2D" path="res://assets/psx/tex/flat_arm.res" id="3_mwkuh"]
-[ext_resource type="Texture2D" path="res://assets/psx/tex/sandy_gravel_02.res" id="4_exqoi"]
-[ext_resource type="Texture2D" path="res://assets/psx/tex/gravelly_sand.res" id="5_rvt5t"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/forest_ground_04.res" id="4_exqoi"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/forest_leaves_04.res" id="5_rvt5t"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_jole3"]
 frequency = 0.02
@@ -31,5 +31,5 @@ shader_parameter/earth_size = null
 shader_parameter/gravel_size = null
 shader_parameter/pad = Vector4(-6, -14, 26, 14)
 shader_parameter/gravel_reach = null
-shader_parameter/sand_tint = Color(1, 0.94, 0.86, 1)
-shader_parameter/earth_tint = Color(0.95, 0.86, 0.76, 1)
+shader_parameter/sand_tint = Color(0.62, 0.68, 0.36, 1)
+shader_parameter/earth_tint = Color(1, 1, 0.7, 1)

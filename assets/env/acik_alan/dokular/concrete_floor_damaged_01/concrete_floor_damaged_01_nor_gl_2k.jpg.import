@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bsl35s5hcfiyn"
-path="res://.godot/imported/concrete_floor_damaged_01_nor_gl_2k.jpg-a64830683b61eec39aafff8371c5cde6.ctex"
+path.s3tc="res://.godot/imported/concrete_floor_damaged_01_nor_gl_2k.jpg-a64830683b61eec39aafff8371c5cde6.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/concrete_floor_damaged_01/concrete_floor_damaged_01_nor_gl_2k.jpg"
-dest_files=["res://.godot/imported/concrete_floor_damaged_01_nor_gl_2k.jpg-a64830683b61eec39aafff8371c5cde6.ctex"]
+dest_files=["res://.godot/imported/concrete_floor_damaged_01_nor_gl_2k.jpg-a64830683b61eec39aafff8371c5cde6.s3tc.ctex"]
 
 [params]
 

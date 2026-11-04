@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c8l5orv0q5ij5"
-path="res://.godot/imported/cracked_concrete_nor_gl_2k.jpg-94186ca4178a28d7ac802da7191b8cbb.ctex"
+path.s3tc="res://.godot/imported/cracked_concrete_nor_gl_2k.jpg-94186ca4178a28d7ac802da7191b8cbb.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/cracked_concrete/cracked_concrete_nor_gl_2k.jpg"
-dest_files=["res://.godot/imported/cracked_concrete_nor_gl_2k.jpg-94186ca4178a28d7ac802da7191b8cbb.ctex"]
+dest_files=["res://.godot/imported/cracked_concrete_nor_gl_2k.jpg-94186ca4178a28d7ac802da7191b8cbb.s3tc.ctex"]
 
 [params]
 

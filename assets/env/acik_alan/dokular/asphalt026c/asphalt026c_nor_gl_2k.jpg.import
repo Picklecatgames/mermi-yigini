@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d2xfgf27xsqio"
-path="res://.godot/imported/asphalt026c_nor_gl_2k.jpg-4c57ab9670f1bf5e763cc1c2aecd89cd.ctex"
+path.s3tc="res://.godot/imported/asphalt026c_nor_gl_2k.jpg-4c57ab9670f1bf5e763cc1c2aecd89cd.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/asphalt026c/asphalt026c_nor_gl_2k.jpg"
-dest_files=["res://.godot/imported/asphalt026c_nor_gl_2k.jpg-4c57ab9670f1bf5e763cc1c2aecd89cd.ctex"]
+dest_files=["res://.godot/imported/asphalt026c_nor_gl_2k.jpg-4c57ab9670f1bf5e763cc1c2aecd89cd.s3tc.ctex"]
 
 [params]
 

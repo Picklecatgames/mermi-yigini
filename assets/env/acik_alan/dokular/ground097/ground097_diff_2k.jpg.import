@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://nsd7e6nytsif"
-path="res://.godot/imported/ground097_diff_2k.jpg-3ca8f0b0ff51898afdf996ced764033a.ctex"
+path.s3tc="res://.godot/imported/ground097_diff_2k.jpg-3ca8f0b0ff51898afdf996ced764033a.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/ground097/ground097_diff_2k.jpg"
-dest_files=["res://.godot/imported/ground097_diff_2k.jpg-3ca8f0b0ff51898afdf996ced764033a.ctex"]
+dest_files=["res://.godot/imported/ground097_diff_2k.jpg-3ca8f0b0ff51898afdf996ced764033a.s3tc.ctex"]
 
 [params]
 

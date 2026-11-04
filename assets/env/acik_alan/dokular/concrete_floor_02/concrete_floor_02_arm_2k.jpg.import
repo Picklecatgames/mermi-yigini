@@ -3,15 +3,16 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b80lgem5yq00i"
-path="res://.godot/imported/concrete_floor_02_arm_2k.jpg-4a51a98daeacfd40b47dbfedd8f1bcd3.ctex"
+path.s3tc="res://.godot/imported/concrete_floor_02_arm_2k.jpg-4a51a98daeacfd40b47dbfedd8f1bcd3.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/env/acik_alan/dokular/concrete_floor_02/concrete_floor_02_arm_2k.jpg"
-dest_files=["res://.godot/imported/concrete_floor_02_arm_2k.jpg-4a51a98daeacfd40b47dbfedd8f1bcd3.ctex"]
+dest_files=["res://.godot/imported/concrete_floor_02_arm_2k.jpg-4a51a98daeacfd40b47dbfedd8f1bcd3.s3tc.ctex"]
 
 [params]
 

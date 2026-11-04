@@ -85,6 +85,16 @@ const NATURE := [
 ## NATURE_SATURATION, then NATURE_DUST of the way to the dust (build_world.gd's fog by day), so the
 ## green of the leaves goes olive-grey and the red rock dull, all of one desert.
 const NATURE_SATURATION := 0.5
+## The old, half-dead wood (2026-11-04, the user: not a desert, an old slightly dead forest, these
+## models): [file, triangles, texture px]. The pack's trees are 40-340 triangles already and share
+## one atlas, so it keeps its triangles and gets a bigger texture; the two scans come down to a
+## PS1 tree. Their colours: less of a pull towards the dust than the desert's, an olive one.
+const ORMAN := [["res://assets/env/orman/forest_pack.glb", 4000, 512], ["res://assets/env/orman/cypress.glb", 1800, 128], ["res://assets/env/orman/cherry.glb", 2200, 128]]
+const ORMAN_GROUND := ["forest_leaves_04", "mud_forest", "forest_ground_04"]  # the wood's floor, 128 px like the rest of the ground
+const ORMAN_SATURATION := 1.05
+const ORMAN_DUST := Color(0.36, 0.36, 0.2)
+const ORMAN_DUST_SHARE := 0.05
+const ORMAN_ROCK := Color(0.5, 0.52, 0.42)  # the pack's pale stones stood out of the floor white
 const NATURE_DUST := Color(0.5, 0.42, 0.31)
 const NATURE_DUST_SHARE := 0.22
 
@@ -96,6 +106,7 @@ var _rust_share := 0.0
 var _grade := false  # scrap: textures into the rust range (GRADE_*)
 var _nature := false  # trees and rocks: leaves cut out, textures into the desert's range (NATURE_*)
 var _ground := false  # the ground's textures: the desert's range, GROUND_*
+var _orman := false  # nature, in the old wood's colours (ORMAN_*)
 var _value := 1.0  # nature: the entry's darkening (NATURE's fourth number)
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
@@ -137,6 +148,15 @@ func _init() -> void:
 			_value = e[3] if e.size() > 3 else 1.0
 			ok = _convert(NAMA % [e[0], e[0]], e[1], e[2]) and ok
 		_value = 1.0
+		_nature = false
+	if all or "orman" in args:
+		_nature = true
+		_orman = true
+		for id: String in ORMAN_GROUND:
+			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128, false), TEX_OUT % id) == OK and ok
+		for e: Array in ORMAN:
+			ok = _convert(e[0], e[1], e[2]) and ok
+		_orman = false
 		_nature = false
 	if all or "hurda" in args:
 		_far = HURDA_FAR
@@ -447,7 +467,7 @@ func _material(m: Material, px: int) -> Material:
 			if _nature and b.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 				tex = _keyed_once(tex)
 			sm.set_shader_parameter("albedo_tex", _small(tex, px))
-		sm.set_shader_parameter("tint", _graded(b.albedo_color) if _grade else b.albedo_color)
+		sm.set_shader_parameter("tint", _graded(b.albedo_color) if _grade else (b.albedo_color * ORMAN_ROCK if _orman and b.resource_name == "Rocks" else b.albedo_color))
 		var avg: Color = _avg.get(sm.get_shader_parameter("albedo_tex"), Color.WHITE) * b.albedo_color
 		avg = avg.lerp(HURDA_RUST, _rust_share)
 		avg.a = 1.0
@@ -478,7 +498,7 @@ func _keyed_once(tex: Texture2D) -> Texture2D:
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
 		return null
-	var key := [tex, px, webp, _grade, _nature, _ground, _value]
+	var key := [tex, px, webp, _grade, _nature, _ground, _value, _orman]
 	if _texs.has(key):
 		return _texs[key]
 	var img: Image = tex.get_image().duplicate()
@@ -494,7 +514,7 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 		for y in img.get_height():
 			for x in img.get_width():
 				var c := img.get_pixel(x, y)
-				img.set_pixel(x, y, _graded(c, true) if _grade else (_desert(c, GROUND_SATURATION, GROUND_VALUE) if _ground else _desert(c, NATURE_SATURATION, _value)))
+				img.set_pixel(x, y, _graded(c, true) if _grade else (_old_wood(c) if _orman else (_desert(c, GROUND_SATURATION, GROUND_VALUE) if _ground else _desert(c, NATURE_SATURATION, _value))))
 	img.generate_mipmaps()
 	var last := img.duplicate() as Image
 	last.resize(1, 1, Image.INTERPOLATE_BILINEAR)
@@ -617,6 +637,15 @@ static func keyed(tex: Texture2D) -> Texture2D:
 			img.set_pixel(x, y, c)
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
+
+
+## `c` in the old wood's range (ORMAN_*).
+static func _old_wood(c: Color) -> Color:
+	var grey := c.get_luminance()
+	var out := Color(grey, grey, grey).lerp(c, ORMAN_SATURATION)
+	out = out.lerp(ORMAN_DUST * (grey / maxf(ORMAN_DUST.get_luminance(), 0.02)), ORMAN_DUST_SHARE)
+	out.a = c.a
+	return out
 
 
 ## `c` in the desert's range (NATURE_*).
