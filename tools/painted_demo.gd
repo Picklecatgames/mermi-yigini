@@ -8,7 +8,9 @@ extends SceneTree
 ## apart (LOOK).
 ##   Godot.exe --path . -s res://tools/painted_demo.gd     WASD, mouse, Shift fast
 ##   ... -- --shot                                           user://painted_demo_<n>.png, quits
-## Keys: G the look on and off, H the head of the zombie nearest the view's middle, R up again. Esc quits.
+## G swaps between that and the PS1 look of tools/ps1_demo.gd and the game (its textures, its dark, its
+## screen), same room, same bodies, same place, to compare (2026-11-04, the user asked for it).
+## Keys: G the look, H the head of the zombie nearest the view's middle, R up again. Esc quits.
 
 const DEMO := preload("res://tools/ps1_demo.gd")
 const ZOMBIE_BODY := preload("res://scripts/zombie_body.gd")
@@ -87,6 +89,9 @@ var _cam: Camera3D
 var _rect := ColorRect.new()
 var _label := Label.new()
 var _on := true
+var _env: Environment
+var _key: DirectionalLight3D
+var _lamp := OmniLight3D.new()  # only in the PS1 look
 var _painted := {}  # the source texture -> its painted copy
 var _mats: Array[ShaderMaterial] = []  # every material painted, with its source in meta "source"
 var _queue: Array[ShaderMaterial] = []
@@ -96,6 +101,7 @@ var _painting := false
 func _initialize() -> void:
 	root.add_child(_world)
 	var env := Environment.new()
+	_env = env
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.03, 0.03, 0.035)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -109,6 +115,14 @@ func _initialize() -> void:
 	key.light_color = Color(1.0, 0.93, 0.82)
 	key.light_energy = 0.55
 	_world.add_child(key)
+	_key = key
+	_lamp.position = Vector3(0.4, 2.6, -1.2)
+	_lamp.light_color = Color(1.0, 0.58, 0.3)
+	_lamp.light_energy = 2.0
+	_lamp.omni_range = 8.0
+	_lamp.omni_attenuation = 1.6
+	_lamp.shadow_enabled = true
+	_world.add_child(_lamp)
 	_room()
 	_stand_up()
 	_cam = DEMO.FlyCam.new()
@@ -147,11 +161,13 @@ func _run() -> void:
 		var views := [[Vector3(-1.2, 1.5, 0.15), Vector3(-1.5, 1.35, -1.5)], [Vector3(0.2, 1.6, 2.4), Vector3(0.0, 1.2, -1.5)]]
 		for n in views.size():
 			_cam.look_at_from_position(views[n][0], views[n][1])
-			for i in 40:
-				await process_frame
-			var file := "user://painted_demo_%d.png" % n
-			root.get_viewport().get_texture().get_image().save_png(file)
-			print(ProjectSettings.globalize_path(file))
+			for on: bool in [true, false]:
+				_look(on)
+				for i in 40:
+					await process_frame
+				var file := "user://painted_demo_%d_%s.png" % [n, "boyali" if on else "ps1"]
+				root.get_viewport().get_texture().get_image().save_png(file)
+				print(ProjectSettings.globalize_path(file))
 		quit()
 		return
 	_cam.on_key = func(k: Key) -> void:
@@ -166,14 +182,24 @@ func _run() -> void:
 func _look(on: bool) -> void:
 	_on = on
 	var psx: Node = root.get_node("PsxScreen")
-	psx.apply(480 if on else 0, false)
-	psx._rect.material.set_shader_parameter(&"psx_dither", DITHER)
-	psx._rect.material.set_shader_parameter(&"psx_grade", 0.0)
+	psx.apply(480, not on)  # PS1: drawn twice as fine and averaged, as the game does
+	psx._rect.material.set_shader_parameter(&"psx_dither", DITHER if on else 0.0)
+	psx._rect.material.set_shader_parameter(&"psx_grade", 0.0 if on else 1.0)
 	_rect.visible = on
+	_env.ambient_light_color = Color(1.0, 0.97, 0.92) if on else Color(0.2, 0.24, 0.32)
+	_env.ambient_light_energy = 0.8 if on else 0.3
+	_env.fog_enabled = not on
+	_env.fog_light_color = Color(0.03, 0.035, 0.05)
+	_env.fog_density = 0.07
+	_key.light_color = Color(1.0, 0.93, 0.82) if on else Color(0.5, 0.6, 0.8)
+	_key.light_energy = 0.55 if on else 0.22
+	_lamp.visible = not on
 	for m in _mats:
 		var source: Texture2D = m.get_meta(&"source")
 		m.set_shader_parameter(&"albedo_tex", _painted.get(source, source) if on else source)
-	_label.text = "G Tarz   H Kafa   R Yeniden      %s" % ("Açık" if on else "Kapalı")
+		if m.has_meta(&"tint"):
+			m.set_shader_parameter(&"tint", m.get_meta(&"tint") if on else Color.WHITE)
+	_label.text = "G Değiştir   H Kafa   R Yeniden      Şimdi: %s" % ("BOYALI" if on else "PS1")
 
 
 func _pop() -> void:
@@ -287,6 +313,7 @@ func _plane(tex: String, size: Vector2, at: Vector3, rot: Vector3, tint: Color) 
 	m.set_shader_parameter(&"uv_scale", size * TEXELS / 128.0)
 	m.set_shader_parameter(&"snap", 0.0)
 	m.set_shader_parameter(&"tint", tint)
+	m.set_meta(&"tint", tint)
 	mi.material_override = m
 	_paint(m)
 	_world.add_child(mi)
