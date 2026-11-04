@@ -106,7 +106,7 @@ Burası bizim için en önemli kısım. Hepsi düşmansız yapılıyor.
 | Para | Kişisel oyun, tek kasa | Kasa yüzde yüz ortak (kullanıcı) |
 | Tehdit | Yok, yalnız bomba ve otorite | Gece dalgaları, çok daha güçlü bir kaynak |
 | Süre | Sınırsız | Gece-gündüz saati, bu baskıyı zaten veriyor |
-| Uzunluk | 1,5-4 saat | Kullanıcı: 5-6 saat (bkz. Ek); `CLAUDE.md` demo ~1 saat |
+| Uzunluk | 1,5-4 saat | Tam oyun 5-6 saat, demo ~1 saat (bkz. Ek) |
 
 ## Önerilerim (benim önerim, kural değil)
 
@@ -147,7 +147,7 @@ Burası bizim için en önemli kısım. Hepsi düşmansız yapılıyor.
 
 ### Almayalım
 
-- İlk 45 dakikalık eziyet: 5-6 saatlik oyunda bile çok; 10-15 dakikaya insin.
+- İlk 45 dakikalık eziyet: tam oyunda 10-15 dakikaya, demoda 3-5 dakikaya insin.
 - Bir tek sesin zorla dinletilmesi (köpek) ve kapatılamayan mektup.
 - Her patatesi fizikte tutmak: FPS 30'a düştü; kuralımız zaten MultiMesh ve simülasyon.
 - Yalnız hızı artıran son basamaklar: yayıncı orada yapacak iş kalmadığını, beklediğini söylüyor [yazı 3:45].
@@ -159,9 +159,9 @@ Burası bizim için en önemli kısım. Hepsi düşmansız yapılıyor.
 
 "Dağı da o oyundaki gibi tek dağ yapmak istiyorum. Süre, oyun süresi 5-6 saat olsun."
 
-Bu söz iki eski yazıyla çelişiyor, kararı kullanıcı verir (Sorular 8, 9):
-- `docs/ayrintilar.md`: tek ana dağın çevresinde minik dağcıklar, gökyüzüne değen dağlar (2026-11-03).
-- `CLAUDE.md`: ~1 saatlik ücretsiz demo.
+Netleşti (oturum arası ileti, 2026-11-05): 5-6 saat tam oyunun süresi, demo ~1 saat kalıyor.
+
+Dağ sözü eski bir yazıyla çelişiyor, kararı kullanıcı verir (Sorular 8): `docs/ayrintilar.md`: tek ana dağın çevresinde minik dağcıklar, gökyüzüne değen dağlar (2026-11-03).
 
 ### Videodaki dağ: gördüklerim
 
@@ -215,7 +215,7 @@ Baktığım karelerde çekim fiziksel görünüyor: halat ve kol dağa kadar uza
 
 Yani yaklaşık 360 kat hız farkı. İlk 2 saatte dağ azalmıyor gibi; son 16 dakikada kotanın yarısı gidiyor. Bu fark oyunun asıl ödülü gibi duruyor (benim yorumum).
 
-### Önerim: 5-6 saatlik oyun (benim önerim, kural değil)
+### Önerim: tam oyun, 5-6 saat (benim önerim, kural değil)
 
 Bütün sayılar kaba tahminim. Oyunda ölçülmedi, bizim parça alma hızımızı da ölçmedim. Kod değiştirmedim.
 
@@ -253,7 +253,48 @@ Bu dağın hacmi yaklaşık 60.000 m³ (koni), bir sayı ≈ 0,35 m³. `docs/ayr
 
 Videoda ilk makine sürenin yaklaşık %50'sinde, otomatik makine %68'inde açılıyor. Bizde daha erken (%20, %45): aynı oran 5,5 saatte 2,5 saat yalnız el demek, yayıncı ilk saatte bile yoruldu. Bizde el işini gece silahla bölüyor; yine de oynayıp görmeden kesinleştirmem.
 
-**Dağ ve gece:** vinç dağın yanında kalır, üsten uzak; gece savunması ayrı bir iş olur ve gerilim doğurur. Dağ çevresinden gelen dalgayla iyi birleşir. Demo için: 5,5 saatlik oyunda demo ilk 3-4 gece (~1-1,5 saat) ve 5. gece boss'unun önünde bitebilir (Sorular 9).
+**Dağ ve gece:** vinç dağın yanında kalır, üsten uzak; gece savunması ayrı bir iş olur ve gerilim doğurur. Dağ çevresinden gelen dalgayla iyi birleşir.
+
+### Önerim: demo, ~1 saat (benim önerim, kural değil)
+
+Tam oyunun ilk saatini kesmek işe yaramaz: 24 dakikalık günle 2,5 gece eder, taret ve makine hiç görünmez. Demo aynı dünyanın **sıkıştırılmış** hâli olsun. Sayılar tam oyundaki gibi kaba tahmin.
+
+| | Tam oyun | Demo |
+|---|---|---|
+| Süre | 5-6 saat | ~1 saat |
+| Dağ biçimi | Tek dağ, ~40 m | Aynı dağ |
+| `PILE_START` (4 oyuncu) | ~170.000 | ~40.000 |
+| Sonda giden | Hepsi | ~18.000, görünür şekilde yarıya yakın |
+| Gün (`DAY_SECONDS`) | 1440 sn (24 dk) | 720 sn (12 dk) |
+| Gece | ~14 | 5 |
+| Boss | 5., 10. gece | 5. gece, demoyu bitirir |
+| Başlangıç eziyeti | 10-15 dk | 3-5 dk |
+| Basamak | Hepsi | Merdivenin bir kesiti |
+
+**Dağ:** aynı model; yalnız sayı küçük, bir sayı ≈ 1,5 m³ (60.000 / 40.000). Böylece oyuncu demoda da videonun asıl ödülünü, dağın gözle görülür erimesini yaşar. Demo dağı bitirmez; son gece boss gelir, dağ yarım kalır.
+
+**Hız:**
+
+| Süre | Dönem | Hız/dk | Giden |
+|---|---|---|---|
+| 0-15 dk | El, torba | 30 | ~450 |
+| 15-30 dk | Araba, kollu sökücü | 100 | ~1.500 |
+| 30-45 dk | Motorlu makine, kısa hat | 300 | ~4.500 |
+| 45-60 dk | Pençeli vinç | 800 | ~12.000 |
+
+**Açılış:**
+
+| Gece (dakika) | Açılan |
+|---|---|
+| 1 (0-12) | Yalnız el ve torba, ilk silah |
+| 2 (12-24) | El arabası, kollu sökücü, kasa |
+| 3 (24-36) | Motorlu makine, ilk sabit taret |
+| 4 (36-48) | Kısa hat, ikinci taret |
+| 5, boss (48-60) | Pençeli vinç: öncesinde kurulur, boss gecesi dağın yanında kalır |
+
+**Demoda olmayanlar:** teleferik, vinç otopilotu, hız aşırtma, ikinci boss. Tam oyunda bunlar açılır, katalogda kilitli satır olarak görünmeleri (videodaki gibi) merak bırakır.
+
+**Teknik not:** `DAY_SECONDS` ve `PILE_START` bugün sabit (`const`). İki süre için oyun başında seçilen tek bir mod ayarına bağlanmalı; ağda host belirler, kontroller iki modda da koşar. Demo kaydının tam oyuna geçip geçmeyeceği açık (Sorular 9).
 
 ## Kullanıcıya sorular
 
@@ -265,5 +306,5 @@ Videoda ilk makine sürenin yaklaşık %50'sinde, otomatik makine %68'inde açı
 6. Karakterin bedeninin engel olması (öksürük, soğuk, yavaşlama) bizde de olsun mu, ne kadar?
 7. Mektuplar, kısa bildiriler, sonu değiştiren kararlar gibi bir hikaye katmanı demoda istiyor musun?
 8. Tek dağ: videodaki gibi kapıdan tamamı görünen ~40 m'lik bir kütle mi, yoksa bugünkü 74 m gibi gökyüzüne değen ama tek bir dağ mı? Çevredeki minik dağcıklar tamamen gidiyor mu?
-9. 5-6 saat oyunun tamamı mı? Öyleyse ücretsiz Steam demosu bunun ilk 1-1,5 saati mi, yoksa demo fikri değişti mi?
+9. Demo kaydı tam oyuna geçsin mi? Demo dağı ve günü farklı olduğu için önerim geçmemesi.
 10. Dağ bitince oyun bitsin mi (videoda öyle), yoksa son gece mi belirlesin?
