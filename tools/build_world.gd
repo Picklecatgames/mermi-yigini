@@ -290,11 +290,9 @@ func _wasteland() -> void:
 	# The clearing's floor: ferns and shrubs, fallen logs, stones (the pack); a tree only here and there.
 	var wood := _wood()
 	for p: Vector3 in spots.call(10, 12.0, 26.0, false, 8.0):
-		_wood_tree(root, wood.close[_weighted(rng, wood.close)], p, rng)
-	for p: Vector3 in spots.call(120, 3.0, 120.0, true, 2.5):
-		_wood_low(wood.under[rng.randi() % wood.under.size()], p, rng, Vector2(0.5, 0.9))
-	for p: Vector3 in spots.call(50, 3.0, 60.0, true, 2.0):
-		_wood_low(wood.rocks[rng.randi() % wood.rocks.size()], p, rng, Vector2(0.8, 2.2))
+		_wood_tree(root, _pick_tree(rng, wood.close, Vector2(p.x, p.z)), p, rng)
+	# Nothing strewn one by one over the open ground (2026-11-04, the user: "the stones look like
+	# shards, as if a few were sprinkled"): what lies about lies in the scenes of _wood_floor.
 	for p: Vector3 in spots.call(3, 14.0, 60.0, false, 12.0):
 		_prop(root, MODELS + "covered_car/covered_car_1k.gltf", p, rng.randf() * TAU, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.05, 0.05)))
 	for p: Vector3 in spots.call(10, 3.0, 50.0, true, 3.0):
@@ -344,6 +342,12 @@ const WOOD_TREES := [
 	[WOOD_CHERRY, [], 0.05, Vector2(2.2, 3.4), 0.2],
 ]
 var _wood_kinds := {}
+const ORMAN_KINDS := preload("res://tools/orman_kinds.gd")
+## Two trees of one silhouette stand at least this far apart wherever the kinds allow it (2026-11-04,
+## the user: "I don't want to see two alike side by side"; m, my guess). With thirty-odd families and
+## a tree every 2-3.6 m a circle this wide holds about as many trees as there are kinds.
+const WOOD_APART := 10.0
+var _tree_fams := {}  # Vector2i (16 m cell) -> Array of [Vector2, family]: the trees so far
 
 
 const WOOD_NEAR_EDGE := 14.0  # m in from the clearing's edge: only trees with real branches, where players walk up to them;
@@ -352,7 +356,7 @@ const WOOD_NEAR_EDGE := 14.0  # m in from the clearing's edge: only trees with r
 
 ## One kind: [[mesh, its transform], ...] standing on its origin: over its trunk if it has one
 ## (a crown is lopsided), else over the middle of its box.
-func _wood_kind(file: String, names: Array) -> Array:
+func _wood_kind(file: String, names: Array, low_foot := false) -> Array:
 	var scene: Node = (load(file) as PackedScene).instantiate()
 	var parts := []
 	var box := AABB()
@@ -373,28 +377,140 @@ func _wood_kind(file: String, names: Array) -> Array:
 		elif not trunk:
 			box = b if parts.size() == 1 else box.merge(b)
 	scene.free()
-	var foot := Vector3(box.get_center().x, box.position.y, box.get_center().z)
+	var foot := _lowest_middle(parts) if low_foot and not trunk else Vector3(box.get_center().x, box.position.y, box.get_center().z)
 	for part: Array in parts:
 		part[1] = Transform3D(Basis(), -foot) * part[1]
 	return parts
+
+
+## The middle of a kind's lowest corners: where a leaning dead tree really meets the ground.
+func _lowest_middle(parts: Array) -> Vector3:
+	var pts := PackedVector3Array()
+	var low := INF
+	var high := -INF
+	for part: Array in parts:
+		var m: Mesh = part[0]
+		for s in m.get_surface_count():
+			for v: Vector3 in m.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]:
+				var w: Vector3 = part[1] * v
+				pts.append(w)
+				low = minf(low, w.y)
+				high = maxf(high, w.y)
+	var sum := Vector2.ZERO
+	var n := 0
+	for w: Vector3 in pts:
+		if w.y <= low + (high - low) * 0.05:
+			sum += Vector2(w.x, w.z)
+			n += 1
+	return Vector3(sum.x / n, low, sum.y / n)
+
+
+func _parts_box(parts: Array) -> AABB:
+	var box := AABB()
+	for i in parts.size():
+		var b: AABB = parts[i][1] * (parts[i][0] as Mesh).get_aabb()
+		box = b if i == 0 else box.merge(b)
+	return box
 
 
 func _wood() -> Dictionary:
 	if _wood_kinds.is_empty():
 		var trees := []
 		var close := []
+		var fams := {}
 		for k: Array in WOOD_TREES:
-			trees.append([_wood_kind(k[0], k[1]), k[2], k[3], k[4]])
+			var parts := _wood_kind(k[0], k[1])
+			trees.append([parts, k[2], k[3], k[4], _family(parts, k[1][0] if not k[1].is_empty() else k[0], fams)])
 			if k[1].is_empty() or not String(k[1][0]).begins_with("Background"):
-				close.append([trees[-1][0], k[2] / 0.34, k[3], k[4]])  # shares that add up to about 1 again
+				close.append(trees[-1])
+		for k: Array in ORMAN_KINDS.TREES:
+			var parts := _wood_kind(ORMAN_KINDS.scene(k[0]), k[1], true)
+			var tall := _parts_box(parts).size.y
+			var mid: float = (k[4].x + k[4].y) * 0.5 / tall
+			trees.append([parts, k[3], k[4] / tall, k[5] / mid, _family(parts, k[2], fams)])
+			if k[6]:
+				close.append(trees[-1])
 		var under := []
-		for n in ["_009", "_010", "_011", "_012"]:
+		for n in ["_010"]:  # the rest are a fir and flat discs on crossed cards
 			under.append(_wood_kind(WOOD_PACK, [AT % n]))
 		var rocks := []
 		for n in ["", "_001", "_002", "_003", "_004", "_005", "_006", "_007", "_008"]:
 			rocks.append(_wood_kind(WOOD_PACK, ["Rocks%s_Rocks_0" % n]))
-		_wood_kinds = {"trees": trees, "close": close, "under": under, "rocks": rocks}
+		var floor_things := {}
+		for g: String in ORMAN_KINDS.FLOOR:
+			floor_things[g] = []
+			for k: Array in ORMAN_KINDS.FLOOR[g]:
+				var parts := _wood_kind(ORMAN_KINDS.scene(k[0]), k[1])
+				var size := _parts_box(parts).size
+				floor_things[g].append([parts, k[2] / maxf(size.x, maxf(size.y, size.z)), size])
+		floor_things.green.append_array(_old_floor(under))
+		_wood_kinds = {"trees": _normal_shares(trees), "close": _normal_shares(close), "under": under, "rocks": rocks, "floor": floor_things}
 	return _wood_kinds
+
+
+## A kind's family: any kind it shares a mesh with (the bare trunks and the same trunks with branches,
+## the pack's crowns that are one mesh under several node names) is one silhouette, one family.
+func _family(parts: Array, own: String, fams: Dictionary) -> String:
+	var family := own
+	for part: Array in parts:
+		family = fams.get(part[0], family)
+	for part: Array in parts:
+		fams[part[0]] = family
+	return family
+
+
+## The pack's rocks and low green in the floor's form, at their own sizes (their units are metres).
+func _old_floor(kinds: Array) -> Array:
+	var out := []
+	for parts: Array in kinds:
+		var size := _parts_box(parts).size
+		out.append([parts, Vector2(0.5, 1.0), size])
+	return out
+
+
+## The same kinds with their shares adding up to 1: _weighted counts on that.
+func _normal_shares(kinds: Array) -> Array:
+	var sum := 0.0
+	for k: Array in kinds:
+		sum += k[1]
+	var out := []
+	for k: Array in kinds:
+		var c: Array = k.duplicate()
+		c[1] = k[1] / sum
+		out.append(c)
+	return out
+
+
+## A kind for a tree at `p`, of a family none of the trees within WOOD_APART has; by share among
+## those; if every family is that close already, the one whose nearest tree is the furthest off.
+## Remembered, so the next tree sees it.
+func _pick_tree(rng: RandomNumberGenerator, kinds: Array, p: Vector2) -> Array:
+	var cell := Vector2i(floori(p.x / 16.0), floori(p.y / 16.0))
+	var nearest := {}
+	for i in range(-1, 2):
+		for j in range(-1, 2):
+			for o: Array in _tree_fams.get(cell + Vector2i(i, j), []):
+				var d: float = (o[0] as Vector2).distance_to(p)
+				if d < nearest.get(o[1], INF):
+					nearest[o[1]] = d
+	var free := []
+	var furthest: Array = kinds[0]
+	var best := -1.0
+	for k: Array in kinds:
+		var d: float = nearest.get(k[4], INF)
+		if d >= WOOD_APART:
+			free.append(k)
+		if d > best:
+			best = d
+			furthest = k
+	var kind: Array = furthest
+	if not free.is_empty():
+		var shares := _normal_shares(free)
+		kind = shares[_weighted(rng, shares)]
+	if not _tree_fams.has(cell):
+		_tree_fams[cell] = []
+	_tree_fams[cell].append([p, kind[4]])
+	return kind
 
 
 ## A tree of the clearing, its post round the trunk.
@@ -478,11 +594,11 @@ func _forest() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 97
 	var wood := _wood()
-	var chunks := {}  # Vector2i -> Mesh -> [flat transforms, low on the floor, tones]
+	var chunks := {}  # Vector3i (x, z, chunk size) -> Mesh -> [flat transforms, low on the floor, tones]
 	var stood := {}  # Vector2i (16 m cell) -> Array[Vector2], the trees so far
-	var plant := func(parts: Array, xf: Transform3D, low: bool) -> void:
+	var plant := func(parts: Array, xf: Transform3D, low: bool, chunk := FOREST_CHUNK) -> void:
 		var tone := _wood_tone(Vector2(xf.origin.x, xf.origin.z), rng)
-		var key := Vector2i(floori(xf.origin.x / FOREST_CHUNK), floori(xf.origin.z / FOREST_CHUNK))
+		var key := Vector3i(floori(xf.origin.x / chunk), floori(xf.origin.z / chunk), int(chunk))
 		if not chunks.has(key):
 			chunks[key] = {}
 		for part: Array in parts:
@@ -522,10 +638,14 @@ func _forest() -> void:
 			stood[cell] = []
 		stood[cell].append(p)
 		var kinds: Array = wood.close if _out_of_clearing(p) < WOOD_NEAR_EDGE else wood.trees
-		var kind: Array = kinds[_weighted(rng, kinds)]
+		var kind: Array = _pick_tree(rng, kinds, p)
 		var sc: float = rng.randf_range(kind[2].x, kind[2].y)
 		var at := Vector3(p.x, _ground_y(p.x, p.y, _desert_noise) - 0.08, p.y)
-		plant.call(kind[0], Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), at), false)
+		# No two standing quite alike even of one kind: a little lean, a little thinner or fatter.
+		var lean_to := rng.randf() * TAU
+		var lean := Basis(Vector3(cos(lean_to), 0.0, sin(lean_to)), deg_to_rad(rng.randf_range(0.0, WOOD_LEAN)))
+		var girth := rng.randf_range(0.88, 1.12)
+		plant.call(kind[0], Transform3D(lean * Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * girth, sc, sc * girth)), at), false)
 		count += 1
 		var cs := CollisionShape3D.new()
 		var cyl := CylinderShape3D.new()
@@ -535,25 +655,36 @@ func _forest() -> void:
 		cs.position = at + Vector3(0, 1.2, 0)
 		add(cs, trunks)
 		# The floor between them: ferns, shrubs, a stone.
-		if rng.randf() < 0.55:
+		if rng.randf() < 0.25:
 			var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.8, 2.5)
 			var b := at + Vector3(off.x, 0, off.y)
 			if _past_rim(b.x, b.z, _desert_noise) == 0.0:
 				b.y = _ground_y(b.x, b.z, _desert_noise) - 0.04
-				var stone := rng.randf() < 0.2
-				var parts: Array = wood.rocks[rng.randi() % wood.rocks.size()] if stone else wood.under[rng.randi() % wood.under.size()]
+				var parts: Array = wood.under[rng.randi() % wood.under.size()]
 				plant.call(parts, Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.5, 1.0)), b), true)
 	for thing: Array in _floor_things:
 		plant.call(thing[0], thing[1], true)
+	_wood_floor(plant, rng)
 	# No distance limits at all (2026-11-04, the user: "they load in as you get closer, very
 	# annoying"): a range counts from a chunk's middle, so 40 m of ferns and trees came on at once.
 	# The fog hides the far ones, and they're a few hundred triangles each.
 	var groups := []
-	for key: Vector2i in chunks:
+	for key: Vector3i in chunks:
 		for m: Mesh in chunks[key]:
 			var e: Array = chunks[key][m]
 			groups.append([m, null, 0.0, 0.0, not e[1], e[0], e[2]])
 	root.set("groups", groups)
+	# Where each family's trees stand, for tools/wood_mix_check.gd: a copy's mesh box says little about
+	# where its foot is (a lopsided crown).
+	var stands := {}
+	for cell: Vector2i in _tree_fams:
+		for o: Array in _tree_fams[cell]:
+			if not stands.has(o[1]):
+				stands[o[1]] = PackedVector2Array()
+			var at: PackedVector2Array = stands[o[1]]
+			at.append(o[0])
+			stands[o[1]] = at
+	root.set_meta("tree_families", stands)
 	print("forest: ", count, " trees in ", chunks.size(), " chunks")
 	_veils(root)
 	# The wood's inner edge, every 30 degrees round the pad: where the dead can step out.
@@ -569,6 +700,106 @@ func _forest() -> void:
 		m.position = Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y)
 		add(m, root)
 		m.add_to_group("forest_edge", true)
+
+
+## What a wood's floor has on it (2026-11-04, the user: "too sterile; rocks, rubbish, bones, things
+## you'd find in a wood"), never spread evenly: little scenes, each round its own spot: a boulder
+## with stones and ferns at its foot, a fallen log with twigs and mushrooms, a dead thing's bones, a
+## spot someone dumped rubbish. Between them patches of bare floor, by a low noise. No collision.
+## [name, how often, radius m, [[group, least, most], ...]]; every number here is my guess, no rule.
+const FLOOR_SCENES := [
+	["rocks", 0.13, 2.2, [["boulder", 1, 2], ["rock", 3, 5], ["stone", 4, 8], ["green", 2, 4], ["moss", 2, 4], ["twig", 1, 2]]],
+	["scree", 0.1, 2.2, [["rock", 2, 4], ["stone", 8, 14], ["moss", 1, 3], ["green", 1, 2], ["twig", 1, 2]]],
+	["deadfall", 0.13, 3.0, [["log", 1, 2], ["twig", 3, 6], ["mushroom", 2, 5], ["green", 1, 2], ["moss", 0, 2]]],
+	["stump", 0.11, 3.0, [["stump", 1, 1], ["root", 0, 1], ["twig", 1, 3], ["mushroom", 1, 4], ["moss", 1, 2]]],
+	["roots", 0.07, 3.0, [["root", 1, 2], ["twig", 2, 4], ["stone", 1, 3], ["green", 0, 2]]],
+	["thicket", 0.16, 3.5, [["green", 4, 8], ["moss", 1, 3], ["twig", 1, 2]]],
+	["litter", 0.12, 3.0, [["twig", 4, 7], ["moss", 2, 4], ["stone", 1, 3]]],
+	["fungi", 0.05, 2.0, [["mushroom", 4, 8], ["moss", 1, 2], ["twig", 0, 1]]],
+	["bones", 0.05, 2.5, [["skull", 1, 1], ["bones", 2, 4], ["twig", 1, 2], ["stone", 0, 2]]],
+	["carcass", 0.03, 1.6, [["bones", 3, 6], ["skull", 0, 1], ["green", 0, 1]]],
+	["dump", 0.05, 1.5, [["junk", 4, 8], ["twig", 2, 3], ["moss", 1, 3], ["green", 1, 3]]],
+]
+const FLOOR_SPOTS := 1100  # scenes wanted over the whole ground
+const FLOOR_APART := 4.0  # m between two scenes' middles
+const FLOOR_CHUNK := 160.0  # m: small things, a few of each: wider squares than the trees', fewer draws
+const WOOD_LEAN := 3.5  # deg: the most a tree leans off upright
+const FLOOR_LIES := ["log", "twig", "bones", "skull", "stone", "junk", "root"]  # tipped off level
+const FLOOR_WOOD_ONLY := ["dump", "bones", "carcass", "fungi", "litter"]  # in under the trees, not out in the open
+
+
+func _wood_floor(plant: Callable, rng: RandomNumberGenerator) -> void:
+	var things: Dictionary = _wood().floor
+	var decks := {}  # group -> indices still to come: all of a group gone through before one comes again
+	var taken := {}  # Vector2i (8 m cell) -> Array[Vector2]
+	var made := 0
+	var items := 0
+	for dart in FLOOR_SPOTS * 60:
+		if made >= FLOOR_SPOTS:
+			break
+		var p := Vector2(rng.randf_range(WORLD.position.x, WORLD.end.x), rng.randf_range(WORLD.position.y, WORLD.end.y))
+		if _heap_h(p) > 0.05 or HEAP_NEAR.grow(3.0).has_point(p) or PAD.grow(3.0).has_point(p) or _past_rim(p.x, p.y, _desert_noise) > 0.0:
+			continue
+		# Patches: a low noise leaves stretches nearly bare. The clearing, where the fighting is, gets few.
+		var patch := clampf(_desert_noise.get_noise_2d(p.x * 0.7 - 300.0, p.y * 0.7 + 90.0) * 2.5 + 0.75, 0.08, 1.0)
+		patch *= lerpf(0.2, 1.0, smoothstep(-16.0, -2.0, _out_of_clearing(p)))
+		if rng.randf() > patch:
+			continue
+		var cell := Vector2i(floori(p.x / 8.0), floori(p.y / 8.0))
+		var clear := true
+		for i in range(-1, 2):
+			for j in range(-1, 2):
+				for o: Vector2 in taken.get(cell + Vector2i(i, j), []):
+					clear = clear and o.distance_to(p) >= FLOOR_APART
+		if not clear:
+			continue
+		if not taken.has(cell):
+			taken[cell] = []
+		taken[cell].append(p)
+		made += 1
+		var scene: Array = FLOOR_SCENES[_weighted(rng, FLOOR_SCENES)]
+		if _out_of_clearing(p) < -3.0 and scene[0] in FLOOR_WOOD_ONLY:
+			continue
+		var placed: Array[Vector2] = [p]
+		for entry: Array in scene[3]:
+			for n in rng.randi_range(entry[1], entry[2]):
+				var group: String = entry[0]
+				if not decks.has(group) or (decks[group] as Array).is_empty():
+					var deck := range((things[group] as Array).size())
+					for i in range(deck.size() - 1, 0, -1):  # the shuffle by our own dice: the same wood every build
+						var j := rng.randi_range(0, i)
+						var t: int = deck[i]
+						deck[i] = deck[j]
+						deck[j] = t
+					decks[group] = deck
+				var thing: Array = things[group][decks[group].pop_back()]
+				# Close by something already there mostly, so it clumps: no stone off on its own.
+				var from: Vector2 = placed[rng.randi() % placed.size()] if rng.randf() < 0.7 else p
+				var reach: float = rng.randf_range(0.25, 0.9) if from != p else scene[2] * pow(rng.randf(), 0.8)
+				var at := from + Vector2.from_angle(rng.randf() * TAU) * reach
+				if _heap_h(at) > 0.05 or PAD.grow(1.0).has_point(at) or _past_rim(at.x, at.y, _desert_noise) > 0.0:
+					continue
+				placed.append(at)
+				plant.call(thing[0], _floor_xf(thing, group, at, rng), true, FLOOR_CHUNK)
+				items += 1
+	print("wood floor: ", made, " scenes, ", items, " things")
+
+
+## Where a floor thing lies: sized, turned, off level if it's the kind that lies about, half fallen
+## over now and then, a little sunk.
+func _floor_xf(thing: Array, group: String, at: Vector2, rng: RandomNumberGenerator) -> Transform3D:
+	var s: float = lerpf(thing[1].x, thing[1].y, pow(rng.randf(), 1.8))  # many small, a few big
+	var size: Vector3 = thing[2]
+	var b := Basis(Vector3.UP, rng.randf() * TAU)
+	var lift := -size.y * s * 0.08
+	if group in ["boulder", "rock", "stone"]:  # grown out of the ground, not set on it
+		lift = -size.y * s * rng.randf_range(0.25, 0.45)
+	if group in FLOOR_LIES:
+		b = b * Basis(Vector3.RIGHT, deg_to_rad(rng.randf_range(-12.0, 12.0))) * Basis(Vector3.BACK, deg_to_rad(rng.randf_range(-12.0, 12.0)))
+		if group == "junk" and rng.randf() < 0.4:  # on its side
+			b = b * Basis(Vector3.RIGHT, PI * 0.5)
+			lift = size.z * s * 0.4
+	return Transform3D(b.scaled(Vector3.ONE * s), Vector3(at.x, _ground_y(at.x, at.y, _desert_noise) + lift, at.y))
 
 
 ## Black between the trees (2026-11-04, the user: "the gaps are grey and show too far; put blackness
