@@ -94,7 +94,13 @@ void fragment() {
 		discard;
 	}
 	float far = smoothstep(far_fade.x, far_fade.y, length(VERTEX)) * far_colour.a;
+#ifdef PSX_HAZE
+	// Each copy keeps its tone in the far colour too: the mountain reads as lumps of scrap, not as one
+	// sandy colour with dark specks (2026-11-05, the user: every object apart).
+	ALBEDO = mix(c.rgb, far_colour.rgb * (vertex_tint ? COLOR.rgb : vec3(1.0)), far);
+#else
 	ALBEDO = mix(c.rgb, far_colour.rgb, far);
+#endif
 	if (shade_below.x > 0.0) {
 		shade = mix(shade_below.y, 1.0, smoothstep(0.0, shade_below.x, world_pos.y));
 	}

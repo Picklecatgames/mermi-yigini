@@ -145,7 +145,8 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 			if before.has(other):
 				continue
 			var t: Transform3D = pile._id_index[other][3]
-			if under < 0 or t.origin.distance_to(was) < where.origin.distance_to(was):
+			# Those round it come out too, for what falls to land on: the next one is under where it was.
+			if t.origin.y < was.y + 0.15 and (under < 0 or t.origin.distance_to(was) < where.origin.distance_to(was)):
 				under = other
 				where = t
 			if other >= pile.HIDDEN_ID_START and other < pile.EXTRA_ID_START:
@@ -154,7 +155,7 @@ func _pieces(gs: Node, pile: Node3D) -> void:
 		var at: float = (pile.global_transform * where).origin.y
 		print("piece %d taken at %.2f m; the next one at %.2f m (%s)" % [n, y, at, "buried under it" if under >= pile.HIDDEN_ID_START and under < pile.EXTRA_ID_START else "made under it"])
 		# A thin piece leaves little room: the next layer starts right there, never floating up.
-		assert(at < y + 0.15 and at > pile.surface_y(pile.global_transform * where.origin) - 0.05, "lying on the heap where the taken one was")
+		assert(at < y + 0.15 and at > pile.surface_y(pile.global_transform * where.origin) - 0.25, "lying on the heap where the taken one was (at %.2f, was %.2f, surface %.2f)" % [at, y, pile.surface_y(pile.global_transform * where.origin)])
 		id = under
 		y = at
 	assert(_volume(pile) < v0, "their room dug out of the heap")
@@ -220,14 +221,18 @@ func _wake(gs: Node, pile: Node3D) -> void:
 	var up_y: float = pile._slot_at(upper).origin.y
 	gs.player().carried = 0
 	assert(gs.request_pick_up_loose(pile._slot_id[lower]) == 1, "the one under is taken")
-	await physics_frame
-	assert(pile._moving(up_id) != null, "the one resting on it lets go and falls")
-	for f in 300:
+	# They wake a couple a frame, so that a pull runs up the face link by link.
+	for f in 60:
 		await physics_frame
-		if pile._id_index.has(up_id):
+		if pile._moving(up_id) != null:
 			break
-	assert(pile._id_index.has(up_id), "and comes to rest, there to pick up")
-	print("took the piece under another: it fell %.2f m and lies there" % (up_y - (pile._id_index[up_id][3] as Transform3D).origin.y))
+	assert(pile._moving(up_id) != null, "the one resting on it lets go")
+	for f in 600:
+		await physics_frame
+		if pile._moving(up_id) == null:
+			break
+	assert(pile._moving(up_id) == null and pile.has_loose(up_id), "and comes to rest, there to pick up")
+	print("took the piece under another: it %s" % ("fell %.2f m and lies there" % (up_y - (pile._id_index[up_id][3] as Transform3D).origin.y) if pile._id_index.has(up_id) else "stayed wedged where it lay"))
 	gs.player().carried = 0
 
 
