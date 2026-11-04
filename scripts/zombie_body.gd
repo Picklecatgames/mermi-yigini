@@ -338,7 +338,8 @@ func _step_clips(delta: float) -> void:
 ## steps above only count with it at 0). Where the body goes (waves.gd) and the player stay smooth;
 ## the springs are laid on with the steps. Each body on its own beat, from `seed`, so a crowd
 ## doesn't jerk all at once. catch_up() still brings the pose up to date before a round is traced.
-const ANIM_FPS := 12.0  # 0: smooth, every frame
+## 2026-11-04, the user: raise it, normal movement; so 0, with the LOD steps above for the far ones.
+const ANIM_FPS := 0.0  # 0: smooth, every frame
 
 
 func _step_ps1(delta: float) -> void:
