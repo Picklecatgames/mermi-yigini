@@ -36,3 +36,5 @@ shader_parameter/earth_tint = Color(0.9, 0.9, 0.62, 1)
 shader_parameter/wood_oval = Vector4(8, 0, 40, 34)
 shader_parameter/wood_dark = null
 shader_parameter/wood_dark_reach = null
+shader_parameter/night_shade = null
+shader_parameter/night_shade_to = null

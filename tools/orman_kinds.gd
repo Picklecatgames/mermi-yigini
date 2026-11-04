@@ -109,7 +109,6 @@ const TREES := [
 	["psx_birch", [], "birch_d", 0.04, Vector2(10.0, 17.0), 0.25, false],
 	["psx_autumn", ["Object_12"], "autumn_a", 0.04, Vector2(8.0, 13.0), 0.3, false],
 	["psx_autumn", ["Object_14"], "autumn_b", 0.05, Vector2(12.0, 19.0), 0.3, false],
-	["psx_autumn", ["Object_16"], "autumn_c", 0.05, Vector2(15.0, 24.0), 0.5, false],
 	["psx_style_trees", ["Tree_Tree 1_0", "Bark_Bark_0"], "pine_a", 0.04, Vector2(13.0, 20.0), 0.3, false],
 	["psx_style_trees", ["Tree_1_Tree 2_0", "Bark_1_Bark_0"], "pine_b", 0.04, Vector2(12.0, 19.0), 0.35, false],
 	# Young ones: a thin stem and a few cards, in among the big trunks.

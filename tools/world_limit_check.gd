@@ -65,11 +65,12 @@ func _scatter(world: Node) -> void:
 		if n is Node3D and not n is StaticBody3D and (n.get_child_count() > 0 or not n is MeshInstance3D):
 			rows += 1
 	_ok(rows == 0, "the open ground's plants and stones are single meshes (%d are not)" % rows)
-	# The wood: every tree from the forest's collision posts; spacing irregular, kinds mixed.
+	# The wood: every tree from where the builder stood it (a tree has several posts now); spacing
+	# irregular, kinds mixed.
 	var forest: Node = world.get_node("Forest")
 	var spots: Array[Vector2] = []
-	for cs: Node in forest.get_node("Trunks").get_children():
-		spots.append(Vector2(cs.position.x, cs.position.z))
+	for row: Array in forest.get_meta("stand"):
+		spots.append(Vector2(row[1].x, row[1].z))
 	_ok(spots.size() > 300, "%d trees in the wood" % spots.size())
 	var gaps: Array[float] = []
 	for p in spots:

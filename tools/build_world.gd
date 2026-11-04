@@ -343,6 +343,9 @@ const WOOD_TREES := [
 ]
 var _wood_kinds := {}
 const ORMAN_KINDS := preload("res://tools/orman_kinds.gd")
+const TREE_STAND := preload("res://tools/tree_stand.gd")
+var _trunks: StaticBody3D
+var _stand_rows := []  # per tree in the wood: [family, foot, ground under it, wood at the ground, posts]
 ## Two trees of one silhouette stand at least this far apart wherever the kinds allow it (2026-11-04,
 ## the user: "I don't want to see two alike side by side"; m, my guess). With thirty-odd families and
 ## a tree every 2-3.6 m a circle this wide holds about as many trees as there are kinds.
@@ -369,7 +372,7 @@ func _wood_kind(file: String, names: Array, low_foot := false) -> Array:
 		while n and n != scene:
 			x = (n as Node3D).transform * x
 			n = n.get_parent()
-		parts.append([mi.mesh, x])
+		parts.append([mi.mesh, x, String(mi.name)])
 		var b: AABB = x * mi.mesh.get_aabb()
 		if String(mi.name).contains("Trunk"):
 			box = b
@@ -420,14 +423,17 @@ func _wood() -> Dictionary:
 		var fams := {}
 		for k: Array in WOOD_TREES:
 			var parts := _wood_kind(k[0], k[1])
-			trees.append([parts, k[2], k[3], k[4], _family(parts, k[1][0] if not k[1].is_empty() else k[0], fams)])
+			var mid: float = (k[3].x + k[3].y) * 0.5
+			var stood := _stand(parts, mid, k[4] * mid)
+			trees.append([parts, k[2], k[3], k[4], _family(parts, k[1][0] if not k[1].is_empty() else k[0], fams), stood])
 			if k[1].is_empty() or not String(k[1][0]).begins_with("Background"):
 				close.append(trees[-1])
 		for k: Array in ORMAN_KINDS.TREES:
 			var parts := _wood_kind(ORMAN_KINDS.scene(k[0]), k[1], true)
 			var tall := _parts_box(parts).size.y
 			var mid: float = (k[4].x + k[4].y) * 0.5 / tall
-			trees.append([parts, k[3], k[4] / tall, k[5] / mid, _family(parts, k[2], fams)])
+			var stood := _stand(parts, mid, k[5], k[2])
+			trees.append([parts, k[3], k[4] / tall, k[5] / mid, _family(parts, k[2], fams), stood])
 			if k[6]:
 				close.append(trees[-1])
 		var under := []
@@ -446,6 +452,49 @@ func _wood() -> Dictionary:
 		floor_things.green.append_array(_old_floor(under))
 		_wood_kinds = {"trees": _normal_shares(trees), "close": _normal_shares(close), "under": under, "rocks": rocks, "floor": floor_things}
 	return _wood_kinds
+
+
+## Puts a kind's origin where its trunk meets the ground (tools/tree_stand.gd), moving its parts: its
+## posts in those units come back, and whether there is wood at the ground there.
+## 2026-11-04, the user: "most of these trees stand in the air, and you walk through them": the origin
+## was the model's box, whose bottom a stray root sets and whose middle a lopsided crown.
+func _stand(parts: Array, scale: float, hint: float, kind := "") -> Dictionary:
+	var solid := []
+	for part: Array in parts:
+		if String(part[2]).contains("Trunk"):
+			solid.append(part)
+	if solid.is_empty():
+		solid = parts
+	var m: Dictionary = TREE_STAND.measure(solid, scale, hint, kind)
+	var foot: Vector3 = m.foot
+	var touch: bool = TREE_STAND.wood_at(solid, foot, 0.15, scale)
+	for part: Array in parts:
+		part[1] = Transform3D(Basis(), -foot) * part[1]
+	var posts := []
+	for post: Array in m.posts:
+		posts.append([(post[0] as Vector3) - foot, post[1]])
+	return {"posts": posts, "touch": touch, "ok": m.ok}
+
+
+## A kind's posts round its trunk, as it stands by `xf`: a short cylinder at each height, so a leaning
+## or crooked trunk is solid where it shows. Radius in m.
+func _posts(kind: Array, xf: Transform3D, body: StaticBody3D, sc: float) -> void:
+	for post: Array in kind[5].posts:
+		var cs := CollisionShape3D.new()
+		var cyl := CylinderShape3D.new()
+		cyl.radius = clampf(post[1] * sc, TREE_STAND.MIN_POST, TREE_STAND.MAX_POST)
+		cyl.height = 0.85
+		cs.shape = cyl
+		cs.position = xf * (post[0] as Vector3)
+		add(cs, body)
+
+
+## The ground under a trunk, its lowest round it: on a slope no side of the foot shows air.
+func _ground_under(p: Vector2, r: float) -> float:
+	var y := _ground_y(p.x, p.y, _desert_noise)
+	for o: Vector2 in [Vector2(r, 0.0), Vector2(-r, 0.0), Vector2(0.0, r), Vector2(0.0, -r)]:
+		y = minf(y, _ground_y(p.x + o.x, p.y + o.y, _desert_noise))
+	return y
 
 
 ## A kind's family: any kind it shares a mesh with (the bare trunks and the same trunks with branches,
@@ -517,20 +566,16 @@ func _pick_tree(rng: RandomNumberGenerator, kinds: Array, p: Vector2) -> Array:
 func _wood_tree(parent: Node, kind: Array, at: Vector3, rng: RandomNumberGenerator) -> void:
 	var s := rng.randf_range(kind[2].x, kind[2].y)
 	var body := StaticBody3D.new()
-	body.transform = Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), at - Vector3(0, 0.08, 0))
+	var p := Vector2(at.x, at.z)
+	body.position = Vector3(at.x, _ground_under(p, kind[3] * s) - 0.08, at.z)
 	add(body, parent)
+	var xf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * s), Vector3.ZERO)
 	for part: Array in kind[0]:
 		var mi := MeshInstance3D.new()
 		mi.mesh = part[0]
-		mi.transform = part[1]
+		mi.transform = xf * part[1]
 		add(mi, body)
-	var cs := CollisionShape3D.new()
-	var cyl := CylinderShape3D.new()
-	cyl.radius = kind[3]
-	cyl.height = 2.4 / s
-	cs.shape = cyl
-	cs.position = Vector3(0, 1.2 / s, 0)
-	add(cs, body)
+	_posts(kind, xf, body, s)
 
 
 ## Something low on the floor, no collision: a fern, a stone, a log. Drawn with the wood (_forest).
@@ -591,6 +636,7 @@ func _forest() -> void:
 	var trunks := StaticBody3D.new()
 	trunks.name = "Trunks"
 	add(trunks, root)
+	_trunks = trunks
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 97
 	var wood := _wood()
@@ -640,20 +686,20 @@ func _forest() -> void:
 		var kinds: Array = wood.close if _out_of_clearing(p) < WOOD_NEAR_EDGE else wood.trees
 		var kind: Array = _pick_tree(rng, kinds, p)
 		var sc: float = rng.randf_range(kind[2].x, kind[2].y)
-		var at := Vector3(p.x, _ground_y(p.x, p.y, _desert_noise) - 0.08, p.y)
+		var ground := _ground_under(p, kind[3] * sc)
+		var at := Vector3(p.x, ground - 0.08, p.y)
 		# No two standing quite alike even of one kind: a little lean, a little thinner or fatter.
 		var lean_to := rng.randf() * TAU
 		var lean := Basis(Vector3(cos(lean_to), 0.0, sin(lean_to)), deg_to_rad(rng.randf_range(0.0, WOOD_LEAN)))
 		var girth := rng.randf_range(0.88, 1.12)
-		plant.call(kind[0], Transform3D(lean * Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * girth, sc, sc * girth)), at), false)
+		var xf := Transform3D(lean * Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * girth, sc, sc * girth)), at)
+		plant.call(kind[0], xf, false)
 		count += 1
-		var cs := CollisionShape3D.new()
-		var cyl := CylinderShape3D.new()
-		cyl.radius = minf(kind[3] * sc, 0.5)
-		cyl.height = 2.4
-		cs.shape = cyl
-		cs.position = at + Vector3(0, 1.2, 0)
-		add(cs, trunks)
+		_posts(kind, xf, trunks, sc * girth)
+		var post_at := PackedVector3Array()
+		for post: Array in kind[5].posts:
+			post_at.append(xf * (post[0] as Vector3))
+		_stand_rows.append([kind[4], at, _ground_y(p.x, p.y, _desert_noise), kind[5].touch and kind[5].ok, post_at])
 		# The floor between them: ferns, shrubs, a stone.
 		if rng.randf() < 0.25:
 			var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.8, 2.5)
@@ -685,6 +731,7 @@ func _forest() -> void:
 			at.append(o[0])
 			stands[o[1]] = at
 	root.set_meta("tree_families", stands)
+	root.set_meta("stand", _stand_rows)  # tools/wood_stand_check.gd
 	print("forest: ", count, " trees in ", chunks.size(), " chunks")
 	_veils(root)
 	# The wood's inner edge, every 30 degrees round the pad: where the dead can step out.
@@ -723,6 +770,8 @@ const FLOOR_SCENES := [
 const FLOOR_SPOTS := 1100  # scenes wanted over the whole ground
 const FLOOR_APART := 4.0  # m between two scenes' middles
 const FLOOR_CHUNK := 160.0  # m: small things, a few of each: wider squares than the trees', fewer draws
+const FLOOR_SOFT := ["green", "moss", "fern", "mushroom", "bark"]  # never in the way
+const FLOOR_SOLID_FROM := 0.5  # m high over the ground: lower is stepped over or through (my guess)
 const WOOD_LEAN := 3.5  # deg: the most a tree leans off upright
 const FLOOR_LIES := ["log", "twig", "bones", "skull", "stone", "junk", "root"]  # tipped off level
 const FLOOR_WOOD_ONLY := ["dump", "bones", "carcass", "fungi", "litter"]  # in under the trees, not out in the open
@@ -780,9 +829,29 @@ func _wood_floor(plant: Callable, rng: RandomNumberGenerator) -> void:
 				if _heap_h(at) > 0.05 or PAD.grow(1.0).has_point(at) or _past_rim(at.x, at.y, _desert_noise) > 0.0:
 					continue
 				placed.append(at)
-				plant.call(thing[0], _floor_xf(thing, group, at, rng), true, FLOOR_CHUNK)
+				var thing_xf := _floor_xf(thing, group, at, rng)
+				plant.call(thing[0], thing_xf, true, FLOOR_CHUNK)
+				_floor_solid(thing, thing_xf, group)
 				items += 1
 	print("wood floor: ", made, " scenes, ", items, " things")
+
+
+## A thing on the floor that stands in the way is solid (2026-11-04, the user: "you walk through them"):
+## its own box. Ferns, cans, skulls and the like stay underfoot; green is walked through.
+func _floor_solid(thing: Array, xf: Transform3D, group: String) -> void:
+	if group in FLOOR_SOFT:
+		return
+	var box := _parts_box(thing[0])
+	var s := xf.basis.get_scale().x
+	var size := box.size * s
+	if size.y < FLOOR_SOLID_FROM or (xf * box.get_center()).y + size.y * 0.5 < _ground_y(xf.origin.x, xf.origin.z, _desert_noise) + FLOOR_SOLID_FROM:
+		return
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	cs.shape = shape
+	cs.transform = Transform3D(xf.basis.orthonormalized(), xf * box.get_center())
+	add(cs, _trunks)
 
 
 ## Where a floor thing lies: sized, turned, off level if it's the kind that lies about, half fallen
