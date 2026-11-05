@@ -128,7 +128,7 @@ func _sky() -> void:
 	env.fog_aerial_perspective = 0.0  # its colour from the dust, not the sky
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 1.12  # AgX greys the colour out; psx_graded() decides how much stays
+	env.adjustment_saturation = 1.0  # psx_graded() decides how much stays; 1.12 over it made the colour go wild (2026-11-05)
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
@@ -153,8 +153,10 @@ func _pad() -> void:
 	var body := StaticBody3D.new()
 	body.name = "Floor"
 	add(body)
+	# No tone per 4 m pour (2026-11-05, the user: "ekranda kareleşme"): under the sand each pour's own
+	# tone read as square blocks with hard straight edges across the floor, a glitch, not slabs.
 	var slabs := worn("dirty_concrete", "yard_concrete", {"tint": Color(0.8, 0.74, 0.66), "tex_size": 4.0,
-		"cell_size": 4.0, "cell_tone": 0.12, "odd_cells": 0.1, "antitile": 0.5, "grime": 0.9,
+		"cell_size": 4.0, "cell_tone": 0.0, "odd_cells": 0.0, "antitile": 0.5, "grime": 0.9,
 		"grime_scale": 0.08, "grime_color": Color(0.42, 0.33, 0.22)})  # the grime is blown sand, not soot
 	for r in [PAD]:
 		var mi := MeshInstance3D.new()
