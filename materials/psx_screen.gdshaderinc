@@ -25,7 +25,9 @@ vec3 psx_graded(vec3 c, vec2 uv) {
 	float sat = (hi - min(min(c.r, c.g), c.b)) / max(hi, 1e-4);
 	float over = c.r - max(c.g, c.b);
 	float red = smoothstep(0.5, 0.85, over / max(c.r, 0.02)) * smoothstep(0.08, 0.28, over);  // blood; not old wood and brick, not their dark
-	vec3 g = mix(vec3(l), c, mix(mix(1.3, 0.92, smoothstep(0.1, 0.6, sat)), 1.05, red));
+	// 2026-11-05, the user: "renk saçmalıyor": 1.3 on the dull ones, over adjustment_saturation 1.12, made
+	// leaves orange, moss mint and the floor's grain green-yellow pixel by pixel. Now a little.
+	vec3 g = mix(vec3(l), c, mix(mix(1.12, 0.9, smoothstep(0.1, 0.6, sat)), 1.05, red));
 	vec3 gain = mix(vec3(0.84, 0.92, 1.06), vec3(0.98, 1.0, 0.98), smoothstep(0.02, 0.24, l));
 	gain = mix(gain, vec3(1.04, 1.0, 0.9), smoothstep(0.42, 0.9, l));
 	g *= mix(gain, vec3(1.0), red);

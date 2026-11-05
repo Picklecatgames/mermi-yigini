@@ -46,6 +46,7 @@ const GAME_VIEWS := {  # eye, looking at
 	"house_n": [Vector3(16.0, 1.7, -10.0), Vector3(7.0, 0.0, -5.5)],  # the ground along the house's north walls
 	"kasa": [Vector3(20.5, 1.7, -6.5), Vector3(14.0, 0.0, 0.0)],  # where psx_shots' own --kasa=14,1;13,-4 go down
 	"porch": [Vector3(16.0, 1.7, 9.5), Vector3(9.0, 0.0, 3.0)],  # the porch's corner, south-east
+	"kerb": [Vector3(-2.0, 1.7, 8.0), Vector3(-14.0, 0.2, 2.0)],  # the pad's west kerb and the heap past it, the ground close (1.png)
 }
 const FRAMES := 3
 const SLIDE := 0.025  # m sideways per frame
