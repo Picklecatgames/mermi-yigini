@@ -989,31 +989,65 @@ func _moving(id: int) -> RigidBody3D:
 	return null
 
 
-## What the piece a ray hit looks like, for player.gd's hand: [mesh, its box centre in the mesh,
-## its size, the box centre's world transform]; [] if the ray hit no piece.
+## What the piece a ray hit looks like, for player.gd's hand: part_look of it, at the box centre's
+## world transform; [] if the ray hit no piece.
 func piece_look(collider: Object, rid: RID) -> Array:
-	var part := -1
+	var piece: Array = []
 	var t := Transform3D()
 	if _rid_slot.has(rid):
 		var s: int = _rid_slot[rid]
-		part = _slot_part[s]
+		piece = [_slot_part[s], _surface[_slot_part[s]].multimesh.get_instance_color(_slot_index[s])]
 		t = global_transform * _slot_at(s)
 	elif _spill_index.has(rid):
 		var rec: Array = _id_index[_spill_index[rid]]
-		part = rec[0]
+		piece = [rec[0], rec[4]]
 		t = global_transform * (rec[3] as Transform3D)
 	elif collider is RigidBody3D and collider.has_meta("part"):
-		part = collider.get_meta("part")
+		piece = [collider.get_meta("part"), collider.get_meta("tone")]
 		t = (collider as RigidBody3D).global_transform
-	if part < 0:
+	if piece.is_empty():
 		return []
-	return [_part_mesh[part], _part_mid[part], _part_size[part], t]
+	var look := part_look(piece)
+	look[3] = t
+	return look
 
 
-## A random piece's look, for a hand whose pieces we never saw taken (a rejoin): see piece_look.
-func any_look() -> Array:
+## Loose piece `id` as a hand carries it (GameState): [part, tone], what it is and its colour on
+## the heap; [] if it doesn't lie here. Every peer has the same part for an id.
+func piece_of(id: int) -> Array:
+	if _id_index.has(id):
+		return [_id_index[id][0], _id_index[id][4]]
+	if is_heap_id(id) and id < HIDDEN_ID_START and not _slot_part.is_empty():
+		var s := _slot_of_id(id)
+		if _slot_id[s] == id:
+			return [_slot_part[s], _surface[_slot_part[s]].multimesh.get_instance_color(_slot_index[s])]
+	var body := _moving(id)
+	if body:
+		return [body.get_meta("part"), body.get_meta("tone")]
+	return []
+
+
+## A piece for a hand that dug it out of the heap rather than picking one up: [part, tone] as
+## piece_of. The host's roll (GameState carries it to everyone).
+func dug_piece() -> Array:
 	var part := _pick_part(randf(), true)
-	return [_part_mesh[part], _part_mid[part], _part_size[part], Transform3D()]
+	return [part, _tone(randi())]
+
+
+## How carried piece `piece` ([part, tone], piece_of) is drawn, the same as on the heap: [mesh, its
+## box centre in the mesh, its size, Transform3D() (where it lay, for the caller), its material,
+## its tone]. Unknown pieces ([] or part -1) look like a random one.
+func part_look(piece: Array) -> Array:
+	var part: int = piece[0] if not piece.is_empty() else -1
+	if part < 0 or part >= _part_mesh.size():
+		piece = dug_piece()
+		part = piece[0]
+	return [_part_low[part], _part_mid[part], _part_size[part], Transform3D(), _surface[part].material_override, piece[1]]
+
+
+## A random piece's look, for a hand whose pieces we never saw taken (a rejoin): see part_look.
+func any_look() -> Array:
+	return part_look([])
 
 
 ## A piece is picked up, everywhere at once: what it was and where it lay stays in _gone until
@@ -1323,7 +1357,8 @@ func _make_body(part: int, t: Transform3D, tone: Variant = null) -> RigidBody3D:
 	one.mesh = _part_low[part]
 	one.instance_count = 1
 	one.set_instance_transform(0, Transform3D())
-	one.set_instance_color(0, tone if tone is Color else _tone(part * 7 + 1))
+	var shade: Color = tone if tone is Color else _tone(part * 7 + 1)
+	one.set_instance_color(0, shade)
 	var look := MultiMeshInstance3D.new()
 	look.multimesh = one
 	look.material_override = _surface[part].material_override
@@ -1334,6 +1369,7 @@ func _make_body(part: int, t: Transform3D, tone: Variant = null) -> RigidBody3D:
 	body.top_level = true
 	body.transform = t
 	body.set_meta("part", part)
+	body.set_meta("tone", shade)
 	add_child(body)
 	return body
 
@@ -1353,15 +1389,16 @@ func _update_awake() -> void:
 			var rec: Array = _id_index[id]
 			var t: Transform3D = global_transform * rec[3]
 			var part: int = rec[0]
+			var tone: Color = rec[4]
 			_remove_loose(id)
-			_spawn_loose(id, part, t, v * randf_range(0.4, 0.9) + Vector3(randf_range(-0.3, 0.3), randf_range(0.2, 0.6), randf_range(-0.3, 0.3)))
+			_spawn_loose(id, part, t, v * randf_range(0.4, 0.9) + Vector3(randf_range(-0.3, 0.3), randf_range(0.2, 0.6), randf_range(-0.3, 0.3)), tone)
 	for i in range(_awake.size() - 1, -1, -1):
 		var body := _awake[i]
 		var age: int = Engine.get_physics_frames() - body.get_meta("woke")
 		var resting := body.sleeping or (body.linear_velocity.length() < 0.03 and body.angular_velocity.length() < 0.2)
 		if (age > 15 and resting) or age > 600:
 			var t := global_transform.affine_inverse() * body.global_transform
-			_add_loose(body.get_meta("id"), body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin))
+			_add_loose(body.get_meta("id"), body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin), body.get_meta("tone", null))
 			body.queue_free()
 			_awake.remove_at(i)
 
@@ -1375,17 +1412,24 @@ func _loose_near(at: Vector3, radius: float, max_results := 32) -> Array[Diction
 	return get_world_3d().direct_space_state.intersect_shape(q, max_results)
 
 
-## Throws `count` carried pieces from `from` along `dir` with some spread; they land loose.
-func _on_bullets_thrown(from: Vector3, dir: Vector3, count: int, first_id: int) -> void:
+## Throws `count` carried pieces from `from` along `dir` with some spread; they land loose, each
+## the piece it was in the hand (`pieces`, GameState's [part, tone] per piece; a hand from before we
+## knew what it held comes as [-1, ...] and lands as a piece picked by its id).
+func _on_bullets_thrown(from: Vector3, dir: Vector3, count: int, first_id: int, pieces: Array) -> void:
 	for n in count:
 		var id := first_id + n
 		var b := Basis.from_euler(Vector3(randf() * TAU, randf() * TAU, randf() * TAU))
 		var spread := Vector3(randf_range(-1, 1), randf_range(-0.5, 1), randf_range(-1, 1)) * 1.2
-		_spawn_loose(id, _pick_part(_hash01(id)), Transform3D(b, from + spread * 0.05), dir * randf_range(3.0, 6.0) + spread)
+		var piece: Array = pieces[n] if n < pieces.size() else []
+		var part: int = piece[0] if not piece.is_empty() else -1
+		var tone: Variant = piece[1] if part >= 0 and part < _part_mesh.size() else null
+		if tone == null:
+			part = _pick_part(_hash01(id))
+		_spawn_loose(id, part, Transform3D(b, from + spread * 0.05), dir * randf_range(3.0, 6.0) + spread, tone)
 
 
-func _spawn_loose(id: int, part: int, t: Transform3D, velocity: Vector3) -> void:
-	var body := _make_body(part, Transform3D(t.basis.orthonormalized(), t.origin))
+func _spawn_loose(id: int, part: int, t: Transform3D, velocity: Vector3, tone: Variant = null) -> void:
+	var body := _make_body(part, Transform3D(t.basis.orthonormalized(), t.origin), tone)
 	body.linear_velocity = velocity
 	body.angular_velocity = Vector3(randf_range(-8, 8), randf_range(-8, 8), randf_range(-8, 8))
 	body.set_meta("woke", Engine.get_physics_frames())
@@ -1401,11 +1445,11 @@ func snapshot() -> Array:
 	var thrown := []  # thrown pieces and the heap's own that lie loose (shown under a taken one, fallen)
 	for id: int in _id_index:
 		if id >= GameState.THROWN_ID_START:
-			thrown.append([id, _id_index[id][0], _id_index[id][3]])
+			thrown.append([id, _id_index[id][0], _id_index[id][3], _id_index[id][4]])
 	for body: RigidBody3D in _awake + _debris:
 		if body.has_meta("id") and body.get_meta("id") >= GameState.THROWN_ID_START:
 			var t := global_transform.affine_inverse() * body.global_transform
-			thrown.append([body.get_meta("id"), body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin)])
+			thrown.append([body.get_meta("id"), body.get_meta("part"), Transform3D(t.basis.orthonormalized(), t.origin), body.get_meta("tone", null)])
 	return [_h, _active, _digs, _surface_removed, thrown, _slump, step, _slot_born, _slot_id, _hid_open, _extra_born, _hid_taken]
 
 
@@ -1429,7 +1473,7 @@ func restore(snap: Array) -> void:
 	_hid_taken = snap[11]
 	for b: Array in snap[4]:
 		if not _id_index.has(b[0]):
-			_add_loose(b[0], b[1], b[2])
+			_add_loose(b[0], b[1], b[2], b[3] if b.size() > 3 else null)
 	_slump = snap[5]
 	_any_slump = _slump.has(1)
 	step = snap[6]

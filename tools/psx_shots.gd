@@ -46,6 +46,7 @@ const GAME_VIEWS := {  # eye, looking at
 	"bark": [Vector3(36.7, 1.7, 9.9), Vector3(36.7, 1.7, 9.9)],  # the trunk nearest this, from 2 m (_bark)
 	"house_n": [Vector3(16.0, 1.7, -10.0), Vector3(7.0, 0.0, -5.5)],  # the ground along the house's north walls
 	"kasa": [Vector3(20.5, 1.7, -6.5), Vector3(14.0, 0.0, 0.0)],  # where psx_shots' own --kasa=14,1;13,-4 go down
+	"face": [Vector3(-7.0, 1.7, 1.0), Vector3(-10.0, 0.4, 1.0)],  # close to the heap's front, in reach (--hold)
 	"porch": [Vector3(16.0, 1.7, 9.5), Vector3(9.0, 0.0, 3.0)],  # the porch's corner, south-east
 	"kerb": [Vector3(-2.0, 1.7, 8.0), Vector3(-14.0, 0.2, 2.0)],  # the pad's west kerb and the heap past it, the ground close (1.png)
 }
@@ -197,6 +198,9 @@ func _game() -> void:
 	var views: Array = GAME_VIEWS.keys()
 	var nights := [false, true]
 	var kasas: Array[Vector2i] = []
+	var grab := 0
+	var gun := 0
+	var hold := 0
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--psx="):
 			psx = a.trim_prefix("--psx=").to_int()
@@ -209,6 +213,12 @@ func _game() -> void:
 		elif a.begins_with("--kasa="):  # x,z;x,z: factory kasas put down first, as in play
 			for xz in a.trim_prefix("--kasa=").split(";"):
 				kasas.append(Vector2i(xz.get_slice(",", 0).to_int(), xz.get_slice(",", 1).to_int()))
+		elif a.begins_with("--gun="):  # in hand first (1 the pistol, taken off the table)
+			gun = a.trim_prefix("--gun=").to_int()
+		elif a.begins_with("--hold="):  # E held that many frames at the first view, every other one shot
+			hold = a.trim_prefix("--hold=").to_int()
+		elif a.begins_with("--grab="):  # that many scrap pieces in hand, grabbed off the heap as with E
+			grab = a.trim_prefix("--grab=").to_int()
 		elif a.begins_with("--set="):
 			for kv in a.trim_prefix("--set=").split(","):
 				more[kv.get_slice(":", 0)] = str_to_var(kv.get_slice(":", 1))
@@ -232,6 +242,10 @@ func _game() -> void:
 	var vp := root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)
 	await _frames(240)  # shaders compile, the probes capture
+	if gun > 0:
+		root.get_node("GameState").player().has_pistol = true
+		root.get_node("GameState").request_select_gun(gun)
+		await _frames(60)
 	for night: bool in nights:
 		if night:
 			_night(main)
@@ -248,6 +262,17 @@ func _game() -> void:
 			player.set(&"_yaw", atan2(-d.x, -d.z))
 			player.set(&"_pitch", asin(d.y))
 			await _frames(20)
+			if grab > 0 and root.get_node("GameState").carried == 0:  # here, so they fly in from where they lay
+				await _grab(player, grab, tag)
+			if hold > 0 and root.get_node("GameState").carried == 0:  # E held, as in play, a big hand
+				root.get_node("GameState").player().levels["carry"] = 9
+				Input.action_press("pick_up")
+				for f in hold:
+					await process_frame
+					if f % 2 == 1:
+						root.get_viewport().get_texture().get_image().save_png("user://psx_hold_%s%d.png" % [tag, f])
+				Input.action_release("pick_up")
+				await _frames(30)
 			var gpu := 0.0
 			for f in 60:
 				await process_frame
@@ -304,3 +329,26 @@ func _night(main: Node) -> void:
 func _frames(n: int) -> void:
 	for i in n:
 		await process_frame
+
+
+## `n` spilled pieces off the heap into the hand, the way E takes them (player.gd), so the shots show
+## what is carried.
+func _grab(player: Node, n: int, tag: String) -> void:
+	var heap: Node = root.get_tree().get_first_node_in_group("bullet_pile")
+	var gs: Node = root.get_node("GameState")
+	var ids: Array = heap.get(&"_id_index").keys()
+	var eye: Vector3 = player.global_position
+	ids.sort_custom(func(a: int, b: int) -> bool:  # the nearest
+		return (heap.global_transform * (heap.get(&"_id_index")[a][3] as Transform3D).origin).distance_to(eye) < 			(heap.global_transform * (heap.get(&"_id_index")[b][3] as Transform3D).origin).distance_to(eye))
+	for id: int in ids.slice(0, n):
+		var rec: Array = heap.get(&"_id_index")[id]
+		var look: Array = heap.part_look(heap.piece_of(id)) if heap.has_method(&"part_look") else [
+			heap.get(&"_part_mesh")[rec[0]], heap.get(&"_part_mid")[rec[0]], heap.get(&"_part_size")[rec[0]], null]
+		look[3] = heap.global_transform * (rec[3] as Transform3D)
+		var before := mini(gs.carried, 6)
+		if gs.request_pick_up_loose(id) > 0:
+			player.call(&"_fly_to_hand", look, before)
+		for f in 5:  # the piece flying in and the gun going down, every 5 frames
+			await _frames(5)
+			root.get_viewport().get_texture().get_image().save_png("user://psx_grab_%s%d_%d.png" % [tag, ids.find(id), f])
+	await _frames(30)
