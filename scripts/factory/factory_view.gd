@@ -19,6 +19,8 @@ var _version := -1
 var _parts := {}  # kind -> [[Mesh, Transform3D (fits it to its footprint)]]
 var _kind_mm := {}  # kind -> [MultiMeshInstance3D]
 var _bodies: Array[StaticBody3D] = []
+var _damps: Array[Decal] = []
+static var _damp_tex: ImageTexture
 var _looks := {}  # item -> look
 var _active: Array = []  # the looks with something to draw this time
 var _line_pts: Array[PackedVector3Array] = []  # per line: cell centres, the exit one past the last
@@ -66,6 +68,9 @@ func _redraw_structures(sim: FactorySim) -> void:
 	for b in _bodies:
 		b.queue_free()
 	_bodies.clear()
+	for d in _damps:
+		d.queue_free()
+	_damps.clear()
 	for k: int in per_kind:
 		var list: PackedInt32Array = per_kind[k]
 		var parts := parts_of(k)
@@ -89,6 +94,7 @@ func _redraw_structures(sim: FactorySim) -> void:
 		if sim.data.kinds[k].tur_i != FactoryData.Tur.BANT:
 			for s in list:
 				_add_body(sim, s)
+				_add_damp(sim, s)
 
 
 ## Where structure `s` stands: the middle of its footprint on the ground, its front along its dir.
@@ -115,6 +121,62 @@ func _add_body(sim: FactorySim, s: int) -> void:
 	add_child(body)
 	body.global_transform = placed(sim, s)
 	_bodies.append(body)
+
+
+## The floor round what stands on it is baked damp and dark at build time (tools/build_world.gd
+## _floor_map); a crate or machine put down in play gets the same as a decal under it, ragged, turned
+## by its cell. Only drawn, from the simulation's layout: every peer puts the same, nothing crosses the
+## network. Sizes and colour are my guess.
+const DAMP_MARGIN := 1.1  # m past what's drawn, on each side
+const DAMP_COLOR := Color(0.09, 0.085, 0.05, 0.85)  # the alpha: how dark at the foot
+
+
+func _add_damp(sim: FactorySim, s: int) -> void:
+	var d := Decal.new()
+	d.texture_albedo = _damp_texture()
+	d.modulate = DAMP_COLOR
+	d.albedo_mix = 1.0
+	d.upper_fade = 0.6
+	d.lower_fade = 0.3
+	d.distance_fade_enabled = true
+	d.distance_fade_begin = 45.0
+	d.distance_fade_length = 15.0
+	var wide := _drawn(sim.kind[s]) + Vector2.ONE * DAMP_MARGIN * 2.0
+	d.size = Vector3(wide.x, 0.5, wide.y)  # up the thing's foot a hand, no more
+	add_child(d)
+	var xf := placed(sim, s)
+	var turn := PI * float(sim.cell[s] % 2)  # one texture, turned by cell: not every stain the same
+	d.global_transform = Transform3D(xf.basis * Basis(Vector3.UP, turn), xf.origin)
+	_damps.append(d)
+
+
+## How big `k` is drawn across, x and z as it stands (the model can stand out of its footprint).
+func _drawn(k: int) -> Vector2:
+	var row: Dictionary = factory.sim.data.kinds[k]
+	var all := AABB(Vector3(-row.d * 0.5, 0.0, -row.w * 0.5), Vector3(row.d, 0.1, row.w))
+	for part: Array in parts_of(k):
+		all = all.merge((part[1] as Transform3D) * (part[0] as Mesh).get_aabb())
+	return Vector2(all.size.x, all.size.z)
+
+
+## White where it's damp, alpha falling off from the middle with a ragged, noisy edge; the same on
+## every machine (fixed seed).
+static func _damp_texture() -> ImageTexture:
+	if _damp_tex:
+		return _damp_tex
+	const N := 64
+	var noise := FastNoiseLite.new()
+	noise.seed = 4127
+	noise.frequency = 0.09
+	var img := Image.create(N, N, false, Image.FORMAT_RGBA8)
+	for y in N:
+		for x in N:
+			var p := Vector2(x + 0.5, y + 0.5) / N * 2.0 - Vector2.ONE
+			var r := p.length() + noise.get_noise_2d(x, y) * 0.28
+			var a := pow(clampf(1.0 - smoothstep(0.35, 0.95, r), 0.0, 1.0), 1.3)
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	_damp_tex = ImageTexture.create_from_image(img)
+	return _damp_tex
 
 
 ## A kind's look: its model's meshes fitted into its footprint, standing on the ground; no model (or

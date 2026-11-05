@@ -15,7 +15,7 @@ extends SceneTree
 ## `--tag=T` names them psx_game_T_... instead; `--set=key:value,...` sets other Settings first
 ## (psx_fine:false). Each view also takes FRAMES more shots, _f1.., the eye sliding sideways a
 ## little each: side by side they show what shimmers and crawls when the camera moves.
-## `--views=forest,yard` only those; `--day` no night.
+## `--views=forest,yard` only those; `--day` no night; `--kasa=14,1;13,-4` factory kasas on those cells first.
 
 const ZOMBIES := ["prisoner", "copzombie", "zombiegirl"]
 const SCREEN := Vector2i(480, 270)  # 2026-11-03: the default "PS1 ekranı", 270p
@@ -43,6 +43,9 @@ const GAME_VIEWS := {  # eye, looking at
 	"forest": [Vector3(30.0, 1.7, 8.0), Vector3(90.0, 3.0, 25.0)],
 	"trunk": [Vector3(36.7, 1.7, 9.9), Vector3(96.7, 3.0, 26.9)],  # the wood's first trunks, close
 	"up": [Vector3(30.0, 1.7, 8.0), Vector3(50.0, 22.0, 14.0)],  # the sky through the crowns
+	"house_n": [Vector3(16.0, 1.7, -10.0), Vector3(7.0, 0.0, -5.5)],  # the ground along the house's north walls
+	"kasa": [Vector3(20.5, 1.7, -6.5), Vector3(14.0, 0.0, 0.0)],  # where psx_shots' own --kasa=14,1;13,-4 go down
+	"porch": [Vector3(16.0, 1.7, 9.5), Vector3(9.0, 0.0, 3.0)],  # the porch's corner, south-east
 }
 const FRAMES := 3
 const SLIDE := 0.025  # m sideways per frame
@@ -191,6 +194,7 @@ func _game() -> void:
 	var more := {}
 	var views: Array = GAME_VIEWS.keys()
 	var nights := [false, true]
+	var kasas: Array[Vector2i] = []
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--psx="):
 			psx = a.trim_prefix("--psx=").to_int()
@@ -200,6 +204,9 @@ func _game() -> void:
 			views = Array(a.trim_prefix("--views=").split(","))
 		elif a == "--day":
 			nights = [false]
+		elif a.begins_with("--kasa="):  # x,z;x,z: factory kasas put down first, as in play
+			for xz in a.trim_prefix("--kasa=").split(";"):
+				kasas.append(Vector2i(xz.get_slice(",", 0).to_int(), xz.get_slice(",", 1).to_int()))
 		elif a.begins_with("--set="):
 			for kv in a.trim_prefix("--set=").split(","):
 				more[kv.get_slice(":", 0)] = str_to_var(kv.get_slice(":", 1))
@@ -214,6 +221,11 @@ func _game() -> void:
 	for k: String in more:
 		settings.set_value(k, more[k])
 	root.get_node("GameState").request_pick_character("oldman")
+	if not kasas.is_empty():
+		var f: Node = root.get_node("GameState").factory
+		f.command(["k", f.sim.data.item_index["demir"], 100000])
+		for xz in kasas:
+			f.command(["p", f.sim.data.kind_index["kasa"], xz.x, xz.y, 0])
 	var player: Node3D = main.get_node("Player")
 	var vp := root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)
