@@ -55,7 +55,17 @@ Karar olan: zombi yalnız bir iki makinede; oyunun bir noktasından sonra bir ya
 - **Havayı korumak için:** Tek kişi, kulübeden çıkmaz, az konuşur, görev ekranı yok. Yol bulma yapay zekâsı gerekmez. Aşağıdaki "NPC işçi ve kolonist" maddesi kalabalık ve görev düzeni için geçerli, bu yabancı için değil.
 - **Zombi:** Zincirli ölü yalnız öğütücü kolunda kalır.
 
-**Açık:** grup bir gün üsse gelsin mi; sonda bir karşılığı olsun mu. Yabancının modeli aranmadı; Mixamo aday listesi dışı.
+**Kullanıcı kararı, grup sonda gelir (2026-11-05):** "Sonda gelsinler." Yabancının grubu oyunun sonuna kadar görünmez, sonda gelir.
+
+**Sonla ilgili önerim (kural değil):**
+- **Son gece:** Grup 14. gecede gelir. Oyun boyunca yalnız uzak silah sesi, av izleri, kulübedeki eşyalar ve tek cümleler duyulur.
+- **Verdiğin mermi geri döner:** Yabancıya toplam ne kadar mermi verildiyse grup o kadar güçlü gelir (sayı ya da ateş süresi). Sabahları verilen küçük karar sonda ödenir. Az verenin teleferiği daha çok durmuştur, dağı daha geride kalmıştır; bu iki bedel birbirini dengeler.
+- **Yabancının sonu:** Yaşıyorsa onlarla gelir; öldüyse grup ölüsünü bulup yine gelir, ama daha az mermiyle.
+- **Demo:** Grup ve yabancı demoda yok.
+
+**Yapım bedeli:** Bugünkü dalga düşmanları yakın dövüş için kurulu; ateş eden insan düşman, siper ve oyuncuya ateş yeni iş (yüksek, tahmin). Ağda host otoriter olmalı. Model aranmadı, Mixamo aday listesi dışı.
+
+**Açık:** Grup gelince zombi dalgası da sürüyor mu; grupla konuşma ya da pazarlık var mı. Yabancının ve grubun modeli de aranacak.
 
 ## Kısa özet
 
