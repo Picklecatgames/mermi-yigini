@@ -119,7 +119,7 @@ func _sky() -> void:
 	env.glow_hdr_threshold = 1.6
 	env.fog_enabled = true  # dust hanging over the desert: the far ground goes into it
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_light_color = Color(0.095, 0.115, 0.105)  # the old wood's haze: a damp grey-green, the trees going into it
+	env.fog_light_color = Color(0.088, 0.104, 0.118)  # the old wood's haze, damp and cold: the far trees go blue-grey, the near ones keep their warm (2026-11-05: grey-green made it all one colour)
 	env.fog_density = 1.0  # depth fog: all the way to the colour at fog_depth_end
 	env.fog_depth_begin = 22.0
 	env.fog_depth_end = 85.0
@@ -128,7 +128,7 @@ func _sky() -> void:
 	env.fog_aerial_perspective = 0.0  # its colour from the dust, not the sky
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
-	env.adjustment_saturation = 0.95
+	env.adjustment_saturation = 1.12  # AgX greys the colour out; psx_graded() decides how much stays
 	var we := WorldEnvironment.new()
 	we.name = "WorldEnvironment"
 	we.environment = env
