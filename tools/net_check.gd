@@ -270,7 +270,10 @@ func _client() -> void:
 	me.global_position = host_at + Vector3(0, 0, -2.5)
 	me._yaw = PI  # facing the host (+Z)
 	me.reset_physics_interpolation()
-	await create_timer(2.0).timeout  # the pose reaches the host; under load 0.5 s was not always enough
+	await create_timer(0.5).timeout  # the pose reaches the host
+	# (It used not to, under load: ENet's throttle on unreliable packets had gone to 0, net.gd.)
+	var link := (gs.multiplayer.multiplayer_peer as ENetMultiplayerPeer).get_peer(1)
+	if not _ok(link.get_statistic(ENetPacketPeer.PEER_PACKET_THROTTLE) == ENetPacketPeer.PACKET_THROTTLE_SCALE, "no throttle on our poses (%d)" % link.get_statistic(ENetPacketPeer.PEER_PACKET_THROTTLE)): return
 	var ff := []
 	gs.player_shot.connect(func(shooter: int, victim: int, _at: Vector3, _dir: Vector3, _special: String) -> void: ff.append([shooter, victim]))
 	gs.player().cooldown = 0.0

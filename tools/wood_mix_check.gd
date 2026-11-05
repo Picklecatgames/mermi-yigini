@@ -8,7 +8,7 @@ const MIN_KINDS := 25
 const MIN_FLOOR_KINDS := 60
 
 
-func _init() -> void:
+func _initialize() -> void:  # (not _init: the world's scripts name the autoloads, not in yet then)
 	var world: Node = (load("res://scenes/world.tscn") as PackedScene).instantiate()
 	var forest: Node = world.get_node("Forest")
 	var trees: Dictionary = forest.get_meta("tree_families")  # family -> PackedVector2Array

@@ -1,4 +1,7 @@
 extends Node3D
+## Zombie waves. The open ground (2026-11-02) has no pens, gates, lever or railing: a wave is called the
+## same way, but it steps out of the wood's edge (_step_out) and hunts the nearest player from the start
+## (_hunt); nothing walks the old way below. The old way, kept until the clean-up, is what follows:
 ## Zombie waves (docs/ayrintilar.md "Yeni yön: zombi dalgaları"). A player pulls the wall lever
 ## when the team is ready; in the user's words "şalter iner, siren ve kırmızı ışıklarla beraber
 ## ikili kapı ortadan yanlara doğru slide ile açılır", and the dead walk out of the pens, through the
@@ -340,6 +343,7 @@ var fence: int:  # what is left of the railing's bays, all of them (GameState's)
 
 var _zombies := {}  # id -> record (see _add_zombie)
 var _spawns: Array[Node3D] = []
+var _edges: Array[Node3D] = []  # host, no pens: the wood's edge spots this wave comes from (_step_out)
 var _gates: Array[Node3D] = []
 var _gate_home := {}  # leaf -> closed position
 var _gate_tween: Tween
@@ -428,6 +432,8 @@ func _ready() -> void:
 
 ## The local player at `at` may pull the lever now (player.gd shows the hint, E pulls it).
 func can_pull(at: Vector3) -> bool:
+	if not _lever:  # the open ground has none (build_world.gd): nothing to walk up to
+		return false
 	var to := Vector2(at.x - GameState.LEVER_POS.x, at.z - GameState.LEVER_POS.z)
 	return phase == Phase.READY and to.length() <= GameState.STATION_REACH
 
@@ -501,6 +507,7 @@ func _on_lever(_peer: int) -> void:
 	_hp_news.clear()
 	_limb_hits.clear()
 	_next_spawn = 0
+	_edges.clear()
 	GameState.cue_wave([&"phase", wave, Phase.STARTING, _queue.size()])
 	var seq := _seq
 	var fight := get_tree().create_timer(FIGHT_AT)
@@ -538,21 +545,24 @@ func _debug_spawn(type: String, at: Vector3, yaw: float, count: int) -> void:
 		_summon(StringName(type), pos, yaw + PI, w)
 
 
-## Host: one test zombie of TYPES `type` at `pos` facing `yaw`, dressed and paced for wave `w`.
-func _summon(type: StringName, pos: Vector3, yaw: float, w: int) -> void:
+## Host: one zombie of TYPES `type` on the open ground at `pos` facing `yaw`, dressed and paced for
+## wave `w`, going for the nearest player from the start (_hunt).
+func _summon(type: StringName, pos: Vector3, yaw: float, w: int, elite := false) -> void:
 	var t: Dictionary = TYPES[type]
 	var id := _next_id
 	_next_id += 1
-	_hp[id] = hp_of(type, w, false)
+	_hp[id] = hp_of(type, w, elite)
 	_hp_full[id] = _hp[id]
 	var speed: float = STATS[t.kind][0] * t.speed * minf(1.0 + SPEED_GROW * (w - 1), SPEED_MAX) * _rng.randf_range(SPEED_ROLL[0], SPEED_ROLL[1])
+	if elite:
+		speed *= ELITE_SPEED
 	var worn := looks(type, w)
 	var model: StringName = worn[_rng.randi() % worn.size()] if worn else &""
 	GameState.cue_wave([&"spawn", id, t.kind, _rng.randi(), "", pos, yaw, speed, 0.0, true, [],
-			type, model, false, -1, true])
+			type, model, elite, -1, true])
 	var z: Dictionary = _zombies[id]
 	z.released = true  # the host sends where it has them (_send_at), wave or no wave
-	z.test = true
+	z.afield = true
 
 
 ## Host: B's wave (debug builds; GameState.request_debug_raid). Once it is dark, wave `wave`'s plan
@@ -562,10 +572,7 @@ func _summon(type: StringName, pos: Vector3, yaw: float, w: int) -> void:
 func _debug_raid() -> void:
 	if Net.is_client or _raiding:
 		return
-	var edges: Array[Node3D] = []
-	for m: Node3D in get_tree().get_nodes_in_group("forest_edge"):
-		edges.append(m)
-	if edges.is_empty():
+	if get_tree().get_first_node_in_group("forest_edge") == null:
 		return
 	_raiding = true
 	var seq := _seq
@@ -574,8 +581,7 @@ func _debug_raid() -> void:
 		if seq != _seq:
 			_raiding = false
 			return
-	_shuffle(edges)
-	var from := edges.slice(0, mini(RAID_FROM, edges.size()))
+	_edges.clear()  # a fresh few spots for this one
 	var w := wave
 	wave += 1
 	var plan := _plan(w)
@@ -584,13 +590,28 @@ func _debug_raid() -> void:
 			await get_tree().create_timer(RAID_EVERY).timeout
 		if seq != _seq:
 			break
-		var edge: Node3D = from[i % from.size()]
-		var pos := edge.global_position + Vector3(_rng.randf_range(-3.0, 3.0), 0.0, _rng.randf_range(-3.0, 3.0))
-		var to := Vector3(GameState.LEVER_POS.x, 0.0, GameState.LEVER_POS.z) - pos
-		pos.y += 3.0  # the marker is on the ground; from over it, so a rise near it is found too
-		_summon(plan[i], _on_ground(pos), atan2(-to.x, -to.z), w)
+		_step_out(plan[i], w)
 		await get_tree().create_timer(RAID_EVERY).timeout
 	_raiding = false
+
+
+## Host: one of `type` for wave `w` steps out of the wood's edge at one of RAID_FROM spots picked for
+## this wave (false if the world has no such edge).
+func _step_out(type: StringName, w: int) -> bool:
+	if _edges.is_empty():
+		for m: Node3D in get_tree().get_nodes_in_group("forest_edge"):
+			_edges.append(m)
+		if _edges.is_empty():
+			return false
+		_shuffle(_edges)
+		_edges.resize(mini(RAID_FROM, _edges.size()))
+	var edge := _edges[_next_spawn % _edges.size()]
+	_next_spawn += 1
+	var pos := edge.global_position + Vector3(_rng.randf_range(-3.0, 3.0), 0.0, _rng.randf_range(-3.0, 3.0))
+	var to := Vector3(GameState.LEVER_POS.x, 0.0, GameState.LEVER_POS.z) - pos
+	pos.y += 3.0  # the marker is on the ground; from over it, so a rise near it is found too
+	_summon(type, _on_ground(pos), atan2(-to.x, -to.z), w, _rng.randf() < elite_chance(type, w))
+	return true
 
 
 ## `at` dropped (or raised, a step at most) onto the world layer below it; as it was if there is none.
@@ -698,6 +719,10 @@ static func looks(type: StringName, w: int) -> Array:
 
 func _spawn_next() -> void:
 	var type: StringName = _queue.pop_front()
+	if _spawns.is_empty():  # the open ground: no pens to come out of (build_world.gd "forest_edge")
+		if not _step_out(type, wave):
+			push_error("waves: no pens and no wood's edge, %s has nowhere to come from" % type)
+		return
 	var t: Dictionary = TYPES.get(type, {"kind": type})
 	var kind: StringName = t.kind
 	var at: Node3D = _spawns[_next_spawn % _spawns.size()]
@@ -876,7 +901,7 @@ func _on_cue(cue: Array) -> void:
 			_scream(cue[1], cue[2])
 		&"blast":
 			_blast_fx(cue[2])
-			if (cue[2] as Vector3).x < RAIL_X + BLAST_RAIL:
+			if not _spawns.is_empty() and (cue[2] as Vector3).x < RAIL_X + BLAST_RAIL:
 				fence_hit.emit(&"bloater", BLAST_FENCE, cue[2])
 		&"die":
 			left = cue[2]
@@ -1014,6 +1039,8 @@ func _close_gates(instant: bool) -> void:
 func _slide(open: bool, instant: bool) -> void:
 	if _gate_tween:
 		_gate_tween.kill()
+	if _gates.is_empty():  # the open ground: nothing to slide, and a tween with nothing in it complains
+		return
 	if instant:
 		for g in _gates:
 			g.position = _gate_home[g] + (g.get_meta("open_offset") if open else Vector3.ZERO)
@@ -1544,7 +1571,7 @@ func _hurt(z: Dictionary, dmg: float, peer: int, weak: bool, gun: String, dir :=
 ## Host: a bloater bursts. Everyone near it is hurt, the railing too if it was at it.
 func _burst(z: Dictionary, at: Vector3, peer: int, gun: String) -> void:
 	GameState.cue_wave([&"blast", z.id, at])
-	if at.x < RAIL_X + BLAST_RAIL:
+	if not _spawns.is_empty() and at.x < RAIL_X + BLAST_RAIL:  # (no pens, no railing)
 		_bite(z.kind, at.z, BLAST_FENCE)
 	var dmg := BLAST * (1.0 + HP_GROW * (wave - 1))
 	for other: Dictionary in _zombies.values():
@@ -1862,7 +1889,7 @@ func _spread(delta: float) -> void:
 				moved[j] = true
 	for i in live.size():
 		if moved[i]:
-			(live[i].node as Node3D).global_position = at[i] if live[i].has("test") else _keep_side(at[i])
+			(live[i].node as Node3D).global_position = at[i] if live[i].has("afield") else _keep_side(at[i])
 
 
 ## `at` kept out of the railing's band unless it is in a hole there (and then off its posts).
@@ -1927,8 +1954,10 @@ func _sign() -> void:
 
 # --- inside -----------------------------------------------------------------------------------------
 
-## Our side of the railing as a navigation mesh, baked once from the hall's world colliders (the
-## workshop, the heap, the walls), so the ones through a hole walk round them.
+## The ground round the base as a navigation mesh, baked once from the world's colliders (the shed,
+## the heap, the trunks), so the ones hunting walk round them. The ground is a real collider now: no
+## flat floor laid in over it, that was a second surface where the dunes meet it, and the "more than 2
+## edges" warning.
 func _bake_nav() -> void:
 	var mesh := NavigationMesh.new()
 	mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
@@ -1943,11 +1972,6 @@ func _bake_nav() -> void:
 	mesh.filter_baking_aabb = AABB(Vector3(-30.0, -1.0, -29.0), Vector3(30.0 + GameState.FIRING_LINE_X + 0.5, 5.0, 58.0))
 	var source := NavigationMeshSourceGeometryData3D.new()
 	NavigationServer3D.parse_source_geometry_data(mesh, source, get_parent())
-	# The floor's collider is a plane the parser can't take: laid in as a mesh of its own.
-	var box := mesh.filter_baking_aabb
-	var a := Vector3(box.position.x, 0.0, box.position.z)
-	var b := Vector3(box.end.x, 0.0, box.end.z)
-	source.add_faces(PackedVector3Array([a, Vector3(b.x, 0.0, a.z), b, a, b, Vector3(a.x, 0.0, b.z)]), Transform3D())
 	NavigationServer3D.bake_from_source_geometry_data_async(mesh, source, func() -> void:
 		if is_instance_valid(_nav):
 			_nav.navigation_mesh = mesh)
@@ -2035,8 +2059,8 @@ func _hunt(z: Dictionary, delta: float) -> void:
 			way = way.rotated(Vector3.UP, side * PI * 0.45)
 			step *= 0.5 if off.length() > REACH * 2.0 else 0.0
 			break
-	node.global_position = at + way * step if z.has("test") else _keep_side(at + way * step)
-	if z.has("test") and (_beat + z.id) % GROUND_EVERY == 0:  # across the open ground, on it
+	node.global_position = at + way * step if z.has("afield") else _keep_side(at + way * step)
+	if z.has("afield") and (_beat + z.id) % GROUND_EVERY == 0:  # across the open ground, on it
 		node.global_position = _on_ground(node.global_position, node)
 	z.walked += step
 	_turn_to(node, face, TAU * 2.0 * delta)
@@ -2051,9 +2075,10 @@ func _swing(z: Dictionary) -> void:
 	await get_tree().create_timer(t * 0.5).timeout
 	if not is_instance_valid(z.node):  # cleared away mid-swing (the next wave's lever coming back)
 		return
-	if not z.dead and (phase == Phase.FIGHT or z.has("test")) and z.inside:
+	if not z.dead and (phase == Phase.FIGHT or z.has("afield")) and z.inside:
 		var up := _standing()
 		var at := (z.node as Node3D).global_position
+		at.y = 0.0  # _standing() has them on the floor; the ground out here rolls
 		if up.has(z.prey) and at.distance_to(up[z.prey]) <= REACH + REACH_SLACK:
 			GameState.hurt_player(z.prey, PLAYER_HIT * z.bite, at)
 	await get_tree().create_timer(t * (0.5 + ARM_SLOW * z.body.arms_hurt()) + 0.3).timeout
@@ -2139,6 +2164,7 @@ func _follow(z: Dictionary, delta: float) -> void:
 	var v := minf(d / AT_SEND, _pace(z) * 1.5) if d > 0.05 else 0.0
 	if v > 0.0:
 		node.global_position += off / d * minf(d, v * delta)
+	node.global_position.y = lerpf(node.global_position.y, z.seen.y, minf(1.0, 8.0 * delta))  # the ground out here rolls
 	z.v = lerpf(z.v, v, minf(1.0, 8.0 * delta))
 	node.global_rotation.y = lerp_angle(node.global_rotation.y, z.seen_yaw, minf(1.0, 10.0 * delta))
 	if not z.body.busy():
