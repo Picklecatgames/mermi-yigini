@@ -6,6 +6,39 @@ Kullanıcının sözü: "Bir oturumda videodaki gibi, oyunu bozmayacak, oyuna uy
 
 Önizlemeli aday galerisi: https://claude.ai/artifact/BXbxg8NKfZfEVY7Y1JUqpQ
 
+## Kullanıcı kararı: işin düğümleri (2026-11-05)
+
+Kullanıcının sözü (yazımı düzelttim): "Şimdi bize şu düğümler lazım: taşıma, taşıma kapasitesi artıran kova, el arabası vs., bir yerden sonra teleferik; bu taşıma sistemi. Bir de demiri öğütme, öğütülmüş demiri eritme, eritilmiş demiri işleme. Bunlar düğümlerimiz, işlerimiz olacak; gündüz vaktinde, isterse gece de yapabilir."
+
+Karar olan yalnız şu: **taşıma merdiveni** (kova, el arabası vs., sonra teleferik), **demir zinciri** (öğütme → eritme → işleme), ve bunlar gündüzün işi, oyuncu isterse gece de yapar. Aşağıdaki tablolarda düğümlerin dışındaki her şey benim önerim, sayılar tahmin. Bu karar, aşağıdaki 8 fikirden çuval ve el arabası ile teleferiği doğruluyor; öbür fikirler öneri olarak kalıyor.
+
+### Taşıma
+
+| Düğüm | Durum | Bir seferde (tahmin) | Bedeli (benim önerim) | Model |
+|---|---|---|---|---|
+| Elle | Karar | 1 parça | Yok | Gerekmez |
+| Kova | Karar | 10 parça | Bir eli doldurur | [Wooden Bucket 01](https://polyhaven.com/a/wooden_bucket_01), CC0; metal kova aranmadı |
+| Çuval | Önerim ("vs." içinde) | 25 parça | Doldurması zaman alır, yavaşlatır | Galeride, taranmış çuval |
+| El arabası | Karar | 6 çuval | İki eli doldurur, silah elde değil | Galeride, paslı el arabası |
+| Teleferik | Karar, "bir yerden sonra" | Sürekli akış | Tek hat, dolum ve boşaltma insan ister | Galeride, makara ve halat üretilir |
+
+Mevcut kodda taşınan tek şey elle alınan parça (`request_pick_up`).
+
+### Demir zinciri
+
+| Düğüm | Girer | Çıkar | Makine | Bugün elimizde |
+|---|---|---|---|---|
+| Öğütme | Demir hurda | Öğütülmüş demir | Öğütücü | `assets/props/ogutucu/`, model benim. Üretim temelindeki `ezici` buna yakın |
+| Eritme | Öğütülmüş demir, yakıt (önerim) | Erimiş demir | Fırın ve pota | `scripts/hopper.gd`, `request_melt`: eski mermi-kovan zinciri için, yeniden bağlanır. Model `assets/props/workbench/hopper.glb` |
+| İşleme | Erimiş demir | İşlenmiş demir: üretimin girdisi (önerim) | Pres, kalıp | `assets/props/press/`, `scripts/press.gd`, `request_press`: aynı şekilde eski zincirden |
+
+Üç makinenin üçünün de modeli ve eski bir kod yolu var, ama eski yollar başka bir zincir için yazılmış. Üretim temelinin tarifleri (`claude/angry-yonath-6994c0`, `data/recipes.json`) bugün `sokme` ve `ezme`; hurda doğrudan malzemeye dönüyor, ara ürün yok. Bu zincir için üç yeni ürün ve üç tarif gerekir. Kod değiştirmedim.
+
+**Açık kalanlar:**
+1. Sökücü kalıyor mu? Kararda yok. Önerim: söküm, parçayı malzemesine ayırıp öğütücüye veren ilk adım olarak kalsın; kaldırılırsa hurda doğrudan öğütülür.
+2. Zincir yalnız demir için mi? Çelik, bakır, teneke de aynı yoldan mı geçiyor?
+3. Her düğümde kol mu, motor mu? Kollu sökücü fikri öğütücüye de uyar: önce elle, sonra motorla (benim önerim).
+
 ## Kısa özet
 
 - En iyi 8 fikir, sırayla: **çuval ve el arabası, kollu sökücü, dizel motor ve kayış, elle beslenen mazgal, zincirli ölü, teleferik, pençeli vinç, kişisel takım.**
