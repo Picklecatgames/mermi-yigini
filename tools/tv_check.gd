@@ -57,7 +57,7 @@ func _host() -> void:
 	# Alone first: too far, nothing; near, it reads; it moves on by itself and ends.
 	var me: CharacterBody3D = main.get_node("Player")
 	var p: Object = gs.player()
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	for i in 5:
 		await physics_frame
 	p.has_pose = true
@@ -196,7 +196,7 @@ func _table() -> void:
 ## The house: its doors, the spawns, a dead's way in.
 func _house() -> void:
 	var me: CharacterBody3D = main.get_node("Player")
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	for i in 10:
 		await physics_frame
 	var spawns := get_nodes_in_group("spawn")
