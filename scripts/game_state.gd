@@ -116,6 +116,9 @@ signal factory_clock(step: int, check: int)
 signal factory_snapshot(state: Dictionary)
 ## The shared kasa changed here; every peer works it out itself, it doesn't cross the network.
 signal stock_changed
+## `peer`'s head lamp flickers, the flicker `seed` (scripts/head_lamp.gd flicker_steps); the host's
+## call (scripts/lamp_flicker.gd), on every machine.
+signal lamp_flicker(peer: int, seed: int)
 
 const PILE_START := 100_000_000
 ## The day (2026-11-03, first guesses: the user hasn't set its length, docs/ayrintilar.md open
@@ -421,7 +424,7 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
 	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed", &"news_changed", &"news_line",
-	&"factory_cmd", &"factory_clock", &"factory_snapshot"]
+	&"factory_cmd", &"factory_clock", &"factory_snapshot", &"lamp_flicker"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4}
 
@@ -526,6 +529,7 @@ var wave_cleared := 0  # the last wave cleared, for the revive's price
 var _hp_wait := 0.0
 var _all_down_sent := false  # host: once until the next READY
 var factory: Node  # scripts/factory/factory.gd: the belts, the machines and the shared kasa
+var lamp_flicker_rolls: Node  # scripts/lamp_flicker.gd: host, whose head lamp flickers when
 
 # The local player's view, for HUD and first-person code.
 var carried: int:
@@ -579,6 +583,8 @@ func mag_capacity_of(peer: int) -> int:
 func _ready() -> void:
 	factory = preload("res://scripts/factory/factory.gd").new()
 	add_child(factory)
+	lamp_flicker_rolls = preload("res://scripts/lamp_flicker.gd").new()
+	add_child(lamp_flicker_rolls)
 	_reset_quests()  # Net isn't in the tree yet; a joiner gets the host's board on joining
 	_moon_rng.randomize()
 	fence_bays.resize(FENCE_BAYS)
@@ -815,6 +821,12 @@ func request_skip_time(peer := 0) -> void:
 	_skip_left = SKIP_TIME
 	hour_rate = fposmod(_skip_to - hour, 24.0) / SKIP_TIME
 	_world(&"clock_changed", [hour, hour_rate])
+
+
+## Host: `peer`'s head lamp flickers now, if scripts/lamp_flicker.gd's limits allow (the tension
+## director's way in); `near`: a dead one is the cause, not nothing. Whether it went.
+func try_lamp_flicker(peer: int, near := true) -> bool:
+	return lamp_flicker_rolls.try_flicker(peer, near)
 
 
 ## Debug builds: night and its dead at once (B; 2026-11-03, the user asked for a key for both). By day
