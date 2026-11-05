@@ -393,6 +393,8 @@ func _act() -> int:
 		return GameState.Act.SHOOTING
 	if clip.begins_with("reload"):
 		return GameState.Act.RELOADING
+	if _hands_busy() and not _pick.visible and not GameState.is_down():  # at the bench, the board...: waves.gd may send one up behind
+		return GameState.Act.BUSY
 	return GameState.Act.WALKING if is_on_floor() and Vector2(velocity.x, velocity.z).length() > 0.1 else GameState.Act.IDLE
 
 

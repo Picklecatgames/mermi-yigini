@@ -361,6 +361,7 @@ const LUNGE_TIME := 0.6
 const LUNGE_COOL := 2.5
 const SWING_STEP := 1.4
 const DIRECT := 2.5  # m: this near, straight at its prey, no path
+const NAV_POKE := 2.0  # s (_nav_watch)
 const ROUTE_SHORT := 3.0  # m: a way ending further than this from where it was asked to goes nowhere near (_route)
 const ACCEL := 7.0  # m/s² up to its pace and down from it: it springs into a run, never at once
 const STICK := 4.0
@@ -379,6 +380,52 @@ const DETOUR_TIME := 1.2
 const STUCK_SNAP := 4
 ## The walkable mesh on the open ground: the clearing and the wood round it out to here (x0, z0, x1, z1).
 const NAV_AREA := Rect2(-64.0, -68.0, 146.0, 136.0)
+
+## The director and the tricks (2026-11-06, the user: "nadiren arkamızda gizlensinler, ormanlıkta
+## bazen saklansınlar, oyuncuya atlasınlar"; numbers mine, docs/ayrintilar.md "Avcı zekâsı"). See _direct.
+const DIRECTOR_EVERY := 2.0
+const CALM := 0.3
+const EVENT_GAP := 30.0
+const QUIET_AFTER_HIT := 20.0
+const EVENT_CHANCE := 0.35
+const TENSE_HIT := 0.5
+const TENSE_NEAR := 0.12
+const TENSE_NEAR_M := 10.0
+const TENSE_FALL := 0.03
+const BUSY_FOR := 1.5  # s after the last dig at the heap a player still counts as busy at it
+const NO_TRICKS: Array[StringName] = [&"dog", &"blob", &"crawler", &"brute"]
+const TRICK_FROM := 9.0  # m from the player, one given a trick
+const TRICK_TO := 45.0
+## Ambush: it waits behind a trunk AMBUSH_RING m from them (going there at AMBUSH_PACE of its
+## stalk), and leaps out once they are within POUNCE_NEAR m, or with their back to it (more than
+## POUNCE_BACK degrees off it) within POUNCE_BACK_M m after AMBUSH_MIN_WAIT s, or after AMBUSH_GIVE_UP s.
+const AMBUSH_RING := Vector2(7.0, 14.0)
+const AMBUSH_PACE := 1.0
+const POUNCE_NEAR := 5.0
+const POUNCE_BACK := 100.0
+const POUNCE_BACK_M := 12.0
+const AMBUSH_MIN_WAIT := 2.0
+const AMBUSH_GIVE_UP := 40.0
+const POUNCE := 1.8  # times its pace, for POUNCE_TIME s: the leap out
+const POUNCE_TIME := 0.9
+## Shy: within SHY_SEEN degrees of where they look it goes behind the nearest trunk; past SHY_AWAY it
+## comes on at SHY_COME times its pace; within SHY_OUT m, or after SHY_GIVE_UP s, it runs at them.
+const SHY_SEEN := 30.0
+const SHY_AWAY := 70.0
+const SHY_COME := 1.0
+const SHY_OUT := 8.0
+const SHY_GIVE_UP := 45.0
+## Sneak: round to SNEAK_BEHIND m behind them at its stalk, then in; out within SNEAK_OUT m, or
+## when they turn to it (SNEAK_SEEN degrees) within SNEAK_SEEN_M m, or after SNEAK_GIVE_UP s.
+const SNEAK_BEHIND := 7.0
+const SNEAK_OUT := 3.0
+const SNEAK_SEEN := 35.0
+const SNEAK_SEEN_M := 15.0
+const SNEAK_GIVE_UP := 45.0
+const TRUNK_CELL := 8.0
+const TRUNK_MIN := 0.18  # m: thinner trunks hide nobody
+const HIDE_BEHIND := 1.5  # m: a trunk this near what it hides
+const COVER_GAP := 0.35  # m behind the trunk's side
 
 ## The night (2026-11-05, the user: "gece olduktan sonra bir anda tüm zombiler saldırıya geçmesin;
 ## bir iki tane rastgele ormanın içinden spawn olup bize doğru gelsinler"): from NIGHT_START to
@@ -456,6 +503,17 @@ var night_spawns := true
 var _night := -1  # GameState.nights the plan below is for
 var _night_wave := 0
 var _night_groups: Array = []  # [[types...], due (night 0..1)], in order
+var event_log: Array = []  # host: [clock, peer, what, zombie id] of every trick given and played out (tools/zombie_mind_check.gd)
+var _clock := 0.0  # host: s, game time
+var _tension := {}  # host: peer -> 0..1
+var _last_event := {}  # host: peer -> _clock of the last trick
+var _last_trick := {}  # host: peer -> which
+var _last_hit := {}  # host: peer -> _clock of the last blow on them
+var _direct_wait := 0.0
+var _trunks := {}
+var _trunks_built := false
+var nav_live := false  # the navigation map has taken our mesh in (_nav_watch)
+var _nav_wait := 0.0
 var night_log: Array = []  # host: [night, its 0..1, hour, how many, where] of every group let out (tools/zombie_night_check.gd)
 
 
@@ -561,7 +619,9 @@ func _process(delta: float) -> void:
 		if _spawn_wait <= 0.0 and _alive() < MAX_ALIVE:
 			_spawn_wait = SPAWN_EVERY
 			_spawn_next()
+	_nav_watch(delta)
 	_night_step()
+	_direct(delta)
 	if phase == Phase.FIGHT:
 		_screams(delta)
 		_maws(delta)
@@ -1200,7 +1260,8 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"aware": false, "grudge": 0, "grudge_t": 0.0, "prey_last": Vector3.INF, "prey_v": Vector3.ZERO,
 			"flank": (1.0 if seed % 2 == 0 else -1.0) * lerpf(0.5, 1.0, float(absi(seed) % 101) / 100.0),
 			"lunge": 0.0, "lunge_cool": 0.0, "pace_now": 0.0, "gait": "",
-			"stuck_t": 0.0, "stuck_from": pos, "stuck_n": 0, "detour": Vector3.ZERO, "detour_t": 0.0}
+			"stuck_t": 0.0, "stuck_from": pos, "stuck_n": 0, "detour": Vector3.ZERO, "detour_t": 0.0,
+			"role": &"", "role_t": 0.0, "role_wait": 0.0, "role_route": 0.0, "hide": Vector3.INF, "recheck": 0.0, "pounce": 0.0}
 	_zombies[id] = z
 	z.bar.setup(_hp_full.get(id, hp_of(z.type, wave, elite)), elite)
 	node.add_child(z.bar)
@@ -2068,6 +2129,27 @@ func _bake_nav() -> void:
 			_nav.navigation_mesh = mesh)
 
 
+## Host: the mesh baked, whether the navigation map has it yet. Now and then it never does (its
+## regions settle on threads, 2026-11-06: in one run of three the map stayed empty for good, every
+## way straight and every nearest point at the origin): given again every NAV_POKE s till it has.
+func _nav_watch(delta: float) -> void:
+	if nav_live or _nav.navigation_mesh == null:
+		return
+	_nav_wait -= delta
+	if _nav_wait > 0.0:
+		return
+	_nav_wait = NAV_POKE
+	var v := _nav.navigation_mesh.get_vertices()
+	if v.is_empty():
+		return
+	if NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, v[0]) != Vector3.ZERO:
+		nav_live = true
+		return
+	var mesh := _nav.navigation_mesh
+	_nav.navigation_mesh = null
+	_nav.navigation_mesh = mesh
+
+
 ## The way from `from` to `to`, waypoints on the floor; straight there without a mesh, and straight
 ## there when the mesh does not join them (2026-11-05: one in a patch the trunks and logs close in,
 ## or off the mesh, went to the patch's edge nearest the player, stepped off it, was sent back to
@@ -2201,7 +2283,7 @@ func _hunt(z: Dictionary, delta: float) -> void:
 			z.prey_v = (prey - z.prey_last) / HUNT_EVERY if was == z.prey and z.prey_last != Vector3.INF else Vector3.ZERO
 			z.prey_v = (z.prey_v as Vector3).limit_length(8.0)
 			z.prey_last = prey
-			if afield:
+			if afield and z.role == &"":
 				_sense(z, at, z.prey, prey)
 			z.goal = _aim_for(z, at, prey)
 			z.path = _route(at, z.goal)
@@ -2213,6 +2295,9 @@ func _hunt(z: Dictionary, delta: float) -> void:
 		_moving(z, 0.0)
 		return
 	var prey: Vector3 = up[z.prey]
+	if afield and z.role != &"" and _play_role(z, delta, at, prey):
+		return
+	z.pounce = maxf(0.0, z.pounce - delta)
 	var off := prey - at
 	off.y = 0.0
 	if off.length() <= REACH:
@@ -2245,6 +2330,8 @@ func _hunt(z: Dictionary, delta: float) -> void:
 	var want := _pace(z)
 	if not z.aware:
 		want = _stalk_pace(z)
+	elif z.pounce > 0.0:
+		want *= POUNCE
 	elif z.lunge > 0.0:
 		want *= LUNGE
 	elif off.length() > CATCH_FAR:
@@ -2298,13 +2385,15 @@ func _unstick(z: Dictionary, at: Vector3, to: Vector3, delta: float) -> void:
 	z.path = []
 	if z.stuck_n >= STUCK_SNAP and _nav.navigation_mesh != null:
 		var on := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, at)
-		(z.node as Node3D).global_position = _on_ground(Vector3(on.x, at.y + 0.5, on.z), z.node)
+		if on != Vector3.ZERO:  # zero: the map has not taken the mesh in yet (its regions settle on threads)
+			(z.node as Node3D).global_position = _on_ground(Vector3(on.x, at.y + 0.5, on.z), z.node)
 		z.stuck_n = 0
 	elif z.stuck_n >= 2:
 		var side := to.normalized().cross(Vector3.UP) * (1.0 if (z.stuck_n + z.id) % 2 == 0 else -1.0)
 		var aside := at + (side - to.normalized() * 0.5).normalized() * DETOUR
 		if _nav.navigation_mesh != null:
-			aside = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, aside)
+			var on := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, aside)
+			aside = on if on != Vector3.ZERO else aside
 		z.detour = Vector3(aside.x, 0.0, aside.z)
 		z.detour_t = DETOUR_TIME
 
@@ -2348,6 +2437,8 @@ func _swing(z: Dictionary) -> void:
 		at.y = 0.0  # _standing() has them on the floor; the ground out here rolls
 		if up.has(z.prey) and at.distance_to(up[z.prey]) <= REACH + REACH_SLACK:
 			GameState.hurt_player(z.prey, PLAYER_HIT * z.bite, at)
+			_tension[z.prey] = minf(1.0, _tension.get(z.prey, 0.0) + TENSE_HIT)
+			_last_hit[z.prey] = _clock
 	await get_tree().create_timer(maxf(0.0, t - strike) + ARM_SLOW * z.body.arms_hurt() * t + 0.1).timeout
 	z.swinging = false
 
@@ -2452,7 +2543,9 @@ func _let_out(group: Array, w: int, p: float) -> void:
 	for k in group.size():
 		var at := spot + Vector3(_rng.randf_range(-1.5, 1.5), 0.0, _rng.randf_range(-1.5, 1.5))
 		if _nav.navigation_mesh != null:
-			at = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, at)
+			var on := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, at)
+			if on != Vector3.ZERO:
+				at = on
 		_summon(group[k], _on_ground(at + Vector3.UP * 3.0), atan2(-to.x, -to.z), w, _rng.randf() < elite_chance(group[k], w))
 	night_log.append([_night, p, GameState.hour, group.size(), spot])
 
@@ -2585,3 +2678,264 @@ func _sound(slot: StringName, at: Node3D) -> void:
 	at.add_child(p)
 	p.play()
 	p.finished.connect(p.queue_free)
+
+
+# --- the director and the hunter's tricks (2026-11-06) ------------------------------------------
+
+## Host: every player's tension, and now and then one of the dead given a trick to play on them
+## (DIRECTOR_EVERY): when they are calm (tension under CALM), nothing was played on them for
+## EVENT_GAP s, nothing hit them for QUIET_AFTER_HIT s, at EVENT_CHANCE a look; never the same
+## trick twice running on one player. Tension: TENSE_HIT a blow, TENSE_NEAR a second for every one
+## running at them within TENSE_NEAR_M m, down by TENSE_FALL a second.
+func _direct(delta: float) -> void:
+	_clock += delta
+	var up := _standing()
+	for peer: int in up:
+		var near := 0
+		for z: Dictionary in _zombies.values():
+			if not z.dead and z.aware and z.role == &"" and z.prey == peer \
+					and (z.node as Node3D).global_position.distance_to(up[peer]) < TENSE_NEAR_M:
+				near += 1
+		_tension[peer] = clampf(_tension.get(peer, 0.0) + (TENSE_NEAR * near - TENSE_FALL) * delta, 0.0, 1.0)
+	_direct_wait -= delta
+	if _direct_wait > 0.0:
+		return
+	_direct_wait = DIRECTOR_EVERY
+	for peer: int in up:
+		if _tension.get(peer, 0.0) > CALM or _clock - _last_event.get(peer, -INF) < EVENT_GAP \
+				or _clock - _last_hit.get(peer, -INF) < QUIET_AFTER_HIT:
+			continue
+		if _rng.randf() >= EVENT_CHANCE:
+			continue
+		var tricks: Array[StringName] = [&"ambush", &"shy"]
+		if _is_busy(peer):
+			tricks = [&"sneak", &"sneak", &"ambush"]  # a player at the bench or the heap: mostly from behind
+		var last: StringName = _last_trick.get(peer, &"")
+		while last in tricks:
+			tricks.erase(last)
+		_shuffle(tricks)
+		for trick: StringName in tricks:
+			if _play(trick, peer, up[peer]):
+				break
+
+
+## Host: whether `peer` is at something with their eyes on it: a menu of the workshop open
+## (GameState.Act.BUSY, player.gd) or digging at the heap lately (GameState PlayerState.busy_at).
+func _is_busy(peer: int) -> bool:
+	var p = GameState.player(peer)
+	return p.act == GameState.Act.BUSY or Time.get_ticks_msec() / 1000.0 - p.busy_at < BUSY_FOR
+
+
+## Host: `trick` given to one of the dead that fits it, to play on `peer`; false if none does.
+func _play(trick: StringName, peer: int, prey: Vector3) -> bool:
+	var best: Dictionary = {}
+	var near := INF
+	for z: Dictionary in _zombies.values():
+		if z.dead or not z.has("afield") or z.role != &"" or z.kind in NO_TRICKS or z.body.crawling:
+			continue
+		var d := Vector2((z.node as Node3D).global_position.x - prey.x, (z.node as Node3D).global_position.z - prey.z).length()
+		if d < TRICK_FROM or d > TRICK_TO or (z.aware and trick != &"ambush"):
+			continue
+		if d < near:
+			near = d
+			best = z
+	if best.is_empty():
+		return false
+	give_role(best, trick, peer)
+	return true
+
+
+## Host: `z` plays `trick` on `peer` from now (the director's pick; checks call it too). Logged.
+func give_role(z: Dictionary, trick: StringName, peer: int) -> void:
+	z.role = trick
+	z.prey = peer
+	z.role_t = 0.0
+	z.hide = Vector3.INF
+	z.path = []
+	z.role_wait = 0.0
+	_last_event[peer] = _clock
+	_last_trick[peer] = trick
+	event_log.append([_clock, peer, trick, z.id])
+
+
+## Host: the end of a trick: it shrieks and comes on at once (POUNCE times its pace for POUNCE_TIME s).
+func _pounce(z: Dictionary) -> void:
+	z.role = &""
+	z.aware = false  # so _alert sends the shriek
+	_alert(z)
+	z.pounce = POUNCE_TIME
+	z.lunge_cool = 0.0
+	z.think = 0.0
+	event_log.append([_clock, z.prey, &"pounce", z.id])
+
+
+## Host: `z` playing its trick on its prey at `prey` (on the floor). True while it does (it moved).
+func _play_role(z: Dictionary, delta: float, at: Vector3, prey: Vector3) -> bool:
+	z.role_t += delta
+	var p = GameState.player(z.prey)
+	var look := Vector3(-sin(p.yaw), 0.0, -cos(p.yaw))
+	var rel := at - prey
+	rel.y = 0.0
+	var d := rel.length()
+	var looked := rad_to_deg(look.angle_to(rel)) if d > 0.01 else 0.0  # 0: they look right at it
+	match z.role:
+		&"ambush":
+			# Behind a trunk on its side of them, waiting; out when they come near or turn their back.
+			var waited: float = z.role_t - z.role_wait if z.role_wait > 0.0 else 0.0
+			if z.role_t > AMBUSH_GIVE_UP or d < POUNCE_NEAR or waited > AMBUSH_MIN_WAIT and d < POUNCE_BACK_M and looked > POUNCE_BACK:
+				_pounce(z)
+				return false
+			var look_again: bool = z.role_t >= z.recheck
+			if look_again:
+				z.recheck = z.role_t + 1.0
+			if z.hide == Vector3.INF or look_again and not _is_hidden(prey, z.hide):
+				z.hide = _cover(prey, at, AMBUSH_RING)
+				if z.hide == Vector3.INF:
+					_pounce(z)  # no trunk to wait at: it simply comes
+					return false
+			if _go(z, at, z.hide, _stalk_pace(z) * AMBUSH_PACE, delta, 0.08):
+				if z.role_wait <= 0.0:
+					z.role_wait = z.role_t
+					event_log.append([_clock, z.prey, &"waiting", z.id])
+				_turn_to(z.node, -rel, FACE_TURN * delta)
+			return true
+		&"shy":
+			# Far off: looked at, it goes behind the nearest trunk; with their back to it, it comes on quick.
+			if z.role_t > SHY_GIVE_UP or d < SHY_OUT:
+				_pounce(z)
+				return false
+			if looked < SHY_SEEN:
+				if z.hide == Vector3.INF or not _is_hidden(prey, z.hide):
+					z.hide = _cover(prey, at, Vector2(maxf(4.0, d - 4.0), d + 4.0))
+					if z.hide != Vector3.INF:
+						event_log.append([_clock, z.prey, &"hiding", z.id])
+				if z.hide != Vector3.INF and _go(z, at, z.hide, _pace(z), delta, 0.08):
+					_turn_to(z.node, -rel, FACE_TURN * delta)
+				return true
+			if looked > SHY_AWAY:
+				z.hide = Vector3.INF
+				_go(z, at, prey, _pace(z) * SHY_COME, delta)
+				return true
+			_moving(z, 0.0)  # half watched: it holds still
+			_turn_to(z.node, -rel, FACE_TURN * delta)
+			return true
+		&"sneak":
+			# Round behind them, wide, at a walk; then in. Seen (they turn to it) or near: out.
+			if z.role_t > SNEAK_GIVE_UP or d < SNEAK_OUT or looked < SNEAK_SEEN and d < SNEAK_SEEN_M:
+				_pounce(z)
+				return false
+			var behind := prey - look * SNEAK_BEHIND
+			var to := behind if looked < 150.0 and d > SNEAK_BEHIND * 0.7 else prey
+			_go(z, at, to, _stalk_pace(z), delta)
+			return true
+	z.role = &""
+	return false
+
+
+## Host: `z` (at `at`) one step towards `to` at `pace` m/s, round what is in the way; true once there.
+func _go(z: Dictionary, at: Vector3, to: Vector3, pace: float, delta: float, near := 0.35) -> bool:
+	var off := to - at
+	off.y = 0.0
+	if off.length() < near:
+		z.pace_now = 0.0
+		_moving(z, 0.0)
+		return true
+	z.role_route -= delta
+	if z.path.is_empty() or z.role_route <= 0.0:
+		z.role_route = HUNT_EVERY
+		z.path = _route(at, to)
+	while z.path.size() > 1 and Vector2(z.path[0].x - at.x, z.path[0].z - at.z).length() < WAYPOINT_SLACK:
+		z.path.pop_front()
+	var way: Vector3 = (z.path[0] if not z.path.is_empty() else to) - at
+	way.y = 0.0
+	if way.length() < 0.05:
+		way = off
+	z.pace_now = move_toward(z.pace_now, pace, ACCEL * delta)
+	var step := minf(z.pace_now * delta, off.length())
+	var node: Node3D = z.node
+	node.global_position = at + way.normalized() * step
+	if (_beat + z.id) % GROUND_EVERY == 0:
+		node.global_position = _on_ground(node.global_position, node)
+	z.walked += step
+	_turn_to(node, way, TAU * 2.0 * delta)
+	_moving(z, step / delta)
+	_unstick(z, at, way, delta)
+	return false
+
+
+## The tree trunks of the open ground (their posts, tools/build_world.gd _posts) in cells of
+## TRUNK_CELL m: cell -> [[x, z, radius], ...]. Built once.
+func _trunk_cells() -> Dictionary:
+	if _trunks_built:
+		return _trunks
+	_trunks_built = true
+	var stack: Array[Node] = [get_parent()]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c: Node in n.get_children():
+			stack.append(c)
+		var cs := n as CollisionShape3D
+		if cs and cs.shape is CylinderShape3D and cs.get_parent() is StaticBody3D:
+			var r: float = (cs.shape as CylinderShape3D).radius * cs.global_basis.get_scale().x
+			if r < TRUNK_MIN:
+				continue
+			var p := cs.global_position
+			var key := Vector2i(floori(p.x / TRUNK_CELL), floori(p.z / TRUNK_CELL))
+			if not _trunks.has(key):
+				_trunks[key] = []
+			_trunks[key].append(Vector3(p.x, p.z, r))
+	return _trunks
+
+
+## Whether something at `at` is behind a trunk from `eye` (both on the floor): a trunk across the
+## line between them, near the far end.
+func _is_hidden(eye: Vector3, at: Vector3) -> bool:
+	var cells := _trunk_cells()
+	var a := Vector2(eye.x, eye.z)
+	var b := Vector2(at.x, at.z)
+	var lo := Vector2i(floori(minf(a.x, b.x) / TRUNK_CELL) - 1, floori(minf(a.y, b.y) / TRUNK_CELL) - 1)
+	var hi := Vector2i(floori(maxf(a.x, b.x) / TRUNK_CELL) + 1, floori(maxf(a.y, b.y) / TRUNK_CELL) + 1)
+	for x in range(lo.x, hi.x + 1):
+		for y in range(lo.y, hi.y + 1):
+			for t: Vector3 in cells.get(Vector2i(x, y), []):
+				var c := Vector2(t.x, t.y)
+				var along := (c - a).dot(b - a) / maxf((b - a).length_squared(), 0.0001)
+				if along <= 0.0 or along >= 1.0 or (b - c).length() > HIDE_BEHIND:
+					continue
+				if (a + (b - a) * along).distance_to(c) < t.z * 0.9:
+					return true
+	return false
+
+
+## A spot right behind a trunk from `eye`, `ring` (min, max) m from it, the nearest to `from`; on
+## the walkable mesh and not in the clearing's open middle. INF if none.
+func _cover(eye: Vector3, from: Vector3, ring: Vector2) -> Vector3:
+	var cells := _trunk_cells()
+	var best := Vector3.INF
+	var near := INF
+	var reach := ceili(ring.y / TRUNK_CELL) + 1
+	var at := Vector2i(floori(eye.x / TRUNK_CELL), floori(eye.z / TRUNK_CELL))
+	var map := get_world_3d().navigation_map
+	for x in range(at.x - reach, at.x + reach + 1):
+		for y in range(at.y - reach, at.y + reach + 1):
+			for t: Vector3 in cells.get(Vector2i(x, y), []):
+				var c := Vector2(t.x, t.y)
+				var away := c - Vector2(eye.x, eye.z)
+				var d := away.length()
+				if d < ring.x or d > ring.y:
+					continue
+				var spot2 := c + away / d * (t.z + COVER_GAP)
+				var cost := spot2.distance_to(Vector2(from.x, from.z))
+				if cost >= near:
+					continue
+				var spot := Vector3(spot2.x, from.y, spot2.y)
+				if _nav.navigation_mesh != null:
+					var on := NavigationServer3D.map_get_closest_point(map, spot)
+					if Vector2(on.x - spot.x, on.z - spot.z).length() > 0.3:
+						continue
+					spot = on
+				if not _is_hidden(eye, spot):  # put back onto the mesh, out from behind it
+					continue
+				near = cost
+				best = spot
+	return best
