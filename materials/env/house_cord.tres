@@ -22,3 +22,5 @@ shader_parameter/tri_metres = 1.0
 shader_parameter/far_colour = null
 shader_parameter/far_fade = null
 shader_parameter/shade_below = null
+shader_parameter/shade_near = null
+shader_parameter/near_fill = null

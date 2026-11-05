@@ -32,6 +32,8 @@ uniform float tri_metres = 2.0;
 uniform vec4 far_colour : source_color = vec4(0.0);
 uniform vec2 far_fade = vec2(20.0, 60.0);
 uniform vec2 shade_below = vec2(0.0, 1.0);  // x m above the world's floor down to it the light goes to y of itself (0: off): under a wood's canopy
+uniform vec3 shade_near = vec3(0.0);  // by day, closer than x m (fading out by y) the canopy's shade lets at least z of the light through (z 0: off)
+uniform float near_fill = 0.0;  // ...and in that reach the bark's own colour times this on top, the sky's bounce: a trunk with the sun behind it was black
 #ifdef PSX_SOFT
 global uniform float psx_haze_day;  // 1 by day, 0 by night (scripts/scrap_hills.gd)
 uniform float night_fill = 5.0;  // by night the sky's light on the first trees, times: the dark sky lights so little that 15-bit colour shows them as black
@@ -104,6 +106,12 @@ void fragment() {
 	if (shade_below.x > 0.0) {
 		shade = mix(shade_below.y, 1.0, smoothstep(0.0, shade_below.x, world_pos.y));
 	}
+	// The trunk you stand by reads, its bark too; the wood's depths stay dark (2026-11-05, the user:
+	// up close the trunks were a black blur).
+	float shade_lit = shade;
+	if (shade_near.z > 0.0) {
+		shade_lit = mix(max(shade, shade_near.z), shade, smoothstep(shade_near.x, shade_near.y, length(VERTEX)));
+	}
 #ifdef PSX_SOFT
 	// Moss up the trunks of the wood, in patches by place (2026-11-05, the user: old and damp).
 	if (shade_below.x > 0.0) {
@@ -117,7 +125,7 @@ void fragment() {
 	// a black bark: by night the lamp and the fire still show a tree's colours deep in the wood.
 	float night = 1.0 - psx_haze_day;
 	float tone = vertex_tint ? clamp(dot(COLOR.rgb, vec3(0.333)), 0.05, 1.0) : 1.0;
-	ALBEDO *= mix(shade, 1.0 / tone, night);
+	ALBEDO *= mix(shade_lit, 1.0 / tone, night);
 	// Pale textures lifted less: by the sky's light alone a pale fir stood out grey among the others.
 	float pale = 1.0 / (1.0 + 5.0 * dot(ALBEDO, vec3(0.333)));
 	AO = mix(1.0, shade * mix(tone, 1.0, 0.2) * night_fill * pale * 1.3, night);
@@ -134,6 +142,11 @@ void fragment() {
 #endif
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
+#ifdef PSX_SOFT
+	if (near_fill > 0.0) {
+		EMISSION += ALBEDO * near_fill * psx_haze_day * (1.0 - smoothstep(shade_near.x, shade_near.y, length(VERTEX)));
+	}
+#endif
 #ifdef PSX_HAZE
 	// The far colour broken into big soft patches, by place, never by piece: they can't crawl.
 	vec2 q = world_pos.xz * 0.11 + vec2(world_pos.y * 0.07);

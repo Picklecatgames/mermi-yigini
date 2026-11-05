@@ -98,12 +98,23 @@ const ORMAN_GROUND := ["forest_leaves_04", "mud_forest", "forest_ground_04"]  # 
 const ORMAN_VALUE := 0.95  # darker: up close, out of the dark fog, the pale bark went white (2026-11-04, the user)
 const ORMAN_GAMMA := 1.1
 const ORMAN_SATURATION := 1.0
-const ORMAN_DUST := Color(0.36, 0.36, 0.2)
-const ORMAN_DUST_SHARE := 0.05
+## Dust: a cold grey-green, more of it (2026-11-05, the art director's colour; was (0.36, 0.36, 0.2)
+## at 0.05): the leaves' yellow-rust was too strong. At his 0.15 a yellow leaf moved by 2-3 of 255,
+## nothing to see; 0.3 is my guess, not a rule.
+const ORMAN_DUST := Color(0.30, 0.36, 0.26)
+const ORMAN_DUST_SHARE := 0.3
 ## Under the canopy it's dark (2026-11-04, the user: more unknown, as if something's there): from
 ## this height (m in the world) down to the ground a tree goes to this share of its light.
 const ORMAN_SHADE := Vector2(9.0, 0.42)
-const ORMAN_BARK := Color(0.55, 0.52, 0.48)  # dark bark, leaves kept lit: too dark a leaf goes flat in 15-bit colour
+## ...but near the eye at least this share (from x m, gone by y): up close the trunks were a black
+## blur with no bark to see (2026-11-05, the user). Lifting the shade alone hardly showed: the trunk
+## you face has the sun behind it, so the solid (bark) parts also get their own colour times
+## ORMAN_NEAR_FILL on top in that reach, a sky's bounce. Only the solid (bark) materials: leaves and
+## bushes near the eye went cream.
+## My guesses, not rules.
+const ORMAN_SHADE_NEAR := Vector3(4.0, 18.0, 0.75)
+const ORMAN_NEAR_FILL := 1.1
+const ORMAN_BARK := Color(0.50, 0.52, 0.46)  # dark bark, leaves kept lit: too dark a leaf goes flat in 15-bit colour
 const ORMAN_ROCK := Color(0.5, 0.52, 0.42)  # the pack's pale stones stood out of the floor white
 const NATURE_DUST := Color(0.5, 0.42, 0.31)
 const NATURE_DUST_SHARE := 0.22
@@ -530,6 +541,9 @@ func _material(m: Material, px: int) -> Material:
 				sm.set_shader_parameter("tint", b.albedo_color * _tint)
 			if b.resource_name != "Rocks" and not _floor:
 				sm.set_shader_parameter("shade_below", ORMAN_SHADE)
+				if b.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
+					sm.set_shader_parameter("shade_near", ORMAN_SHADE_NEAR)
+					sm.set_shader_parameter("near_fill", ORMAN_NEAR_FILL)
 		if b.uv1_scale != Vector3.ONE or b.uv1_offset != Vector3.ZERO:
 			sm.set_shader_parameter("uv_scale", Vector2(b.uv1_scale.x, b.uv1_scale.y))
 			sm.set_shader_parameter("uv_offset", Vector2(b.uv1_offset.x, b.uv1_offset.y))
