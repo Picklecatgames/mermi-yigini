@@ -83,6 +83,7 @@ const TURN := 4.0  # rad/s its heading turns
 const LOOK := 2.5  # m: this near a waypoint it starts turning for the next
 const WANDER := 0.3  # rad, its sway off its line
 const WANDER_LEN := 6.0  # m walked for one sway
+const WANDER_AFIELD := 0.35  # of it on the open ground: between the trunks it sways into them, and it means to get you
 const SURGE := 0.08  # its pace rises and falls by this
 const FACE_TURN := 5.0  # rad/s, turning to the railing once there
 ## Inside (numbers mine): it claws a player within REACH m, the claw lands if they are still within
@@ -328,10 +329,84 @@ const SWARM_PACK_MAX := 8
 const SUMMON_AHEAD := 6.0
 const SUMMON_GAP := 1.2
 const SUMMON_ROW := 5
-## B's wave out of the wood (_debug_raid): from this many edge spots, one every RAID_EVERY s.
+## When no hidden spot is found (_let_out), the wood's edge (_step_out): this many of its spots a night.
 const RAID_FROM := 3
-const RAID_EVERY := 0.6
 const GROUND_EVERY := 4  # frames between a test zombie's looks at the ground under it
+
+## The hunt on the open ground (2026-11-05, the user: "orada burada dolanıyorlar sadece; güzel bir
+## yapay zekâ, daha saldırgan agresif bir zekâ ver; daha korkutucu"). Every number here is my guess,
+## not the user's (docs/ayrintilar.md "Zombi zekâsı ve gece akışı"). Until one has seen or heard a
+## player it stalks: comes on at a walk (STALK of its pace, in its walk clips' stride) towards the
+## nearest. It notices one within HEAR m whatever is between, within NOTICE m that it can see
+## (a ray past the trunks), any it is shot by, and any firing within SHOT_HEAR m; then it shrieks
+## (body.notice) and runs, and never lets go. It runs at the one it picked a little ahead of where
+## they are going (LEAD_MAX s), a little quicker far off (CATCH_UP past CATCH_FAR m); several on one
+## player come at them from the sides (FLANK_M m off the line, nothing inside FLANK_NEAR m). The
+## last LUNGE_FROM m it bursts forward (LUNGE times its pace for LUNGE_TIME s) and swings, still
+## coming on through the wind-up (SWING_STEP m/s): backing off is not enough, running away is.
+## It picks among the players by distance, sticks to its pick (STICK m), is drawn off one many
+## already go for (CROWDED m each) and goes for one who shot it (GRUDGE m, for GRUDGE_TIME s).
+const STALK := 0.45
+const HEAR := 12.0
+const NOTICE := 32.0
+const SHOT_HEAR := 45.0
+const LEAD_MAX := 0.7
+const CATCH_UP := 1.15
+const CATCH_FAR := 14.0
+const FLANK_M := 5.0
+const FLANK_NEAR := 6.0
+const LUNGE_FROM := 3.4
+const LUNGE := 1.45
+const LUNGE_TIME := 0.6
+const LUNGE_COOL := 2.5
+const SWING_STEP := 1.4
+const DIRECT := 2.5  # m: this near, straight at its prey, no path
+const ROUTE_SHORT := 3.0  # m: a way ending further than this from where it was asked to goes nowhere near (_route)
+const ACCEL := 7.0  # m/s² up to its pace and down from it: it springs into a run, never at once
+const STICK := 4.0
+const CROWDED := 3.0
+const GRUDGE := 8.0
+const GRUDGE_TIME := 5.0
+const GAIT_WALK := 0.55  # of its pace: slower than this it walks (its walk clips), quicker it runs
+const GAIT_RUN := 0.7
+## Stuck (2026-11-05, the user: "yarım saattir bir kayaya takılmış"): one that has gone less than
+## STUCK_MOVED m in STUCK_EVERY s while it means to walk finds its way again (a fresh path), then
+## steps aside DETOUR m for DETOUR_TIME s, and at the STUCK_SNAP-th time is put back on the mesh.
+const STUCK_EVERY := 1.2
+const STUCK_MOVED := 0.4
+const DETOUR := 2.5
+const DETOUR_TIME := 1.2
+const STUCK_SNAP := 4
+## The walkable mesh on the open ground: the clearing and the wood round it out to here (x0, z0, x1, z1).
+const NAV_AREA := Rect2(-64.0, -68.0, 146.0, 136.0)
+
+## The night (2026-11-05, the user: "gece olduktan sonra bir anda tüm zombiler saldırıya geçmesin;
+## bir iki tane rastgele ormanın içinden spawn olup bize doğru gelsinler"): from NIGHT_START to
+## NIGHT_END o'clock, while it is dark (GameState.night_of >= NIGHT_DARK), the night's wave (_plan of
+## `wave`, one wave a night, so every night is harder) comes out of the wood one or two at a time.
+## The gaps are random and shrink as the night goes on (the n-th of N groups comes at ((n+u)/N)^(1/
+## NIGHT_RISE) of what is left of the night, u random), the first soon after NIGHT_QUIET of it; a pair
+## comes more often every night (PAIR, PAIR_GROW, PAIR_MAX); dogs and the swarm keep to their packs.
+## Each comes up HIDE_DEEP m into the wood past the clearing's edge, at least HIDE_NEAR m from every
+## player and out of the sight of any looking its way within HIDE_SEEN m (HIDE_CONE degrees off where
+## they look, and nothing between). Numbers mine.
+const NIGHT_START := 20.0
+const NIGHT_END := 6.0
+const NIGHT_DARK := 0.6
+const NIGHT_QUIET := 0.04
+const NIGHT_FIRST := 0.06  # of the night after the quiet, at most, the first group comes
+const NIGHT_RISE := 1.6
+const NIGHT_SPARE := 0.08  # of the night at its end with nobody new: the last come before the light
+const PAIR := 0.25
+const PAIR_GROW := 0.08
+const PAIR_MAX := 0.6
+const HIDE_DEEP := [9.0, 22.0]
+const HIDE_NEAR := 24.0
+const HIDE_SEEN := 60.0
+const HIDE_CONE := 70.0
+const CLEARING_CENTRE := Vector2(8.0, 0.0)  # tools/build_world.gd
+const CLEARING_RADII := Vector2(40.0, 34.0)
+const JUNK_YARD := Rect2(-136.0, -80.0, 130.0, 160.0)  # tools/build_world.gd YARD: nobody comes out of the junk
 const STATUS := {Phase.READY: "HAZIR", Phase.STARTING: "AÇILIYOR", Phase.CLEARED: "TEMİZ", Phase.FAILED: "HERKES DÜŞTÜ"}
 
 var wave := 1
@@ -375,7 +450,13 @@ var _spawn_wait := 0.0
 var _beat := 0  # frames, for FIT_EVERY
 var _at_wait := 0.0
 var _holes: Array[int] = []  # host: the bays down, as last seen
-var _nav: NavigationRegion3D  # our side of the railing, for the ones inside
+var _nav: NavigationRegion3D  # our side of the railing, for the ones inside; the open ground's clearing and wood
+## Host: the night's trickle (_night_step). Checks may stop it (night_spawns = false).
+var night_spawns := true
+var _night := -1  # GameState.nights the plan below is for
+var _night_wave := 0
+var _night_groups: Array = []  # [[types...], due (night 0..1)], in order
+var night_log: Array = []  # host: [night, its 0..1, hour, how many, where] of every group let out (tools/zombie_night_check.gd)
 
 
 ## A zombie's body: what the shot code and the HUD ask of a target.
@@ -414,7 +495,9 @@ func _ready() -> void:
 	GameState.debug_spawn_asked.connect(_debug_spawn)
 	GameState.debug_raid_asked.connect(_debug_raid)
 	GameState.shot_landed.connect(_on_shot)
-	GameState.fired.connect(func(_peer: int, from: Vector3, dir: Vector3) -> void: fit_along(from, dir))
+	GameState.fired.connect(func(peer: int, from: Vector3, dir: Vector3) -> void:
+		fit_along(from, dir)
+		_heard(peer, from))
 	BLOOD.warm()
 	VOICE.warm()
 	_prewarm.call_deferred()
@@ -478,6 +561,7 @@ func _process(delta: float) -> void:
 		if _spawn_wait <= 0.0 and _alive() < MAX_ALIVE:
 			_spawn_wait = SPAWN_EVERY
 			_spawn_next()
+	_night_step()
 	if phase == Phase.FIGHT:
 		_screams(delta)
 		_maws(delta)
@@ -565,10 +649,9 @@ func _summon(type: StringName, pos: Vector3, yaw: float, w: int, elite := false)
 	z.afield = true
 
 
-## Host: B's wave (debug builds; GameState.request_debug_raid). Once it is dark, wave `wave`'s plan
-## (_plan) steps out of the wood's edge (build_world.gd "forest_edge") at RAID_FROM spots, one every
-## RAID_EVERY s while fewer than MAX_ALIVE are up, and goes for the nearest player (_hunt). Each B
-## is the next wave, so harder. Until the night session ties waves to the dark, this stands in.
+## Host: B (debug builds; GameState.request_debug_raid). Once it is dark, the night's trickle
+## (_night_step) lets its next group out of the wood at once instead of when it is due, so there is
+## something to see straight away; the rest come as they would.
 func _debug_raid() -> void:
 	if Net.is_client or _raiding:
 		return
@@ -576,22 +659,16 @@ func _debug_raid() -> void:
 		return
 	_raiding = true
 	var seq := _seq
-	while GameState.night_of(GameState.hour) < 0.6:  # the light goes first
+	while GameState.night_of(GameState.hour) < NIGHT_DARK or night_progress(GameState.hour) < 0.0:  # the light goes first
 		await get_tree().process_frame
 		if seq != _seq:
 			_raiding = false
 			return
-	_edges.clear()  # a fresh few spots for this one
-	var w := wave
-	wave += 1
-	var plan := _plan(w)
-	for i in plan.size():
-		while _alive() >= MAX_ALIVE:
-			await get_tree().create_timer(RAID_EVERY).timeout
-		if seq != _seq:
-			break
-		_step_out(plan[i], w)
-		await get_tree().create_timer(RAID_EVERY).timeout
+	var p := night_progress(GameState.hour)
+	if _night != GameState.nights:
+		_plan_night(GameState.nights, p)
+	if not _night_groups.is_empty():
+		_let_out(_night_groups.pop_front()[0], _night_wave, p)
 	_raiding = false
 
 
@@ -880,6 +957,12 @@ func _on_cue(cue: Array) -> void:
 			if not z.is_empty() and not z.dead:
 				z.swing = z.body.attack()
 				z.moving = false
+				z.gait = ""
+		&"notice":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead:
+				z.aware = true
+				z.body.notice()
 		&"at":
 			if Net.is_client:
 				_got_at(cue[1], cue[2])
@@ -1113,7 +1196,11 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"hole": hole, "inside": inside, "heading": Vector3.ZERO, "walked": 0.0, "face": Vector3.ZERO,
 			"claws": 0, "fix": Vector3.ZERO, "prey": 0, "think": 0.0, "goal": Vector3.ZERO,
 			"swing": 0.0, "swinging": false, "seen": Vector3.INF, "seen_yaw": 0.0, "v": 0.0,
-			"cross": &"", "cross_t": 0.0, "cross_from": Vector3.ZERO, "cross_to": Vector3.ZERO, "cross_wind": 0.0, "cross_air": 0.0}
+			"cross": &"", "cross_t": 0.0, "cross_from": Vector3.ZERO, "cross_to": Vector3.ZERO, "cross_wind": 0.0, "cross_air": 0.0,
+			"aware": false, "grudge": 0, "grudge_t": 0.0, "prey_last": Vector3.INF, "prey_v": Vector3.ZERO,
+			"flank": (1.0 if seed % 2 == 0 else -1.0) * lerpf(0.5, 1.0, float(absi(seed) % 101) / 100.0),
+			"lunge": 0.0, "lunge_cool": 0.0, "pace_now": 0.0, "gait": "",
+			"stuck_t": 0.0, "stuck_from": pos, "stuck_n": 0, "detour": Vector3.ZERO, "detour_t": 0.0}
 	_zombies[id] = z
 	z.bar.setup(_hp_full.get(id, hp_of(z.type, wave, elite)), elite)
 	node.add_child(z.bar)
@@ -1289,7 +1376,8 @@ func _steer(z: Dictionary, to: Vector3, step: float, delta: float, braking: bool
 	if braking and d < 1.5:
 		z.heading = want
 		return want
-	var sway := WANDER * sin(z.walked / WANDER_LEN * TAU + z.zig) * clampf((d - 1.5) / 3.0, 0.0, 1.0) if braking else WANDER * sin(z.walked / WANDER_LEN * TAU + z.zig)
+	var wander := WANDER * (WANDER_AFIELD if z.has("afield") else 1.0)
+	var sway := wander * sin(z.walked / WANDER_LEN * TAU + z.zig) * clampf((d - 1.5) / 3.0, 0.0, 1.0) if braking else wander * sin(z.walked / WANDER_LEN * TAU + z.zig)
 	want = want.rotated(Vector3.UP, sway)
 	var heading: Vector3 = z.heading
 	if heading == Vector3.ZERO:
@@ -1969,7 +2057,10 @@ func _bake_nav() -> void:
 	mesh.agent_height = 1.75
 	mesh.agent_max_climb = 0.25
 	mesh.agent_max_slope = 30.0  # the heap's sides are no floor
-	mesh.filter_baking_aabb = AABB(Vector3(-30.0, -1.0, -29.0), Vector3(30.0 + GameState.FIRING_LINE_X + 0.5, 5.0, 58.0))
+	if get_tree().get_first_node_in_group("forest_edge") != null:  # the open ground: the clearing and the wood round it
+		mesh.filter_baking_aabb = AABB(Vector3(NAV_AREA.position.x, -8.0, NAV_AREA.position.y), Vector3(NAV_AREA.size.x, 20.0, NAV_AREA.size.y))
+	else:
+		mesh.filter_baking_aabb = AABB(Vector3(-30.0, -1.0, -29.0), Vector3(30.0 + GameState.FIRING_LINE_X + 0.5, 5.0, 58.0))
 	var source := NavigationMeshSourceGeometryData3D.new()
 	NavigationServer3D.parse_source_geometry_data(mesh, source, get_parent())
 	NavigationServer3D.bake_from_source_geometry_data_async(mesh, source, func() -> void:
@@ -1977,7 +2068,12 @@ func _bake_nav() -> void:
 			_nav.navigation_mesh = mesh)
 
 
-## The way from `from` to `to` on our side, waypoints on the floor; straight there without a mesh.
+## The way from `from` to `to`, waypoints on the floor; straight there without a mesh, and straight
+## there when the mesh does not join them (2026-11-05: one in a patch the trunks and logs close in,
+## or off the mesh, went to the patch's edge nearest the player, stepped off it, was sent back to
+## it by the next way, and so on for good: the stuck one by the rock). Walked straight, it is through
+## the gap and on the mesh again in a step or two. A way ending off the mesh at `to` (a player on a
+## rock, past the bake's area) goes on to `to` from its end.
 func _route(from: Vector3, to: Vector3) -> Array:
 	var way := []
 	if _nav.navigation_mesh != null:
@@ -1985,6 +2081,12 @@ func _route(from: Vector3, to: Vector3) -> Array:
 			way.append(Vector3(p.x, 0.0, p.z))
 	if way.size() >= 2:
 		way.pop_front()  # where it stands
+		var end: Vector3 = way[-1]
+		var short := Vector2(end.x - to.x, end.z - to.z).length()
+		if short > ROUTE_SHORT:
+			return [Vector3(to.x, 0.0, to.z)]  # not joined: straight on
+		if short > WAYPOINT_SLACK:
+			way.append(Vector3(to.x, 0.0, to.z))
 		return way
 	return [Vector3(to.x, 0.0, to.z)]
 
@@ -1999,93 +2101,260 @@ func _standing() -> Dictionary:
 	return out
 
 
-## Host: one inside goes for the nearest player standing, round what is in the way, and claws them
-## once within REACH. Nobody standing, it waits where it is.
+## Host: which of the players up `z` goes for: the nearest, its own pick and one who shot it drawing
+## it, one many already go for less (STICK, CROWDED, GRUDGE).
+func _pick_prey(z: Dictionary, at: Vector3, up: Dictionary) -> int:
+	var on := {}
+	for o: Dictionary in _zombies.values():
+		if not o.dead and o.id != z.id and o.prey != 0:
+			on[o.prey] = on.get(o.prey, 0) + 1
+	var best := 0
+	var low := INF
+	for peer: int in up:
+		var score: float = Vector2(up[peer].x - at.x, up[peer].z - at.z).length() + CROWDED * on.get(peer, 0)
+		if peer == z.prey:
+			score -= STICK
+		if peer == z.grudge and z.grudge_t > 0.0:
+			score -= GRUDGE
+		if score < low:
+			low = score
+			best = peer
+	return best
+
+
+## Host: whether `z` notices its prey `peer` (at `prey`, on the floor) now; once it has, it never lets go.
+func _sense(z: Dictionary, at: Vector3, peer: int, prey: Vector3) -> void:
+	if z.aware:
+		return
+	var d := Vector2(prey.x - at.x, prey.z - at.z).length()
+	if d > NOTICE:
+		return
+	if d > HEAR:
+		var eye := (z.node as Zombie).above_head() - Vector3.UP * 0.2
+		var p = GameState.player(peer)
+		var ray := PhysicsRayQueryParameters3D.create(eye, p.pos + Vector3.UP * 1.4, 1)
+		ray.exclude = [(z.node as CollisionObject3D).get_rid()]
+		if get_world_3d().direct_space_state.intersect_ray(ray):
+			return  # a trunk, a wall between: it comes on as it was
+	_alert(z)
+
+
+## Host: `z` has seen or heard a player: it shrieks and runs (every peer hears it).
+func _alert(z: Dictionary) -> void:
+	if z.aware or z.dead:
+		return
+	z.aware = true
+	GameState.cue_wave([&"notice", z.id])
+
+
+## Host: a shot fired at `from` by `peer`: every one within SHOT_HEAR m knows where they are now.
+func _heard(peer: int, from: Vector3) -> void:
+	if Net.is_client:
+		return
+	for z: Dictionary in _zombies.values():
+		if z.dead or not z.inside or not z.has("afield"):
+			continue
+		if (z.node as Node3D).global_position.distance_to(from) <= SHOT_HEAR:
+			if not z.aware:
+				z.grudge = peer
+				z.grudge_t = GRUDGE_TIME * 0.5
+			_alert(z)
+
+
+## Host: where `z` runs to for its prey at `prey`: ahead of where they are going, off to its own
+## side when others are on them too.
+func _aim_for(z: Dictionary, at: Vector3, prey: Vector3) -> Vector3:
+	var off := prey - at
+	off.y = 0.0
+	var d := off.length()
+	if not z.aware:
+		return prey
+	var goal: Vector3 = prey + z.prey_v * clampf(d / maxf(_pace(z), 0.5), 0.0, LEAD_MAX)
+	var others := 0
+	for o: Dictionary in _zombies.values():
+		if not o.dead and o.id != z.id and o.prey == z.prey and o.aware:
+			others += 1
+	if others > 0 and d > FLANK_NEAR and d > 0.01:
+		goal += (off / d).cross(Vector3.UP) * z.flank * minf(FLANK_M, (d - FLANK_NEAR) * 0.4)
+	return goal
+
+
+## Host: one inside (the old hall) or on the open ground goes for a player standing, round what is in
+## the way, and swings at them once within REACH. Nobody standing, it waits where it is. On the open
+## ground it stalks till it notices one, then runs them down (see STALK above).
 func _hunt(z: Dictionary, delta: float) -> void:
 	var node: StaticBody3D = z.node
 	var at := node.global_position
 	var up := _standing()
+	var afield: bool = z.has("afield")
 	z.think -= delta
+	z.grudge_t = maxf(0.0, z.grudge_t - delta)
+	z.lunge_cool = maxf(0.0, z.lunge_cool - delta)
+	if not afield:
+		z.aware = true  # the hall's: they come at the railing knowing
 	if z.think <= 0.0 or not up.has(z.prey):
 		z.think = HUNT_EVERY
-		z.prey = 0
-		var near := INF
-		for peer: int in up:
-			if at.distance_to(up[peer]) < near:
-				near = at.distance_to(up[peer])
-				z.prey = peer
+		var was: int = z.prey
+		z.prey = _pick_prey(z, at, up)
 		if z.prey != 0:
-			z.goal = up[z.prey]
+			var prey: Vector3 = up[z.prey]
+			z.prey_v = (prey - z.prey_last) / HUNT_EVERY if was == z.prey and z.prey_last != Vector3.INF else Vector3.ZERO
+			z.prey_v = (z.prey_v as Vector3).limit_length(8.0)
+			z.prey_last = prey
+			if afield:
+				_sense(z, at, z.prey, prey)
+			z.goal = _aim_for(z, at, prey)
 			z.path = _route(at, z.goal)
 	if z.down > 0.0 or z.body.busy() or z.swinging:
+		z.stuck_t = 0.0
+		z.stuck_from = at
 		return
 	if z.prey == 0:
 		_moving(z, 0.0)
 		return
-	var goal: Vector3 = up[z.prey]
-	var off := goal - at
+	var prey: Vector3 = up[z.prey]
+	var off := prey - at
 	off.y = 0.0
 	if off.length() <= REACH:
 		_moving(z, 0.0)
 		_turn_to(node, off, FACE_TURN * delta)
 		_swing(z)
 		return
-	if z.path.is_empty() or goal.distance_to(z.goal) > 1.5:
-		z.goal = goal
-		z.path = _route(at, goal)
-	var to: Vector3 = z.path[0] - at
-	to.y = 0.0
-	if to.length() < WAYPOINT_SLACK and z.path.size() > 1:
-		z.path.pop_front()
+	# Its way: the last metres straight at them, else along its path (stepping aside when stuck).
+	var to := off
+	if z.detour_t > 0.0:
+		z.detour_t -= delta
+		to = z.detour - at
+		to.y = 0.0
+		if to.length() < 0.3:
+			z.detour_t = 0.0
+	elif off.length() > DIRECT:
+		while z.path.size() > 1 and Vector2(z.path[0].x - at.x, z.path[0].z - at.z).length() < WAYPOINT_SLACK:
+			z.path.pop_front()
+		if z.path.is_empty():
+			z.path = _route(at, z.goal)
 		to = z.path[0] - at
 		to.y = 0.0
+		if to.length() < 0.05:  # on its last point and they are not there: straight on
+			to = off
 	z.stagger = maxf(0.0, z.stagger - delta)
-	var v := _pace(z) * (STAGGER_SLOW if z.stagger > 0.0 else 1.0)
-	var step := minf(v * delta, maxf(0.0, off.length() - REACH * 0.8))
+	if z.aware and z.lunge <= 0.0 and z.lunge_cool <= 0.0 and off.length() < LUNGE_FROM and not z.body.crawling:
+		z.lunge = LUNGE_TIME
+		z.lunge_cool = LUNGE_COOL
+	z.lunge = maxf(0.0, z.lunge - delta)
+	var want := _pace(z)
+	if not z.aware:
+		want = _stalk_pace(z)
+	elif z.lunge > 0.0:
+		want *= LUNGE
+	elif off.length() > CATCH_FAR:
+		want *= CATCH_UP
+	if z.stagger > 0.0:
+		want *= STAGGER_SLOW
+	z.pace_now = move_toward(z.pace_now, want, ACCEL * delta)
+	var step := minf(z.pace_now * delta, maxf(0.0, off.length() - REACH * 0.8))
 	if to.length() < 0.01 or step <= 0.0:
+		_moving(z, 0.0)
 		return
-	var way := _steer(z, to, step, delta, false)
+	var way := _steer(z, to, step, delta, z.aware and off.length() < LOOK * 2.0)
 	var face := way
-	# One nearer the player in the way: it edges round it, its own side, or waits behind (a crowd
-	# round someone, not one heap on them).
+	# One nearer the player in the way: it edges round it on its own side (a crowd round someone,
+	# not one heap on them), slower, never standing behind it.
 	for o: Dictionary in _zombies.values():
 		if o.dead or not o.inside or o.id == z.id:
 			continue
 		var rel: Vector3 = (o.node as Node3D).global_position - at
 		rel.y = 0.0
 		var near: float = SPREAD * 1.2 * maxf(z.body.size, o.body.size)
-		if rel.length() < near and rel.dot(way) > 0.4 * rel.length() and goal.distance_to((o.node as Node3D).global_position) < off.length():
+		if rel.length() < near and rel.dot(way) > 0.4 * rel.length() and prey.distance_to((o.node as Node3D).global_position) < off.length():
 			var side := 1.0 if z.id % 2 == 0 else -1.0
 			way = way.rotated(Vector3.UP, side * PI * 0.45)
-			step *= 0.5 if off.length() > REACH * 2.0 else 0.0
+			step *= 0.6
 			break
-	node.global_position = at + way * step if z.has("afield") else _keep_side(at + way * step)
-	if z.has("afield") and (_beat + z.id) % GROUND_EVERY == 0:  # across the open ground, on it
+	node.global_position = at + way * step if afield else _keep_side(at + way * step)
+	if afield and (_beat + z.id) % GROUND_EVERY == 0:  # across the open ground, on it
 		node.global_position = _on_ground(node.global_position, node)
 	z.walked += step
 	_turn_to(node, face, TAU * 2.0 * delta)
 	_moving(z, step / delta)
+	_unstick(z, at, to, delta)
 
 
-## Host: a claw at its prey (every peer sees the swing); it lands if they are still within reach and up.
+## Host: `z` meant to walk this frame (from `at`, towards `to`). Gone nowhere for STUCK_EVERY s: a
+## fresh way, then a step aside, then back onto the mesh.
+func _unstick(z: Dictionary, at: Vector3, to: Vector3, delta: float) -> void:
+	z.stuck_t += delta
+	if z.stuck_t < STUCK_EVERY:
+		return
+	var moved := Vector2(at.x - z.stuck_from.x, at.z - z.stuck_from.z).length()
+	z.stuck_t = 0.0
+	z.stuck_from = at
+	if moved >= STUCK_MOVED:
+		z.stuck_n = 0
+		return
+	z.stuck_n += 1
+	z["unstuck"] = z.get("unstuck", 0) + 1  # tools/zombie_stuck_check.gd
+	z.think = 0.0  # a fresh pick and way at once
+	z.path = []
+	if z.stuck_n >= STUCK_SNAP and _nav.navigation_mesh != null:
+		var on := NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, at)
+		(z.node as Node3D).global_position = _on_ground(Vector3(on.x, at.y + 0.5, on.z), z.node)
+		z.stuck_n = 0
+	elif z.stuck_n >= 2:
+		var side := to.normalized().cross(Vector3.UP) * (1.0 if (z.stuck_n + z.id) % 2 == 0 else -1.0)
+		var aside := at + (side - to.normalized() * 0.5).normalized() * DETOUR
+		if _nav.navigation_mesh != null:
+			aside = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, aside)
+		z.detour = Vector3(aside.x, 0.0, aside.z)
+		z.detour_t = DETOUR_TIME
+
+
+## Its stalking pace: STALK of its own, within its walk clips' stride (its own gait if it has none).
+func _stalk_pace(z: Dictionary) -> float:
+	var span: Vector2 = z.body.gait_span("walk")
+	var v := _pace(z) * STALK
+	return clampf(v, span.x, span.y * 0.95) if span.y > 0.0 else v
+
+
+## Host: a swing at its prey (every peer sees it). Through the wind-up it keeps coming at them; the
+## blow lands at the clip's strike (zombie_body.gd ATTACKS) if they are still within reach and up.
 func _swing(z: Dictionary) -> void:
 	z.swinging = true
+	z.pace_now = 0.0
 	GameState.cue_wave([&"swing", z.id])
 	var t: float = z.swing
-	await get_tree().create_timer(t * 0.5).timeout
-	if not is_instance_valid(z.node):  # cleared away mid-swing (the next wave's lever coming back)
-		return
+	var strike: float = minf(z.body.strike, t)
+	var node: Node3D = z.node
+	var left := strike
+	while left > 0.0:
+		await get_tree().process_frame
+		if not is_instance_valid(node) or z.dead:
+			return
+		var dt := get_process_delta_time()
+		left -= dt
+		var up := _standing()
+		if up.has(z.prey) and not z.body.crawling:
+			var off: Vector3 = up[z.prey] - node.global_position
+			off.y = 0.0
+			if off.length() > REACH * 0.6:
+				var step := minf(SWING_STEP * dt, off.length() - REACH * 0.6)
+				node.global_position += off.normalized() * step
+				if z.has("afield") and (_beat + z.id) % GROUND_EVERY == 0:
+					node.global_position = _on_ground(node.global_position, node)
+			_turn_to(node, off, FACE_TURN * dt)
 	if not z.dead and (phase == Phase.FIGHT or z.has("afield")) and z.inside:
 		var up := _standing()
-		var at := (z.node as Node3D).global_position
+		var at := node.global_position
 		at.y = 0.0  # _standing() has them on the floor; the ground out here rolls
 		if up.has(z.prey) and at.distance_to(up[z.prey]) <= REACH + REACH_SLACK:
 			GameState.hurt_player(z.prey, PLAYER_HIT * z.bite, at)
-	await get_tree().create_timer(t * (0.5 + ARM_SLOW * z.body.arms_hurt()) + 0.3).timeout
+	await get_tree().create_timer(maxf(0.0, t - strike) + ARM_SLOW * z.body.arms_hurt() * t + 0.1).timeout
 	z.swinging = false
 
 
-## Its gait as it goes `v` m/s: walking (its stride kept to the floor) or standing.
+## Its gait as it goes `v` m/s: walking or running by how quick that is for it (GAIT_WALK, GAIT_RUN:
+## a stalking one in its walk clips), its stride kept to the floor; or standing. The same on every
+## peer from the speed alone.
 func _moving(z: Dictionary, v: float) -> void:
 	if z.down > 0.0:  # going down on a torn leg: once down, it sets off in its new gait
 		z.moving = false
@@ -2093,14 +2362,144 @@ func _moving(z: Dictionary, v: float) -> void:
 	if z.body.busy():
 		return
 	if v > 0.3:
-		if not z.moving:
+		var gait: String = z.gait
+		var span: Vector2 = z.body.gait_span("walk")
+		if span.y <= 0.0 or z.body.crawling:
+			gait = ""
+		elif v < _pace(z) * GAIT_WALK and v <= span.y:
+			gait = "walk"
+		elif v > _pace(z) * GAIT_RUN or v > span.y:
+			gait = ""
+		if not z.moving or gait != z.gait:
 			z.moving = true
-			z.body.move(v)
+			z.gait = gait
+			z.body.move(v, gait)
 		else:
 			z.body.pace(v)
 	elif v < 0.1 and z.moving:
 		z.moving = false
+		z.gait = ""
 		z.body.idle()
+
+
+## Host: the night's trickle out of the wood (see NIGHT_START above). Each night once it is dark: its
+## wave planned and spread over what is left of the night in groups of one or two.
+func _night_step() -> void:
+	if not night_spawns or get_tree().get_first_node_in_group("forest_edge") == null:
+		return
+	var p := night_progress(GameState.hour)
+	if p < 0.0 or GameState.night_of(GameState.hour) < NIGHT_DARK:
+		return
+	if _night != GameState.nights:
+		_plan_night(GameState.nights, p)
+	while not _night_groups.is_empty() and (_night_groups[0][1] as float) <= p:
+		if _alive() + (_night_groups[0][0] as Array).size() > MAX_ALIVE:
+			return  # too many up: it waits its turn
+		var group: Array = _night_groups.pop_front()[0]
+		_let_out(group, _night_wave, p)
+
+
+## How far through the night `h` o'clock is, 0 at NIGHT_START to 1 at NIGHT_END; -1 by day.
+static func night_progress(h: float) -> float:
+	var span := fposmod(NIGHT_END - NIGHT_START, 24.0)
+	var p := fposmod(h - NIGHT_START, 24.0) / span
+	return p if p < 1.0 else -1.0
+
+
+## Host: night `n`'s plan from `p` (0..1) on: `wave`'s types, in groups, each with its time.
+func _plan_night(n: int, p: float) -> void:
+	_night = n
+	_night_wave = wave
+	wave += 1
+	var plan := _plan(_night_wave)
+	var groups: Array = []
+	var pair := minf(PAIR + PAIR_GROW * (_night_wave - 1), PAIR_MAX)
+	var i := 0
+	while i < plan.size():
+		var t: StringName = plan[i]
+		var g: Array = [t]
+		i += 1
+		if t in [&"dog", &"swarm"]:  # a pack comes as one
+			while i < plan.size() and plan[i] == t:
+				g.append(plan[i])
+				i += 1
+		elif i < plan.size() and not plan[i] in [&"dog", &"swarm"] and _rng.randf() < pair:
+			g.append(plan[i])
+			i += 1
+		groups.append(g)
+	var from := minf(p + NIGHT_QUIET, 1.0 - NIGHT_SPARE)
+	var span := maxf(0.0, 1.0 - NIGHT_SPARE - from)
+	_night_groups.clear()
+	var dues := []
+	for k in groups.size():
+		dues.append(from + span * pow((k + _rng.randf_range(0.15, 0.85)) / groups.size(), 1.0 / NIGHT_RISE))
+	dues.sort()
+	if not dues.is_empty():  # a lone one early, so the night is known to have begun; the rest build up
+		dues[0] = from + span * _rng.randf_range(0.0, NIGHT_FIRST)
+	for k in groups.size():
+		_night_groups.append([groups[k], dues[k]])
+
+
+## Host: `group` (types) of wave `w` comes up in the wood, out of sight, and makes for the players.
+func _let_out(group: Array, w: int, p: float) -> void:
+	var spot := _hidden_spot()
+	if spot == Vector3.INF:
+		for t: StringName in group:
+			_step_out(t, w)
+		night_log.append([_night, p, GameState.hour, group.size(), Vector3.INF])
+		return
+	var to := Vector3(CLEARING_CENTRE.x, 0.0, CLEARING_CENTRE.y) - spot
+	for k in group.size():
+		var at := spot + Vector3(_rng.randf_range(-1.5, 1.5), 0.0, _rng.randf_range(-1.5, 1.5))
+		if _nav.navigation_mesh != null:
+			at = NavigationServer3D.map_get_closest_point(get_world_3d().navigation_map, at)
+		_summon(group[k], _on_ground(at + Vector3.UP * 3.0), atan2(-to.x, -to.z), w, _rng.randf() < elite_chance(group[k], w))
+	night_log.append([_night, p, GameState.hour, group.size(), spot])
+
+
+## Host: a spot in the wood HIDE_DEEP m past the clearing's edge that no player is near or can see
+## (see HIDE_NEAR above), on the walkable mesh; INF if none of a few tries is.
+func _hidden_spot() -> Vector3:
+	var up := {}
+	for peer: int in GameState._slots_now():
+		var pl = GameState.player(peer)
+		if pl.has_pose and not GameState.is_down(peer):
+			up[peer] = pl
+	var space := get_world_3d().direct_space_state
+	var map := get_world_3d().navigation_map
+	for attempt in 40:
+		var dir := Vector2.from_angle(_rng.randf() * TAU)
+		var deep: float = _rng.randf_range(HIDE_DEEP[0], HIDE_DEEP[1])
+		var p := CLEARING_CENTRE + dir * CLEARING_RADII * (1.0 + deep / minf(CLEARING_RADII.x, CLEARING_RADII.y))
+		if JUNK_YARD.has_point(p) or not NAV_AREA.grow(-2.0).has_point(p):
+			continue
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(p.x, 60.0, p.y), Vector3(p.x, -20.0, p.y), 1))
+		if not hit:
+			continue
+		var at: Vector3 = hit.position
+		if _nav.navigation_mesh != null:
+			var on := NavigationServer3D.map_get_closest_point(map, at)
+			if Vector2(on.x - at.x, on.z - at.z).length() > 1.0:
+				continue  # in a thicket, a rock: nowhere to stand
+			at = on
+		var seen := false
+		for peer: int in up:
+			var pl = up[peer]
+			var rel: Vector3 = at - pl.pos
+			rel.y = 0.0
+			var d := rel.length()
+			if d < HIDE_NEAR:
+				seen = true
+				break
+			var look := Vector3(-sin(pl.yaw), 0.0, -cos(pl.yaw))
+			if d < HIDE_SEEN and rad_to_deg(look.angle_to(rel)) < HIDE_CONE:
+				var ray := PhysicsRayQueryParameters3D.create(pl.pos + Vector3.UP * 1.6, at + Vector3.UP * 1.2, 1)
+				if not space.intersect_ray(ray):
+					seen = true
+					break
+		if not seen:
+			return at
+	return Vector3.INF
 
 
 ## Host: where it has the ones walking outside and the ones inside, for the clients.

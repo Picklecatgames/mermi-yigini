@@ -452,6 +452,7 @@ class PlayerState:
 	var pos := Vector3.ZERO  # feet, from the last pose
 	var has_pose := false
 	var crouch := false  # from the last pose
+	var yaw := 0.0  # look, from the last pose (waves.gd: the night's dead come where nobody looks)
 	var character := ""  # CHARACTERS id; "" until picked
 	var hp := HP_MAX
 	var down := false
@@ -1973,6 +1974,7 @@ func send_pose(pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crou
 	p.pos = pos
 	p.has_pose = true
 	p.crouch = crouch
+	p.yaw = yaw
 	if not Net.online or (Net.is_client and not _spawned):
 		return  # a joiner stands on the host's spot until its own comes: bodies would collide
 	var t := Time.get_ticks_msec() / 1000.0
@@ -1997,6 +1999,7 @@ func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool
 	p.pos = pos
 	p.has_pose = true
 	p.crouch = crouch
+	p.yaw = yaw
 	pose_received.emit(peer, t, pos, yaw, pitch, act, air, crouch, aim)
 	for id in multiplayer.get_peers():
 		if id != peer:
