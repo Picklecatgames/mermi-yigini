@@ -70,7 +70,11 @@ const SETS := {
 		"shake": 0.45, "weight": 0.8, "ads_time": 0.15, "grip": 0.7, "shot": preload("res://assets/weapons/sounds/pistol_shot.tres"),
 		"cues": {"draw": [[0.85, SAFETY]], "reload": [[1.05, MAG_OUT], [2.0, MAG_IN], [2.15, MAG_SEAT]],
 			"reload_empty": [[0.4, MAG_OUT], [1.35, MAG_IN], [1.47, MAG_SEAT], [2.28, SLIDE]]}},
-	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 60.0},
+	# loose: how far each finger joint may bend from rest (rad: knuckle, middle, tip), along the way the
+	# clip bends it. The old man's hand is a mitten on the index (build_oldman.gd): the clips' tight
+	# fist rolled it into a tube with a hole down its middle (2026-11-05, the user: "el garip").
+	"fists": {"mesh": "", "clips": "Fists_", "bone": "DEF-hand.R", "eye": Vector3(-0.0082, 1.4656, 0.0167), "fov": 60.0,
+		"loose": [1.1, 1.0, 0.5]},
 	"deagle": {"mesh": "Deagle", "clips": "Deagle_", "bone": "Weapon", "eye": Vector3(-0.0082, 1.4864, 0.0221), "fov": 60.0,
 		"muzzle": Vector3(-0.0006, 0.0099, 0.111), "port": Vector3(-0.0202, 0.0184, -0.037),
 		"rear": Vector3(0.0, 0.027, -0.09), "front": Vector3(0.0, 0.031, 0.10), "ads_eye": 0.32,
@@ -517,6 +521,15 @@ static func fix_pose(skel: Skeleton3D, kit: Dictionary) -> void:
 			var d := rest.inverse() * skel.get_bone_pose_rotation(tip)
 			if d.get_angle() > THUMB_TIP_MAX:
 				skel.set_bone_pose_rotation(tip, rest * Quaternion(d.get_axis(), THUMB_TIP_MAX))
+	if kit.has("loose"):
+		for side: String in ["L", "R"]:
+			for f: String in ["f_index", "f_middle", "f_ring", "f_pinky"]:
+				for i in 3:
+					var b := skel.find_bone("DEF-%s.0%d.%s" % [f, i + 1, side])
+					var rest := skel.get_bone_rest(b).basis.get_rotation_quaternion()
+					var d := rest.inverse() * skel.get_bone_pose_rotation(b)
+					if d.get_angle() > kit.loose[i]:
+						skel.set_bone_pose_rotation(b, rest * Quaternion(d.get_axis(), kit.loose[i]))
 	if kit.has("elbow"):
 		var upper := skel.find_bone("DEF-upper_arm.L")
 		var hand := skel.find_bone("DEF-hand.L")
