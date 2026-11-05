@@ -40,6 +40,23 @@ Mevcut kodda taşınan tek şey elle alınan parça (`request_pick_up`).
 
 **Kullanıcı kararı, sökücü yok (2026-11-05):** "Sökücü gerek yok, yoksa oyuncu tüm gün kafası yorulur, geceye kafa kalmaz." Hurda doğrudan öğütücüye girer. Üretim temelindeki `sokucu` satırı ve `sokme` tarifi (`claude/angry-yonath-6994c0`) bu karara göre kalkar; o dala dokunmadım. Aşağıdaki 2. fikir bu yüzden kollu öğütücü oldu.
 
+## Kullanıcı kararı: yabancı (2026-11-05)
+
+Kullanıcının sözleri (yazımı düzelttim): "Tüm bunlar için zombi uzvu kullanmak sığ kalabilir, bir ya da ikisinde kullanmalıyız. Şöyle bir şey yapalım: oyunun bir noktasından sonra bir yabancı gelsin, NPC, bu mesela teleferiği kullanacak ama bir maliyeti olmalı." Maliyet sorusuna, önerdiğim mermiye: "Mermi iyi bir fikir, o yabancı da kendi grubuna avlanan biriymiş gibi olur."
+
+Karar olan: zombi yalnız bir iki makinede; oyunun bir noktasından sonra bir yabancı NPC gelir ve teleferiği kullanır; bedeli mermi; yabancı kendi grubu için avlanan biri gibidir.
+
+**Benim önerim (kural değil, sayılar tahmin):**
+- **Geliş:** Teleferik kurulduktan sonra bir sabah alt istasyonda oturuyor olur. Tam oyunda 9. gece civarı, demoda yok.
+- **Ödeme:** Her sabah bir kutu mermi bırakılır, istediği miktar geceler geçtikçe artar. Ortak kasadan çıktığı için dört kişi birlikte karar verir. Tek karar, yeni iş değil.
+- **Ödenmezse:** Hat o gün durur, dolum ve boşaltma elle yapılır. Üst üste ödenmezse gider.
+- **Grubu:** Mermi nereye gidiyor sorusunun cevabı bu. Grup hiç görünmeyebilir: yalnız uzaktan silah sesi, ormanda av izleri, kulübede başkasına ait eşyalar. Mermiyle yaptığı avın zombi mi başka bir şey mi olduğu açık kalabilir.
+- **Gece:** Kulübede kalır, üssü savunmaz. Ölürse hat durur.
+- **Havayı korumak için:** Tek kişi, kulübeden çıkmaz, az konuşur, görev ekranı yok. Yol bulma yapay zekâsı gerekmez. Aşağıdaki "NPC işçi ve kolonist" maddesi kalabalık ve görev düzeni için geçerli, bu yabancı için değil.
+- **Zombi:** Zincirli ölü yalnız öğütücü kolunda kalır.
+
+**Açık:** grup bir gün üsse gelsin mi; sonda bir karşılığı olsun mu. Yabancının modeli aranmadı; Mixamo aday listesi dışı.
+
 ## Kısa özet
 
 - En iyi 8 fikir, sırayla: **çuval ve el arabası, kollu öğütücü, dizel motor ve kayış, elle beslenen mazgal, zincirli ölü, teleferik, pençeli vinç, kişisel takım.**
