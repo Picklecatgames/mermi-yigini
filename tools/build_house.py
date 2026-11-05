@@ -1,97 +1,108 @@
-# Blender (5.x, background): makes the house a place you can walk into. The source is a closed village
-# house ("Old russian house", Tim0, Sketchfab, CC-BY 4.0: credits): one-sided outer walls, flat glass,
-# a door painted on the veranda. Out goes the door leaf and the glass, in goes the back door's hole;
-# the walls' inside, floor and ceiling are tools/build_world.gd's (_house).
-#   blender -b --factory-startup -P tools/build_house.py -- assets/props/house/old_russian_house.glb assets/props/house/house.glb
-# Output, Blender Z-up as Godot exports it, metres, the ground at z 0: Roof, Walls, Windows.
-import bpy, bmesh, sys
-from mathutils import Vector
+# Blender (5.x, background): the house the user picked (2026-11-05), "Post-Apocalyptic | House | Dirty | Old |
+# Wooden", yadrogames, Sketchfab, CC-BY 4.0: credits. Its source .blend and textures are in
+# assets/props/house/source/. Its materials are rebuilt on their base colours (the file's graphs point at
+# missing images), the ground decal goes, the door stands open, every window gets clean thin dirty glass in
+# place of what filled it, so you see out (2026-11-05, the user). Walls, floor and ceiling are the model's own.
+#   blender -b --factory-startup assets/props/house/source/Model.blend -P tools/build_house.py -- assets/props/house/source/textures assets/props/house/house.glb
+# Output: metres, the room's floor a hair over the ground. World layout: tools/build_world.gd _house.
+import bmesh, bpy, math, os, sys
+from mathutils import Matrix, Vector
 
-src, out = sys.argv[sys.argv.index("--") + 1:]
-SCALE = 0.001  # the file's in mm
-SINK = 0.30  # m: its floor stood on a plinth; sunk so the door's sill is at the ground (build_world.gd HOUSE_SINK)
-# [lo, hi] boxes, source metres before the sink: the back door (towards the mountain), the way from the
-# veranda into the house.
-HOLES = [
-    (Vector((-4.04, -4.85, -0.5)), Vector((-2.64, -4.4, 2.56))),
-    (Vector((-0.14, 2.55, -0.5)), Vector((1.26, 2.85, 2.56))),
-    (Vector((-4.4, -1.68, -0.5)), Vector((-4.0, -0.28, 2.56))),  # the way to the workshop wing (build_wing.py)
-    (Vector((-0.12, 5.3, -0.5)), Vector((1.28, 5.7, 2.56))),  # the veranda's door, its frame with it: wide enough for two to pass (and build_world.gd's own frame)
-]
-# The veranda's door leaf, its frame and everything on it, in source metres.
-LEAF = (Vector((-0.1, 5.39, 0.2)), Vector((1.2, 5.62, 2.7)))
-NAMES = {"House_Roof": "Roof", "House_wall": "Walls", "House_Window": "Windows"}
+tex, out = sys.argv[sys.argv.index("--") + 1:]
+SCALE = 1.65  # its door stands 1.2 over its floor in the file: 2 m here (build_world.gd HOUSE_SCALE)
+SINK = 0.33  # its floor stands 0.21 up (x SCALE): down to the pad
+GRID = 0.4  # file units, about 66 cm: the lit grid on the walls (below)
+BASE = {"Elements": "Elements_base.png", "HouseEquip": "HouseEquip_base.png", "Roof": "Roof_base.png", "RoofSaver": "RoofSaver_base.png", "Wall": "WallDirty_base.png"}
+scene = bpy.context.scene
 
-bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.gltf(filepath=src)
-for o in list(bpy.data.objects):
-    if o.type != "MESH":
-        continue
-    mw = o.matrix_world.copy()
-    o.parent = None
-    o.matrix_world = mw
-    bpy.context.view_layer.objects.active = o
-    bm = bmesh.new()
-    bm.from_mesh(o.data)
-    bmesh.ops.transform(bm, matrix=mw, verts=bm.verts)
-    for v in bm.verts:
-        v.co *= SCALE
-    # Parts cut loose by name of what they are, by where they stand.
-    seen = set()
-    kill = []
-    glass = 0
-    leaf = 0
-    for v0 in bm.verts:
-        if v0 in seen:
-            continue
-        stack = [v0]
-        seen.add(v0)
-        vs = []
-        while stack:
-            x = stack.pop()
-            vs.append(x)
-            for e in x.link_edges:
-                y = e.other_vert(x)
-                if y not in seen:
-                    seen.add(y)
-                    stack.append(y)
-        lo = Vector((min(q.co.x for q in vs), min(q.co.y for q in vs), min(q.co.z for q in vs)))
-        hi = Vector((max(q.co.x for q in vs), max(q.co.y for q in vs), max(q.co.z for q in vs)))
-        faces = set(f for q in vs for f in q.link_faces)
-        size = hi - lo
-        if o.data.materials[0].name == "House_Window":
-            if all(lo[i] >= LEAF[0][i] and hi[i] <= LEAF[1][i] for i in range(3)):
-                kill += vs
-                leaf += 1
-            elif len(faces) == 2 and min(size) < 0.005 and sorted(size)[1] > 0.9 and sorted(size)[2] > 1.2 and hi.z < 2.7 and lo.z > 1.1:
-                kill += vs  # a pane of flat glass: open window
-                glass += 1
-    bmesh.ops.delete(bm, geom=list(set(kill)), context="VERTS")
-    # The holes: cut along each side of the box, then drop what's in it.
-    cut = 0
-    if o.data.materials[0].name == "House_wall":
-        for lo, hi in HOLES:
-            for axis in range(3):
-                for at in (lo[axis], hi[axis]):
-                    no = Vector((0, 0, 0))
-                    no[axis] = 1.0
-                    co = Vector((0, 0, 0))
-                    co[axis] = at
-                    geom = list(bm.verts) + list(bm.edges) + list(bm.faces)
-                    bmesh.ops.bisect_plane(bm, geom=geom, plane_co=co, plane_no=no, clear_inner=False, clear_outer=False, dist=1e-5)
-            dead = [f for f in bm.faces if all(lo[i] <= f.calc_center_median()[i] <= hi[i] for i in range(3))]
-            cut += len(dead)
-            bmesh.ops.delete(bm, geom=dead, context="FACES")
-    for v in bm.verts:
-        v.co.z -= SINK
-    bm.to_mesh(o.data)
-    bm.free()
-    o.matrix_world.identity()
-    o.name = NAMES[o.data.materials[0].name]
-    o.data.name = o.name
-    print("PART", o.name, "polys", len(o.data.polygons), "glass", glass, "leaf", leaf, "cut", cut)
-for o in list(bpy.data.objects):
+for name in ("Plane", "DoorBlock", "Cube.005", "Cube.002_cell.010", "Cube.002_cell.002", "Cube.002_cell.003", "Cube.002_cell.006", "Cube.002_cell.007"):
+    o = scene.objects.get(name)
+    if o:
+        bpy.data.objects.remove(o)  # the ground, a speck, what filled the windows
+for o in list(scene.objects):
     if o.type != "MESH":
         bpy.data.objects.remove(o)
-bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_yup=True, export_apply=False)
-print("WROTE", out)
+
+for name, image in BASE.items():
+    m = bpy.data.materials[name]
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    res = nt.nodes.new("ShaderNodeOutputMaterial")
+    im = nt.nodes.new("ShaderNodeTexImage")
+    im.image = bpy.data.images.load(os.path.abspath(os.path.join(tex, image)))
+    nt.links.new(im.outputs["Color"], bsdf.inputs["Base Color"])
+    nt.links.new(bsdf.outputs["BSDF"], res.inputs["Surface"])
+    m.blend_method = "OPAQUE"
+glass = bpy.data.materials["Glass"]
+glass.use_nodes = True
+nt = glass.node_tree
+nt.nodes.clear()
+bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+res = nt.nodes.new("ShaderNodeOutputMaterial")
+nt.links.new(bsdf.outputs["BSDF"], res.inputs["Surface"])
+bsdf.inputs["Base Color"].default_value = (0.42, 0.46, 0.4, 1.0)
+bsdf.inputs["Alpha"].default_value = 0.2
+bsdf.inputs["Roughness"].default_value = 0.35
+glass.blend_method = "BLEND"
+
+
+def pane(name, centre, size, axis):
+    """A sheet of glass in a window's frame; `axis` is the way it faces."""
+    mesh = bpy.data.meshes.new(name)
+    a, b = size[0] / 2.0, size[1] / 2.0
+    vs = [(0, -a, -b), (0, a, -b), (0, a, b), (0, -a, b)] if axis == "x" else [(-a, 0, -b), (a, 0, -b), (a, 0, b), (-a, 0, b)]
+    mesh.from_pydata(vs, [], [(0, 1, 2, 3), (3, 2, 1, 0)])
+    mesh.materials.append(glass)
+    o = bpy.data.objects.new(name, mesh)
+    o.location = centre
+    scene.collection.objects.link(o)
+
+
+pane("Glass_West1", (-3.255, 1.085, 1.095), (0.87, 0.87), "x")
+pane("Glass_West2", (-3.255, 3.735, 1.095), (0.87, 0.87), "x")
+pane("Glass_Wing", (1.895, 1.93, 1.095), (0.87, 0.87), "y")
+
+# The door stands open, outwards: the leaf turned on its hinge (the end away from the handle).
+door = scene.objects["Door"]
+hinge = Vector((-1.39, -0.98, 0.0))
+turn = Matrix.Translation(hinge) @ Matrix.Rotation(math.radians(105.0), 4, "Z") @ Matrix.Translation(-hinge)
+bpy.context.view_layer.update()
+door.matrix_world = turn @ door.matrix_world
+
+# The walls, floor and ceiling cut into a grid: the PS1 shader lights per vertex, and a bulb's pool would
+# fall between a big polygon's far corners, the room staying black under it.
+wall = scene.objects["Wall"]
+bm = bmesh.new()
+bm.from_mesh(wall.data)
+for axis in range(3):
+    lo = min(v.co[axis] for v in bm.verts)
+    hi = max(v.co[axis] for v in bm.verts)
+    at = lo + GRID
+    while at < hi:
+        no = Vector((0, 0, 0))
+        no[axis] = 1.0
+        co = Vector((0, 0, 0))
+        co[axis] = at
+        bmesh.ops.bisect_plane(bm, geom=list(bm.verts) + list(bm.edges) + list(bm.faces), plane_co=co, plane_no=no, clear_inner=False, clear_outer=False, dist=1e-5)
+        at += GRID
+bmesh.ops.triangulate(bm, faces=bm.faces)
+bm.to_mesh(wall.data)
+print("WALL tris", len(bm.faces))
+bm.free()
+
+# All of it under one root, sized and sunk.
+root = bpy.data.objects.new("House", None)
+scene.collection.objects.link(root)
+for o in scene.objects:
+    if o is not root and o.parent is None:
+        o.parent = root
+root.scale = (SCALE, SCALE, SCALE)
+root.location = (0, 0, -SINK)
+bpy.context.view_layer.update()
+for m in ("Dots Stroke", "Ground"):
+    if m in bpy.data.materials:
+        bpy.data.materials.remove(bpy.data.materials[m])
+bpy.ops.export_scene.gltf(filepath=os.path.abspath(out), export_format="GLB", export_yup=True, export_apply=False, export_cameras=False, export_lights=False)
+print("WROTE", out, "objects", len(scene.objects))

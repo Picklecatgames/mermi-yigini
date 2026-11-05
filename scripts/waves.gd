@@ -1965,7 +1965,7 @@ func _bake_nav() -> void:
 	var map := get_world_3d().navigation_map
 	mesh.cell_size = NavigationServer3D.map_get_cell_size(map)
 	mesh.cell_height = NavigationServer3D.map_get_cell_height(map)
-	mesh.agent_radius = 0.5  # (whole cells, or the baker rounds them and says so)
+	mesh.agent_radius = 0.25  # whole cells, or the baker rounds them and says so; 0.5 closed the house's 1.2-1.3 m doors
 	mesh.agent_height = 1.75
 	mesh.agent_max_climb = 0.25
 	mesh.agent_max_slope = 30.0  # the heap's sides are no floor

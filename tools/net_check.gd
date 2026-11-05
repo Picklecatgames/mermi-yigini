@@ -35,7 +35,7 @@ const COLLAPSE := [Vector2i(95, 120), 10, 77]
 ## not level along it.
 const ZOMBIE := 901
 const ZOMBIE_AT := Vector3(23, 0, 0)
-const FIRE_FROM := Vector3(12, 1.5, 0)
+const FIRE_FROM := Vector3(13.6, 1.5, 0)
 
 var gs: Node
 var net: Node
@@ -142,7 +142,7 @@ func _host() -> void:
 	if not _ok(muzzle.distance_to(FIRE_FROM) < 1.0,
 			"the client's character stood where it fired from"): return
 	if not _ok(shots[0][5].distance_to(muzzle) < 0.001, "the shot rang out at that character's muzzle"): return
-	if not _ok(shots[0][6].distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
+	if not _ok(shots[0][6].distance_to(Vector3(13.6, 0, 0)) < 0.3, "the client's pose reached the host"): return
 	if not _ok(shots[0][7] == "ServicePistol", "the client's character fired holding the starting pistol (%s)" % shots[0][7]): return
 	if not _ok(shots[0][8], "with the wooden grips it gave it"): return
 	if not _ok(shots[0][9] == "oldman", "in the old man's body (%s)" % shots[0][9]): return
@@ -200,7 +200,7 @@ func _client() -> void:
 	if not _ok(gs.player().gun == 1, "the host let us draw it"): return
 	gs.request_debug_level_up("grip")  # the wooden grips: the host shows them on our character
 	# Walk up to the line to shoot from there; our pose follows us to the host.
-	me.global_position = Vector3(12, 0, 0)
+	me.global_position = Vector3(13.6, 0, 0)
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout  # the pose reaches the host, its character catches up
 	# A loose bullet the host took before we joined: joining told us (yol haritası 8).
@@ -289,7 +289,7 @@ func _client() -> void:
 	if not await _until(gs.synced, "test mode off"): return
 	# The workshop: the host's hopper melts and we see the brass; we press it at the press.
 	if not await _until(func() -> bool: return gs.brass == 6 and gs.melt_bin == 0, "the host's hopper to melt (%d, %d)" % [gs.melt_bin, gs.brass], 10.0): return
-	me.global_position = gs.PRESS_POS + Vector3(0, 0, -1.2)
+	me.global_position = gs.PRESS_POS + Vector3(0, 0, 1.2)
 	me.reset_physics_interpolation()
 	await create_timer(0.3).timeout  # our pose reaches the host
 	if not _ok(gs.request_press("clone", 9) == 3, "the press makes what the brass allows"): return

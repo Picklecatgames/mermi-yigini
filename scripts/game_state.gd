@@ -325,14 +325,14 @@ const BOARD_REACH := 3.0  # m
 ## for the team. Rounds poured into the hopper melt MELT_RATES[melt_level] a second into brass, the
 ## team's; the press makes rounds out of it, each player's own. Upgrades are paid like the fence: from
 ## the vault in co-op, alone from one's own gold. Numbers are placeholders.
-const MELTER_POS := Vector3(6.06, 0.0, -7.15)  # tools/build_world.gd _workshop_inside: the hopper
-const PRESS_POS := Vector3(4.96, 0.0, -7.53)  # on the bench's low stand
+const MELTER_POS := Vector3(11.45, 0.0, -3.75)  # tools/build_world.gd _workshop_inside: the hopper
+const PRESS_POS := Vector3(10.81, 0.0, -4.16)  # on the bench's low stand
 const LEVER_POS := Vector3(8.2, 0.0, -27.6)  # the wave lever on the north wall (tools/zombie_bay.gd _lever)
 const STATION_REACH := 2.0  # m from its middle, feet
 ## The television in the house and its daily bulletin (2026-11-05, the user: "her gün TV'ye bakılacak
 ## haberler için"; data/bultenler.json): E in reach and it is read out, a line at a time, to whoever is in
 ## earshot; the host keeps the day and the line, everyone sees the same. Numbers are first guesses.
-const TV_POS := Vector3(2.2, 0.0, 0.0)  # tools/build_world.gd TV_AT
+const TV_POS := Vector3(2.25, 0.0, -0.2)  # tools/build_world.gd TV_AT
 const TV_REACH := 3.2  # m, feet: from in front of it
 const TV_FRONT := 0.75  # of the way along its screen's facing: about 40 deg to each side
 const TV_HEAR := 10.0  # m: the lines come up on screen within this

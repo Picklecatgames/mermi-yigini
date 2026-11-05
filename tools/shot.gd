@@ -12,23 +12,21 @@ extends SceneTree
 ## `--zombie=X,Z` puts a walker up there, facing -x, seen a moment after it's up.
 
 const SHOTS := {
-	"ev_on": [Vector3(21.0, 1.7, 7.0), Vector3(6.0, 2.2, 0.5)],  # build_world.gd: the house from the yard
-	"ev_arka": [Vector3(-4.5, 1.7, 2.5), Vector3(6.0, 2.2, -1.0)],  # from the mountain's side, the back door
-	"ev_kuzey": [Vector3(8.0, 1.7, -16.0), Vector3(5.5, 2.2, -2.0)],
-	"ev_kose": [Vector3(-7.0, 2.2, -13.0), Vector3(5.0, 2.2, -3.0)],
+	"ev_on": [Vector3(13.0, 1.7, 15.0), Vector3(6.5, 1.8, 0.0)],  # build_world.gd: the house from the yard, door and porch
+	"ev_arka": [Vector3(-4.0, 1.7, -3.0), Vector3(6.0, 1.8, 0.0)],  # from the mountain's side, the windows
+	"ev_kapi": [Vector3(4.1, 1.7, 11.0), Vector3(4.1, 1.2, 4.0)],  # the door
 	"ev_uzak": [Vector3(44.0, 9.0, 26.0), Vector3(4.0, 1.0, -2.0)],
-	"ev_spawn": [Vector3(7.3, 1.7, 0.9), Vector3(2.2, 1.1, 0.0)],  # what a player sees first: the crate, the TV, the mountain's window
-	"ev_tv": [Vector3(3.9, 1.5, 0.2), Vector3(2.2, 0.95, 0.0)],
-	"ev_tv_yakin": [Vector3(2.95, 1.05, 0.0), Vector3(2.2, 0.95, 0.0)],
-	"ev_tezgah": [Vector3(5.2, 1.7, -4.6), Vector3(4.6, 1.0, -7.8)],  # the wing, from the way in
-	"ev_atolye": [Vector3(8.2, 1.7, -4.5), Vector3(2.0, 1.0, -7.0)],
-	"ev_soba": [Vector3(5.2, 1.7, 0.4), Vector3(8.4, 0.9, -2.2)],
-	"ev_ampul": [Vector3(5.0, 1.7, 0.9), Vector3(6.3, 2.5, 0.2)],
-	"ev_masa": [Vector3(4.9, 1.7, -0.5), Vector3(6.9, 0.7, 2.8)],
-	"ev_kapi": [Vector3(4.0, 1.7, -1.2), Vector3(1.6, 1.5, -3.0)],  # the back door: the mountain through it
-	"ev_veranda": [Vector3(6.0, 1.7, 0.9), Vector3(12.5, 1.5, 0.9)],  # through the veranda to the wood
-	"ev_yatak": [Vector3(4.4, 1.7, 1.6), Vector3(2.6, 0.7, 3.2)],
-	"ev_ic": [Vector3(8.4, 2.3, 3.2), Vector3(2.4, 0.9, -1.8)],
+	"ev_spawn": [Vector3(6.6, 1.7, 0.7), Vector3(2.25, 1.1, -0.2)],  # what a player sees first
+	"ev_tv": [Vector3(4.3, 1.5, -0.1), Vector3(2.25, 0.95, -0.2)],
+	"ev_tv_yakin": [Vector3(3.0, 1.05, -0.2), Vector3(2.25, 0.95, -0.2)],
+	"ev_pencere": [Vector3(3.6, 1.65, 2.0), Vector3(0.0, 1.5, 2.0)],  # out of the window: the mountain
+	"ev_pencere2": [Vector3(4.2, 1.65, -2.4), Vector3(0.0, 1.5, -2.4)],
+	"ev_atolye": [Vector3(9.3, 1.7, -0.3), Vector3(10.4, 1.0, -4.3)],  # the workshop from its south-west
+	"ev_atolye2": [Vector3(11.7, 1.6, -0.2), Vector3(8.8, 1.1, -3.3)],  # and its door back to the big room
+	"ev_cam3": [Vector3(10.1, 1.65, -1.5), Vector3(10.1, 1.5, 3.0)],  # the side room's window
+	"ev_ic": [Vector3(7.9, 1.9, 4.6), Vector3(2.8, 1.0, -4.0)],  # the big room corner to corner
+	"ev_ic2": [Vector3(2.3, 1.9, -4.9), Vector3(8.0, 1.0, 4.6)],
+	"ev_cikis": [Vector3(4.1, 1.7, 1.0), Vector3(4.1, 1.3, 9.0)],  # out of the door
 	"overview": [Vector3(80.0, 45.0, 0.0), Vector3(0.0, 0.0, 0.0)],
 	"desert": [Vector3(18.0, 1.7, 4.0), Vector3(80.0, 2.0, 40.0)],
 	"junk_front": [Vector3(-3.0, 1.7, 0.0), Vector3(-40.0, 5.0, 0.0)],

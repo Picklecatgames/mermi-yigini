@@ -214,44 +214,49 @@ func _house() -> void:
 		q.exclude = [me.get_rid()]
 		_ok(space.intersect_shape(q, 4).is_empty(), "spawn at %s stands clear" % s.global_position)
 		_ok((s.global_basis * Vector3.FORWARD).x < -0.9, "looks at the mountain")
-	# On foot, through each door. Standing in the yard, walking straight in.
-	for way: Array in [[Vector3(13.0, 0.05, 0.9), Vector3(-1, 0, 0), 5.5, "front door and veranda"],
-			[Vector3(-0.5, 0.05, -3.0), Vector3(1, 0, 0), 3.5, "back door from the mountain"]]:
-		var end: Vector3 = await _walk(me, way[0], way[1], 4.0)
-		var into: float = (end - way[0]).dot(way[1])
-		_ok(into > way[2], "on foot through the %s (%.1f m in)" % [way[3], into])
-	var into_wing: Vector3 = await _walk(me, Vector3(5.27, 0.05, -2.8), Vector3(0, 0, -1), 2.5)
-	_ok(into_wing.z < -5.0, "on foot through to the workshop wing (to z %.1f)" % into_wing.z)
-	# Nothing walks through a window or a wall.
-	var end: Vector3 = await _walk(me, Vector3(0.0, 0.05, 1.4), Vector3(1, 0, 0), 2.0)
-	_ok(end.x < 1.6, "no way in through the mountain's window (stopped at x %.1f)" % end.x)
+	# On foot: in by the door, through to the side room; never through a window or a wall.
+	var end: Vector3 = await _walk(me, Vector3(4.1, 0.05, 8.0), Vector3(0, 0, -1), 3.0)
+	_ok(end.z < 3.5, "on foot in through the door (to z %.1f)" % end.z)
+	end = await _walk(me, Vector3(7.5, 0.05, -3.2), Vector3(1, 0, 0), 2.0)
+	_ok(end.x > 9.5, "on foot through to the side room (to x %.1f)" % end.x)
+	end = await _walk(me, Vector3(0.0, 0.05, 2.0), Vector3(1, 0, 0), 2.0)
+	_ok(end.x < 1.7, "no way in through a window (stopped at x %.1f)" % end.x)
+	end = await _walk(me, Vector3(-0.5, 0.05, -4.5), Vector3(1, 0, 0), 2.0)
+	_ok(end.x < 1.7, "no way in through the wall (stopped at x %.1f)" % end.x)
+	# You see out: from inside, through each window, nothing solid till well outside.
+	var space2 := me.get_world_3d().direct_space_state
+	for win: Array in [[Vector3(3.0, 1.5, 2.0), Vector3(-6.0, 1.5, 2.0)], [Vector3(3.0, 1.5, -2.4), Vector3(-6.0, 1.5, -2.4)], [Vector3(10.1, 1.5, -1.0), Vector3(10.1, 1.5, 4.0)]]:
+		var q2 := PhysicsRayQueryParameters3D.create(win[0], win[1], 1)
+		q2.exclude = [me.get_rid()]
+		var seen: Dictionary = space2.intersect_ray(q2)
+		_ok(seen.is_empty(), "a shot goes out of the window at %s (%s)" % [win[0], seen.get("position", "clear")])
 	# The dead's way: the waves' mesh goes through the doors.
 	var waves: Node = main.get_node("Waves")
-	if not await _until(func() -> bool: return waves._nav.navigation_mesh != null, "the waves' navigation mesh", 40.0):
+	if not await _until(func() -> bool: return waves._nav.navigation_mesh != null, "the waves' navigation mesh", 60.0):
 		return
 	await physics_frame
 	await physics_frame
 	var map: RID = me.get_world_3d().navigation_map
-	for pair: Array in [[Vector3(13.0, 0, 0.9), Vector3(7.3, 0, 1.6), "yard to the room"], [Vector3(-2.0, 0, -3.0), Vector3(7.0, 0, -1.4), "mountain to the room"],
-			[Vector3(6.0, 0, 2.0), Vector3(3.4, 0, 1.6), "room to the sleeping corner"], [Vector3(6.5, 0, -1.5), Vector3(6.6, 0, -5.0), "room to the workshop wing"], [Vector3(-2.0, 0, -5.3), Vector3(5.0, 0, -5.3), "mountain to the workshop wing"]]:
+	for pair: Array in [[Vector3(4.1, 0, 9.0), Vector3(4.1, 0, 2.0), "yard to the big room"], [Vector3(-2.0, 0, -7.5), Vector3(7.0, 0, -3.5), "round the house to the big room"],
+			[Vector3(6.5, 0, -3.2), Vector3(10.0, 0, -1.8), "big room to the side room"]]:
 		var path: PackedVector3Array = NavigationServer3D.map_get_path(map, pair[0], pair[1], true)
 		var last: Vector3 = path[path.size() - 1] if path.size() > 0 else pair[0]
 		_ok(path.size() >= 2 and last.distance_to(pair[1]) < 0.8, "navigation: %s (ends %.2f m off, %d points)" % [pair[2], last.distance_to(pair[1]), path.size()])
 	# A real one: comes at a player standing inside from the far side of the house.
-	me.global_position = Vector3(6.6, 0.05, -5.0)
+	me.global_position = Vector3(6.5, 0.05, 2.5)
 	for i in 10:
 		await physics_frame
-	gs.request_debug_spawn("walker", Vector3(-1.0, 0, -6.0), 0.0, 1)
+	gs.request_debug_spawn("walker", Vector3(1.0, 0, 9.0), 0.0, 1)
 	var got := await _until(func() -> bool:
 		for z: Dictionary in waves._zombies.values():
 			if not z.dead and is_instance_valid(z.node) and z.node.global_position.distance_to(me.global_position) < 2.2:
 				return true
 		return false, "a walker to reach a player in the house", 75.0)
-	_ok(got, "a walker walks round the house and in, to the player")
+	_ok(got, "a walker walks up to the door and in, to the player")
 	for z: Dictionary in waves._zombies.values():
 		if is_instance_valid(z.node):
 			print("  walker at ", z.node.global_position)
-	me.global_position = Vector3(7.3, 0.05, 0.9)
+	me.global_position = Vector3(6.6, 0.05, 0.7)
 	for z: Dictionary in waves._zombies.values():
 		if is_instance_valid(z.node):
 			z.node.queue_free()
