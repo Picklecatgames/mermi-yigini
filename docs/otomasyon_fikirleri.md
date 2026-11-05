@@ -67,6 +67,26 @@ Karar olan: zombi yalnız bir iki makinede; oyunun bir noktasından sonra bir ya
 
 **Açık:** Grup gelince zombi dalgası da sürüyor mu; grupla konuşma ya da pazarlık var mı. Yabancının ve grubun modeli de aranacak.
 
+## Oyuncu karakterleri ve yabancı: model adayları (2026-11-05)
+
+Kullanıcının sözü: "Karakter tiplerimiz oyuna çok kötü duruyor, sen bulsana." Bunu oyuncu bedenleri (`GameState.CHARACTERS`: Patron, Maskeli, İşçi, Brute, Chupacabra) diye okudum; zombileri kapsamıyor. Seçim kullanıcının, ★ benim önerim. Hepsi galeride, "Oyuncu karakterleri ve yabancı" grubunda.
+
+| Aday | Yazar | Lisans | Üçgen | Animasyon | Neden uyar | PS1 |
+|---|---|---|---|---|---|---|
+| [Farmer](https://sketchfab.com/3d-models/farmer-ae5182ccddfd47acb59400f739581743) ★ | LxNazarov | CC-BY 4.0 | 8.606 | 4 animasyon | Kürk şapka, yamalı ceket, ağır kürek. Hurdada çalışan biri gibi okunuyor; oyuna en doğru tip. | **dikkat.** Sayfa doku sayısını 0 gösteriyor ama görselde boyalı; indirince bakılmalı. 4 animasyon kendi iskeletinde, kürek ayrı mı bilinmiyor. |
+| [Butcher](https://sketchfab.com/3d-models/butcher-8d76c3ade3bf46218c782f983b0b0596) ★ | Artise1 | CC-BY 4.0 | 5.248 | 1 animasyon | Kanlı önlük, satır, kaba yüz. Gore ve tekinsizlik doğrudan üstünde. | **uygun.** 5.248 üçgen, 1024 px doku (yazarına göre). Satır ayrı sayılmış, ayrılması kolay olabilir. |
+| [Prisoner Hostage Low Poly Character](https://sketchfab.com/3d-models/prisoner-hostage-low-poly-character-dae7e2ff73cd4ece8d7655d1f4fcbb1b) ★ | 00amza | CC-BY 4.0 | 2.283 | 1 animasyon | Turuncu tulum, sıradan yüz: kaçmış bir mahkûm. Yazarı Mixamo iskeleti diyor, bugünkü kliplerle çalışması en olası aday. | **uygun.** 2.283 üçgen, tek doku. Turuncu kirletilir. |
+| [Biohazard Survivor](https://sketchfab.com/3d-models/biohazard-survivor-2d8f986cfea5409d80ff60a79ce0d571) ★ | Jim Wing | CC-BY 4.0 | 1.110 | animasyon yok | Yıpranmış koruyucu giysi ve gaz maskesi, yüz yok. Gerçek PS1 ölçüsü. | **uygun.** 1.110 üçgen, tek doku, çeviriye gerek az. T-poz; rig indirmeden belli değil. |
+| [PS2 / PSX Lowpoly Character](https://sketchfab.com/3d-models/ps2-psx-lowpoly-character-d737592243fc433e842d745f8e7f296f) ★ | Loco | CC-BY 4.0 | 7.136 | 1 animasyon | Kamuflaj ceketli sıradan adam, PS2/PSX tarzında yapılmış. | **uygun.** 7.136 üçgen, rigged etiketi, 1 animasyon. Yüz ve eller parlak, kirletilir. |
+| [old man psx](https://sketchfab.com/3d-models/old-man-psx-dc42fa861cd645f489be5c9b3d2076fb) | petya-petyavich | CC-BY 4.0 | 1.591 | 1 animasyon | Yırtık kot, ekose gömlek, yaşlı adam. Yedek; gerçek PS1 dokusu. | **uygun.** 1.591 üçgen, tek doku, 1 animasyon. |
+| [Alan Survivor(rigged)](https://sketchfab.com/3d-models/alan-survivorrigged-cca25ef7b9794d49b909022ed8e81f15) | RRB STUDIOS | CC-BY 4.0 | 14.353 | animasyon yok | Kaba kıyafetli hayatta kalan, yedek. Biraz temiz ve oyunsu. | **dikkat.** 14 bin üçgen, 8 malzeme, 16 doku; sadeleşmeli. |
+| [antiradiation suit - ozk](https://sketchfab.com/3d-models/antiradiation-suit-ozk-2e815542505d48d8be91e9f7dbebfd0a) ★ | sanyaork | CC-BY 4.0 | 20.813 | animasyon yok | Yabancı için: gaz maskeli, kamuflaj, üstü başı eşya dolu. Yüzü hiç görünmez, kulübede oturunca çok tekinsiz durur. | **dikkat.** 20.813 üçgen, 6 malzeme, 30 doku; yazarı parçaların söküldüğünü ve rig olduğunu söylüyor. Çeviride düşmeli. |
+
+- **Yapım:** Bedenler `tools/build_zombies.gd players` ile kuruluyor, ölçek gözden hesaplanıyor (`remote_players.gd`), PS1 çevirisi zombilerle aynı hat. Klipler `mixamorig_` kemik adlarını bekliyor. Yalnız Prisoner için yazarı Mixamo iskeleti diyor; öbürleri indirilip iskeletine bakılmalı, gerekirse yeniden hedeflenir ya da yeniden rig'lenir.
+- **Mixamo:** Bedenler değişse de `player_anims.res` Mixamo paketlerinden geliyor; o soru durur.
+- **Doğrulanmayan:** Hiçbiri indirilmedi, rig ve kemik adları görülmedi. Oyundaki bugünkü bedenlere de bakmadım, kötü durduklarını kullanıcıdan biliyorum.
+- **Elenenler:** A.B.C. Soldier (Nazi etiketleri, tanınan silah), Hunter from Left 4 Dead, Aya Brea, Genome Soldier (başka oyunlardan), Old man in coat (Fuse ile yapılmış, lisansı bana net değil), Old fat man ve Redneck (komik), Marie Survivor (28 animasyonu var ama açık giysili, oyunun tonuna uymuyor).
+
 ## Kısa özet
 
 - En iyi 8 fikir, sırayla: **çuval ve el arabası, kollu öğütücü, dizel motor ve kayış, elle beslenen mazgal, zincirli ölü, teleferik, pençeli vinç, kişisel takım.**
