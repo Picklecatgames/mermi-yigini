@@ -27,7 +27,7 @@ func _initialize() -> void:
 	settings.save_path = "user://settings_shots.cfg"  # never the developer's own
 	settings.set_value("psx", 2)
 	var gs: Node = root.get_node("GameState")
-	gs.request_pick_character("worker")
+	gs.request_pick_character("oldman")
 	var player: Node3D = main.get_node("Player")
 	_stand(player, EYE, LOOK)
 	await _frames(200)  # shaders compile, the probes capture

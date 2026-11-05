@@ -69,7 +69,7 @@ func _host() -> void:
 		return _fail("host takes loose bullet 0")
 	gs.request_select_gun(3)  # the UZI, before anyone is there to see it
 	main.get_node("Waves")._add_zombie(ZOMBIE, &"walker", 7, "", ZOMBIE_AT, PI / 2, 1.0, ZOMBIE_AT.z, false)
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	while gs.QUESTS[gs.quest_board[0]].get("warmup", false):  # past the warmup, to a quest that waits for its claim
 		gs._finish_quest(gs.quest_board[0])
 	for id: String in gs.QUESTS:  # the hopper and the press open: the joiner hears of it
@@ -145,7 +145,7 @@ func _host() -> void:
 	if not _ok(shots[0][6].distance_to(Vector3(12, 0, 0)) < 0.3, "the client's pose reached the host"): return
 	if not _ok(shots[0][7] == "ServicePistol", "the client's character fired holding the starting pistol (%s)" % shots[0][7]): return
 	if not _ok(shots[0][8], "with the wooden grips it gave it"): return
-	if not _ok(shots[0][9] == "worker", "in the worker's body it picked (%s)" % shots[0][9]): return
+	if not _ok(shots[0][9] == "oldman", "in the old man's body (%s)" % shots[0][9]): return
 	if not _ok(tag_ok[0], "the client's tag takes slot 1's colour"): return
 	print("friendly fire: %s, our aim now pitch %.3f; pushed %.2f m" % [ff, me._pitch, me.global_position.distance_to(home)])
 	if not _ok(ff.size() == 1 and ff[0] == [cid, gs.local_peer()], "the client's round hit us"): return
@@ -181,21 +181,15 @@ func _client() -> void:
 	if not await _until(func() -> bool: return gs.spawn_index == 1, "a spawn point from the host"): return
 	if not _ok(me.global_position.distance_to(spawns[1].global_position) < 0.5 and spawns[1].global_position.distance_to(spawns[0].global_position) > 1.2,
 			"we start on spawn 1, away from the host's"): return
-	# Joined as somebody new: the pick screen, the host's Boss shut.
-	if not await _until(func() -> bool: return gs.player(1).character == "boss", "the host's pick"): return
-	if not _ok(me._pick.is_open and me._pick._cards.boss.button.disabled and not me._pick._cards.worker.button.disabled,
-			"the pick screen is open, the Boss shut"): return
-	gs.request_pick_character("boss")
-	if not _ok(gs.player().character == "", "the Boss is not ours to take"): return
-	me._pick._pick("worker")
-	if not await _until(func() -> bool: return gs.player().character == "worker", "the host to give us the worker"): return
-	await process_frame
-	if not _ok(not me._pick.is_open, "picked: the screen is gone"): return
-	# The host's body shows up as a character where the host stands, in the Boss's body.
+	# Joined as somebody new: one body, so no pick screen; both of us wear it.
+	if not await _until(func() -> bool: return gs.player(1).character == "oldman", "the host's body"): return
+	if not await _until(func() -> bool: return gs.player().character == "oldman", "ours, the same one"): return
+	if not _ok(not me._pick.is_open, "no pick screen"): return
+	# The host's body shows up as a character where the host stands.
 	var rp: Node = main.get_node("RemotePlayers")
 	if not await _until(func() -> bool: return rp.character(1) != null and rp.character(1).visible, "the host's character"): return
 	if not _ok(rp.character(1).global_position.distance_to(spawns[0].global_position) < 0.5, "it stands on the host's spawn"): return
-	if not _ok(rp.character(1).look == "boss" and rp.character(1)._model != null, "it wears the Boss's body"): return
+	if not _ok(rp.character(1).look == "oldman" and rp.character(1)._model != null, "it wears the old man's body"): return
 	# Guns: the host drew the UZI before we came; we are bare-handed until we draw ours.
 	if not _ok(_holding(rp.character(1)) == "UZI", "the host's character holds the UZI (%s)" % _holding(rp.character(1))): return
 	if not _ok(gs.player().gun == 0 and not gs.request_fire(me.global_position, Vector3.FORWARD) and gs.request_reload() == 0, "bare fists: nothing to fire or load"): return

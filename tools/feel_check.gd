@@ -34,7 +34,7 @@ func _initialize() -> void:
 	var main: Node = load("res://scenes/main.tscn").instantiate()
 	root.add_child(main)
 	await process_frame
-	gs.request_pick_character("worker")
+	gs.request_pick_character("oldman")
 	gs.request_toggle_infinite_ammo()
 	gs.player().has_pistol = true
 	gs.player().levels.deagle = 1

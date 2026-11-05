@@ -167,6 +167,7 @@ var _bench: CanvasLayer = BENCH_MENU.new()  # the workshop bench's view (E in fr
 var _board_menu: CanvasLayer = BOARD_MENU.new()  # the quest board's screen (E in front of it)
 var _melter: CanvasLayer = MELTER_MENU.new()  # the hopper's screen (E beside it pours the hand in)
 var _press: CanvasLayer = PRESS_MENU.new()  # the press's screen (E in front of it)
+var _dancing := false  # J: others see the "dance" clip (GameState.Act.DANCING); the first-person view stays
 var _pick: CanvasLayer = CHARACTER_PICK.new()  # who to play as, until picked (GameState.CHARACTERS)
 var _laser_dot := MeshInstance3D.new()  # where the bought laser says the shot will land
 var _laser_beam := MeshInstance3D.new()  # from the laser's lens to the dot, through the air
@@ -382,6 +383,10 @@ func _go_to_spawn(index: int) -> void:
 ## What other machines show this player doing.
 func _act() -> int:
 	var clip: String = _viewmodel.clip
+	if _dancing:  # J, until they move, leave the floor, shoot or reload
+		if is_on_floor() and clip != "fire" and not clip.begins_with("reload") and Vector2(velocity.x, velocity.z).length() <= 0.1:
+			return GameState.Act.DANCING
+		_dancing = false
 	if clip == "fire" and GameState.player().gun != 0:
 		return GameState.Act.SHOOTING
 	if clip.begins_with("reload"):
@@ -631,6 +636,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				GameState.request_watch_news()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_scrap_hand.global_position, -_camera.global_basis.z)
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_J:
+		_dancing = not _dancing
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
 		_toggle_mirror(not event.shift_pressed)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:

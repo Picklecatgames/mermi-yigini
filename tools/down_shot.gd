@@ -20,9 +20,9 @@ func _initialize() -> void:
 	me = main.get_node("Player")
 	await process_frame
 	rp = get_first_node_in_group("remote_players")
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	gs.request_take_pistol()
-	gs.player(MATE).character = "worker"
+	gs.player(MATE).character = "oldman"
 	gs.slots[gs.local_peer()] = 0
 	gs.slots[MATE] = 1
 	_look(Vector3(8.0, 0, -1.0), Vector3(14.0, 1.0, 1.5))

@@ -24,7 +24,7 @@ func _initialize() -> void:
 	_lamp.omni_range = 7.0
 	_lamp.light_energy = 2.5
 	main.add_child(_lamp)
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	gs.request_toggle_infinite_ammo()
 	gs.cue_wave([&"phase", 16, waves.Phase.FIGHT, 99])
 	waves.wave = 16

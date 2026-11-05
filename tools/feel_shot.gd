@@ -28,7 +28,7 @@ func _initialize() -> void:
 	var vm: Node3D = player.get_node("ViewmodelView/SubViewport/Camera/Viewmodel")
 	await process_frame
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	gs.request_pick_character("worker")  # else the picker covers the screen
+	gs.request_pick_character("oldman")  # else the picker covers the screen
 	gs.infinite_ammo = true
 	gs.player().levels["magazine"] = 6
 	gs.player().carried = 400

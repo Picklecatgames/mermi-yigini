@@ -17,7 +17,7 @@ func _run() -> void:
 	var main: Node = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await physics_frame
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	var me: CharacterBody3D = main.get_node("Player")
 	var pile: Node = root.get_tree().get_first_node_in_group("bullet_pile")
 	for i in 10:

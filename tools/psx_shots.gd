@@ -204,7 +204,7 @@ func _game() -> void:
 	settings.set_value("psx", psx)
 	for k: String in more:
 		settings.set_value(k, more[k])
-	root.get_node("GameState").request_pick_character("worker")
+	root.get_node("GameState").request_pick_character("oldman")
 	var player: Node3D = main.get_node("Player")
 	var vp := root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)

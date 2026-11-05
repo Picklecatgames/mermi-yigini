@@ -8,11 +8,11 @@ extends SceneTree
 ## peer -> [character, feet, the point it faces]. Under the glass, at the spawns, round the heap's
 ## foot, right under a hall lamp (0, 14), between two of them and out in the dark west side.
 const CREW := {
-	2: ["boss", Vector3(5.0, 0, -2.0), Vector3(12.0, 0, 3.0)],
-	3: ["worker", Vector3(8.7, 0, 2.4), Vector3(14.0, 0, 6.0)],
-	4: ["brute", Vector3(0.8, 0, 15.0), Vector3(8.0, 0, 12.0)],
-	5: ["chupacabra", Vector3(6.0, 0, 15.5), Vector3(12.0, 0, 12.0)],
-	6: ["masked", Vector3(-18.0, 0, 10.0), Vector3(-10.0, 0, 14.0)],
+	2: ["oldman", Vector3(5.0, 0, -2.0), Vector3(12.0, 0, 3.0)],
+	3: ["oldman", Vector3(8.7, 0, 2.4), Vector3(14.0, 0, 6.0)],
+	4: ["oldman", Vector3(0.8, 0, 15.0), Vector3(8.0, 0, 12.0)],
+	5: ["oldman", Vector3(6.0, 0, 15.5), Vector3(12.0, 0, 12.0)],
+	6: ["oldman", Vector3(-18.0, 0, 10.0), Vector3(-10.0, 0, 14.0)],
 }
 ## Wide shots: [camera, look-at].
 const WIDE := {
@@ -49,7 +49,7 @@ func _initialize() -> void:
 		if a.begins_with("--tag="):
 			tag = a.trim_prefix("--tag=")
 	gs = root.get_node("GameState")
-	gs.player().character = "worker"
+	gs.player().character = "oldman"
 	gs.player().gun = 1
 	for peer: int in CREW:
 		gs.player(peer).character = CREW[peer][0]
@@ -63,8 +63,8 @@ func _initialize() -> void:
 	cam.cull_mask &= ~(1 << 1)  # not our own arms, which only the gun's camera draws
 	main.add_child(cam)
 	await _hold(0.5)
-	gs.player().character = "worker"  # before the tree, the local peer was not known yet
-	gs.character_changed.emit(gs.local_peer(), "worker")
+	gs.player().character = "oldman"  # before the tree, the local peer was not known yet
+	gs.character_changed.emit(gs.local_peer(), "oldman")
 	await _hold(1.0)
 	var pick := root.find_child("CharacterPick", true, false)
 	if pick:  # the pick screen: everyone has already picked
@@ -104,7 +104,7 @@ func _initialize() -> void:
 	for moon: bool in [false, true]:
 		sun.visible = moon
 		for spot: String in LAMP_FEET:
-			stand[6] = ["masked", LAMP_FEET[spot][0], LAMP_FEET[spot][1]]
+			stand[6] = ["oldman", LAMP_FEET[spot][0], LAMP_FEET[spot][1]]
 			var feet: Vector3 = LAMP_FEET[spot][0]
 			var dir: Vector3 = (LAMP_FEET[spot][1] - feet).normalized()
 			cam.look_at_from_position(feet + dir * 3.2 + Vector3(0, 2.4, 0), feet)

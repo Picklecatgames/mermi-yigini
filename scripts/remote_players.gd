@@ -1,5 +1,5 @@
 extends Node3D
-## Everyone else in the session, as third-person characters: the Mixamo body they picked
+## Everyone else in the session, as third-person characters: their body on a Mixamo rig
 ## (GameState.CHARACTERS) with the gun they hold in both hands, or bare-handed. One per peer whose
 ## pose arrives; gone when that peer leaves. The local player never gets one. Poses come ~20 times a
 ## second (GameState.pose_received) and are drawn DELAY behind, between the two snapshots around
@@ -20,11 +20,7 @@ extends Node3D
 ## comes from where its first-person hands are. Before they have picked, only the name tag shows.
 
 const BODIES := {
-	"boss": preload("res://assets/characters/players/boss/boss_psx.scn"),
-	"masked": preload("res://assets/characters/players/masked/masked_psx.scn"),
-	"worker": preload("res://assets/characters/players/worker/worker_psx.scn"),
-	"brute": preload("res://assets/characters/players/brute/brute_psx.scn"),
-	"chupacabra": preload("res://assets/characters/players/chupacabra/chupacabra_psx.scn"),
+	"oldman": preload("res://assets/characters/players/oldman/oldman_psx.scn"),
 }
 const ANIMS := preload("res://assets/characters/players/player_anims.res")
 const ARMS := preload("res://assets/weapons/arms/arms.gltf")
@@ -712,7 +708,16 @@ class Character extends Node3D:
 		body.add_node("fall", fall)
 		body.connect_node("fall", 0, "mix")
 		body.connect_node("fall", 1, "fall_clip")
-		body.connect_node("output", 0, "fall")
+		# J: the dance, over everything; the gun goes away for it (_process).
+		body.add_node("dance_clip", _clip("dance"))
+		var dance := AnimationNodeTransition.new()
+		dance.xfade_time = 0.25
+		dance.add_input("off")
+		dance.add_input("on")
+		body.add_node("dance", dance)
+		body.connect_node("dance", 0, "fall")
+		body.connect_node("dance", 1, "dance_clip")
+		body.connect_node("output", 0, "dance")
 		var tree := AnimationTree.new()
 		tree.add_animation_library("", ANIMS)
 		tree.root_node = ^".."  # the body's scene root: the clips' track paths start there
@@ -829,6 +834,8 @@ class Character extends Node3D:
 			return
 		_model.visible = not watched
 		_tree.set("parameters/fall/transition_request", "down" if _fallen else "up")
+		var dancing: bool = act == GameState.Act.DANCING and not _fallen
+		_tree.set("parameters/dance/transition_request", "on" if dancing else "off")
 		_pick_ground()
 		if was_air and not air and speed < MOVING:
 			_tree.set("parameters/land/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
@@ -840,10 +847,12 @@ class Character extends Node3D:
 		_air_arms = move_toward(_air_arms, 1.0 if (air or landing or crouch) and stance != "rifle" else 0.0, delta * AIR_ARMS)
 		_tree.set("parameters/mix/blend_amount", _air_arms)
 		_tree.advance(delta)
-		if _fallen:
+		if _fallen or dancing:
 			_gun.visible = false
 			if _flash:
 				_flash.visible = false
+			if dancing and _lamp:
+				_lamp.call(&"follow", eye_transform().translated_local(Vector3(0.0, 0.08, -0.15)), delta)
 			return
 		_gun.visible = gun != 0
 		_kick = move_toward(_kick, 0.0, _kick * KICK_BACK * delta + 0.0001)

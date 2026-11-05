@@ -33,7 +33,7 @@ const PSX_TEX := 256
 const PSX_TRIS := 3000
 const PSX_TRIS_OF := {"warrok": 4500, "maw": 4500, "demon": 5000, "bloater": 4000, "spiker": 5000,
 		"blob": 2500, "melty": 2500, "dog": 2500,
-		"boss": 4000, "masked": 4000, "worker": 4000, "brute": 4000, "chupacabra": 4000}
+		"oldman": 4000}
 const GLB := {"blob": "res://assets/characters/zombies/blob/blob.glb",
 		"melty": "res://assets/characters/zombies/melty/melty.glb",
 		"dog": "res://assets/characters/zombies/dog/dog.glb"}
@@ -45,16 +45,14 @@ const GLB := {"blob": "res://assets/characters/zombies/blob/blob.glb",
 ## they keep their looks, faded and dirty: the orange a rusted orange, the turquoise a washed grey-green.
 const DIRT := Color(0.3, 0.25, 0.2)
 const PSX_GRADE_OF := {"demon": [0.3, 0.62, 0.45, Color(0.36, 0.2, 0.16), 0.3],
-		"worker": [0.65, 0.9, 0.12, DIRT, 0.3], "masked": [0.4, 0.75, 0.2, DIRT, 0.45],
-		"chupacabra": [0.5, 0.72, 0.15, DIRT, 0.45], "boss": [0.5, 0.78, 0.15, DIRT, 0.4],
-		"brute": [0.6, 0.82, 0.12, DIRT, 0.4]}
+		}
 ## psx: what a model loses (2026-11-03, the user: the cop's cap looks broken). "meshes" go whole;
 ## "uv" drops the triangles from the neck up whose corners all sit in one of these UV rects.
 ## The cop: its hair cards poke out of the cap's sides as dark scraps once fewer, and the cap's
 ## chin strap (the brown band at the atlas' bottom left) stands up off the brim instead of down
 ## to the chin, already so in the source model.
 const PSX_DROP_OF := {"copzombie": {"meshes": ["Hair"], "uv": [Rect2(0.0, 0.93, 0.25, 0.07)]}}
-const PLAYERS := ["boss", "masked", "worker", "brute", "chupacabra"]
+const PLAYERS := ["oldman"]
 const PLAYER_OUT := "res://assets/characters/players/%s/%s%s.scn"
 const PSX_SHADER := preload("res://materials/psx.gdshader")
 

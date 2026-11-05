@@ -36,7 +36,7 @@ func _initialize() -> void:
 	await process_frame
 	var gs := root.get_node("GameState")
 	await _hold(0.2)  # the character comes with the first pose
-	gs.character_changed.emit(7, "worker")
+	gs.character_changed.emit(7, "oldman")
 	await _hold(0.8)
 	print("pictures in ", OS.get_user_data_dir())
 	for g in range(1, gs.GUNS.size()):

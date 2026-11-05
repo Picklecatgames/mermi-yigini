@@ -27,7 +27,7 @@ func _run() -> void:
 	var main: Node = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await physics_frame
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	_scatter(main.get_node("World"))
 	var me: CharacterBody3D = main.get_node("Player")
 	for i in 10:

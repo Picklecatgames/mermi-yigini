@@ -12,7 +12,7 @@ func _initialize() -> void:
 	var gs: Node = root.get_node("GameState")
 	var me: CharacterBody3D = get_first_node_in_group("walker")
 	var others: Node = get_first_node_in_group("remote_players")
-	gs.request_pick_character("boss")
+	gs.request_pick_character("oldman")
 	gs.request_take_pistol()
 	for desk: CollisionObject3D in get_nodes_in_group("gun_table"):  # it stays for the railing now; we walk through it below
 		desk.collision_layer = 0
@@ -23,7 +23,7 @@ func _initialize() -> void:
 	var peer: int = demo.PEER
 	var c: Node3D = others.character(peer)
 	assert(c != null, "the stand-in is drawn")
-	assert(c.look == "boss" and c._model != null, "in our character")
+	assert(c.look == "oldman" and c._model != null, "in our character")
 	assert(c.gun == gs.player().gun and c.gun != 0, "with our gun")
 	var ahead := -me.global_basis.z
 	ahead.y = 0.0
@@ -53,17 +53,14 @@ func _initialize() -> void:
 	# K: the next character, on us and the stand-in.
 	me._toggle_mirror(true)
 	await physics_frame
-	assert(gs.player().character == "masked" and c.look == "masked", "K: next character on both")
+	assert(gs.player().character == "oldman" and c.look == "oldman", "K: one body, still on both")
 	# L: the pick screen, as at the start.
 	demo.open_pick()
 	await process_frame
 	await process_frame
 	var pick: CanvasLayer = me._pick
-	assert(pick.is_open and c._model == null, "L: pick screen open, the stand-in bare")
-	pick._pick("chupacabra")
 	await process_frame
-	await process_frame
-	assert(not pick.is_open and c.look == "chupacabra", "picked: screen closes, the stand-in dressed")
+	assert(not pick.is_open and gs.player().character == "oldman" and c.look == "oldman", "L: one body, it comes straight back, no screen")
 	# Shift+K: gone, even while we look right at it (the reach ray held on to its freed body and
 	# player.gd _looking_at_table crashed on it).
 	var to: Vector3 = c.global_position + Vector3.UP * 1.2 - me._reach.global_position
