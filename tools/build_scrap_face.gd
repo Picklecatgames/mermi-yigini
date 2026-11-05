@@ -3,9 +3,8 @@ extends SceneTree
 ## then over it, CHUNK cells at a time, drops real pieces and lets them come to rest. Gravity
 ## pulls each chunk's pieces onto the face along its normal, so they lie on a 61° face as on the
 ## floor; pieces settled before are solid, so nothing ends up inside anything else.
-## Each chunk is laid in layers (LAYERS): hand-sized pieces fill, the longer ones lie over them.
-## No crumbs (2026-11-03, the user: "lay the pieces apart, not like dust"): every piece settles as its
-## box (Pile.BOX_PAD), the gaps between them look into the heap's dark, not onto nuts and bolts.
+## A tight heap (2026-11-05, the user): only chunky pieces (Pile.FACE_SIZE), each settling as its own
+## convex hull, several layers thick, so the eye finds another piece between pieces.
 ## Pieces lie down flat-ish onto the face, as dumped scrap does, not on end. The mix shifts slowly
 ## along the face (brass and copper thicker in places), with no edges between stretches.
 ## Chunks two apart settle at once. As soon as a group is down, rays from outside find its pieces
@@ -13,8 +12,8 @@ extends SceneTree
 ## setting jolt_physics_3d/limits/max_bodies: past it later chunks find no room and stay bare).
 ## The pieces that show at the end are written to data/scrap_face.json, and the buried ones under
 ## them apart (the heap draws those only once a take lays them open):
-##   {"heights": hash of the heap's starting heights, "pieces": [[id, x, lift, z, qx, qy, qz, qw], ...],
-##    "hidden": [the same, ...]}
+##   {"heights": hash of the heap's starting heights, "pieces": [[id, x, lift, z, qx, qy, qz, qw, sky], ...],
+##    "hidden": [the same without sky, ...]}
 ## x, z in the heap's own space, lift over its surface there, at each piece's box centre.
 ##   Godot.exe --headless --path . --fixed-fps 60 -s res://tools/build_scrap_face.gd
 
@@ -37,14 +36,22 @@ const OUT := "res://data/scrap_face.json"
 ## kind (by area covered, not by count; a kind the heap takes but not named here gets 1). The
 ## hand-sized pieces fill, the longer pipes, valve wheels, rims and chain lie over them. Which kinds there are at all is the heap's (Pile.KIND_WEIGHT).
 const LAYERS := [
-	{"size": Vector2(0.12, 0.35), "cover": 1.2, "tilt": 0.5,
-		"kinds": {"disli": 2.0, "boru": 1.1, "konserve": 1.5, "kola": 1.0, "zincir": 0.8, "yay": 0.8, "jant": 0.6, "kap": 0.4}},
-	{"size": Vector2(0.35, 9.0), "cover": 0.15, "tilt": 0.3,
-		"kinds": {"boru": 2.0, "jant": 1.5, "zincir": 1.2}},
+	{"size": Vector2(0.0, 9.0), "cover": 3.0, "tilt": 0.7,
+		"kinds": {"disli": 2.0, "boru": 1.0, "konserve": 1.6, "kola": 1.0, "zincir": 0.5, "yay": 0.6, "jant": 1.2, "kap": 1.2, "elektronik": 1.0}},
 ]
+## Each piece pulled this much straight down and the rest onto the face: onto the face alone it lay as on
+## the floor and slid off the moment it woke under real gravity; so it wedges down the slope a little.
+const TRUE_DOWN := 0.4
+## Rays for how much sky each piece sees (its tone in the heap, Pile.AO_TONE).
+const AO_RAYS := 20
+const AO_REACH := 0.9
+## --rect=x0,z0,x1,z1 (world): only that part of the face, to look at quickly; its result is not the game's file.
+var _rect := Rect2()
 ## A kind with few models in a layer gets less of its share, or its one model repeats all over the
 ## face (a single motor was every tenth piece): full share from this many models.
 const KIND_MODELS := 4.0
+## No model more than this share of what has been laid: the one chunky gear was every tenth piece.
+const MODEL_SHARE := 0.035
 ## A model heavier than this (triangles in the face's light copy) turns up that much less often:
 ## the face draws ~30 000 pieces, and some light copies keep 1 500-2 000 triangles (the simplifier
 ## stops at UV seams).
@@ -65,6 +72,8 @@ var _layer_parts := []  # per layer: {kind: [part, ...]}
 var _layer_kind_foot := []  # per layer: {kind: mean footprint}
 var _layer_kind_share := []  # per layer: {kind: its weight to be picked}
 var _part_cost := {}  # part -> how much less often it is picked for its triangles
+var _laid := {}  # part -> pieces picked so far
+var _laid_all := 0
 # Settled pieces: part, transform (heap space), body (an invalid RID once buried and let go).
 var _part := PackedInt32Array()
 var _xform: Array[Transform3D] = []
@@ -87,6 +96,10 @@ func _initialize() -> void:
 	_rng.seed = 5
 	_brass_noise.seed = 11
 	_brass_noise.frequency = BRASS_FREQ
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--rect="):
+			var v := a.trim_prefix("--rect=").split_floats(",")
+			_rect = Rect2(v[0], v[1], v[2] - v[0], v[3] - v[1])
 	_sort_parts()
 	await physics_frame
 	var chunks := []
@@ -122,7 +135,12 @@ func _initialize() -> void:
 	for i in _part.size():
 		if _xform[i].origin.y < -0.5:
 			continue
-		(out if seen.has(i) else hidden).append(_entry(i))
+		if seen.has(i):
+			var e := _entry(i)
+			e.append(snappedf(_sky(i), 0.01))
+			out.append(e)
+		else:
+			hidden.append(_entry(i))
 		if seen.has(i):
 			var tur: String = _pile._part_info[_part[i]].tur
 			kinds[tur] = kinds.get(tur, 0) + 1
@@ -133,6 +151,31 @@ func _initialize() -> void:
 	_holes()
 	print("%d of %d pieces show, %d lie under them; saved %s (%d s)" % [out.size(), _part.size(), hidden.size(), ProjectSettings.globalize_path(OUT), (Time.get_ticks_msec() - t0) / 1000])
 	quit()
+
+
+## How much sky piece `i` sees, 0..1: rays out of its middle over the half of the sky round the face's
+## normal; what stops one soon counts in full, what stops it far off for less.
+func _sky(i: int) -> float:
+	var t: Transform3D = _xform[i]
+	var cell: Vector2i = _pile._cell_of(t.origin)
+	var n: Vector3 = _normal_round(cell.clamp(Vector2i(3, 3), Vector2i(_pile.GRID_X - 4, _pile.GRID_Z - 4)))
+	var side := n.cross(Vector3.FORWARD if absf(n.z) < 0.9 else Vector3.RIGHT).normalized()
+	var fwd := n.cross(side)
+	var ray := PhysicsRayQueryParameters3D.new()
+	ray.collision_mask = 1 | LAYER
+	if _rid[i].is_valid():
+		ray.exclude = [_rid[i]]
+	var from: Vector3 = _to_world * t.origin
+	var open := 0.0
+	for r in AO_RAYS:
+		var y := (r + 0.5) / AO_RAYS
+		var a := r * 2.39996
+		var d := (side * cos(a) + fwd * sin(a)) * sqrt(1.0 - y * y) + n * y
+		ray.from = from
+		ray.to = from + _to_world.basis * d * AO_REACH
+		var hit := _space.intersect_ray(ray)
+		open += 1.0 if hit.is_empty() else clampf(hit.position.distance_to(from) / AO_REACH, 0.0, 1.0) * 0.6
+	return open / AO_RAYS
 
 
 ## Piece `i` as the file has it: [id, x, lift, z, qx, qy, qz, qw].
@@ -148,9 +191,19 @@ func _cells(cx: int, cz: int) -> Array:
 	var list := []
 	for j in range(cz, mini(cz + CHUNK, _pile.GRID_Z - 1)):
 		for i in range(cx, mini(cx + CHUNK, _pile.GRID_X - 1)):
-			if i >= 1 and j >= 1 and _pile._face_cell(j * _pile.GRID_X + i):
+			if i >= 1 and j >= 1 and _face(i, j):
 				list.append(Vector2i(i, j))
 	return list
+
+
+## Whether cell (i, j) gets pieces in this run.
+func _face(i: int, j: int) -> bool:
+	if not _pile._face_cell(j * _pile.GRID_X + i):
+		return false
+	if not _rect.has_area():
+		return true
+	var c: Vector3 = _pile._cell_pos(Vector2i(i, j))
+	return _rect.has_point(Vector2(c.x, c.z) + _pile.CENTER)
 
 
 ## The heap's parts sorted into the layers by size and kind.
@@ -162,7 +215,7 @@ func _sort_parts() -> void:
 			var info: Dictionary = _pile._part_info[i]
 			var s: Vector3 = _pile._part_size[i]
 			var longest := s[s.max_axis_index()]
-			if longest < _pile.SURFACE_MIN or longest < layer.size.x or longest >= layer.size.y:
+			if _pile._part_face[i] == 0 or longest < layer.size.x or longest >= layer.size.y:
 				continue
 			if layer.kinds.get(info.tur, 1.0) <= 0.0 or info.id in FACE_SKIP:
 				continue
@@ -186,6 +239,17 @@ func _sort_parts() -> void:
 ## A part for layer `l` at `at` (heap space): the kind by its share of the area, then a part of
 ## that kind, light ones more likely, brass and copper more or less as the mix drifts along the face.
 func _pick(l: int, at: Vector3) -> int:
+	var part := _pick_once(l, at)
+	for n in 6:
+		if _laid.get(part, 0) <= 40 + _laid_all * MODEL_SHARE:
+			break
+		part = _pick_once(l, at)
+	_laid[part] = _laid.get(part, 0) + 1
+	_laid_all += 1
+	return part
+
+
+func _pick_once(l: int, at: Vector3) -> int:
 	var by_kind: Dictionary = _layer_parts[l]
 	var shares: Dictionary = _layer_kind_share[l]
 	var total := 0.0
@@ -294,7 +358,7 @@ func _body(part: int, t: Transform3D, n: Vector3) -> RigidBody3D:
 	var body := RigidBody3D.new()
 	body.mass = _pile._part_mass[part]
 	body.gravity_scale = 0.0
-	body.constant_force = -n * 9.8 * body.mass  # down onto the face, whatever its slope
+	body.constant_force = (-n * (1.0 - TRUE_DOWN) + Vector3.DOWN * TRUE_DOWN).normalized() * 9.8 * body.mass
 	body.linear_damp = 0.3
 	body.angular_damp = 0.8
 	body.physics_material_override = PhysicsMaterial.new()
@@ -373,7 +437,7 @@ func _straight() -> Dictionary:
 	ray.collision_mask = LAYER
 	for j in range(1, _pile.GRID_Z - 1):
 		for i in range(1, _pile.GRID_X - 1):
-			if not _pile._face_cell(j * _pile.GRID_X + i):
+			if not _face(i, j):
 				continue
 			for r: Array in _cover_rays(Vector2i(i, j)):
 				ray.from = _to_world * (r[0] + r[1] * 3.0)
@@ -411,7 +475,7 @@ func _fill() -> void:
 		var spots := []
 		for j in range(1, _pile.GRID_Z - 1):
 			for i in range(1, _pile.GRID_X - 1):
-				if not _pile._face_cell(j * _pile.GRID_X + i):
+				if not _face(i, j):
 					continue
 				var cell := Vector2i(i, j)
 				for r: Array in _cover_rays(cell):
@@ -452,7 +516,7 @@ func _holes() -> void:
 	var bare := 0
 	for j in range(1, _pile.GRID_Z - 1):
 		for i in range(1, _pile.GRID_X - 1):
-			if not _pile._face_cell(j * _pile.GRID_X + i):
+			if not _face(i, j):
 				continue
 			var cell := Vector2i(i, j)
 			var n: Vector3 = _pile._cell_normal(cell)
@@ -481,7 +545,7 @@ func _seen(area: Rect2i) -> Dictionary:
 	ray.collision_mask = LAYER
 	for j in range(maxi(area.position.y, 1), mini(area.end.y, _pile.GRID_Z - 1)):
 		for i in range(maxi(area.position.x, 1), mini(area.end.x, _pile.GRID_X - 1)):
-			if not _pile._face_cell(j * _pile.GRID_X + i):
+			if not _face(i, j):
 				continue
 			var cell := Vector2i(i, j)
 			var n: Vector3 = _pile._cell_normal(cell)

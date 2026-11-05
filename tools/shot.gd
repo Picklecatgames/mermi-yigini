@@ -30,6 +30,8 @@ const SHOTS := {
 	"junk_near": [Vector3(-14.0, 1.7, 12.0), Vector3(-36.0, 2.0, -4.0)],
 	"junk_edge": [Vector3(8.0, 1.7, 22.0), Vector3(-30.0, 6.0, 45.0)],
 	"junk_side": [Vector3(0.0, 1.7, -24.0), Vector3(-35.0, 6.0, -45.0)],
+	"junk_seam": [Vector3(-24.0, 7.5, -3.0), Vector3(-52.0, 16.0, -8.0)],  # where the real pieces end and the drawn ones start
+	"junk_close": [Vector3(-9.5, 1.7, -2.0), Vector3(-15.5, 0.9, -0.5)],  # a player at the foot
 	"junk_top": [Vector3(35.0, 70.0, 0.0), Vector3(-30.0, 0.0, 0.0)],
 	# y under 0: over the ground there, by that much (the map's limit lies up on the hills).
 	"wall_east": [Vector3(208.0, -1.7, 8.0), Vector3(235.0, -1.0, 2.0)],

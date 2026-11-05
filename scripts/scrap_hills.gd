@@ -9,11 +9,24 @@ extends Node3D
 const PARTS := 24            # models used: of the CANDIDATES widest, the lightest once simplified
 const CANDIDATES := 60
 const TRIS := 60             # each drawn from a copy this light
-const COVER := 2.2           # their footprints over the mountains' area
+const COVER := 3.0           # their footprints over the mountains' area
+## How far off (m from the eye) a piece goes over to the flat far colour and flat light. Later than the
+## material's own: flat from 20 m on the mountain read as sand (2026-11-05, the user).
+const FLAT_FADE := Vector2(40.0, 130.0)
+## Each piece lighter or darker than its neighbours, as those on the near face are by how deep they lie.
+const DEPTH_TONE := Vector2(0.5, 1.35)
+## The pieces start at the heap's foot of real ones: the near face stands this much over its surface (its
+## layers of pieces), so the first far ones do too and go down to lying on it over LIFT_FADE metres.
+const EDGE_LIFT := 0.45
+## And as light as the near face (Pile.AO_TONE lights its top pieces), down to their own tone over EDGE_TONE_FADE
+## metres: the near face stood lit against a dark mountain, a seam you could see from the heap.
+const EDGE_TONE := 1.6
+const EDGE_TONE_FADE := 34.0
+const LIFT_FADE := 14.0
 const BLOCK := 4             # cells (1 m) a block: pieces are scattered block by block
 ## Piece scale by distance (m) from the reach of players (Pile.NEAR): SCALE.x at its edge, SCALE.y
 ## from SCALE_FAR.y on.
-const SCALE := Vector2(1.8, 14.0)
+const SCALE := Vector2(1.2, 12.0)
 const SCALE_FAR := Vector2(0.0, 60.0)
 const GROUP := 128           # cells: pieces grouped per GROUP × GROUP, so a far side is culled whole
 
@@ -23,6 +36,8 @@ var _inst_mm := PackedInt32Array()     # per piece: its MultiMesh
 var _inst_i := PackedInt32Array()      # and its instance there
 var _inst_xf: Array[Transform3D] = []  # as laid, its origin's y over the surface
 var _inst_k := PackedInt32Array()      # the cell it lies on
+var _inst_light := PackedFloat32Array() # how much lighter than its tone, by how near the real pieces
+var _inst_at := PackedVector2Array()   # the middle of the piece (x, z): where the surface is read for it
 var _tile := {}                        # pile tile index -> PackedInt32Array of pieces
 var _hazed: Array[ShaderMaterial] = [] # materials moved onto FAR_SHADER (its haze: _process)
 ## One colour for every far piece: a mosaic of near browns boiled at 270p, grey at night
@@ -89,13 +104,15 @@ func build(pile: Node) -> void:
 				var on := Basis(side, n, side.cross(n))
 				var tip := Basis(Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)).normalized(), rng.randf_range(0.0, 0.3))
 				var basis := (on * tip * Basis(Vector3.UP, rng.randf() * TAU) * lay).scaled_local(Vector3.ONE * sc)
-				pos.y = size[thin] * sc * rng.randf_range(0.05, 0.35)
+				pos.y = size[thin] * sc * rng.randf_range(0.05, 0.35) + EDGE_LIFT * (1.0 - smoothstep(0.0, LIFT_FADE, away))
 				var key := Vector3i(ck.x / GROUP, ck.y / GROUP, pi)
 				if not groups.has(key):
 					groups[key] = []
 				groups[key].append(_inst_xf.size())
 				_inst_xf.append(Transform3D(basis, pos).translated_local(-part[3]))
 				_inst_k.append(ck.y * gx + ck.x)
+				_inst_at.append(Vector2(pos.x, pos.z))
+				_inst_light.append(lerpf(EDGE_TONE, 1.0, smoothstep(0.0, EDGE_TONE_FADE, away)))
 				var tile: int = (ck.y / pile.TILE) * pile.TILES_X + ck.x / pile.TILE
 				if not _tile.has(tile):
 					_tile[tile] = PackedInt32Array()
@@ -115,7 +132,8 @@ func build(pile: Node) -> void:
 		for i in list.size():
 			_inst_mm[list[i]] = _mm.size()
 			_inst_i[list[i]] = i
-			mm.set_instance_color(i, Pile._tone(list[i] * 7 + 3))
+			var tone := Pile._tone(list[i] * 7 + 3)
+			mm.set_instance_color(i, Pile._shaded(tone, _inst_light[list[i]] * lerpf(DEPTH_TONE.x, DEPTH_TONE.y, Pile._hash01(list[i] * 11 + 5))))
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.material_override = part[4]
@@ -134,6 +152,7 @@ func build(pile: Node) -> void:
 			_hazed.append(m)
 	for m: ShaderMaterial in _hazed:
 		m.set_shader_parameter("far_colour", FAR_RUST)
+		m.set_shader_parameter("far_fade", FLAT_FADE)
 	print("scrap hills: %d pieces of %d models in %d groups, %d triangles (%d ms)" % [_inst_xf.size(), parts.size(), groups.size(), tris, Time.get_ticks_msec() - t0])
 
 
@@ -203,6 +222,8 @@ func _fringe(parts: Array, groups: Dictionary, rng: RandomNumberGenerator) -> vo
 				groups[key].append(_inst_xf.size())
 				_inst_xf.append(Transform3D(basis, pos).translated_local(-part[3]))
 				_inst_k.append(-1)
+				_inst_at.append(Vector2.ZERO)
+				_inst_light.append(1.0)
 
 
 ## The pieces over cells `area` follow the surface (pile.gd, as it redraws its own).
@@ -221,7 +242,9 @@ func _place(s: int) -> void:
 	elif _pile._h[_inst_k[s]] < 0.03:
 		xf = Transform3D(Basis().scaled(Vector3.ZERO), xf.origin)  # the scrap under it is gone
 	else:
-		xf.origin.y += _pile._height_smooth(Vector3(xf.origin.x, 0.0, xf.origin.z))
+		# Read under its middle, not under the mesh's origin: on a piece 12 times too big that lies metres
+		# off, and on a ridge it hung pieces in the air (2026-11-05, specks over the skyline).
+		xf.origin.y += _pile._height_smooth(Vector3(_inst_at[s].x, 0.0, _inst_at[s].y))
 	_mm[_inst_mm[s]].set_instance_transform(_inst_i[s], xf)
 
 
