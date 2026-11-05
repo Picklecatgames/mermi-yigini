@@ -847,11 +847,20 @@ func _tufts(plant: Callable, tufted: Array, rng: RandomNumberGenerator) -> void:
 		var whole := 2.0 * (r.size.x + r.size.y)
 		while along < whole:
 			along += float(ring[1]) * rng.randf_range(0.5, 1.5)
-			var at := _round_rect(r, along)
+			var at := _round_rect(r, along) if ring[3] else _round_house(0.2, along)
 			if rng.randf() < float(ring[2]) and _heap_h(at) <= 0.05 and not HEAP_NEAR.grow(3.0).has_point(at):
 				put.call("green" if ring[3] and rng.randf() < 0.35 else "moss", at)
 				n += 1
 	print("tufts: ", n)
+
+
+## The point `along` metres round the house's walls, `out` metres off them: HOUSE's edge, but where the
+## side room stands back from the main room's north wall, that wall.
+func _round_house(out: float, along: float) -> Vector2:
+	var p := _round_rect(HOUSE.grow(out), along)
+	if p.y < HOUSE.position.y - out + 0.001 and p.x > MAIN.end.x + 0.3:
+		p.y = WING.position.y - 0.06 - out  # the wing's outer face: the model's walls are thin, MAIN to HOUSE
+	return p
 
 
 ## The point `along` metres round the rectangle's edge.
@@ -882,7 +891,7 @@ const FLOOR_MOSS := [1.0, 0.85]  # the concrete grows less
 func _floor_map() -> void:
 	_marks_of_props(arena, Transform3D())
 	for s in int(2.0 * (HOUSE.size.x + HOUSE.size.y) / 0.8):  # the house's walls: its shell's box is too big for a mark
-		_marks.append([_round_rect(HOUSE, s * 0.8), 1.1, 1.3])
+		_marks.append([_round_house(0.0, s * 0.8), 1.1, 1.3])
 	var w := int(WORLD.size.x * FLOOR_PX)
 	var h := int(WORLD.size.y * FLOOR_PX)
 	var data := PackedByteArray()
