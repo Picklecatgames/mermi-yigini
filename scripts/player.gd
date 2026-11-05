@@ -64,8 +64,9 @@ const GRAB_GAP := 0.08   # s between bullets of one grab
 ## Scrap carried: the pieces themselves, shrunk, in a row low in the middle of the view (the gun
 ## goes down while there is any, viewmodel.gd stowed).
 const SCRAP_HAND_POS := Vector3(0.0, -0.15, -0.4)
-const SCRAP_IN_HAND := 0.055  # m, a piece in hand at its longest
-const SCRAP_STEP := 0.05      # m between pieces in the row
+const SCRAP_IN_HAND := 0.06   # m, a piece in hand at its longest
+const SCRAP_STEP := 0.07      # m between pieces in the row: more than SCRAP_IN_HAND, so none goes into the next
+const SCRAP_TILT := 0.35      # rad the row leans back, its pieces' tops to the eye
 const CASE := preload("res://assets/bullet/bullet_case.glb")  # special rounds: case + TipSocket
 const GRAB_REPEAT := 0.02  # s between grabs while E is held
 const FLY_POOL := 16       # bullets in flight at most: GRAB_TIME / GRAB_REPEAT plus slack
@@ -122,7 +123,7 @@ var _shake_t := 0.0
 var _shake_noise := FastNoiseLite.new()
 var _punch := 0.0  # deg off the fov
 var _punch_vel := 0.0
-var _fly: Array[MeshInstance3D] = []
+var _fly: Array[MultiMeshInstance3D] = []
 var _next_fly := 0
 var _scrap_hand: Node3D  # the scrap carried, shrunk (SCRAP_HAND_POS)
 var _scrap_looks: Array[Array] = []  # pile.gd piece_look of the first HAND_MAX pieces carried
@@ -264,7 +265,7 @@ func _ready() -> void:
 	_scrap_hand.position = SCRAP_HAND_POS
 	_camera.add_child(_scrap_hand)
 	for i in FLY_POOL:
-		var b := MeshInstance3D.new()
+		var b := _scrap_piece()
 		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		b.visible = false
 		b.top_level = true
@@ -894,8 +895,9 @@ func _physics_process(delta: float) -> void:
 		var look: Array = [] if _far_scrap != null else heap.piece_look(_reach.get_collider(), _reach.get_collider_rid())
 		var got := GameState.request_pick_up_loose(id) if id >= 0 else GameState.request_pick_up(at, 1)
 		if got > 0:
-			if look.is_empty():
-				look = heap.any_look()
+			if look.is_empty():  # dug out: what it is the hand knows (the host's roll; a guess till it says)
+				var scrap: Array = GameState.player().scrap
+				look = heap.part_look(scrap.back() if not scrap.is_empty() else [])
 				look[3] = Transform3D(Basis(), at)
 			_fly_to_hand(look, shown_before)
 	_viewmodel.stowed = GameState.carried > 0
@@ -1025,14 +1027,14 @@ func _fly_to_hand(look: Array, shown_before: int) -> void:
 	var old: Tween = b.get_meta("tween") if b.has_meta("tween") else null
 	if old and old.is_valid():
 		old.kill()  # pool wrapped around: the oldest flyer just lands now
-	b.mesh = look[0]
+	_dress_piece(b, look)
 	b.visible = true
 	var mid: Vector3 = look[1]
 	var start: Transform3D = look[3]
 	var small := _scrap_scale(look)
 	var q0 := start.basis.get_rotation_quaternion()
 	var fly := func(f: float) -> void:
-		var to := _scrap_hand.global_transform * _scrap_slot(slot, slot + 1)
+		var to := _scrap_hand.global_transform * _scrap_slot(slot, slot + 1, look)
 		var pos := start.origin.lerp(to.origin, f) + Vector3.UP * sin(f * PI) * 0.3
 		var rot := Basis(q0.slerp(to.basis.get_rotation_quaternion(), f))
 		b.global_transform = Transform3D(rot.scaled(Vector3.ONE * lerpf(1.0, small, f)), pos).translated_local(-mid)
@@ -1045,11 +1047,46 @@ func _fly_to_hand(look: Array, shown_before: int) -> void:
 		_set_hand_count(mini(shown_before + 1, GameState.carried)))
 
 
-## Where piece `i` of a scrap row of `n` sits, its box centre in _scrap_hand: side by side across
-## the middle, each turned its own way so the row doesn't look stamped.
-func _scrap_slot(i: int, n: int) -> Transform3D:
-	var tilt := Vector3(0.6 + 0.3 * sin(i * 1.7), i * 1.3, 0.4 * cos(i * 2.1))
-	return Transform3D(Basis.from_euler(tilt), Vector3((i - (n - 1) * 0.5) * SCRAP_STEP, 0.0, 0.0))
+## One scrap piece in the hand or flying to it: a one-copy MultiMesh, so it takes its tone the way
+## the heap's copies do (pile.gd part_look).
+func _scrap_piece() -> MultiMeshInstance3D:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var mi := MultiMeshInstance3D.new()
+	mi.multimesh = mm
+	return mi
+
+
+## `mi` (_scrap_piece) drawn as pile.gd part_look `look`.
+func _dress_piece(mi: MultiMeshInstance3D, look: Array) -> void:
+	var mm := mi.multimesh
+	mm.mesh = look[0]
+	if mm.instance_count == 0:  # once it has a mesh: the server wants one first
+		mm.instance_count = 1
+		mm.set_instance_transform(0, Transform3D())
+	mm.set_instance_color(0, look[5])
+	mi.material_override = look[4]
+
+
+## Where piece `i` of a scrap row of `n` (pile.gd part_look `look`) sits, its box centre in
+## _scrap_hand: side by side across the middle, each lying flat the way it would in a palm, its
+## longest side along the row and its widest face to the eye, the row leant back a little; turned
+## a touch each so it doesn't look stamped. Turned whole (no mirror), so it is the piece on the heap.
+func _scrap_slot(i: int, n: int, look: Array) -> Transform3D:
+	var size: Vector3 = look[2]
+	var axes := [0, 1, 2]
+	axes.sort_custom(func(a: int, b: int) -> bool: return size[a] > size[b])
+	var to := [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
+	to[axes[0]] = Vector3.RIGHT
+	to[axes[1]] = Vector3.UP
+	to[axes[2]] = Vector3.BACK
+	var lay := Basis(to[0], to[1], to[2])
+	if lay.determinant() < 0.0:  # a mirror: the thin side the other way round
+		to[axes[2]] = Vector3.FORWARD
+		lay = Basis(to[0], to[1], to[2])
+	var turn := Basis.from_euler(Vector3(SCRAP_TILT + 0.12 * sin(i * 1.7), 0.3 * sin(i * 2.3), 0.15 * cos(i * 2.1)))
+	return Transform3D(turn * lay, Vector3((i - (n - 1) * 0.5) * SCRAP_STEP, 0.0, 0.0))
 
 
 ## How much piece `look` shrinks in the hand: to SCRAP_IN_HAND at its longest.
@@ -1060,25 +1097,34 @@ func _scrap_scale(look: Array) -> float:
 
 ## Shows `n` scrap pieces in the row, and the special rounds in the pocket in the other hand: those
 ## their faces turned to our eye, the loaded one standing up out of the row. Copies the first
-## round as needed.
+## round as needed. The row is the pieces GameState says the hand holds (PlayerState.scrap), drawn
+## as they lay on the heap; ones it doesn't know keep the look they flew in with.
 func _set_hand_count(n: int) -> void:
 	n = mini(n, HAND_MAX)
-	_scrap_looks.resize(mini(_scrap_looks.size(), GameState.carried))
 	var heap := _pile()
-	while _scrap_looks.size() < n and heap:  # carried pieces we never saw taken (a rejoin)
-		_scrap_looks.append(heap.any_look())
+	var scrap: Array = GameState.player().scrap
+	var looks: Array[Array] = []
+	for i in maxi(n, mini(_scrap_looks.size(), mini(GameState.carried, HAND_MAX))):
+		var piece: Array = scrap[i] if i < scrap.size() else []
+		if heap and not piece.is_empty() and piece[0] >= 0:
+			looks.append(heap.part_look(piece))
+		elif i < _scrap_looks.size():
+			looks.append(_scrap_looks[i])
+		elif heap:  # carried pieces we never saw taken (a rejoin)
+			looks.append(heap.any_look())
+	_scrap_looks = looks
 	n = mini(n, _scrap_looks.size())
 	while _scrap_hand.get_child_count() < n:
-		var mi := MeshInstance3D.new()
+		var mi := _scrap_piece()
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_scrap_hand.add_child(mi)
 	for i in _scrap_hand.get_child_count():
-		var mi := _scrap_hand.get_child(i) as MeshInstance3D
+		var mi := _scrap_hand.get_child(i) as MultiMeshInstance3D
 		mi.visible = i < n
 		if i < n:
 			var look: Array = _scrap_looks[i]
-			var t := _scrap_slot(i, n)
-			mi.mesh = look[0]
+			var t := _scrap_slot(i, n, look)
+			_dress_piece(mi, look)
 			mi.transform = Transform3D(t.basis.scaled(Vector3.ONE * _scrap_scale(look)), t.origin).translated_local(-look[1])
 	var p := GameState.player()
 	n = mini(p.specials.size(), HAND_MAX)

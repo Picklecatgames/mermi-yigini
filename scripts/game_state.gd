@@ -16,8 +16,8 @@ signal carried_changed(count: int)
 ## Where bullets left the pile, so the heap can dig there (hands, robots, belts).
 signal bullets_taken(at: Vector3, count: int, step: int)
 ## Carried bullets thrown back out; they land as loose spill and count as pile again.
-## They get ids first_id .. first_id + count - 1.
-signal bullets_thrown(from: Vector3, dir: Vector3, count: int, first_id: int)
+## They get ids first_id .. first_id + count - 1, and land as `pieces` (PlayerState.scrap).
+signal bullets_thrown(from: Vector3, dir: Vector3, count: int, first_id: int, pieces: Array)
 ## A loose bullet (spilled or thrown) was picked up, by id; every peer removes the same one.
 signal loose_taken(id: int)
 ## Part of the scrap heap's face gives way round `cell` (pile.gd): the host decides when and how
@@ -428,6 +428,9 @@ const NODE_ARG := {&"shot_landed": 4}
 
 class PlayerState:
 	var carried := 0
+	## What each carried piece is, in the order taken: [part, tone] (pile.gd piece_of), [-1, tone]
+	## where nobody knows (rounds back out of a gun). The host's word; thrown, they land as these.
+	var scrap: Array = []
 	var loaded := 0  # rounds in the gun
 	var gold := 0
 	var levels := {"carry": 0, "magazine": 0, "combo_cap": 0, "gold_bonus": 0, "range_bonus": 0, "laser": 0,
@@ -1286,13 +1289,21 @@ func request_pick_up(at: Vector3, limit := 1 << 30, peer := 0) -> int:
 	if want <= 0:
 		return 0  # a full hand asks nobody (E held sends a request every frame otherwise)
 	if _send(&"request_pick_up", [at, limit], peer):
-		# The host digs; if the pile ran dry first, its answer takes the bullet back.
+		# The host digs; if the pile ran dry first, its answer takes the bullet back. What came out
+		# is the host's roll too: its answer says.
 		var guess := clampi(want, 0, pile)
-		_set_carried(peer, p.carried + guess)
+		var dug := []
+		for i in guess:
+			dug.append(UNKNOWN_PIECE)
+		_carry(peer, dug)
 		return guess
 	var taken := request_take_bullets(want, at)
 	if taken > 0:
-		_set_carried(peer, p.carried + taken - _roll_specials(peer, taken))
+		var heap := get_tree().get_first_node_in_group("bullet_pile")
+		var dug := []
+		for i in taken - _roll_specials(peer, taken):
+			dug.append(heap.dug_piece() if heap else UNKNOWN_PIECE)
+		_carry(peer, dug)
 		quest_add("bullets_carried", taken)
 	return taken
 
@@ -1337,16 +1348,20 @@ func request_pick_up_loose(id: int, peer := 0) -> int:
 		if _claimed.has(id):
 			return 0
 		_claimed[id] = true
-	if _send(&"request_pick_up_loose", [id], peer):
-		_set_carried(peer, p.carried + 1)  # the bullet itself goes when the host says loose_taken
-		return 1
 	var heap := get_tree().get_first_node_in_group("bullet_pile")
+	# What it is: every peer's heap has the same piece under an id, so a client's guess holds.
+	var piece: Array = heap.piece_of(id) if heap else []
+	if piece.is_empty():
+		piece = UNKNOWN_PIECE
+	if _send(&"request_pick_up_loose", [id], peer):
+		_carry(peer, [piece])  # the bullet itself goes when the host says loose_taken
+		return 1
 	if heap and not heap.has_loose(id):
 		return 0  # no such bullet lying here: a made-up id would only grow _taken_loose
 	_taken_loose[id] = true
 	pile -= 1
 	_world(&"pile_changed", [pile])
-	_set_carried(peer, p.carried + 1 - _roll_specials(peer, 1))
+	_carry(peer, [] if _roll_specials(peer, 1) > 0 else [piece])
 	_world(&"loose_taken", [id])
 	var off_heap: bool = heap != null and heap.is_heap_id(id)
 	if off_heap:
@@ -1844,6 +1859,7 @@ func request_throw(from: Vector3, dir: Vector3, peer := 0) -> int:
 	var n := player(peer).carried
 	if n == 0:
 		return 0
+	var pieces := player(peer).scrap.duplicate()  # what flies is what was in the hand
 	_set_carried(peer, 0)
 	if _send(&"request_throw", [from, dir], peer):
 		return n  # the bullets fly when the host's bullets_thrown hands out their ids
@@ -1851,12 +1867,35 @@ func request_throw(from: Vector3, dir: Vector3, peer := 0) -> int:
 	var first_id := _next_loose_id
 	_next_loose_id += n
 	_world(&"pile_changed", [pile])
-	_world(&"bullets_thrown", [from, dir, n, first_id])
+	_world(&"bullets_thrown", [from, dir, n, first_id, pieces])
 	return n
 
 
+## A carried piece nobody knows the look of: pile.gd lands it as one picked by its id.
+const UNKNOWN_PIECE := [-1, Color(1, 1, 1)]
+
+
+## `pieces` ([part, tone] each, PlayerState.scrap) go into the hand, after what is there.
+func _carry(peer: int, pieces: Array) -> void:
+	var p := player(peer)
+	_fit_scrap(p, p.carried)
+	p.scrap.append_array(pieces)
+	_set_carried(peer, p.carried + pieces.size())
+
+
+## Keeps one PlayerState.scrap entry per carried piece: the last ones go first (into a gun, the
+## melter), rounds out of a gun come back as UNKNOWN_PIECE.
+func _fit_scrap(p: PlayerState, n: int) -> void:
+	if p.scrap.size() > n:
+		p.scrap.resize(n)
+	while p.scrap.size() < n:
+		p.scrap.append(UNKNOWN_PIECE)
+
+
 func _set_carried(peer: int, n: int) -> void:
-	player(peer).carried = n
+	var p := player(peer)
+	p.carried = n
+	_fit_scrap(p, n)
 	if _is_local(peer):
 		carried_changed.emit(n)
 
@@ -1888,12 +1927,12 @@ func _request(method: StringName, args: Array, seq: int) -> void:
 	if not is_down(peer) or method in DOWN_REQUESTS:  # down: no moving, shooting or buying; still answered
 		callv(method, args + [peer])
 	var p := player(peer)
-	_state.rpc_id(peer, seq, p.carried, p.loaded, p.gold, p.levels, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol, p.rounds)
+	_state.rpc_id(peer, seq, p.carried, p.scrap, p.loaded, p.gold, p.levels, p.infinite_ammo, p.keys, p.gun, p.specials, p.armed, p.has_pistol, p.rounds)
 
 
 ## Client: the host's word on our own state, after request `seq`.
 @rpc("authority", "call_remote", "reliable")
-func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionary, infinite: bool, keys: Array, gun: int, specials: Array, armed: String, pistol: bool, rounds: Dictionary) -> void:
+func _state(seq: int, carried_: int, scrap: Array, loaded_: int, gold_: int, levels: Dictionary, infinite: bool, keys: Array, gun: int, specials: Array, armed: String, pistol: bool, rounds: Dictionary) -> void:
 	_acked_seq = seq
 	if seq != _sent_seq:
 		return  # newer requests are still on their way; their answer will have it all
@@ -1909,7 +1948,8 @@ func _state(seq: int, carried_: int, loaded_: int, gold_: int, levels: Dictionar
 	if p.rounds != rounds:
 		p.rounds = rounds.duplicate()
 		rounds_changed.emit()
-	if p.carried != carried_:
+	if p.carried != carried_ or p.scrap != scrap:
+		p.scrap = scrap.duplicate(true)  # what the host rolled for what we dug, or knew of a rejoin
 		_set_carried(0, carried_)
 	if p.loaded != loaded_:
 		_set_loaded(0, loaded_)
