@@ -6,15 +6,17 @@ extends SceneTree
 ## types called up in front of the player, a moment after they come up; user://night_far.png: from
 ## FAR_EYE, the workshop and the heap behind it ~30 m off, a few of the dead ~20 m off;
 ## user://night_moon.png: up at the moon.
-## `-- --moons` instead: every moon (GameState.MOONS and "boss") at midnight, user://moon_<kind>_sky.png
-## out over the desert at the moon(s), three of the dead ~20 m off, and moon_<kind>_yard.png the
-## workshop from ~30 m.
+## `-- --moons` instead: every moon (GameState.MOONS and "boss") at midnight, the pistol in hand,
+## user://moon_<kind>_sky.png up at the moon(s) from across the clearing, over the house, three of the
+## dead ~9 m off either side of the gun, and moon_<kind>_yard.png the workshop from ~30 m.
 
 const EYE := Vector3(17.0, 1.7, 4.0)  # psx_shots.gd's "yard" view
 const LOOK := Vector3(5.0, 1.4, -0.5)
 const AT := [0.8, 1.6, 2.4, 3.2, 4.0, 5.2]  # s into N's run to night
 const FAR_EYE := Vector3(36.0, 1.7, 8.0)
 const FAR_LOOK := Vector3(2.0, 3.0, -2.0)
+const CLEARING := Vector2(8.0, 0.0)  # build_world.gd CLEARING_CENTRE
+const CLEARING_BACK := 18.0  # m back from it, away from the moon, for the --moons sky view
 const SUMMON := [["walker", 1], ["brute", 1], ["dog", 2], ["runner", 2], ["spiker", 1]]
 
 
@@ -32,6 +34,8 @@ func _initialize() -> void:
 	_stand(player, EYE, LOOK)
 	await _frames(200)  # shaders compile, the probes capture
 	if "--moons" in OS.get_cmdline_user_args():
+		gs.request_take_pistol()  # the hands in each picture, lit as the night lights them
+		await _frames(30)
 		await _moons(gs, player)
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.save_path))
 		quit()
@@ -98,13 +102,15 @@ func _moons(gs: Node, player: Node3D) -> void:
 		for id: int in waves._zombies.keys():
 			waves._zombies[id].node.free()
 		waves._zombies.clear()
-		var eye := Vector3(13.0, 1.7, 1.0)
 		var out := Basis.from_euler(Vector3(deg_to_rad(-18.0), deg_to_rad(75.0), 0.0)).z  # day_night.gd _toward
+		var flat := Vector3(out.x, 0.0, out.z).normalized()
+		# From the clearing's far side, its whole width between the eye and the wood under the moon:
+		# from beside the house the wood stood up in front of every moon.
+		var eye := Vector3(CLEARING.x, 1.7, CLEARING.y) - flat * CLEARING_BACK
 		_stand(player, eye, eye + out)
 		await _frames(3)
-		var flat := Vector3(out.x, 0.0, out.z).normalized()
 		for i in 3:
-			var at := player.global_position + flat * 14.0 + flat.cross(Vector3.UP) * (i - 1) * 3.0
+			var at := player.global_position + flat * 3.0 + flat.cross(Vector3.UP) * (i - 1) * 5.0  # waves.gd SUMMON_AHEAD on: ~9 m off, this side of the house, out from behind the gun
 			gs.request_debug_spawn(["walker", "brute", "runner"][i], at, atan2(-flat.x, -flat.z), 1)
 		await _frames(15)
 		_save("moon_%s_sky" % kind)
