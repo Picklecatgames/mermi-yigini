@@ -116,6 +116,8 @@ signal factory_clock(step: int, check: int)
 signal factory_snapshot(state: Dictionary)
 ## The shared kasa changed here; every peer works it out itself, it doesn't cross the network.
 signal stock_changed
+## Something heard in the wood (scripts/forest_presence.gd), sent by the host to `peer` alone.
+signal presence_cue(peer: int, cue: Dictionary)
 
 const PILE_START := 100_000_000
 ## The day (2026-11-03, first guesses: the user hasn't set its length, docs/ayrintilar.md open
@@ -421,7 +423,7 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
 	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed", &"news_changed", &"news_line",
-	&"factory_cmd", &"factory_clock", &"factory_snapshot"]
+	&"factory_cmd", &"factory_clock", &"factory_snapshot", &"presence_cue"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4}
 
@@ -2029,6 +2031,14 @@ func _world(event: StringName, args: Array) -> void:
 			var i: int = NODE_ARG[event]
 			args[i] = args[i].get_path() if args[i] else NodePath()
 		_event.rpc(event, args)
+
+
+## Host: a world event for one player only (forest_presence.gd: the others must not hear it).
+func presence_to(peer: int, cue: Dictionary) -> void:
+	if peer == local_peer():
+		presence_cue.emit(peer, cue)
+	elif Net.online and multiplayer.is_server() and peer in multiplayer.get_peers():
+		_event.rpc_id(peer, &"presence_cue", [peer, cue])
 
 
 ## Client: a world event from the host. Mirrors the shared state, then emits it as the host did.
