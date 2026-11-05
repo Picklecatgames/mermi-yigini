@@ -45,7 +45,9 @@ const GLB := {"blob": "res://assets/characters/zombies/blob/blob.glb",
 ## they keep their looks, faded and dirty: the orange a rusted orange, the turquoise a washed grey-green.
 const DIRT := Color(0.3, 0.25, 0.2)
 const PSX_GRADE_OF := {"demon": [0.3, 0.62, 0.45, Color(0.36, 0.2, 0.16), 0.3],
-		"oldman": [1.2, 0.92, 0.04, Color(0.36, 0.3, 0.22), 0.18],  # 2026-11-05: damp, old skin, off the ground's tan
+		# 2026-11-05: damp, old skin, pale. 1.2 saturation was there to lift the hands off the ground's tan
+		# while no light reached them (player.gd, the gun's lights' layers); lit, it read peach-orange.
+		"oldman": [0.45, 0.82, 0.2, Color(0.42, 0.44, 0.41), 0.38],
 		}
 ## psx: what a model loses (2026-11-03, the user: the cop's cap looks broken). "meshes" go whole;
 ## "uv" drops the triangles from the neck up whose corners all sit in one of these UV rects.

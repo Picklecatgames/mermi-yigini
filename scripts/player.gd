@@ -136,7 +136,7 @@ var _lamp := preload("res://scripts/head_lamp.gd").new()  # at night, from the e
 ## over to the lamp's colour as it lights. Neither a spot nor an omni light on the gun's layer
 ## reached the hands, nor did the key and rim above (tried); its ambient does.
 const LAMP_HANDS := 0.17  # 0.24 turned the dark brown gloves a whitish grey at night (the PS1 critic)
-const VM_AMBIENT := Color(0.52, 0.5, 0.46)
+const VM_AMBIENT := Color(0.47, 0.5, 0.49)  # damp grey
 var _hip_fov := 75.0
 var _zoom := 1.0
 var _pose_timer := 0.0
@@ -436,8 +436,8 @@ func _setup_viewmodel_world() -> void:
 	# A soft key light from over the left shoulder keeps the gun readable between lamps, and a rim
 	# from ahead draws a thin line on edges; both on the gun's layer only, or they would light the hall.
 	var key := DirectionalLight3D.new()
-	key.light_color = Color(1.0, 0.95, 0.86)
-	key.light_energy = 2.4
+	key.light_color = Color(0.94, 0.94, 0.9)  # pale, overcast: the hands old skin, not peach
+	key.light_energy = 1.0
 	key.rotation = Vector3(-0.65, 0.4, 0.0)
 	var rim := DirectionalLight3D.new()
 	rim.light_color = Color(0.85, 0.9, 1.0)
@@ -446,13 +446,19 @@ func _setup_viewmodel_world() -> void:
 	rim.rotation = Vector3(-0.35, PI - 0.6, 0.0)
 	for l: DirectionalLight3D in [key, rim]:
 		l.light_cull_mask = 1 << 1
+		# A camera culls lights by their own layers too: on layer 1 the gun's camera (cull_mask 2)
+		# never had them, and the hands were lit by the flat ambient alone, a dark orange-brown
+		# the ground's colour (2026-11-05, the user: "el garip ve renk saçmalıyor").
+		l.layers = 1 << 1
 		l.set_meta(&"day", l.light_energy)
 		_vm_camera.add_child(l)
 		_vm_lights.append(l)
 
 	_vm_env.set_meta(&"day", _vm_env.ambient_light_energy)
 	for s: DirectionalLight3D in get_tree().root.find_children("*", "DirectionalLight3D", true, false):
-		if not s in _vm_lights:
+		# Only this view's: the bench and the picker draw their models in viewports of their own,
+		# lit by lights that stay on all night (5.1 of the 6.35 counted, the hands 80 % lit at night).
+		if not s in _vm_lights and s.get_viewport() == get_viewport():
 			_vm_suns.append(s)
 	_vm_day = Vector2(_sun_energy(), get_world_3d().environment.ambient_light_energy)
 
@@ -475,7 +481,7 @@ func _vm_follow_light() -> void:
 	for l in _vm_lights:
 		l.light_energy = float(l.get_meta(&"day")) * sun
 	_vm_env.ambient_light_energy = maxf(float(_vm_env.get_meta(&"day")) * maxf(sky, 0.15), LAMP_HANDS * _lamp.lit)  # 0.15: a shape, not a hole
-	_vm_env.ambient_light_color = VM_AMBIENT.lerp(_lamp.light_color * Color(0.95, 0.88, 0.76), _lamp.lit * (1.0 - sky))  # a little warmer than the bulb, not orange
+	_vm_env.ambient_light_color = VM_AMBIENT.lerp(_lamp.light_color * Color(0.8, 0.86, 0.9), _lamp.lit * (1.0 - sky))  # the bulb cooled: warm on pale skin went orange
 
 
 ## The laser bought at the bench (GameState UPGRADES) on the Deagle in hand: a red dot where the
