@@ -35,14 +35,15 @@ Mevcut kodda taşınan tek şey elle alınan parça (`request_pick_up`).
 Üç makinenin üçünün de modeli ve eski bir kod yolu var, ama eski yollar başka bir zincir için yazılmış. Üretim temelinin tarifleri (`claude/angry-yonath-6994c0`, `data/recipes.json`) bugün `sokme` ve `ezme`; hurda doğrudan malzemeye dönüyor, ara ürün yok. Bu zincir için üç yeni ürün ve üç tarif gerekir. Kod değiştirmedim.
 
 **Açık kalanlar:**
-1. Sökücü kalıyor mu? Kararda yok. Önerim: söküm, parçayı malzemesine ayırıp öğütücüye veren ilk adım olarak kalsın; kaldırılırsa hurda doğrudan öğütülür.
-2. Zincir yalnız demir için mi? Çelik, bakır, teneke de aynı yoldan mı geçiyor?
-3. Her düğümde kol mu, motor mu? Kollu sökücü fikri öğütücüye de uyar: önce elle, sonra motorla (benim önerim).
+1. Zincir yalnız demir için mi? Çelik, bakır, teneke de aynı yoldan mı geçiyor? Sökücü olmadığı için hurdadaki kauçuk, ahşap gibi demir dışı malzemelerin ne olacağı da buna bağlı.
+2. Her düğümde kol mu, motor mu? Önce elle, sonra motorla (benim önerim).
+
+**Kullanıcı kararı, sökücü yok (2026-11-05):** "Sökücü gerek yok, yoksa oyuncu tüm gün kafası yorulur, geceye kafa kalmaz." Hurda doğrudan öğütücüye girer. Üretim temelindeki `sokucu` satırı ve `sokme` tarifi (`claude/angry-yonath-6994c0`) bu karara göre kalkar; o dala dokunmadım. Aşağıdaki 2. fikir bu yüzden kollu öğütücü oldu.
 
 ## Kısa özet
 
-- En iyi 8 fikir, sırayla: **çuval ve el arabası, kollu sökücü, dizel motor ve kayış, elle beslenen mazgal, zincirli ölü, teleferik, pençeli vinç, kişisel takım.**
-- Her biri için 2-4 model aday buldum, galeride 50 model var. En sağlam eşleşmeler: [taranmış kütük ayırıcı](https://sketchfab.com/3d-models/old-wood-splitter-7d416be344604eeb9143af39c21e007b) (kollu sökücü), [terk edilmiş jeneratör](https://sketchfab.com/3d-models/abandoned-soviet-generator-game-ready-ue5-prop-0f11d8e9b59b431295e42ddf579c38ce) (motor), [elde yapılmış taret](https://sketchfab.com/3d-models/post-apocalyptic-turret-d561bde953754ceca06e38737ffea40d) (mazgal), [ırgat](https://sketchfab.com/3d-models/capstan-anchor-winches-e8537c1d32d4401b91d0332107a4560d) (zincirli ölü), [liman vinci](https://sketchfab.com/3d-models/port-crane-sokol-4964eaa7634e47c9bac4c2a74fa91c20) (vinç).
+- En iyi 8 fikir, sırayla: **çuval ve el arabası, kollu öğütücü, dizel motor ve kayış, elle beslenen mazgal, zincirli ölü, teleferik, pençeli vinç, kişisel takım.**
+- Her biri için 2-4 model aday buldum, galeride 50 model var. En sağlam eşleşmeler: [taranmış kütük ayırıcı](https://sketchfab.com/3d-models/old-wood-splitter-7d416be344604eeb9143af39c21e007b) (kollu öğütücü), [terk edilmiş jeneratör](https://sketchfab.com/3d-models/abandoned-soviet-generator-game-ready-ue5-prop-0f11d8e9b59b431295e42ddf579c38ce) (motor), [elde yapılmış taret](https://sketchfab.com/3d-models/post-apocalyptic-turret-d561bde953754ceca06e38737ffea40d) (mazgal), [ırgat](https://sketchfab.com/3d-models/capstan-anchor-winches-e8537c1d32d4401b91d0332107a4560d) (zincirli ölü), [liman vinci](https://sketchfab.com/3d-models/port-crane-sokol-4964eaa7634e47c9bac4c2a74fa91c20) (vinç).
 - **Üretilmesi gerekenler:** hurda pençesi, teleferik makarası ve halatı, kayış ve kasnak, sırt çerçevesi, mıknatıs ucu. Rig'li, sıska, gerçekçi bir köpek bulamadım.
 - En çok kullanıcı kararı isteyen şey **zincirli ölü**: bence en özgün fikir, ama tonu oyunun kimliğini etkiler.
 
@@ -87,10 +88,12 @@ Sıra yapım ve oynanış sırası: öndeki, arkadakinin temelini kurar. Zorluk:
 
 Çuvalın dolu hâli var; boş ve yarım hâli üretilir.
 
-### 2. Kollu sökücü
+### 2. Kollu öğütücü
 
-- **Ne yapar:** `sokucu`nun ilk hâli. Hazneye 40 parça doldurursun (tahmin), kolu basılı tutup çevirirsin. Çeviren yoksa durur. Sonra aynı makineye motor bağlanır.
-- **Oyuncunun neyini değiştirir:** Elle tek tek sökmek biter, ama biri makineye bağlı kalır. Videodaki "kollu soyma makinesi" basamağının aynısı.
+Kullanıcı sökücüyü kaldırdı; aynı fikir zincirin ilk makinesine, öğütücüye geçti (benim önerim). Tablodaki adaylar öğütücü gövdesi olarak değerlendirilir.
+
+- **Ne yapar:** Öğütücünün ilk hâli. Hazneye 40 parça doldurursun (tahmin), kolu basılı tutup çevirirsin. Çeviren yoksa durur. Sonra aynı makineye motor bağlanır.
+- **Oyuncunun neyini değiştirir:** Hurda düşünmeden girer, ince iş yok, kafa geceye kalır. Biri makineye bağlı kalır. Videodaki "kollu soyma makinesi" basamağının aynısı.
 - **Hava:** Besler: ses, ritim, sırtın dönük. Hazneden mayın ya da bomba çıkabilir; ses verir, fark edip fırlatmak gerekir (videoda yığında var). Bozabilir: yok denecek kadar az, ağır kol zaten bu dilin kalbi.
 - **Gece:** Kol sesi uzaktan duyulur. Sıkışınca levyeyle açmak gerekir, gece bu tek başına bir korku anı.
 - **Kaynak:** Yapım çelik. Çalışırken beden.
@@ -100,7 +103,7 @@ Sıra yapım ve oynanış sırası: öndeki, arkadakinin temelini kurar. Zorluk:
 | Aday | Yazar | Lisans | Üçgen | Rig, animasyon | Doku | Neden uyar | PS1 çevirisi |
 |---|---|---|---|---|---|---|---|
 | [Old wood splitter](https://sketchfab.com/3d-models/old-wood-splitter-7d416be344604eeb9143af39c21e007b) ★ | Lassi Kaukonen | CC-BY 4.0 | 137.978 | animasyon yok | 3 doku, 2 malzeme | Taranmış gerçek kütük ayırıcı: kaba ahşap çerçeve, volan, el çarkı. Aradığım elle yapılmış, küt dil. | **dikkat.** Tarama, 138 bin üçgen, altında yuvarlak zemin diski var. Disk kesilir. psx_props'ta tarama için ızgara yolu yalnız orman grubunda açık, burada da açılmalı. Tek deriyse çark dönmez; indirmeden doğrulanmadı. |
-| [Hand Cranked Grinder - GAP Tool](https://sketchfab.com/3d-models/hand-cranked-grinder-gap-tool-84b281490ba34620a4ed8bf0dd6c68be) | Tatyana_Petrova | CC-BY 4.0 | 4.034 | animasyon yok | 4 doku, 1 malzeme | El çarkı açıkça okunan döküm öğütücü. Büyütülünce kollu sökücü olur. | **uygun.** Temiz, 2.000 üçgene iner (tahmin). Kırmızı boyası pas rampasına çekilir. |
+| [Hand Cranked Grinder - GAP Tool](https://sketchfab.com/3d-models/hand-cranked-grinder-gap-tool-84b281490ba34620a4ed8bf0dd6c68be) | Tatyana_Petrova | CC-BY 4.0 | 4.034 | animasyon yok | 4 doku, 1 malzeme | El çarkı açıkça okunan döküm öğütücü. Büyütülünce kollu öğütücü olur. | **uygun.** Temiz, 2.000 üçgene iner (tahmin). Kırmızı boyası pas rampasına çekilir. |
 | [Low Poly Meat Grinder "ALEXANDERWERK Nº 22"](https://sketchfab.com/3d-models/low-poly-meat-grinder-alexanderwerk-no-22-89137f6445fb4c55bc58bde6047ff2ba) | ArtemMoiseev | CC-BY 4.0 | 4.930 | animasyon yok | 5 doku, 1 malzeme | Dev bir kıyma makinesi: hurda ağzı, delikli ayna, sap. Gore ile iyi gider. | **dikkat.** Adında gerçek marka var (ALEXANDERWERK). Görselde logo görmedim, gövde ve dokuda ayrıca bakılmalı. Kırmızı boya pasa çekilir. |
 | [RG Ross & Sons Steam Hammer](https://sketchfab.com/3d-models/rg-ross-sons-steam-hammer-d80b52dc800e4c76b6b27749bbd8e782) | Scottish Maritime Museum | CC0 | 70.069 | animasyon yok | 4 doku, 1 malzeme | 1907'den kalma, müzede taranmış buhar çekici. Motorlu aşamanın ezicisi için çok ağır ve güzel. CC0. | **dikkat.** 70 bin üçgen, üstünde kurulu zemin de var. Çekiç ayrı parça değilse inip kalkmaz; indirince bakılmalı. |
 
@@ -253,7 +256,7 @@ Beş soruyu geçiyor ama ilk sekizin önüne geçmiyor. Modeller galeride, "Yede
 | **Drone, uçan toplayıcı** | `otomasyon_hazirlik.md`'de soru olarak geçiyor. Bence hayır: temiz, sessiz, oyuncunun yerine bakar; korkunun karşısına uçan oyuncak koyar |
 | **Sevimli robot, yoldaş** | Yalnızlığı bitirir. Bir korku oyununda arkadaş olan makine, makine olmaktan çıkar |
 | **NPC işçi ve kolonist** | Görev ekranı, ücret, yemek getirir, başka bir oyun olur. Ayrıca co-op'ta oyuncuların işini alır |
-| **Robot kol dizisi** | Bizde `bant` ve `sokucu` var, ama Factorio'daki taşıyıcı kol temiz ve hızlı okunur. Yerine zincir, kaldıraç, insan elini koyarım |
+| **Robot kol dizisi** | Bizde `bant` var, ama Factorio'daki taşıyıcı kol temiz ve hızlı okunur. Yerine zincir, kaldıraç, insan elini koyarım |
 | **Sınırsız ızgara, taret duvarı** | Plan oyunu başlar, korku biter. Videoda yerleştirme ekranı görülmüyor, not da bunu söylüyor; soru `taret_notlari.md` 2 |
 | **Üstten harita, akış grafiği** | Her şey birinci şahıstan görülmeli (`taret_notlari.md`) |
 | **Parlak arayüz, ekranlı panel, hologram** | Kullanıcı kuralları: az yazı, gerçek aset. Kol, kadran, etiket yeter |
@@ -271,7 +274,7 @@ Beş soruyu geçiyor ama ilk sekizin önüne geçmiyor. Modeller galeride, "Yede
 | Gece (dakika) | Açılan |
 |---|---|
 | 1 (0-12) | El, torba, ilk silah |
-| 2 (12-24) | Çuval ve el arabası, kollu sökücü, kasa; kişisel olarak kas hafızası |
+| 2 (12-24) | Çuval ve el arabası, kollu öğütücü, kasa; kişisel olarak kas hafızası |
 | 3 (24-36) | Dizel motor ve kayış, ilk mazgal |
 | 4 (36-48) | Kısa bant, ikinci mazgal; kişisel olarak sırt sepeti |
 | 5, boss (48-60) | Pençeli vinç, boss öncesi kurulur, gecede dağın yanında kalır |
@@ -283,7 +286,7 @@ Demoda yok: teleferik, otopilot, ikinci boss. Katalogda kilitli satır olarak g�
 | Gece (saat) | Açılan |
 |---|---|
 | 1-2 (0:00-0:50) | El, torba, ilk silah |
-| 3 (~1:00) | Çuval ve el arabası, kollu sökücü, kasa |
+| 3 (~1:00) | Çuval ve el arabası, kollu öğütücü, kasa |
 | 4 (~1:30) | Kas hafızası, sırt sepeti |
 | 5, boss (~2:00) | İlk mazgal, boss öncesi kurulur |
 | 6-7 (~2:30) | Motor ve kayış, kısa bant, zincirli ölü |
@@ -322,13 +325,13 @@ Demoda yok: teleferik, otopilot, ikinci boss. Katalogda kilitli satır olarak g�
 
 ### Temeldeki makinelere görünüş (ek)
 
-Bant, kasa ve sökücü bugün yer tutucu modellerle duruyor. Aset oturumu için ek öneri.
+Bant ve kasa bugün yer tutucu modellerle duruyor. Aset oturumu için ek öneri.
 
 | Aday | Yazar | Lisans | Üçgen | Rig, animasyon | Doku | Neden uyar | PS1 çevirisi |
 |---|---|---|---|---|---|---|---|
 | [Industrial Conveyer Roller (modular)](https://sketchfab.com/3d-models/industrial-conveyer-roller-modular-4736d0c18e7047969639988883f0ad56) ★ | atharva_parab | CC-BY 4.0 | 2.434 | animasyon yok | 3 doku, 1 malzeme | Bant: paslı, modüler makaralı hat. Kayış yerine hurda makaradan yuvarlanır, ağır ve küt okunur. | **uygun.** 2.400 üçgen, tek set. |
 | [Industrial Conveyer Roller Angular (modular)](https://sketchfab.com/3d-models/industrial-conveyer-roller-angular-modular-328a5290650147d5a8816de8d7ebe4b6) ★ | atharva_parab | CC-BY 4.0 | 1.322 | animasyon yok | 3 doku, 1 malzeme | Bant köşesi: aynı setin kavisli parçası. | **uygun.** 1.300 üçgen. |
-| [Industrial Machine](https://sketchfab.com/3d-models/industrial-machine-40cd1d22f6bd40dd904e37faf0c214d8) ★ | jimbogies | CC-BY 4.0 | 40.500 | animasyon yok | 21 doku, 11 malzeme | Sökücü tezgâhı: paslı sac, kayış ve kasnak görünür. Yazarı amacı olmayan uydurma makine demiş. Radyasyon levhası var. | **dikkat.** 40 bin üçgen, 11 malzeme, 21 doku. Çeviride sadeleşir. |
+| [Industrial Machine](https://sketchfab.com/3d-models/industrial-machine-40cd1d22f6bd40dd904e37faf0c214d8) ★ | jimbogies | CC-BY 4.0 | 40.500 | animasyon yok | 21 doku, 11 malzeme | Motorlu tezgâh: paslı sac, kayış ve kasnak görünür. Yazarı amacı olmayan uydurma makine demiş. Radyasyon levhası var. | **dikkat.** 40 bin üçgen, 11 malzeme, 21 doku. Çeviride sadeleşir. |
 | [Post Apocalytpic style Container](https://sketchfab.com/3d-models/post-apocalytpic-style-container-363b36fdbae940a7bee619e17da4803a) ★ | Sousinho | CC-BY 4.0 | 2.340 | animasyon yok | 14 doku, 2 malzeme | Kasa: paslı sarı dökme konteyner, merdiveni ayrı. Ortak kasa için büyük ve okunur. | **uygun.** 2.340 üçgen. |
 | [Rusted waste container low poly](https://sketchfab.com/3d-models/rusted-waste-container-low-poly-6e6e05f6c6814cec96f24524ddd3ceac) | Robal | CC-BY 4.0 | 628 | animasyon yok | 2 doku, 1 malzeme | Kasa ya da istasyon haznesi: daha küçük paslı konteyner. | **uygun.** 628 üçgen. |
 | [PSX Industrial Pack](https://sketchfab.com/3d-models/psx-industrial-pack-12cb749961974f94a4063e67dafb2d76) | Tomitos | CC-BY 4.0 | 8.622 | animasyon yok | doku sayısı alınamadı | Süs: PSX paketi, boru, tank, tambur, konteyner. Makinelerin çevresi için. | **uygun.** Doğrudan PS1 ölçüsünde, çevirinin etkisi denenmeli. |
@@ -365,7 +368,7 @@ Projede bu yol zaten var (`tools/atolye/parts.py`, `tools/cukur/build.py`, Blend
 | Kayış ve kasnak | Dönmesi için ayrı parça olmalı, UV kaydırmalı |
 | Sırt çerçevesi ve sepet bağı | Modelde yok |
 | Mıknatıs ucu | Dedektör gövdesine birleştirilir |
-| Kollu sökücünün haznesi | Aday makinelerin çoğunda kol var, hazne yok |
+| Kollu öğütücünün haznesi | Aday makinelerin çoğunda kol var, hazne yok |
 | Dolu ve boş çuval, araba yükü | Durum başına ayrı şekil |
 
 ## Kullanıcıya sorular
