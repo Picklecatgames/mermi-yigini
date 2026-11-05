@@ -182,6 +182,7 @@ var _board_hint: Control  # at the quest board while something waits there (E cl
 var _bench_hint: Control  # at the open bench (E sits down at it)
 var _melt_hint: Control  # at the hopper with rounds in the hand (E pours them in)
 var _hopper_hint: Control  # at the hopper, the hand empty (E shows how it melts)
+const TV_LOOK := 0.85  # how squarely the view points at the television for E to offer it
 var _tv_hint: Control  # at the television, nothing on (E: today's bulletin)
 var _press_hint: Control  # at the press (E makes rounds)
 var _lever_hint: Control  # at the wave lever with a wave waiting (E pulls it, scripts/waves.gd)
@@ -582,10 +583,11 @@ func _station() -> String:
 	var waves := get_tree().get_first_node_in_group("waves")
 	if waves and waves.can_pull(global_position):
 		spots["lever"] = GameState.LEVER_POS
-	if GameState.near_tv(global_position) and GameState.news_at < 0 and not GameState.news_entry(GameState.news_day).get("satirlar", []).is_empty():
-		spots["tv"] = GameState.TV_POS
 	var look := -_camera.global_basis.z
 	var ahead := Vector2(look.x, look.z).normalized()
+	if GameState.near_tv(global_position) and GameState.news_at < 0 and not GameState.news_entry(GameState.news_day).get("satirlar", []).is_empty() \
+			and ahead.dot(Vector2(GameState.TV_POS.x - global_position.x, GameState.TV_POS.z - global_position.z).normalized()) > TV_LOOK:
+		spots["tv"] = GameState.TV_POS
 	var best := ""
 	var best_dot := -2.0
 	for id: String in spots:

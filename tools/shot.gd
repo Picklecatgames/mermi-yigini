@@ -14,12 +14,17 @@ extends SceneTree
 const SHOTS := {
 	"ev_on": [Vector3(21.0, 1.7, 7.0), Vector3(6.0, 2.2, 0.5)],  # build_world.gd: the house from the yard
 	"ev_arka": [Vector3(-4.5, 1.7, 2.5), Vector3(6.0, 2.2, -1.0)],  # from the mountain's side, the back door
-	"ev_kuzey": [Vector3(8.0, 1.7, -14.0), Vector3(5.5, 2.2, 0.0)],
+	"ev_kuzey": [Vector3(8.0, 1.7, -16.0), Vector3(5.5, 2.2, -2.0)],
+	"ev_kose": [Vector3(-7.0, 2.2, -13.0), Vector3(5.0, 2.2, -3.0)],
 	"ev_uzak": [Vector3(44.0, 9.0, 26.0), Vector3(4.0, 1.0, -2.0)],
 	"ev_spawn": [Vector3(7.3, 1.7, 0.9), Vector3(2.2, 1.1, 0.0)],  # what a player sees first: the crate, the TV, the mountain's window
 	"ev_tv": [Vector3(3.9, 1.5, 0.2), Vector3(2.2, 0.95, 0.0)],
 	"ev_tv_yakin": [Vector3(2.95, 1.05, 0.0), Vector3(2.2, 0.95, 0.0)],
-	"ev_tezgah": [Vector3(5.6, 1.7, -0.6), Vector3(8.6, 1.1, -2.2)],
+	"ev_tezgah": [Vector3(5.2, 1.7, -4.6), Vector3(4.6, 1.0, -7.8)],  # the wing, from the way in
+	"ev_atolye": [Vector3(8.2, 1.7, -4.5), Vector3(2.0, 1.0, -7.0)],
+	"ev_soba": [Vector3(5.2, 1.7, 0.4), Vector3(8.4, 0.9, -2.2)],
+	"ev_ampul": [Vector3(5.0, 1.7, 0.9), Vector3(6.3, 2.5, 0.2)],
+	"ev_masa": [Vector3(4.9, 1.7, -0.5), Vector3(6.9, 0.7, 2.8)],
 	"ev_kapi": [Vector3(4.0, 1.7, -1.2), Vector3(1.6, 1.5, -3.0)],  # the back door: the mountain through it
 	"ev_veranda": [Vector3(6.0, 1.7, 0.9), Vector3(12.5, 1.5, 0.9)],  # through the veranda to the wood
 	"ev_yatak": [Vector3(4.4, 1.7, 1.6), Vector3(2.6, 0.7, 3.2)],

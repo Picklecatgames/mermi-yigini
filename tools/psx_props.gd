@@ -37,9 +37,37 @@ const WORKSHOP := [
 	["rusted_wheel_rim_02", 500, 128],
 ]
 ## The house (tools/build_house.py) and what stands only in it; its inside's textures (build_world.gd _house).
-const HOUSE := [["res://assets/props/house/house.glb", 5000, 256, 0.62], ["res://assets/env/models/Television_01/Television_01_1k.gltf", 1400, 256],
-	["res://assets/env/models/sofa_02/sofa_02_1k.gltf", 1500, 256], ["res://assets/env/models/old_gas_mask/old_gas_mask_1k.gltf", 500, 128],
-	["res://assets/env/models/clipboard/clipboard_1k.gltf", 200, 64]]
+const HOUSE := [["res://assets/props/house/house.glb", 5000, 256, 0.62], ["res://assets/props/house/wing.glb", 2500, 256, 0.62],
+	["res://assets/props/house/wood_stove.glb", 1500, 256], ["res://assets/props/house/wood_pile.glb", 400, 128],
+	["res://assets/props/house/old_rug.glb", 300, 128, 0.7],
+	[M % ["old_bed_frame", "old_bed_frame"], 1800, 256, 0.5],
+	[M % ["lightbulb_01", "lightbulb_01"], 200, 64],
+	[M % ["pull_chain_light_socket", "pull_chain_light_socket"], 600, 128],
+	[M % ["Lantern_01", "Lantern_01"], 600, 128],
+	[M % ["vintage_oil_lamp", "vintage_oil_lamp"], 600, 128],
+	[M % ["WoodenTable_01", "WoodenTable_01"], 600, 128],
+	[M % ["WoodenChair_01", "WoodenChair_01"], 600, 128],
+	[M % ["wooden_stool_01", "wooden_stool_01"], 600, 128],
+	[M % ["painted_wooden_cabinet", "painted_wooden_cabinet"], 1200, 256, 0.5],
+	[M % ["wooden_bookshelf_worn", "wooden_bookshelf_worn"], 1400, 256, 0.5],
+	[M % ["painted_wooden_nightstand", "painted_wooden_nightstand"], 600, 128, 0.5],
+	[M % ["wooden_bucket_01", "wooden_bucket_01"], 600, 128],
+	[M % ["wicker_basket_01", "wicker_basket_01"], 600, 128],
+	[M % ["rubber_boots", "rubber_boots"], 600, 128],
+	[M % ["hatchet", "hatchet"], 600, 128],
+	[M % ["tree_stump_01", "tree_stump_01"], 900, 128],
+	[M % ["vintage_suitcase", "vintage_suitcase"], 600, 128, 0.5],
+	[M % ["pot_enamel_01", "pot_enamel_01"], 600, 128],
+	[M % ["russian_food_cans_01", "russian_food_cans_01"], 600, 128],
+	[M % ["wooden_broom", "wooden_broom"], 600, 128],
+	[M % ["wall_clock", "wall_clock"], 600, 128, 0.5],
+	[M % ["street_rat", "street_rat"], 800, 128],
+	[M % ["mousetrap", "mousetrap"], 600, 128],
+	[M % ["cement_bag", "cement_bag"], 600, 128, 0.5],
+	[M % ["Television_01", "Television_01"], 1400, 256],
+	[M % ["sofa_02", "sofa_02"], 1500, 256, 0.5],
+	[M % ["old_gas_mask", "old_gas_mask"], 600, 128],
+	[M % ["clipboard", "clipboard"], 600, 128]]
 const HOUSE_TEX := ["raw_plank_wall", "old_wood_floor", "rough_pine_door", "clay_plaster"]
 const HURDA := "res://assets/props/hurda/hurda.json"
 const HURDA_TEX := 64  # 2026-11-03, the user: hundreds of small pieces boiled at 270p

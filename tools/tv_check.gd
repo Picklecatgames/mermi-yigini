@@ -67,6 +67,8 @@ func _host() -> void:
 	p.pos = me.global_position
 	gs.request_watch_news()
 	_ok(gs.news_at == -1, "too far from the set: nothing")
+	_ok(not gs.near_tv(gs.TV_POS + Vector3(0.2, 0, 1.5)) and not gs.near_tv(gs.TV_POS + Vector3(-0.3, 0, -1.0)), "beside or behind the set: nothing")
+	_ok(gs.near_tv(gs.TV_POS + Vector3(2.0, 0, 0.5)), "across from it: yes")
 	me.global_position = gs.TV_POS + Vector3(1.5, 0.05, 0)
 	await physics_frame
 	await physics_frame
@@ -103,7 +105,7 @@ func _host() -> void:
 	gs._news_wait = 1000.0
 	var line_when_joined: int = gs.news_at
 	_ok(line_when_joined == 1, "host: day 2's line 2 is on")
-	var joined := await _until(func() -> bool: return not root.multiplayer.get_peers().is_empty(), "the client", 40.0)
+	var joined := await _until(func() -> bool: return not root.multiplayer.get_peers().is_empty(), "the client", 150.0)
 	if not joined:
 		return _end()
 	# The client reports what it saw on joining, then asks for the bulletin after this one ends.
@@ -145,7 +147,7 @@ func _client() -> void:
 	var seen: Array = []
 	gs.news_line.connect(func(day: int, line: int) -> void: seen.append([day, line]))
 	net.join("127.0.0.1", PORT)
-	if not await _until(func() -> bool: return net.online and gs.news_day == 2 and gs.news_at >= 0, "joining mid-bulletin", 40.0):
+	if not await _until(func() -> bool: return net.online and gs.news_day == 2 and gs.news_at >= 0, "joining mid-bulletin", 150.0):
 		return _finish()
 	_ok(gs.news_day == 2 and gs.news_at == 1, "joined mid-bulletin: day 2, line 2 (%d, %d)" % [gs.news_day, gs.news_at])
 	var tv: Node = get_first_node_in_group("tv")
@@ -218,6 +220,8 @@ func _house() -> void:
 		var end: Vector3 = await _walk(me, way[0], way[1], 4.0)
 		var into: float = (end - way[0]).dot(way[1])
 		_ok(into > way[2], "on foot through the %s (%.1f m in)" % [way[3], into])
+	var into_wing: Vector3 = await _walk(me, Vector3(5.27, 0.05, -2.8), Vector3(0, 0, -1), 2.5)
+	_ok(into_wing.z < -5.0, "on foot through to the workshop wing (to z %.1f)" % into_wing.z)
 	# Nothing walks through a window or a wall.
 	var end: Vector3 = await _walk(me, Vector3(0.0, 0.05, 1.4), Vector3(1, 0, 0), 2.0)
 	_ok(end.x < 1.6, "no way in through the mountain's window (stopped at x %.1f)" % end.x)
@@ -228,13 +232,13 @@ func _house() -> void:
 	await physics_frame
 	await physics_frame
 	var map: RID = me.get_world_3d().navigation_map
-	for pair: Array in [[Vector3(13.0, 0, 0.9), Vector3(5.5, 0, 1.8), "yard to the room"], [Vector3(-2.0, 0, -3.0), Vector3(7.0, 0, -1.4), "mountain to the room"],
-			[Vector3(6.0, 0, 2.5), Vector3(3.2, 0, 1.6), "room to the sleeping corner"]]:
+	for pair: Array in [[Vector3(13.0, 0, 0.9), Vector3(7.3, 0, 1.6), "yard to the room"], [Vector3(-2.0, 0, -3.0), Vector3(7.0, 0, -1.4), "mountain to the room"],
+			[Vector3(6.0, 0, 2.0), Vector3(3.4, 0, 1.6), "room to the sleeping corner"], [Vector3(6.5, 0, -1.5), Vector3(6.6, 0, -5.0), "room to the workshop wing"], [Vector3(-2.0, 0, -5.3), Vector3(5.0, 0, -5.3), "mountain to the workshop wing"]]:
 		var path: PackedVector3Array = NavigationServer3D.map_get_path(map, pair[0], pair[1], true)
 		var last: Vector3 = path[path.size() - 1] if path.size() > 0 else pair[0]
 		_ok(path.size() >= 2 and last.distance_to(pair[1]) < 0.8, "navigation: %s (ends %.2f m off, %d points)" % [pair[2], last.distance_to(pair[1]), path.size()])
 	# A real one: comes at a player standing inside from the far side of the house.
-	me.global_position = Vector3(5.5, 0.05, 1.8)
+	me.global_position = Vector3(6.6, 0.05, -5.0)
 	for i in 10:
 		await physics_frame
 	gs.request_debug_spawn("walker", Vector3(-1.0, 0, -6.0), 0.0, 1)

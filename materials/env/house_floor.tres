@@ -7,7 +7,7 @@
 render_priority = 0
 shader = ExtResource("1_52wmu")
 shader_parameter/albedo_tex = ExtResource("2_pwl2f")
-shader_parameter/tint = Color(0.58, 0.5, 0.42, 1)
+shader_parameter/tint = Color(0.5, 0.42, 0.34, 1)
 shader_parameter/snap = null
 shader_parameter/alpha_cut = null
 shader_parameter/snap_world = null

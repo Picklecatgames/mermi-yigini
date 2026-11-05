@@ -325,8 +325,8 @@ const BOARD_REACH := 3.0  # m
 ## for the team. Rounds poured into the hopper melt MELT_RATES[melt_level] a second into brass, the
 ## team's; the press makes rounds out of it, each player's own. Upgrades are paid like the fence: from
 ## the vault in co-op, alone from one's own gold. Numbers are placeholders.
-const MELTER_POS := Vector3(7.95, 0.0, -0.44)  # tools/build_world.gd _workshop_inside: the hopper
-const PRESS_POS := Vector3(8.33, 0.0, -1.54)  # on the bench's low stand
+const MELTER_POS := Vector3(6.06, 0.0, -7.15)  # tools/build_world.gd _workshop_inside: the hopper
+const PRESS_POS := Vector3(4.96, 0.0, -7.53)  # on the bench's low stand
 const LEVER_POS := Vector3(8.2, 0.0, -27.6)  # the wave lever on the north wall (tools/zombie_bay.gd _lever)
 const STATION_REACH := 2.0  # m from its middle, feet
 ## The television in the house and its daily bulletin (2026-11-05, the user: "her gün TV'ye bakılacak
@@ -334,6 +334,7 @@ const STATION_REACH := 2.0  # m from its middle, feet
 ## earshot; the host keeps the day and the line, everyone sees the same. Numbers are first guesses.
 const TV_POS := Vector3(2.2, 0.0, 0.0)  # tools/build_world.gd TV_AT
 const TV_REACH := 3.2  # m, feet: from in front of it
+const TV_FRONT := 0.75  # of the way along its screen's facing: about 40 deg to each side
 const TV_HEAR := 10.0  # m: the lines come up on screen within this
 const NEWS_FILE := "res://data/bultenler.json"
 const NEWS_LINE_MIN := 3.2  # s a line stays up
@@ -748,9 +749,11 @@ static func news_line_secs(text: String) -> float:
 	return maxf(NEWS_LINE_MIN, text.length() * NEWS_LINE_PER_CHAR)
 
 
-## Feet in front of the television, close enough to turn it up. `slack`: someone else's pose is a little old.
+## Feet in front of the television (2026-11-05, the user: from across from it, not from all round it), close
+## enough to turn it up. Its screen looks along +x. `slack`: someone else's pose is a little old.
 func near_tv(at: Vector3, slack := 0.0) -> bool:
-	return Vector2(at.x - TV_POS.x, at.z - TV_POS.z).length() <= TV_REACH + slack
+	var to := Vector2(at.x - TV_POS.x, at.z - TV_POS.z)
+	return to.length() <= TV_REACH + slack and to.x >= to.length() * TV_FRONT
 
 
 ## Reads today's bulletin out, from the top; once running it runs to its end, whoever else asks.

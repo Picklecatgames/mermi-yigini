@@ -53,19 +53,39 @@ const BACK_DOOR := [-3.7, -2.3, 0.0, HOUSE_DOOR_TOP]
 const INNER_DOOR := [0.2, 1.6, 0.0, HOUSE_DOOR_TOP]
 const FRONT_DOOR := [0.22, 1.62, 0.0, HOUSE_DOOR_TOP]
 const WIN_W := [[-2.02, -0.79, 0.87, 2.34], [0.8, 2.02, 0.87, 2.34]]  # the mountain's side, z
-const WIN_SIDE := [[3.27, 4.49, 0.87, 2.34], [6.06, 7.29, 0.87, 2.34]]  # north and south, x
+const WIN_SOUTH := [[3.27, 4.49, 0.87, 2.34], [6.06, 7.29, 0.87, 2.34]]  # x; the north wall's two look into the wing now, its lining has none
+const NORTH_DOOR := [4.57, 5.97, 0.0, HOUSE_DOOR_TOP]  # to the workshop wing, between them
 const WIN_VERANDA := [[9.66, 11.2, 1.03, 1.98]]
+## The workshop wing on the north wall (2026-11-05, the user: the bench to a workshop, the house wider):
+## tools/build_wing.py, a real shed. Its door looks at the mountain, for what is carried down from it.
+const WING_AT := Vector3(4.8, 0, -6.03)  # the model's origin; its y becomes world x, its x world z
+const WING := Rect2(1.6, -8.13, 7.2, 4.2)  # its outer walls, x, z
+const WING_CEIL := 2.55
+const WING_T := 0.12
+const WING_DOOR := [-6.03, -4.6, 0.0, 2.45]  # z, in its west wall
+## The models' own sizes (measured off their files).
+const BED_YAW := PI / 2.0
+const BED_SCALE := 1.0
+const STOVE_SCALE := 0.4  # the file's in no unit; its body knee high, its pipe near the ceiling
+const STOVE_TOP := 0.92
+const TABLE_TOP := 0.549
+const CHAIR_SCALE := 0.5  # 2.27 m tall in the file
+const NIGHTSTAND_TOP := 0.616
+const STUMP_SCALE := 0.5
+const STUMP_TOP := 0.19
+const WOOD_LENGTH := 0.42  # m, a log
+const WEB_SCALE := 0.9  # m across
 const BED_X := 4.7  # the sleeping corner's wall, from the west wall to here, z BED_Z to the south wall
 const BED_Z := 0.85
 const BED_DOOR := [0.95, 2.35, 0.0, HOUSE_DOOR_TOP]
-const BENCH_AT := Vector3(8.2, 0, -2.5)  # the crew's bench, its back on the east wall
+const BENCH_AT := Vector3(4.0, 0, -7.4)  # the crew's bench, its back on the wing's north wall; GameState.MELTER_POS, PRESS_POS follow it
 const BENCH_SCALE := 1.2  # as it stood in the hall (range_dressing.gd _workshop)
 const DESK_AT := Vector3(5.6, 0, 0.0)  # the pistol's crate, right in front of the spawns
 const TV_AT := Vector3(2.2, 0, 0.0)  # GameState.TV_POS; between the mountain's windows, in the spawns' view
 const TV_STAND_SCALE := 1.45  # the crate under it
 const TV_STAND_TOP := 0.68
 const TV_YAW := PI / 2.0  # its screen (+z in its gltf) to the room
-const SPAWNS_WORLD: Array[Vector3] = [Vector3(7.3, 0, -0.9), Vector3(7.3, 0, 0.9), Vector3(7.3, 0, 2.5), Vector3(6.0, 0, -2.6)]
+const SPAWNS_WORLD: Array[Vector3] = [Vector3(7.3, 0, -0.9), Vector3(7.3, 0, 0.9), Vector3(8.15, 0, -0.1), Vector3(6.0, 0, -2.6)]
 const SUN_ANGLE := Vector3(-26.0, -125.0, 0.0)  # deg: late afternoon, from behind the workshop's left; low (2026-11-03, the PS1 critic: the day was flat, no shadow read): one long, clear shadow direction
 const SKY_TURN := 0.0  # deg: the HDRI turned so its bright side is where the sun stands
 
@@ -1068,8 +1088,8 @@ func _house() -> void:
 	shell.position = HOUSE_AT
 	shell.rotation.y = -PI / 2.0
 	add(shell, house)
-	var planks: Material = _psx_mat("raw_plank_wall", Color(0.6, 0.56, 0.5), "house_planks", 3.0)
-	var floor_mat: Material = _psx_mat("old_wood_floor", Color(0.58, 0.5, 0.42), "house_floor", 1.8)
+	var planks: Material = _psx_mat("raw_plank_wall", Color(0.46, 0.42, 0.37), "house_planks", 3.0)
+	var floor_mat: Material = _psx_mat("old_wood_floor", Color(0.5, 0.42, 0.34), "house_floor", 1.8)
 	var dark: Material = _psx_mat("raw_plank_wall", Color(0.36, 0.3, 0.25), "house_dark", 1.2)
 	var door_mat: Material = _psx_mat("rough_pine_door", Color(0.62, 0.54, 0.46), "house_door", 1.4)
 	var steel: Material = _psx_mat("rust_coarse_01", Color(0.55, 0.5, 0.46), "workshop_steel", 1.5)
@@ -1080,8 +1100,8 @@ func _house() -> void:
 	var half := WALL_T * 0.5
 	_wall(house, false, x0 + half, z0, z1, CEIL_Y, [BACK_DOOR, WIN_W[0], WIN_W[1]], planks)
 	_wall(house, false, x1 - half, z0, z1, CEIL_Y, [INNER_DOOR], planks)
-	_wall(house, true, z0 + half, x0, x1, CEIL_Y, WIN_SIDE, planks)
-	_wall(house, true, z1 - half, x0, x1, CEIL_Y, WIN_SIDE, planks)
+	_wall(house, true, z0 + half, x0, x1, CEIL_Y, [NORTH_DOOR], planks)
+	_wall(house, true, z1 - half, x0, x1, CEIL_Y, WIN_SOUTH, planks)
 	var thin := 0.15
 	_wall(house, true, VERANDA.position.y + thin * 0.5, x1, VERANDA.end.x, VERANDA_CEIL, WIN_VERANDA, dark, thin)
 	_wall(house, true, VERANDA.end.y - thin * 0.5, x1, VERANDA.end.x, VERANDA_CEIL, WIN_VERANDA, dark, thin)
@@ -1089,6 +1109,7 @@ func _house() -> void:
 	# The sleeping corner: a plank partition, its own doorway.
 	_wall(house, false, BED_X, BED_Z, z1 - WALL_T, CEIL_Y, [BED_DOOR], dark, 0.12)
 	_wall(house, true, BED_Z, x0 + WALL_T, BED_X + 0.06, CEIL_Y, [], dark, 0.12)
+	_wing(house, planks, dark, floor_mat)
 	# Floors, a hair over the concrete; ceilings; joists.
 	_fine(block(Vector3(x1 - x0, 0.02, z1 - z0), Vector3((x0 + x1) * 0.5, 0.002, 0.0), floor_mat, house))
 	_fine(block(Vector3(VERANDA.size.x, 0.02, VERANDA.size.y), Vector3(VERANDA.get_center().x, 0.002, VERANDA.get_center().y), dark, house))
@@ -1104,15 +1125,23 @@ func _house() -> void:
 	_door_frame(house, Vector3(VERANDA.end.x - 0.02, 0, FRONT_DOOR[0]), Vector3(VERANDA.end.x - 0.02, 0, FRONT_DOOR[1]), dark)
 	_door_frame(house, Vector3(x0 + 0.02, 0, BACK_DOOR[0]), Vector3(x0 + 0.02, 0, BACK_DOOR[1]), dark)
 	_door_frame(house, Vector3(x1 - 0.1, 0, INNER_DOOR[0]), Vector3(x1 - 0.1, 0, INNER_DOOR[1]), dark)
+	block(Vector3(NORTH_DOOR[1] - NORTH_DOOR[0], 0.04, 0.42), Vector3((NORTH_DOOR[0] + NORTH_DOOR[1]) * 0.5, 0.01, z0 + 0.03), dark, house)
+	for side: float in [NORTH_DOOR[0], NORTH_DOOR[1]]:
+		block(Vector3(0.11, HOUSE_DOOR_TOP + 0.08, 0.3), Vector3(side, (HOUSE_DOOR_TOP + 0.08) * 0.5, z0 + 0.1), dark, house)
+	block(Vector3(NORTH_DOOR[1] - NORTH_DOOR[0] + 0.2, 0.12, 0.3), Vector3((NORTH_DOOR[0] + NORTH_DOOR[1]) * 0.5, HOUSE_DOOR_TOP + 0.03, z0 + 0.1), dark, house)
 	_door_leaf(house, Vector3(VERANDA.end.x + 0.04, 0, FRONT_DOOR[0]), Vector3(0.55, 0, -0.83), door_mat, dark)
 	_door_leaf(house, Vector3(x0 - 0.04, 0, BACK_DOOR[0]), Vector3(-0.8, 0, -0.6), door_mat, dark)
-	# Boards over the north-east window, gaps left to look through.
+	# Boards over the south-east window and the sleeping corner's to the mountain, gaps left to look through: light comes in in strips.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 21
-	var win: Array = WIN_SIDE[1]
+	var win: Array = WIN_SOUTH[1]
 	for y: float in [1.02, 1.36, 1.62, 2.1]:
 		var tilt := Basis(Vector3.BACK, rng.randf_range(-0.09, 0.09))
-		block(Vector3(win[1] - win[0] + 0.4, 0.17, 0.03), Vector3((win[0] + win[1]) * 0.5, y, z0 - 0.06), dark, house, tilt)
+		block(Vector3(win[1] - win[0] + 0.4, 0.17, 0.03), Vector3((win[0] + win[1]) * 0.5, y, z1 + 0.06), dark, house, tilt)
+	win = WIN_W[1]
+	for y: float in [1.1, 1.5, 2.05]:
+		var tilt := Basis(Vector3.RIGHT, rng.randf_range(-0.09, 0.09))
+		block(Vector3(0.03, 0.17, win[1] - win[0] + 0.4), Vector3(x0 - 0.06, y, (win[0] + win[1]) * 0.5), dark, house, tilt)
 	# Rusty sheets: a stretch of the roof on the yard's side, the wall to the mountain under its south window.
 	var patch := Node3D.new()
 	patch.name = "Mended"
@@ -1143,6 +1172,34 @@ func _fine(m: MeshInstance3D) -> MeshInstance3D:
 	box.subdivide_height = mini(int(box.size.y / LIT_CELL), 10)
 	box.subdivide_depth = mini(int(box.size.z / LIT_CELL), 24)
 	return m
+
+
+## The workshop wing: the shed's shell, its walls' inside, floor, ceiling.
+func _wing(house: Node, planks: Material, dark: Material, floor_mat: Material) -> void:
+	var shell: Node3D = (load(_ps1("res://assets/props/house/wing.glb")) as PackedScene).instantiate()
+	shell.name = "Wing"
+	shell.position = WING_AT
+	shell.rotation.y = -PI / 2.0
+	add(shell, house)
+	var x0 := WING.position.x
+	var x1 := WING.end.x
+	var z0 := WING.position.y
+	var z1 := WING.end.y
+	var half := WING_T * 0.5
+	_wall(house, false, x0 + half, z0, z1, WING_CEIL, [WING_DOOR], planks, WING_T)
+	_wall(house, false, x1 - half, z0, z1, WING_CEIL, [], planks, WING_T)
+	_wall(house, true, z0 + half, x0, x1, WING_CEIL, [], planks, WING_T)
+	_wall(house, true, z1 - half, x0, x1, WING_CEIL, [NORTH_DOOR], planks, WING_T)
+	_fine(block(Vector3(x1 - x0, 0.02, z1 - z0), Vector3((x0 + x1) * 0.5, 0.002, (z0 + z1) * 0.5), floor_mat, house))
+	var lid := Vector3(x1 - x0, 0.1, z1 - z0)
+	_fine(block(lid, Vector3((x0 + x1) * 0.5, WING_CEIL + 0.05, (z0 + z1) * 0.5), dark, house))
+	collide(lid, Vector3((x0 + x1) * 0.5, WING_CEIL + 0.05, (z0 + z1) * 0.5), house)
+	var x := x0 + 0.7
+	while x < x1 - 0.3:
+		block(Vector3(0.12, 0.14, z1 - z0 - WING_T * 2.0), Vector3(x, WING_CEIL - 0.07, (z0 + z1) * 0.5), dark, house)
+		x += 1.6
+	_door_frame(house, Vector3(x0 + 0.03, 0, WING_DOOR[0]), Vector3(x0 + 0.03, 0, WING_DOOR[1]), dark)
+	_door_leaf(house, Vector3(x0 - 0.04, 0, WING_DOOR[0]), Vector3(-0.75, 0, -0.66), load("res://materials/env/house_door.tres"), dark)
 
 
 ## A wall along x or z, `across` its middle on the other axis, `from`..`to` along it, holes
@@ -1314,15 +1371,15 @@ func _psx_mat(id: String, tint: Color, save_as: String, metres := 0.0) -> Materi
 	return load(path)
 
 
-## Inside: the crew's bench from the hall with the press, the hopper and the radio playing its
-## 78s, the wall lamp over it, along the east wall; the crate with the pistol in front of the spawns;
-## the television between the mountain's windows with the sofa turned to it; a bed in the corner;
-## shelves, a tool chest, crates; caged lamps off the ceiling; a fire in a burn barrel out in the yard.
+## Inside (2026-11-05, the user: everything a real model, dim, left behind). What a mountain hut holds:
+## its stove at the heart, a table, a food cupboard, a bed in a corner; long left, it has been gone through
+## and things lie where they fell. The wing is the workshop: the crew's bench with the press, the hopper, the
+## radio playing its 78s; tools; a stump and an axe by the door to the mountain.
 func _workshop_inside() -> void:
 	var root := Node3D.new()
 	root.name = "Bench"
 	add(root)
-	var yaw := -PI / 2.0  # the bench's front (+z in its glb) to the room
+	var yaw := 0.0  # the bench's front (+z in its glb) to the room
 	var turn := Basis(Vector3.UP, yaw)
 	var bench: StaticBody3D = _prop(root, "res://assets/props/workbench/workbench.glb", BENCH_AT, yaw, BENCH_SCALE)
 	bench.set_script(preload("res://scripts/bench_top.gd"))
@@ -1333,39 +1390,79 @@ func _workshop_inside() -> void:
 	var hopper: StaticBody3D = _prop(root, "res://assets/props/workbench/hopper.glb", BENCH_AT + turn * Vector3(2.064, 0, 0.25), yaw)
 	hopper.set_script(preload("res://scripts/hopper.gd"))
 	_bench_radio(bench)
-	_bench_lamp(BENCH_AT + turn * Vector3(-0.108, 2.72, -0.45), yaw)
 	# The pistol on an army crate in front of the spawns (scripts/gun_table.gd; the user took the
 	# office desk out, 2026-11-02): taken, the crate fades away.
 	var desk := _prop(root, MODELS + "wooden_military_crate/wooden_military_crate_1k.gltf", DESK_AT, PI / 2.0, 1.65)  # its lid at desk height
 	desk.name = "GunTable"
 	desk.set_script(preload("res://scripts/gun_table.gd"))
 	# The television (2026-11-05, the user: an old tube set, the news on it every day; scripts/tv.gd) on
-	# a crate, the sofa turned to it.
+	# a crate, the sofa turned to it on an old rug.
 	_prop(root, MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf", TV_AT, 0.08, TV_STAND_SCALE)
 	var tv := _prop(root, MODELS + "Television_01/Television_01_1k.gltf", TV_AT + Vector3(0, TV_STAND_TOP, 0), TV_YAW)
 	tv.name = "TV"
 	tv.set_script(preload("res://scripts/tv.gd"))
-	_prop(root, MODELS + "sofa_02/sofa_02_1k.gltf", Vector3(4.75, 0, -2.25), -0.95)
-	# The sleeping corner: an iron bed, a thin mattress, a crate beside it, the mask ready.
-	_bed(root)
-	# Along the walls.
-	_prop(root, MODELS + "steel_frame_shelves_01/steel_frame_shelves_01_1k.gltf", Vector3(5.45, 0, 3.42), PI, 0.1)  # the scan is 10x too big
-	_prop(root, MODELS + "metal_tool_chest/metal_tool_chest_1k.gltf", Vector3(8.3, 0, 3.3), PI)
-	_prop(root, MODELS + "tool_cart/tool_cart_1k.gltf", Vector3(8.35, 0, 2.2), -PI / 2.0)
+	_flat(root, "res://assets/props/house/old_rug.glb", Vector3(3.6, 0.015, -0.9), 0.15, 0.5)
+	_prop(root, MODELS + "sofa_02/sofa_02_1k.gltf", Vector3(4.35, 0, -1.6), -1.4)
+	# The stove, the hut's heart, cold; its wood; the pot left on it.
+	var stove_at := Vector3(8.2, 0, -2.6)
+	_centre(_prop(root, "res://assets/props/house/wood_stove.glb", stove_at, -PI / 2.0, STOVE_SCALE), stove_at)
+	_prop(root, MODELS + "pot_enamel_01/pot_enamel_01_1k.gltf", stove_at + Vector3(-0.02, STOVE_TOP, 0.05), 0.7)
+	_wood_pile(root, Vector3(8.25, 0, -1.25))
+	_prop(root, MODELS + "wooden_broom/wooden_broom_1k.gltf", Vector3(8.62, 0, -0.75), 0.4, 1.0, Basis(Vector3.BACK, -0.1))
+	# The table by the boarded window: one chair still at it, one thrown over, tins nobody came back for.
+	var table_at := Vector3(6.75, 0, 2.75)
+	_prop(root, MODELS + "WoodenTable_01/WoodenTable_01_1k.gltf", table_at, 0.05)
+	_prop(root, MODELS + "WoodenChair_01/WoodenChair_01_1k.gltf", table_at + Vector3(-0.2, 0, -0.7), 0.25, CHAIR_SCALE)
+	_prop(root, MODELS + "WoodenChair_01/WoodenChair_01_1k.gltf", Vector3(8.2, 0.18, 2.95), 1.2, CHAIR_SCALE, Basis(Vector3.RIGHT, -PI / 2.0))
+	_prop(root, MODELS + "russian_food_cans_01/russian_food_cans_01_1k.gltf", table_at + Vector3(0.15, TABLE_TOP, 0.05), 0.5)
+	_prop(root, MODELS + "vintage_oil_lamp/vintage_oil_lamp_1k.gltf", table_at + Vector3(-0.3, TABLE_TOP, -0.1), 2.0, 0.45)
+	# Against the north wall: the food cupboard, the shelf gone through.
+	_prop(root, MODELS + "painted_wooden_cabinet/painted_wooden_cabinet_1k.gltf", Vector3(7.0, 0, -3.36), 0.0)
+	_prop(root, MODELS + "wooden_bookshelf_worn/wooden_bookshelf_worn_1k.gltf", Vector3(3.6, 0, -3.39), 0.0)
+	_prop(root, MODELS + "wooden_bucket_01/wooden_bucket_01_1k.gltf", Vector3(5.5, 0, 3.35), 0.5)
+	_prop(root, MODELS + "wall_clock/wall_clock_1k.gltf", Vector3(8.76, 1.95, 2.2), -PI / 2.0)  # stopped
+	_prop(root, MODELS + "rubber_boots/rubber_boots_1k.gltf", Vector3(2.05, 0, -1.45), PI / 2.0)
+	_prop(root, MODELS + "street_rat/street_rat_1k.gltf", Vector3(4.95, 0.02, 3.3), 2.4, 2.0)  # dead a good while
+	_prop(root, MODELS + "mousetrap/mousetrap_1k.gltf", Vector3(8.3, 0.01, 1.95), 0.9)
+	# The sleeping corner: an iron bed, nightstand, a suitcase half packed, the mask ready.
+	_prop(root, MODELS + "old_bed_frame/old_bed_frame_1k.gltf", Vector3(2.95, 0, 2.95), BED_YAW, BED_SCALE)
+	_prop(root, MODELS + "painted_wooden_nightstand/painted_wooden_nightstand_1k.gltf", Vector3(2.15, 0, 1.55), PI / 2.0)
+	_prop(root, MODELS + "old_gas_mask/old_gas_mask_1k.gltf", Vector3(2.15, NIGHTSTAND_TOP, 1.55), 0.5)
+	_prop(root, MODELS + "vintage_suitcase/vintage_suitcase_1k.gltf", Vector3(4.32, 0, 3.32), PI / 2.0, 0.5)
+	# The wing, along its walls.
+	_prop(root, MODELS + "steel_frame_shelves_01/steel_frame_shelves_01_1k.gltf", Vector3(8.35, 0, -6.6), PI / 2.0, 0.1)  # the scan is 10x too big
+	_prop(root, MODELS + "metal_tool_chest/metal_tool_chest_1k.gltf", Vector3(7.5, 0, -7.65), 0.0)
+	_prop(root, MODELS + "tool_cart/tool_cart_1k.gltf", Vector3(8.2, 0, -4.8), PI)
+	_prop(root, MODELS + "metal_jerrycan/metal_jerrycan_1k.gltf", Vector3(2.15, 0, -7.6), 0.5)
+	_prop(root, MODELS + "small_lpg_tank/small_lpg_tank_1k.gltf", Vector3(2.65, 0, -7.65), 0.0)
+	_prop(root, MODELS + "cement_bag/cement_bag_1k.gltf", Vector3(2.2, 0, -6.75), 1.3)
+	_prop(root, MODELS + "wicker_basket_01/wicker_basket_01_1k.gltf", Vector3(7.0, 0, -4.45), 0.2)
+	var stump_at := Vector3(2.4, 0.1, -7.1)
+	_prop(root, MODELS + "tree_stump_01/tree_stump_01_1k.gltf", stump_at, 0.6, STUMP_SCALE)
+	_prop(root, MODELS + "hatchet/hatchet_1k.gltf", stump_at + Vector3(0, STUMP_TOP, 0), 1.0, 2.0, Basis(Vector3.BACK, PI / 2.0))
+	# Veranda and yard.
 	_prop(root, MODELS + "metal_jerrycan/metal_jerrycan_1k.gltf", Vector3(11.1, 0, 3.0), 0.5)
-	_prop(root, MODELS + "small_lpg_tank/small_lpg_tank_1k.gltf", Vector3(9.45, 0, 3.0), 0.0)
+	_prop(root, MODELS + "wooden_stool_01/wooden_stool_01_1k.gltf", Vector3(9.6, 0, 2.85), 0.5)
 	_prop(root, MODELS + "portable_generator/portable_generator_1k.gltf", Vector3(9.75, 0, -2.2), 1.3)  # outside the east wall, the yard's side
 	_prop(root, MODELS + "wooden_military_crate/wooden_military_crate_1k.gltf", Vector3(10.8, 0, 5.2), 0.1)
 	_prop(root, MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf", Vector3(10.8, 0.465, 5.25), 0.25)
-	# Light under the ceiling: caged work lamps (2026-11-02, the user: change the ceiling lamps);
-	# ambience.gd hums near the "Lamps".
+	# Cobwebs in the corners and off the joists (the Free Pack's cards, each its own mesh).
+	for web: Array in [[5, Vector3(8.78, 2.68, -3.66), -2.4], [7, Vector3(1.84, 2.65, -3.62), 0.75], [12, Vector3(1.84, 2.62, 0.72), 2.3],
+			[8, Vector3(8.74, 2.66, 3.62), -0.8], [14, Vector3(1.75, 2.3, -7.95), 0.8], [4, Vector3(8.65, 2.32, -7.9), -0.75], [3, Vector3(11.48, 2.28, 3.2), -0.8]]:
+		_web(root, web[0], web[1], web[2])
+	# Light, what is left of it (2026-11-05, the user: the bench's lamp goes, ceiling lamps that suit the
+	# place): a bare bulb on a chain in the room and one in the wing, an old lantern on a beam in the wing;
+	# the sleeping corner and the veranda have none. ambience.gd hums near the "Lamps".
 	var lamps := Node3D.new()
 	lamps.name = "Lamps"
 	add(lamps)
-	for at: Vector3 in [Vector3(4.7, CEIL_Y - 0.12, 0.0), Vector3(7.83, CEIL_Y - 0.12, -1.0), Vector3(3.17, CEIL_Y - 0.12, 2.3), Vector3(10.3, VERANDA_CEIL, 1.7)]:  # between the joists
-		_cage_lamp(lamps, at)
+	_lamp(lamps, Vector3(6.3, CEIL_Y - 0.32, 0.2), "pull_chain_light_socket", 5.0)
+	_lamp(lamps, Vector3(3.2, WING_CEIL - 0.28, -6.0), "pull_chain_light_socket", 4.2)
+	_rod(lamps, Vector3(6.3, CEIL_Y, 0.2), Vector3(6.3, CEIL_Y - 0.33, 0.2), 0.018, load("res://materials/env/house_dark.tres"))
+	_rod(lamps, Vector3(3.2, WING_CEIL, -6.0), Vector3(3.2, WING_CEIL - 0.29, -6.0), 0.018, load("res://materials/env/house_dark.tres"))
+	_lamp(lamps, Vector3(6.9, WING_CEIL - 0.1, -6.2), "Lantern_01", 3.0)
 	# A fire in the burn barrel in front of the house, where the crew stands at night.
-	var stove: StaticBody3D = _prop(root, "res://assets/props/burn_barrel/burn_barrel.glb", Vector3(13.0, 0, -4.2), 0.4)
+	var fire: StaticBody3D = _prop(root, "res://assets/props/burn_barrel/burn_barrel.glb", Vector3(12.5, 0, -10.0), 0.4)
 	var burning := Node3D.new()
 	burning.name = "BarrelFire"
 	burning.set_script(preload("res://scripts/barrel_fire.gd"))
@@ -1373,58 +1470,125 @@ func _workshop_inside() -> void:
 	burning.set("inner", 0.29)
 	burning.set("bed", 0.545)
 	burning.set("logs", false)
-	add(burning, stove)
-	_prop(root, MODELS + "old_tyre/old_tyre_1k.gltf", Vector3(14.0, 0.12, -3.5), 0.0, 1.0, Basis(Vector3.RIGHT, PI / 2.0))
+	add(burning, fire)
+	_prop(root, MODELS + "old_tyre/old_tyre_1k.gltf", Vector3(13.5, 0.12, -9.3), 0.0, 1.0, Basis(Vector3.RIGHT, PI / 2.0))
 
 
-func _bed(root: Node) -> void:
-	var bed := StaticBody3D.new()
-	bed.name = "Bed"
-	bed.position = Vector3(2.95, 0, 3.0)
-	add(bed, root)
-	var steel: Material = load("res://materials/env/workshop_steel.tres")
-	var cloth: Material = _psx_mat("clay_plaster", Color(0.42, 0.38, 0.32), "house_mattress", 0.9)
-	block(Vector3(1.95, 0.05, 0.92), Vector3(0, 0.42, 0), steel, bed)
-	block(Vector3(1.9, 0.11, 0.86), Vector3(0, 0.5, 0), cloth, bed)
-	block(Vector3(0.42, 0.1, 0.62), Vector3(-0.7, 0.6, 0.02), cloth, bed, Basis(Vector3.UP, 0.12))
-	for at: Vector3 in [Vector3(-0.95, 0, -0.44), Vector3(-0.95, 0, 0.44), Vector3(0.95, 0, -0.44), Vector3(0.95, 0, 0.44)]:
-		block(Vector3(0.05, 0.85 if at.x < 0.0 else 0.55, 0.05), at + Vector3(0, 0.425 if at.x < 0.0 else 0.275, 0), steel, bed)
-	block(Vector3(0.04, 0.5, 0.9), Vector3(-0.95, 0.6, 0), steel, bed)
-	collide(Vector3(1.95, 0.58, 0.92), Vector3(0, 0.29, 0), bed)
-	var side := _prop(root, MODELS + "wooden_crate_01/wooden_crate_01_1k.gltf", Vector3(2.15, 0, 1.75), 0.3)
-	_prop(side, MODELS + "old_gas_mask/old_gas_mask_1k.gltf", Vector3(0, 0.47, 0), 0.5)
-	_prop(root, MODELS + "clipboard/clipboard_1k.gltf", Vector3(2.8, 0.56, 2.9), 1.1)
+## A model that lies on the floor: no collision.
+func _flat(parent: Node, path: String, at: Vector3, yaw: float, s: float) -> void:
+	var inst: Node3D = (load(_ps1(path)) as PackedScene).instantiate()
+	inst.position = at
+	inst.rotation.y = yaw
+	inst.scale = Vector3.ONE * s
+	add(inst, parent)
+	_centre(inst, at)
 
 
-## A caged work lamp hanging off the ceiling at `at`: the cage and its bulb are Poly Haven's
-## caged_hanging_light; a warm spot down through the cage, a soft fill round the bulb.
-func _cage_lamp(parent: Node, at: Vector3) -> void:
-	var inst: Node3D = (load(_ps1(MODELS + "caged_hanging_light/caged_hanging_light_1k.gltf")) as PackedScene).instantiate()
+## A model whose file sits far off its origin: moved so its middle is over `at`.
+func _centre(n: Node3D, at: Vector3) -> void:
+	var c := _aabb(n, Transform3D()).get_center()
+	n.position += Vector3(at.x - c.x, 0.0, at.z - c.z)
+
+
+## The Wood Pile Pack's logs, each its own mesh, stacked lying down.
+func _wood_pile(parent: Node, at: Vector3) -> void:
+	var pack: Node3D = (load(_ps1("res://assets/props/house/wood_pile.glb")) as PackedScene).instantiate()
+	var meshes: Array[Mesh] = []
+	for mi: MeshInstance3D in pack.find_children("*", "MeshInstance3D", true, false):
+		if not mi.name.contains("Pole"):
+			meshes.append(mi.mesh)
+	pack.free()
+	var pile := StaticBody3D.new()
+	pile.name = "WoodPile"
+	pile.position = at
+	add(pile, parent)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8
+	var count := 0
+	for layer in 3:
+		for i in 4 - layer:
+			var m := MeshInstance3D.new()
+			m.mesh = meshes[count % meshes.size()]
+			count += 1
+			var box := m.mesh.get_aabb()
+			var lie := Basis()  # its longest side along x, lying down
+			if box.size.y >= box.size.x and box.size.y >= box.size.z:
+				lie = Basis(Vector3.BACK, PI / 2.0)
+			elif box.size.z >= box.size.x:
+				lie = Basis(Vector3.UP, PI / 2.0)
+			lie = Basis(Vector3.UP, rng.randf_range(-0.12, 0.12)) * lie
+			lie = lie.scaled(Vector3.ONE * WOOD_LENGTH / maxf(box.size.x, maxf(box.size.y, box.size.z)))
+			m.transform = Transform3D(lie, Vector3(0, 0.09 + layer * 0.15, (i - (3 - layer) * 0.5) * 0.19 + layer * 0.02) - lie * box.get_center())
+			add(m, pile)
+	collide(Vector3(0.5, 0.5, 0.8), Vector3(0, 0.25, 0), pile)
+
+
+## Cobweb card `n` of the Free Pack, its middle at `at`, turned to `yaw`, upright; no collision, no shadow.
+func _web(parent: Node, n: int, at: Vector3, yaw: float) -> void:
+	var pack: Node3D = (load("res://assets/props/house/cobwebs.glb") as PackedScene).instantiate()
+	var mi := pack.find_child("SM_Cobwebs_%02d*" % n, true, false) as MeshInstance3D
+	if mi == null:
+		for c: MeshInstance3D in pack.find_children("*", "MeshInstance3D", true, false):
+			if c.name.contains("Cobwebs_%02d" % n):
+				mi = c
+	var web := MeshInstance3D.new()
+	web.name = "Cobweb%d" % n
+	web.mesh = mi.mesh
+	pack.free()
+	var box := web.mesh.get_aabb()
+	var b := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, PI / 2.0 if box.size.y < box.size.z else 0.0)
+	b = b.scaled(Vector3.ONE * WEB_SCALE / maxf(box.size.x, maxf(box.size.y, box.size.z)))
+	web.transform = Transform3D(b, at - b * box.get_center())
+	web.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var thin := (web.mesh.surface_get_material(0) as BaseMaterial3D).duplicate() as BaseMaterial3D
+	thin.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA  # a white card at 480 lines otherwise
+	thin.albedo_color = Color(0.62, 0.62, 0.58, 0.38)
+	thin.cull_mode = BaseMaterial3D.CULL_DISABLED
+	web.material_override = thin
+	add(web, parent)
+
+
+
+## A lamp off the ceiling at `at` (2026-11-05, the user: lamps that suit the place): `model`, a dim warm
+## pool down, a soft fill round it.
+func _lamp(parent: Node, at: Vector3, model: String, energy: float, shadow := false) -> void:
+	var inst: Node3D = (load(_ps1(MODELS + "%s/%s_1k.gltf" % [model, model])) as PackedScene).instantiate()
 	var box := _aabb(inst, Transform3D())
 	var roof := at.y - 0.06
 	var lamp := Node3D.new()
-	lamp.name = "CageLamp"
+	lamp.name = "Lamp"
 	lamp.position = Vector3(at.x, roof - box.end.y, at.z)
 	add(lamp, parent)
 	add(inst, lamp)
 	_own(inst)
+	if model == "pull_chain_light_socket":  # the socket's bare bulb, screwed in from below
+		var bulb: Node3D = (load(_ps1(MODELS + "lightbulb_01/lightbulb_01_1k.gltf")) as PackedScene).instantiate()
+		bulb.position = Vector3(0, box.position.y + 0.01, 0)
+		bulb.rotation.x = PI
+		add(bulb, lamp)
+		_own(bulb)
+		var glow := StandardMaterial3D.new()
+		glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow.albedo_color = Color(1.0, 0.68, 0.36)
+		for mi: MeshInstance3D in bulb.find_children("*", "MeshInstance3D", true, false):
+			mi.material_override = glow
 	var bulb_y := box.position.y + box.size.y * 0.3
 	var spot := SpotLight3D.new()
 	spot.position = Vector3(0, bulb_y, 0)
 	spot.basis = Basis.looking_at(Vector3.DOWN, Vector3.FORWARD)
 	spot.light_color = Color(1.0, 0.72, 0.42)
-	spot.light_energy = 3.2  # a wide warm pool on the floor, not a small spot (2026-11-03, the PS1 critic)
-	spot.spot_range = 7.0
+	spot.light_energy = energy
+	spot.spot_range = 5.5
 	spot.spot_angle = 80.0
 	spot.spot_angle_attenuation = 0.9
-	spot.shadow_enabled = at.z == 0.0  # one shadow caster is enough under a ceiling this small
+	spot.shadow_enabled = shadow
 	spot.light_volumetric_fog_energy = 0.5
 	add(spot, lamp)
 	var fill := OmniLight3D.new()
 	fill.position = Vector3(0, bulb_y, 0)
 	fill.light_color = Color(1.0, 0.7, 0.4)
-	fill.light_energy = 0.8
-	fill.omni_range = 3.5
+	fill.light_energy = energy * 0.22
+	fill.omni_range = 4.0
 	add(fill, lamp)
 	# The bulb glows the light's own warm colour, not white.
 	for mi: MeshInstance3D in inst.find_children("*", "MeshInstance3D", true, false):
@@ -1460,24 +1624,6 @@ func _bench_radio(bench: Node3D) -> void:
 	sound.max_distance = 9.0
 	sound.position = Vector3(0, 0.1, 0)
 	add(sound, radio)
-
-
-## The wall lamp over the bench, its arm out from the back wall (range_dressing.gd _wall_lamp).
-func _bench_lamp(at: Vector3, yaw: float) -> void:
-	var lamp: StaticBody3D = _prop(arena.get_node("Bench"), "res://assets/props/wall_lamp/wall_lamp.glb", at, yaw)
-	var bulb_at := Vector3(0.0, -0.111, 0.752)  # build_wall_lamp.py prints this
-	var spot := SpotLight3D.new()
-	spot.position = bulb_at + Vector3(0, -0.05, 0)
-	spot.basis = Basis.looking_at(Vector3(0, -1, 0.0), Vector3.FORWARD)
-	spot.light_color = Color(1.0, 0.55, 0.22)
-	spot.light_energy = 3.0
-	spot.spot_range = 3.6
-	spot.spot_attenuation = 0.8
-	spot.spot_angle = 68.0
-	spot.spot_angle_attenuation = 2.6
-	spot.shadow_enabled = true
-	spot.shadow_bias = 0.08
-	add(spot, lamp)
 
 
 ## Four co-op spawns under the front of the workshop roof, facing the desk and the back wall.

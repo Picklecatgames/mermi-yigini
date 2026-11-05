@@ -13,7 +13,7 @@ const NOISE := {"normal": 0.16, "gecici": 0.34, "korsan": 0.5, "sessiz": 0.24, "
 const INK := Color(0.82, 0.86, 0.78)
 const SOUNDS := "res://assets/sounds/tv/gun%02d_%02d.ogg"
 const FLICKER := 0.5  # of the glow's strength, its swing
-const GLOW := 0.55
+const GLOW := 0.95  # by night the room's one honest light
 
 var _gs: Node
 var _card: SubViewport
@@ -48,7 +48,7 @@ func _ready() -> void:
 	_glow = OmniLight3D.new()
 	_glow.position = SCREEN_AT + Vector3(0, 0, 0.45)
 	_glow.light_color = Color(0.62, 0.72, 0.85)
-	_glow.omni_range = 3.2
+	_glow.omni_range = 4.0
 	_glow.omni_attenuation = 1.4
 	_glow.light_energy = GLOW
 	add_child(_glow)

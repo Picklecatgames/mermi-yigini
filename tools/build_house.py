@@ -15,6 +15,7 @@ SINK = 0.30  # m: its floor stood on a plinth; sunk so the door's sill is at the
 HOLES = [
     (Vector((-4.04, -4.85, -0.5)), Vector((-2.64, -4.4, 2.56))),
     (Vector((-0.14, 2.55, -0.5)), Vector((1.26, 2.85, 2.56))),
+    (Vector((-4.4, -1.68, -0.5)), Vector((-4.0, -0.28, 2.56))),  # the way to the workshop wing (build_wing.py)
     (Vector((-0.12, 5.3, -0.5)), Vector((1.28, 5.7, 2.56))),  # the veranda's door, its frame with it: wide enough for two to pass (and build_world.gd's own frame)
 ]
 # The veranda's door leaf, its frame and everything on it, in source metres.
