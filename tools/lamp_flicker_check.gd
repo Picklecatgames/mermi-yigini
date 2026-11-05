@@ -204,17 +204,25 @@ func _lamps() -> bool:
 	var rolls: Node = gs.lamp_flicker_rolls
 	rolls.now += 10000.0
 	if not _ok(gs.try_lamp_flicker(gs.local_peer()) and not gs.try_lamp_flicker(gs.local_peer()), "try_lamp_flicker went, at once again it doesn't (PLAYER_GAP)"): return false
-	var low := 1.0
+	# Frames here are long and uneven: a 30 ms drop-out may fall between two. Each frame the light must
+	# be the flicker's own level at the time the lamp is at, and the whole of it must play.
+	var steps: Array = ours._steps.duplicate()
+	var played := steps.size() > 0
+	var off := 0.0  # the worst gap between the light and the flicker's level
 	var other_low := 1.0
 	var energies := []
+	var low := 1.0
 	t0 = Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t0 < 2500:
 		await process_frame
+		var want: float = LAMP.flicker_level(steps, ours._flick_t) if ours.flickering() else 1.0
+		off = maxf(off, absf(ours.light_energy / ours.ENERGY - want))
 		low = minf(low, ours.light_energy / ours.ENERGY)
 		other_low = minf(other_low, theirs.light_energy / theirs.ENERGY)
 		energies.append(snappedf(ours.light_energy / ours.ENERGY, 0.01))
 	print("    our lamp, frame by frame: ", energies.slice(0, 40))
-	if not _ok(low < 0.2 and other_low == 1.0 and not ours.flickering() and ours.lit == 1.0, "our lamp went down to %.2f and back, peer 5's stayed steady" % low): return false
+	if not _ok(played and off < 0.01 and low < 0.7 and other_low == 1.0 and not ours.flickering() and ours.lit == 1.0,
+			"our lamp followed its flicker every frame (down to %.2f in the frames drawn) and came back; peer 5's stayed steady" % low): return false
 	# A client hears the host's event: peer 5's lamp flickers on its machine.
 	gs._event(&"lamp_flicker", [5, 1234])
 	await process_frame
