@@ -15,6 +15,7 @@ extends SceneTree
 ## `--tag=T` names them psx_game_T_... instead; `--set=key:value,...` sets other Settings first
 ## (psx_fine:false). Each view also takes FRAMES more shots, _f1.., the eye sliding sideways a
 ## little each: side by side they show what shimmers and crawls when the camera moves.
+## `--views=forest,yard` only those; `--day` no night.
 
 const ZOMBIES := ["prisoner", "copzombie", "zombiegirl"]
 const SCREEN := Vector2i(480, 270)  # 2026-11-03: the default "PS1 ekranı", 270p
@@ -40,6 +41,8 @@ const GAME_VIEWS := {  # eye, looking at
 	"mountain": [Vector3(-2.0, 1.7, 16.0), Vector3(-74.0, 22.0, -6.0)],  # the scrap mountains behind it
 	"wall": [Vector3(5.5, 1.7, 1.0), Vector3(3.0, 1.8, -4.0)],  # the corrugated sheet inside
 	"forest": [Vector3(30.0, 1.7, 8.0), Vector3(90.0, 3.0, 25.0)],
+	"trunk": [Vector3(36.7, 1.7, 9.9), Vector3(96.7, 3.0, 26.9)],  # the wood's first trunks, close
+	"up": [Vector3(30.0, 1.7, 8.0), Vector3(50.0, 22.0, 14.0)],  # the sky through the crowns
 }
 const FRAMES := 3
 const SLIDE := 0.025  # m sideways per frame
@@ -186,11 +189,17 @@ func _game() -> void:
 	var psx := 2
 	var tag := ""
 	var more := {}
+	var views: Array = GAME_VIEWS.keys()
+	var nights := [false, true]
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--psx="):
 			psx = a.trim_prefix("--psx=").to_int()
 		elif a.begins_with("--tag="):
 			tag = a.trim_prefix("--tag=") + "_"
+		elif a.begins_with("--views="):
+			views = Array(a.trim_prefix("--views=").split(","))
+		elif a == "--day":
+			nights = [false]
 		elif a.begins_with("--set="):
 			for kv in a.trim_prefix("--set=").split(","):
 				more[kv.get_slice(":", 0)] = str_to_var(kv.get_slice(":", 1))
@@ -209,10 +218,10 @@ func _game() -> void:
 	var vp := root.get_viewport_rid()
 	RenderingServer.viewport_set_measure_render_time(vp, true)
 	await _frames(240)  # shaders compile, the probes capture
-	for night in [false, true]:
+	for night: bool in nights:
 		if night:
 			_night(main)
-		for v: String in GAME_VIEWS:
+		for v: String in views:
 			var eye: Vector3 = GAME_VIEWS[v][0]
 			var d: Vector3 = (GAME_VIEWS[v][1] - eye).normalized()
 			player.global_position = eye - Vector3.UP * 1.6

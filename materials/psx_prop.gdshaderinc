@@ -105,6 +105,14 @@ void fragment() {
 		shade = mix(shade_below.y, 1.0, smoothstep(0.0, shade_below.x, world_pos.y));
 	}
 #ifdef PSX_SOFT
+	// Moss up the trunks of the wood, in patches by place (2026-11-05, the user: old and damp).
+	if (shade_below.x > 0.0) {
+		float blot = sin(world_pos.x * 2.3 + 1.7 * sin(world_pos.z * 3.1 + world_pos.y * 1.4)) * sin(world_pos.y * 2.7 + 2.0 * sin(world_pos.x * 2.1) + world_pos.z * 2.6);
+		float low = 1.0 - smoothstep(0.1, 2.0, world_pos.y);
+		float moss = smoothstep(-0.5, 0.6, blot + low * 0.6) * low;
+		float bark = dot(ALBEDO, vec3(0.333));
+		ALBEDO = mix(ALBEDO, (bark + 0.03) * vec3(1.05, 1.4, 0.62) * 1.25, moss * 0.6);
+	}
 	// The wood's dark (each copy's tone, the canopy's shade) is where the sky's light doesn't reach, not
 	// a black bark: by night the lamp and the fire still show a tree's colours deep in the wood.
 	float night = 1.0 - psx_haze_day;

@@ -136,7 +136,7 @@ var _lamp := preload("res://scripts/head_lamp.gd").new()  # at night, from the e
 ## over to the lamp's colour as it lights. Neither a spot nor an omni light on the gun's layer
 ## reached the hands, nor did the key and rim above (tried); its ambient does.
 const LAMP_HANDS := 0.17  # 0.24 turned the dark brown gloves a whitish grey at night (the PS1 critic)
-const VM_AMBIENT := Color(0.55, 0.53, 0.5)
+const VM_AMBIENT := Color(0.52, 0.5, 0.46)
 var _hip_fov := 75.0
 var _zoom := 1.0
 var _pose_timer := 0.0
@@ -436,8 +436,8 @@ func _setup_viewmodel_world() -> void:
 	# A soft key light from over the left shoulder keeps the gun readable between lamps, and a rim
 	# from ahead draws a thin line on edges; both on the gun's layer only, or they would light the hall.
 	var key := DirectionalLight3D.new()
-	key.light_color = Color(1.0, 0.96, 0.9)
-	key.light_energy = 2.2
+	key.light_color = Color(1.0, 0.95, 0.86)
+	key.light_energy = 2.4
 	key.rotation = Vector3(-0.65, 0.4, 0.0)
 	var rim := DirectionalLight3D.new()
 	rim.light_color = Color(0.85, 0.9, 1.0)
@@ -475,7 +475,7 @@ func _vm_follow_light() -> void:
 	for l in _vm_lights:
 		l.light_energy = float(l.get_meta(&"day")) * sun
 	_vm_env.ambient_light_energy = maxf(float(_vm_env.get_meta(&"day")) * maxf(sky, 0.15), LAMP_HANDS * _lamp.lit)  # 0.15: a shape, not a hole
-	_vm_env.ambient_light_color = VM_AMBIENT.lerp(_lamp.light_color * Color(1.0, 0.85, 0.6), _lamp.lit * (1.0 - sky))  # warmer than the bulb: the brown stays brown
+	_vm_env.ambient_light_color = VM_AMBIENT.lerp(_lamp.light_color * Color(0.95, 0.88, 0.76), _lamp.lit * (1.0 - sky))  # a little warmer than the bulb, not orange
 
 
 ## The laser bought at the bench (GameState UPGRADES) on the Deagle in hand: a red dot where the

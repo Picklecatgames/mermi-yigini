@@ -116,9 +116,9 @@ func _initialize() -> void:
 ## these over; its night: tools/psx_shots.gd `_night`.
 func _sky() -> void:
 	# Poly Haven's Kloofendal Overcast pure sky (CC0), 1k and unfiltered: its big pixels are the PS1's.
-	var sky_mat := PanoramaSkyMaterial.new()
-	sky_mat.panorama = load("res://assets/env/hdri/kloofendal_overcast_puresky_1k.hdr")
-	sky_mat.filter = false
+	var sky_mat := ShaderMaterial.new()
+	sky_mat.shader = load("res://materials/env/old_sky.gdshader")
+	sky_mat.set_shader_parameter("panorama", load("res://assets/env/hdri/kloofendal_overcast_puresky_1k.hdr"))
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
@@ -144,7 +144,7 @@ func _sky() -> void:
 	env.glow_hdr_threshold = 1.6
 	env.fog_enabled = true  # dust hanging over the desert: the far ground goes into it
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_light_color = Color(0.1, 0.12, 0.095)  # the old wood's haze: a damp grey-green, the trees going into it
+	env.fog_light_color = Color(0.095, 0.115, 0.105)  # the old wood's haze: a damp grey-green, the trees going into it
 	env.fog_density = 1.0  # depth fog: all the way to the colour at fog_depth_end
 	env.fog_depth_begin = 22.0
 	env.fog_depth_end = 85.0
@@ -161,7 +161,7 @@ func _sky() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = SUN_ANGLE
-	sun.light_color = Color(0.96, 0.89, 0.78)
+	sun.light_color = Color(0.9, 0.9, 0.82)
 	sun.light_energy = 1.25  # through the overcast; a little over the ambient, so the shadows read
 	sun.shadow_enabled = true
 	# Short and coarse, PS1 taste (2026-11-03, the user: the lighting PS1-fit): past 50 m the fog
@@ -281,8 +281,8 @@ func _desert() -> void:
 	mat.set_shader_parameter("noise_tex", tex)
 	mat.set_shader_parameter("wood_oval", Vector4(CLEARING_CENTRE.x, CLEARING_CENTRE.y, CLEARING_RADII.x, CLEARING_RADII.y))
 	mat.set_shader_parameter("pad", Vector4(PAD.position.x, PAD.position.y, PAD.end.x, PAD.end.y))
-	mat.set_shader_parameter("sand_tint", Color(0.56, 0.58, 0.32))
-	mat.set_shader_parameter("earth_tint", Color(0.9, 0.9, 0.62))
+	mat.set_shader_parameter("sand_tint", Color(0.46, 0.46, 0.3))
+	mat.set_shader_parameter("earth_tint", Color(0.68, 0.6, 0.46))
 	ResourceSaver.save(mat, "res://materials/env/desert.tres")
 	var body := StaticBody3D.new()
 	body.name = "Desert"
