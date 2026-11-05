@@ -1,0 +1,8 @@
+{
+	"_not": "Sayılar ilk tahmin. '@hurda' herhangi bir hurda parçası demek: çıktı parçanın kendi materyali, verim × kütle kadar (artan gramlar makinede birikir). Düz tarifte girdi ve cikti eşya -> adet. sure saniye.",
+	"tarifler": [
+		{"id": "sokme", "makine": "sokucu", "girdi": {"@hurda": 1}, "sure": 3.0, "verim": 1.0},
+		{"id": "ezme", "makine": "ezici", "girdi": {"@hurda": 1}, "sure": 1.0, "verim": 0.6},
+		{"id": "teneke_ezme", "makine": "ezici", "girdi": {"teneke": 4}, "cikti": {"celik": 1}, "sure": 2.0}
+	]
+}

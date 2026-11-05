@@ -69,6 +69,8 @@ Açık kalanlar (kontrolleri düşürmüyor):
 - **Performans hedefi:** 2000 eşya, 300 yapı için host'ta kare başına 2 ms altı (benim tahminim), kontrolle ölçülür.
 - **Kayıt:** fabrikayı tasarlarken serileştirme baştan düşünülür; dünya host'ta.
 
+**Yapılan temel (2026-11-05, `uretim-temeli`):** `docs/ayrintilar.md` → "Üretim temeli". Yukarıdaki öneriden tek fark: "istemci hesaplamaz" yerine istemci de aynı simülasyonu koşuyor (dağ gibi lockstep); böylece ağ eşya sayısıyla büyümüyor, tutarsızlığı durum özeti yakalıyor.
+
 ## 4. Yapılacaklar
 
 ### Olmazsa olmaz (demo için)

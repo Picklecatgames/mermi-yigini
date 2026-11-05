@@ -1,0 +1,16 @@
+{
+	"_not": "Sayılar ve modeller ilk tahmin; modeller assets/factory/ gelince buradan değişir. boyut [en, boy] hücre, boy çıkış yönünde. tur: bant, dag, donusturucu, kasa. Yeni makine kod değil satır; yeni tur kodda tek yer (factory_sim.gd _accept ve _tick_machines). dag_sayi: çekicinin getirdiği bir parça dağın sayısından kaç götürür. alanlar [x, z, en, boy]: fabrikanın nereye kurulacağına kullanıcı henüz karar vermedi.",
+	"alanlar": [[-60, -40, 54, 80], [-6, -14, 32, 28]],
+	"makineler": [
+		{"id": "bant", "tur": "bant", "boyut": [1, 1], "hiz": 1.0, "maliyet": {"demir": 1},
+			"model": "", "kutu": [1.0, 0.12, 1.0], "renk": "#26262a"},
+		{"id": "cekici", "tur": "dag", "boyut": [2, 2], "sure": 1.0, "erisim": 6, "parti": 10, "dag_sayi": 1, "cikis_kapasite": 2, "maliyet": {"celik": 20},
+			"model": "res://assets/props/press/press_psx.scn", "kutu": [2.0, 1.2, 2.0], "renk": "#5a4a30"},
+		{"id": "sokucu", "tur": "donusturucu", "boyut": [2, 2], "cikis_kapasite": 8, "maliyet": {"celik": 15},
+			"model": "res://assets/props/workbench/workbench_psx.scn", "kutu": [2.0, 1.0, 2.0], "renk": "#3a4a3a"},
+		{"id": "ezici", "tur": "donusturucu", "boyut": [2, 2], "cikis_kapasite": 8, "maliyet": {"celik": 25},
+			"model": "res://assets/props/ogutucu/ogutucu_psx.scn", "kutu": [2.0, 1.4, 2.0], "renk": "#4a3a3a"},
+		{"id": "kasa", "tur": "kasa", "boyut": [2, 2], "maliyet": {"demir": 10},
+			"model": "res://assets/env/models/wooden_military_crate/wooden_military_crate_1k_psx.scn", "kutu": [2.0, 1.0, 2.0], "renk": "#3a3a4a"}
+	]
+}

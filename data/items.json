@@ -1,0 +1,19 @@
+{
+	"_not": "Sayılar ve renkler ilk tahmin, kullanıcı kararı değil. Hurda satırları assets/props/hurda/hurda.json'dan gelir: her parça 'hurda/<id>' adlı bir eşya, materyal ve kutle_kg'si oradan.",
+	"hurda_kaynak": "res://assets/props/hurda/hurda.json",
+	"birim_kg": 1.0,
+	"baslangic": {"demir": 60, "celik": 80},
+	"malzemeler": [
+		{"id": "celik", "ad": "Çelik", "renk": "#7d838a"},
+		{"id": "demir", "ad": "Demir", "renk": "#5c5450"},
+		{"id": "dokme_demir", "ad": "Dökme demir", "renk": "#3c3a38"},
+		{"id": "bakir", "ad": "Bakır", "renk": "#b0683a"},
+		{"id": "pirinc", "ad": "Pirinç", "renk": "#b89a4a"},
+		{"id": "teneke", "ad": "Teneke", "renk": "#a9acae"},
+		{"id": "aluminyum", "ad": "Alüminyum", "renk": "#c4c8cc"},
+		{"id": "kaucuk", "ad": "Kauçuk", "renk": "#1e1e1e"},
+		{"id": "plastik", "ad": "Plastik", "renk": "#8a8f5a"},
+		{"id": "ahsap", "ad": "Ahşap", "renk": "#6e4f30"},
+		{"id": "karton", "ad": "Karton", "renk": "#8c7450"}
+	]
+}
