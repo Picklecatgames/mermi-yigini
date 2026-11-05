@@ -174,7 +174,13 @@ func _check_settings(main: Node) -> void:
 	print("audio ok")
 
 	var env: Environment = main.get_node("World/WorldEnvironment").environment
-	var lamps := func() -> int: return main.get_node("World").find_children("*", "Light3D", true, false).filter(func(l: Light3D) -> bool: return not l is DirectionalLight3D and l.shadow_enabled).size()
+	# The open world's lamps under the workshop roof are built without a shadow (tools/build_world.gd
+	# _lamp); the light that casts one at night is every player's head lamp (scripts/head_lamp.gd),
+	# under Player, not World. So the whole game's lights: the shadowed ones are as built, only on.
+	var positional := main.find_children("*", "Light3D", true, false).filter(func(l: Light3D) -> bool: return not l is DirectionalLight3D and l.get_viewport() == root.get_viewport())
+	var lamps := func() -> int: return positional.filter(func(l: Light3D) -> bool: return l.shadow_enabled).size()
+	var head_lamp: Light3D = main.get_node("Player").find_children("*", "SpotLight3D", true, false).filter(func(l: Node) -> bool: return l.get_script() == preload("res://scripts/head_lamp.gd"))[0]
+	assert(head_lamp.get_meta(&"built_shadow"), "the head lamp is built with a shadow")
 	settings.set_value("psx", 0)  # the PS1 screen takes the scale over; the presets alone first
 	settings.set_value("preset", 0)
 	await _frames(2)
@@ -187,10 +193,13 @@ func _check_settings(main: Node) -> void:
 	await _frames(2)
 	var built: Dictionary = env.get_meta(&"built")  # the open world has no SSR nor volumetric fog
 	assert(env.ssao_enabled == built.ssao and env.volumetric_fog_enabled == built.fog and env.ssr_enabled == built.ssr and lamps.call() > 0, "high preset: as the world was built")
+	assert(head_lamp.shadow_enabled, "high preset: the head lamp casts its shadow")
+	for l: Light3D in positional:
+		assert(l.shadow_enabled == bool(l.get_meta(&"built_shadow")), "high preset: %s's shadow as built" % l.get_path())
 	settings.set_value("brightness", 150)
 	await _frames(2)
 	assert(near.call(env.tonemap_exposure, env.get_meta(&"built").exposure * 1.5), "brightness")
-	print("graphics ok: %d lamp shadows on high" % lamps.call())
+	print("graphics ok: %d lamp shadows on high (the head lamp's among them), %d lights" % [lamps.call(), positional.size()])
 
 	var vp := root.get_viewport()
 	var gun_view: SubViewportContainer = main.get_node("Player/ViewmodelView")
