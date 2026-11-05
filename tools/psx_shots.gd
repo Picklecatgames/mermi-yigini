@@ -43,6 +43,7 @@ const GAME_VIEWS := {  # eye, looking at
 	"forest": [Vector3(30.0, 1.7, 8.0), Vector3(90.0, 3.0, 25.0)],
 	"trunk": [Vector3(36.7, 1.7, 9.9), Vector3(96.7, 3.0, 26.9)],  # the wood's first trunks, close
 	"up": [Vector3(30.0, 1.7, 8.0), Vector3(50.0, 22.0, 14.0)],  # the sky through the crowns
+	"bark": [Vector3(36.7, 1.7, 9.9), Vector3(36.7, 1.7, 9.9)],  # the trunk nearest this, from 2 m (_bark)
 	"house_n": [Vector3(16.0, 1.7, -10.0), Vector3(7.0, 0.0, -5.5)],  # the ground along the house's north walls
 	"kasa": [Vector3(20.5, 1.7, -6.5), Vector3(14.0, 0.0, 0.0)],  # where psx_shots' own --kasa=14,1;13,-4 go down
 	"porch": [Vector3(16.0, 1.7, 9.5), Vector3(9.0, 0.0, 3.0)],  # the porch's corner, south-east
@@ -236,7 +237,12 @@ func _game() -> void:
 			_night(main)
 		for v: String in views:
 			var eye: Vector3 = GAME_VIEWS[v][0]
-			var d: Vector3 = (GAME_VIEWS[v][1] - eye).normalized()
+			var at: Vector3 = GAME_VIEWS[v][1]
+			if v == "bark":
+				var b := _bark(main, eye)
+				eye = b[0]
+				at = b[1]
+			var d: Vector3 = (at - eye).normalized()
 			player.global_position = eye - Vector3.UP * 1.6
 			player.velocity = Vector3.ZERO
 			player.set(&"_yaw", atan2(-d.x, -d.z))
@@ -256,6 +262,23 @@ func _game() -> void:
 				await _frames(3)
 				root.get_viewport().get_texture().get_image().save_png(file.trim_suffix(".png") + "_f%d.png" % k)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.save_path))
+
+
+## The trunk post nearest `near` (build_world.gd _posts, a cylinder each), seen from 2 m on the
+## clearing's side at eye height, looking a little down its foot: the trunk as you walk up to it.
+func _bark(main: Node, near: Vector3) -> Array:
+	var best := Vector3.INF
+	for cs in main.find_children("*", "CollisionShape3D", true, false):
+		if cs.shape is CylinderShape3D and cs.global_position.y < 2.0:
+			var p: Vector3 = cs.global_position
+			if Vector2(p.x - near.x, p.z - near.z).length() < Vector2(best.x - near.x, best.z - near.z).length():
+				best = p
+	var away := Vector3(near.x - best.x, 0.0, near.z - best.z).normalized()
+	if not away.is_finite() or away == Vector3.ZERO:
+		away = Vector3(-1.0, 0.0, 0.0)
+	var eye := Vector3(best.x, 0.0, best.z) + away * 2.0
+	eye.y = best.y + 1.4
+	return [eye, Vector3(best.x, best.y + 0.6, best.z)]
 
 
 ## Night, roughly, until the day-night cycle (2026-11-03, the PS1 critic: at full black the workshop
