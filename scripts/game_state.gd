@@ -163,7 +163,7 @@ const UPGRADES := {
 ## Who a player can be, picked on joining (2026-10-30, the user's call; one each, nobody twice).
 ## id -> the name on the pick screen. Bodies: assets/characters/players/<id>, built by
 ## tools/build_zombies.gd players.
-const CHARACTERS := {"boss": "Patron", "masked": "Maskeli", "worker": "İşçi", "brute": "Brute", "chupacabra": "Chupacabra"}
+const CHARACTERS := {"oldman": "İhtiyar"}  # 2026-11-05, the user: the old man only, the five Mixamo bodies are gone
 const GUNS := [
 	{"id": "fists", "name": "Yumruk", "ready": true, "interval": 0.42, "auto": false, "mag": 0},
 	# table: shut until the player takes it off the table at the spawn (request_take_pistol).
@@ -373,7 +373,7 @@ const MELTER_SEND := 0.25  # s between the host's updates of the melting to clie
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
-enum Act { IDLE, WALKING, RELOADING, SHOOTING }
+enum Act { IDLE, WALKING, RELOADING, SHOOTING, DANCING }
 
 ## What a client may ask the host for, with its argument count (`peer` comes from the sender).
 const REQUESTS := {
@@ -1282,6 +1282,8 @@ func request_pick_character(id: String, peer := 0) -> void:
 
 ## Whether someone other than `peer` plays as `id`.
 func character_taken(id: String, peer := 0) -> bool:
+	if CHARACTERS.size() == 1:  # one body: everyone wears it
+		return false
 	var me := local_peer() if peer == 0 else peer
 	for other: int in _players:
 		# Only those still here: a client keeps the record of someone who left.

@@ -74,7 +74,7 @@ func _initialize() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = 0
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	gs.request_pick_character("worker")
+	gs.request_pick_character("oldman")
 	gs.request_toggle_infinite_ammo()
 	RenderingServer.viewport_set_measure_render_time(root.get_viewport_rid(), true)
 	_hook()

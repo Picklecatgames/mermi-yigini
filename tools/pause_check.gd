@@ -27,7 +27,7 @@ func _initialize() -> void:
 	assert(menu != null, "Settings made the pause menu")
 
 	# The "KİMSİN?" pick is up at the start and Esc is its own then: someone first.
-	root.get_node("GameState").request_pick_character("worker")
+	root.get_node("GameState").request_pick_character("oldman")
 	await _frames(3)
 	# Esc: open, the game stops (solo); Esc again: closed, running.
 	_esc()

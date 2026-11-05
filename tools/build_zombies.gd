@@ -29,9 +29,10 @@ const NORMAL_SIZE := 1024
 const MODELS := ["prisoner", "copzombie", "parasite", "warzombie", "zombiegirl", "yaku", "romero",
 		"skeletonzombie", "whiteclown", "warrok", "maw", "demon", "fleshzombie", "hazmat", "bloater",
 		"leaper", "spiker"]
-## Player characters (players/raw/chars/<file>.fbx): The Boss, Ch16 (masked), Ch32 (worker), Brute,
-## Ch43 (chupacabra).
-const PLAYER_MODELS := ["boss", "masked", "worker", "brute", "chupacabra"]
+## Player characters: none from here since 2026-11-05 (the old man is tools/build_oldman.gd, which also
+## bakes his "dance" into player_anims.res). `players anims` rebuilds the clips below from the Mixamo
+## packs and drops "dance": run build_oldman.gd after it.
+const PLAYER_MODELS: Array[String] = []
 ## Meshes left out of the built scene (what a character carries: the Brute's axe).
 const DROP := ["BattleAxe_GEO"]
 ## Raw clip -> library name. What a clip is comes from the first word of its name that is a KIND;
@@ -157,7 +158,7 @@ func _process(_d: float) -> bool:
 		all = PLAYER_MODELS
 		CLIPS = PLAYER_CLIPS
 		# chupacabra.fbx and the packs' Ch43 are rigged a few cm apart (hips 7 cm forward): 5 cm slack.
-		CHECK = {"model": "chupacabra", "slack": 0.05, "clips": [["pistol_pack/pistol walk.fbx", "pistol_walk"],
+		CHECK = {"model": "oldman", "slack": 0.08, "clips": [["pistol_pack/pistol walk.fbx", "pistol_walk"],
 				["rifle_pack/run left.fbx", "rifle_run_left"], ["male_pack/jump.fbx", "jump"]]}
 	var models: Array = Array(steps).filter(func(a: String) -> bool: return a in all)  # names after the steps: only those
 	if models.is_empty():

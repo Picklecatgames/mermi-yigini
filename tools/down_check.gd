@@ -39,7 +39,7 @@ func _initialize() -> void:
 	view = me._down_ui
 	gs.all_down.connect(func() -> void: _all_down += 1)
 	if not "--client" in OS.get_cmdline_user_args():
-		gs.request_pick_character("boss")
+		gs.request_pick_character("oldman")
 	if "--client" in OS.get_cmdline_user_args():
 		await _client()
 	else:
@@ -197,7 +197,7 @@ func _client() -> void:
 	net.join("127.0.0.1", PORT)
 	if not await _until(func() -> bool: return net.is_client and gs._spawned, "joining"): return
 	var host_peer := 1
-	gs.request_pick_character("worker")  # picked alone, the host never heard
+	gs.request_pick_character("oldman")  # picked alone, the host never heard
 	me.global_position = Vector3(9.0, 0.0, 3.0)
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout

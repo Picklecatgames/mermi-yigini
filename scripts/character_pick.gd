@@ -22,6 +22,7 @@ var _canvas: Control
 var _cards := {}  # id -> {button, view, body, anim, tag, name}
 var _asked := ""  # what we asked the host for, until it answers
 var _hover := ""
+var _ask_in := 0.0  # s to the next ask when there is only one body
 
 
 func _ready() -> void:
@@ -171,6 +172,13 @@ func _stage(view: SubViewport, id: String) -> Node3D:
 func _process(delta: float) -> void:
 	var p = GameState.player()
 	var want: bool = p != null and p.character == ""
+	if want and GameState.CHARACTERS.size() == 1:  # one body: nothing to choose, ask for it until it comes
+		_ask_in -= delta
+		# A joiner asks once the host has spawned it: while connecting it would pick on its own machine only.
+		if _ask_in <= 0.0 and (multiplayer.is_server() or (Net.is_client and GameState._spawned)):
+			_ask_in = 1.5
+			GameState.request_pick_character(GameState.CHARACTERS.keys()[0])
+		want = false
 	if want != is_open:
 		_set_open(want)
 	if not is_open:

@@ -43,7 +43,7 @@ func _initialize() -> void:
 		await physics_frame
 	fence = waves._fence
 	hud = main.get_node("Player")._hud
-	gs.request_pick_character("worker" if "--client" in OS.get_cmdline_user_args() else "boss")  # the picker holds the hands
+	gs.request_pick_character("oldman")  # the picker holds the hands
 	if "--client" in OS.get_cmdline_user_args():
 		await _client()
 	else:

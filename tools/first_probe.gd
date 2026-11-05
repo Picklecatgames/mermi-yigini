@@ -58,7 +58,7 @@ func _initialize() -> void:
 	player = main.get_node("Player")
 	vm = player.get_node("ViewmodelView/SubViewport/Camera/Viewmodel")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	gs.request_pick_character("worker")
+	gs.request_pick_character("oldman")
 	gs.wave_cue.connect(_on_cue)
 	gs.request_toggle_infinite_ammo()
 	_stand(Vector3(12.6, 0.0, 0.0))

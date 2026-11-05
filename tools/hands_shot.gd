@@ -7,7 +7,7 @@ extends SceneTree
 ## Saves user://hands_<tag>_fp_<gun>_<character>.png and user://hands_<tag>_tp_<gun>_<character>.png:
 ## one row per state; first person the player's view and the arms alone from its right, its left and
 ## below, third person the body's hands from its right, its left and ahead. Needs a window: headless does not draw.
-## --guns=uzi,minigun only those; --chars=worker only those.
+## --guns=uzi,minigun only those; --chars=oldman only those.
 
 const CELL := Vector2i(400, 300)
 const STATES := ["rest", "aim", "fire", "walk"]
@@ -78,7 +78,7 @@ func _first_person() -> void:
 	await process_frame
 	_gs.infinite_ammo = true
 	_gs.player().levels["magazine"] = 6
-	_gs.player().carried = 400
+	_gs.player().carried = 0  # scrap in hand puts the gun away (viewmodel.gd stowed)
 	_gs.player().has_pistol = true
 	_gs.player().levels.deagle = 1
 	var sheets := {}  # gun -> cells, row by row

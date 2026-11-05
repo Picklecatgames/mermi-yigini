@@ -15,7 +15,7 @@ func _initialize() -> void:
 	var gs: Node = root.get_node("GameState")
 	await process_frame
 	gs.start_quests()
-	gs.request_pick_character("boss")  # the picker holds the hands until then
+	gs.request_pick_character("oldman")  # the picker holds the hands until then
 	var me: CharacterBody3D = main.get_node("Player")
 	for i in 10:
 		await physics_frame
