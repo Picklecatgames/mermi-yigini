@@ -4,7 +4,9 @@ Kullanıcının kararı (2026-11-05): dağ bir yerden sonra otomatikleşir, oyun
 
 Kullanıcının kararı (2026-11-05, referans `https://www.youtube.com/watch?v=UGv-JDV7V1M&t=15290s`): "Dağı da o oyundaki gibi tek dağ yapmak istiyorum. Süre, oyun süresi 5-6 saat olsun." Bu süre tam oyunun, demo kısa kalır (kullanıcı, aynı gün). Taretler için: "Oyuna Factorio ekleyip de oyunun o küt, o tekinsiz havasını gezen taretlerle yapmak istemiyorum, bu videoda görünen gibi olmasını istiyorum." Tek dağ kararı, 2026-11-03'teki "büyük dağın etrafında minik dağcıklar" sözünün önüne geçer.
 
-Bu dosyada kullanıcı kararı olarak yazılanlar yalnız yukarıdaki iki paragraftır. Geri kalan her öneri ve sayı benim tahminimdir, kural değil.
+Kullanıcının fikri (2026-11-05): "Mesela metali parçaladık, eritmek için de ağaç lazım olsa, onu da ormanlıktan edinsek. Ama ağaçlar kalıcı mı olsa? Bir yerden sonra ağaçlar bitmesin yani." Yani eritmenin yakıtı odun, odun ormandan; **ağaçlar tükenmez.** Ağacın geri gelme biçimi henüz seçilmedi.
+
+Bu dosyada kullanıcı kararı olarak yazılanlar yalnız yukarıdaki üç paragraftır. Geri kalan her öneri ve sayı benim tahminimdir, kural değil.
 
 ## 1. Kontrollerin durumu
 
