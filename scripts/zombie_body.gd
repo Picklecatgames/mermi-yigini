@@ -513,9 +513,10 @@ func idle() -> void:
 ## Loops the kind's walk / run / crawl, its stride stretched to `speed` m/s: one of its own gait's
 ## clips whose stride fits inside STRIDE, else the quicker gait's (a walker driven to a run, one on
 ## its belly to the running crawl), else the nearest.
-func move(speed: float) -> void:
+## `family`: another gait than its own ("walk" for one stalking, waves.gd), if it has those clips.
+func move(speed: float, family := "") -> void:
 	_voice.wake()
-	var clip := _gait(speed)
+	var clip := _gait(speed, family)
 	var natural := _natural(clip)
 	_play_loop(clip, clampf(speed / natural, STRIDE[0], STRIDE[1]) if natural > 0.05 else 1.0)
 
@@ -541,16 +542,30 @@ func quick() -> bool:
 	return _loop.contains("run")
 
 
+## The slowest and quickest it can go in `family` with its feet keeping to the floor (STRIDE of
+## its clips' own pace); zero if it has no such clips.
+func gait_span(family: String) -> Vector2:
+	var span := Vector2(INF, 0.0)
+	for c: String in _clips(_lib, _set + family):
+		var nat := _natural(c)
+		if nat > 0.05:
+			span = Vector2(minf(span.x, nat * STRIDE[0]), maxf(span.y, nat * STRIDE[1]))
+	return span if span.y > 0.0 else Vector2.ZERO
+
+
 func _natural(clip: String) -> float:
 	return _lib.get_animation(clip).get_meta("speed", 0.0) * _hip if _lib.has_animation(clip) else 0.0
 
 
-func _gait(speed: float) -> String:
-	var n: int = _count.get(_move, 0)
-	_count[_move] = n + 1
+func _gait(speed: float, own := "") -> String:
+	var move := _move
+	if own != "" and not crawling and not _clips(_lib, _set + own).is_empty():
+		move = own
+	var n: int = _count.get(move, 0)
+	_count[move] = n + 1
 	var near := ""
 	var off := INF
-	for family in [_move, "run" if _move == "walk" else "crawl_run" if _move == "crawl" else ""]:
+	for family in [move, "run" if move == "walk" else "crawl_run" if move == "crawl" else ""]:
 		if family == "":
 			continue
 		var fit := []
@@ -565,16 +580,53 @@ func _gait(speed: float) -> String:
 				off = absf(log(r))
 				near = c
 		if not fit.is_empty():
-			return fit[_roll("%s%d" % [_move, n]) % fit.size()]
-	return near if near != "" else _pick(_move)
+			return fit[_roll("%s%d" % [move, n]) % fit.size()]
+	return near if near != "" else _pick(move)
 
 
-## Swing at the fence or a player. Returns the clip's length (s).
+## The part of each swing that is played (2026-11-05, the user: the attacks are broken and not
+## threatening): clip -> [from, strike, to] s. The strike is where the hands go quickest (measured off
+## the clips' bones, tools/zombie_attack_check.gd): the clips stood still for 1-3 s before it and the
+## blow landed at half the clip's length, before or long after the hands got there. Now a short
+## wind-up (ATTACK_WINDUP s, quickened up to ATTACK_RATE_MAX), the strike, a short recovery. The
+## mutant clips c and d step 1.8-2.4 m forward in the hips (root motion played in place: it slid
+## out of its body and snapped back), so they are not swung. Times off the bones, the cuts are mine.
+const ATTACKS := {
+	"attack_a": [0.45, 1.0, 1.6], "attack_b": [2.55, 3.45, 3.95], "attack_d": [0.45, 1.48, 2.0],
+	"attack_e": [0.1, 0.62, 1.03], "attack_f": [0.5, 1.17, 1.8], "attack_g": [0.6, 1.22, 1.8],
+	"attack_h": [0.05, 0.63, 1.2], "attack_i": [0.5, 1.17, 1.75],
+	"mutant_attack_a": [0.6, 1.28, 1.9], "mutant_attack_b": [0.0, 0.3, 1.1],
+}
+const ATTACK_SKIP: Array[String] = ["mutant_attack_c", "mutant_attack_d"]
+const ATTACK_WINDUP := 0.5  # s from the swing's start to the blow
+const ATTACK_RATE_MAX := 1.5
+## Of the last swing: s from its start to the blow.
+var strike := 0.0
+
+
+## Swing at the fence or a player. Returns its length (s); `strike` is when the blow lands.
 func attack() -> float:
 	_voice.attack()
 	if crawling:  # bites from the floor
-		return _one_shot("floor_bite")
-	return _one_shot("attack")
+		var bite := _one_shot("floor_bite")
+		strike = bite * 0.5
+		return bite
+	var clip := _pick("attack")
+	for i in 4:  # a clip that walks out of its body: another
+		if not clip in ATTACK_SKIP:
+			break
+		clip = _pick("attack")
+	if clip in ATTACK_SKIP or not ATTACKS.has(clip):
+		var whole := _play_once(clip)
+		strike = whole * 0.5
+		return whole
+	var cut: Array = ATTACKS[clip]
+	var rate := clampf((cut[1] - cut[0]) / ATTACK_WINDUP, 1.0, ATTACK_RATE_MAX)
+	_busy = true
+	_ap.play_section(clip, cut[0], cut[2], BLEND * 0.6)
+	_ap.speed_scale = rate
+	strike = (cut[1] - cut[0]) / rate
+	return (cut[2] - cut[0]) / rate
 
 
 ## Flinch from a shot; back to the loop after. Ignored mid-attack, and on its belly (the hit clips
@@ -582,6 +634,15 @@ func attack() -> float:
 func hit() -> void:
 	if not _busy and not crawling and not quick():  # running, the clip would stand it still while it slides on
 		_one_shot("hit")
+
+
+## It has seen or heard a player (waves.gd _sense): a shriek and the head jerking up, in its stride.
+func notice() -> void:
+	if _dead:
+		return
+	_voice.scream()
+	_nod_v += Vector3(-KICK * 1.2, 0.0, 0.0)
+	_bend_v += Vector3(KICK * 0.5, 0.0, 0.0)
 
 
 ## Roar (mutants) or scream (zombies). Returns the clip's length (s).
@@ -1303,7 +1364,12 @@ func _play_loop(clip: String, speed: float) -> void:
 func _one_shot(action: String) -> float:
 	if _dead:
 		return 0.0
-	var clip := _pick(action)
+	return _play_once(_pick(action))
+
+
+func _play_once(clip: String) -> float:
+	if _dead:
+		return 0.0
 	_busy = true
 	_ap.speed_scale = 1.0
 	_ap.play(clip, BLEND)

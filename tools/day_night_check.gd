@@ -31,6 +31,7 @@ func _initialize() -> void:
 	gs = root.get_node("GameState")
 	net = root.get_node("Net")
 	waves = main.get_node("Waves")
+	waves.night_spawns = false  # the night's own trickle would put up more than this counts (tools/zombie_night_check.gd has it)
 	for i in 5:
 		await physics_frame
 	for c in net.get_children():  # Net's _ready runs after this script's _initialize
@@ -195,8 +196,8 @@ func _host() -> void:
 	await _online()
 
 
-## B by day: the clock runs to night, then a wave steps out of the wood's edge, on the ground, and
-## comes for the player.
+## B by day: the clock runs to night, then the night's first group (one or two, waves.gd
+## _night_step) comes up in the wood, out of the player's sight, on the ground, and comes for them.
 func _raid() -> bool:
 	var me: Node3D = main.get_node("Player")
 	var w0: int = waves.wave
@@ -209,24 +210,21 @@ func _raid() -> bool:
 			_fail("B's wave never came")
 			return false
 	if not _ok(gs.night_of(gs.hour) >= 0.6 and waves.wave == w0 + 1, "they came once dark, wave %d -> %d" % [w0, waves.wave]): return false
+	for i in 10:
+		await process_frame
+	if not _ok(waves._zombies.size() <= 2, "not the wave at once: %d came" % waves._zombies.size()): return false
 	var first: Dictionary = waves._zombies.values()[0]
 	var node: Node3D = first.node
-	var near := INF
-	for m: Node3D in tree_nodes("forest_edge"):
-		near = minf(near, Vector2(m.global_position.x - node.global_position.x, m.global_position.z - node.global_position.z).length())
-	if not _ok(near < 5.0, "the first came out at the wood's edge (%.1f m from a marker)" % near): return false
-	while waves._zombies.size() < 6:
-		await process_frame
-		if Time.get_ticks_msec() - t0 > 20_000:
-			_fail("only %d of B's wave came" % waves._zombies.size())
-			return false
+	var q: Vector2 = (Vector2(node.global_position.x, node.global_position.z) - waves.CLEARING_CENTRE) / waves.CLEARING_RADII
+	var into: float = (q.length() - 1.0) * minf(waves.CLEARING_RADII.x, waves.CLEARING_RADII.y)
+	var off := Vector2(node.global_position.x - me.global_position.x, node.global_position.z - me.global_position.z).length()
+	if not _ok(into > 5.0 and off >= waves.HIDE_NEAR, "the first came up in the wood (%.1f m in), %.1f m off the player" % [into, off]): return false
 	var d0 := node.global_position.distance_to(me.global_position)
 	for i in 120:
 		await physics_frame
 	var d1 := node.global_position.distance_to(me.global_position)
 	var ground: Vector3 = waves._on_ground(node.global_position, node)
 	if not _ok(d1 < d0 - 1.0 and absf(ground.y - node.global_position.y) < 0.3, "it comes for the player on the ground (%.1f -> %.1f m, %.2f m off it)" % [d0, d1, ground.y - node.global_position.y]): return false
-	waves._seq += 1  # the rest stay in the wood
 	while waves._raiding:
 		await process_frame
 	_clear()
