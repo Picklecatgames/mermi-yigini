@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" path="res://assets/psx/tex/mud_forest.res" id="2_mfmef"]
 [ext_resource type="Texture2D" path="res://assets/psx/tex/flat_arm.res" id="3_mwkuh"]
 [ext_resource type="Texture2D" path="res://assets/psx/tex/forest_ground_04.res" id="4_exqoi"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/floor_map.res" id="4_mfmef"]
 [ext_resource type="Texture2D" path="res://assets/psx/tex/forest_leaves_04.res" id="5_rvt5t"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_jole3"]
@@ -38,3 +39,6 @@ shader_parameter/wood_dark = null
 shader_parameter/wood_dark_reach = null
 shader_parameter/night_shade = null
 shader_parameter/night_shade_to = null
+shader_parameter/floor_map = ExtResource("4_mfmef")
+shader_parameter/floor_rect = Vector4(-236, -220, 500, 440)
+shader_parameter/floor_moss = 1.0

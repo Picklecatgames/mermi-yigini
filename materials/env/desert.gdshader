@@ -31,6 +31,8 @@ uniform vec2 night_shade = vec2(-14.0, 7.0);  // m from the clearing's edge: by 
 uniform float night_shade_to = 0.1;  // ...to this share of its light, so it meets the trees' dark with no line
 global uniform float psx_haze_day;  // 1 by day, 0 by night (scripts/scrap_hills.gd)
 
+#include "res://materials/env/floor_map.gdshaderinc"
+
 varying vec3 world_pos;
 
 void vertex() {
@@ -70,7 +72,7 @@ void fragment() {
 		alb *= mix(1.0, wood_dark, smoothstep(0.0, wood_dark_reach, deep + (n - 0.5) * 8.0) * (1.0 - 0.7 * smoothstep(55.0, 85.0, deep)));
 		alb *= mix(1.0, night_shade_to, smoothstep(night_shade.x, night_shade.y, deep + (n - 0.5) * 6.0) * (1.0 - psx_haze_day));
 	}
-	ALBEDO = alb;
+	ALBEDO = floor_damp(alb, p);
 	AO = arm.r;
 	ROUGHNESS = mix(0.82, 1.0, arm.g);
 	METALLIC = 0.0;

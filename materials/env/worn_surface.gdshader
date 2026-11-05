@@ -33,6 +33,8 @@ uniform float wear_x = -1000.0;       // floor: x of a standing line (the railin
 uniform float wear_width = 3.0;
 uniform vec4 cutout = vec4(0.0);      // roof: a clean opening (x0, z0, x1, z1 world rect) for the glass lantern
 
+#include "res://materials/env/floor_map.gdshaderinc"
+
 varying vec3 world_pos;
 varying vec3 world_normal;
 
@@ -91,7 +93,7 @@ void fragment() {
 	albedo = mix(albedo, rust_color * (0.7 + 0.6 * texture(grime_tex, p * 0.9).r), clamp(rust_mask, 0.0, 1.0));
 	float metal = arm.b * (1.0 - rust_mask);
 
-	ALBEDO = albedo * tint * brightness;
+	ALBEDO = floor_damp(albedo * tint * brightness, world_pos.xz);
 	ROUGHNESS = mix(rough, 0.95, rust_mask);
 	METALLIC = metal;
 	AO = arm.r;

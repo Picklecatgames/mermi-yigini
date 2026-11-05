@@ -124,6 +124,13 @@ void fragment() {
 	AO_LIGHT_AFFECT = 0.0;
 #else
 	ALBEDO *= shade;
+#ifndef PSX_HAZE
+	// Damp climbing the foot of whatever stands on the floor (2026-11-05, the user: everything looks
+	// planted there): dark and a little moss, ragged by place, a hand or two up.
+	float up = world_pos.y + 0.18 * sin(world_pos.x * 3.7 + 2.0 * sin(world_pos.z * 4.3));
+	float foot = 1.0 - smoothstep(0.02, 0.55, up);
+	ALBEDO = mix(ALBEDO, dot(ALBEDO, vec3(0.333)) * vec3(0.9, 1.1, 0.45), foot * 0.5) * mix(1.0, 0.5, foot);
+#endif
 #endif
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
