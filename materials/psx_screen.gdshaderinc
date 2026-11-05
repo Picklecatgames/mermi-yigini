@@ -14,19 +14,24 @@ uniform float psx_levels = 31.0;  // steps a channel; 31 is the PS1's 15-bit col
 const float PSX_BAYER[16] = float[](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
 // The palette (2026-11-03, the user: scarier, gloomier, not overdone; 2026-11-05: uncanny, old, damp,
-// tools/psx_shots.gd): colour drained but blood kept red and left out of the rest; deep shadows cold,
-// the middle a damp grey-green, highlights yellowed; black and white pulled in like an old photo.
+// tools/psx_shots.gd): blood kept red and left out of the rest; deep shadows cold, highlights yellowed;
+// black and white pulled in like an old photo. 2026-11-05, the user: "çok cansız gri ve renksiz",
+// everything one grey: the colour was cut to 55 % everywhere and the middle pulled to one grey-green,
+// so floor, bark, leaves, wood and sky read alike. Now the muted colours are pushed apart (a dull
+// green from a dull brown), the loud ones a little held back, and the light warm against cold shade.
 vec3 psx_graded(vec3 c, vec2 uv) {
 	float l = dot(c, vec3(0.299, 0.587, 0.114));
+	float hi = max(max(c.r, c.g), c.b);
+	float sat = (hi - min(min(c.r, c.g), c.b)) / max(hi, 1e-4);
 	float over = c.r - max(c.g, c.b);
 	float red = smoothstep(0.5, 0.85, over / max(c.r, 0.02)) * smoothstep(0.08, 0.28, over);  // blood; not old wood and brick, not their dark
-	vec3 g = mix(vec3(l), c, mix(0.55, 0.9, red));
-	vec3 gain = mix(vec3(0.82, 0.85, 0.95), vec3(0.95, 1.0, 0.97), smoothstep(0.02, 0.22, l));
-	gain = mix(gain, vec3(1.02, 1.0, 0.92), smoothstep(0.38, 0.8, l));
+	vec3 g = mix(vec3(l), c, mix(mix(1.3, 0.92, smoothstep(0.1, 0.6, sat)), 1.05, red));
+	vec3 gain = mix(vec3(0.84, 0.92, 1.06), vec3(0.98, 1.0, 0.98), smoothstep(0.02, 0.24, l));
+	gain = mix(gain, vec3(1.04, 1.0, 0.9), smoothstep(0.42, 0.9, l));
 	g *= mix(gain, vec3(1.0), red);
 	g = pow(max(g, 0.0), vec3(1.06));
-	g = mix(vec3(0.014, 0.016, 0.02), vec3(0.94, 0.92, 0.84), g);
-	g *= mix(1.0, 0.5, smoothstep(0.35, 0.85, length((uv - 0.5) * vec2(1.1, 1.0))));
+	g = mix(vec3(0.012, 0.014, 0.02), vec3(0.96, 0.94, 0.85), g);
+	g *= mix(1.0, 0.6, smoothstep(0.35, 0.85, length((uv - 0.5) * vec2(1.1, 1.0))));
 	return mix(c, g, psx_grade);
 }
 
