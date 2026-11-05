@@ -45,6 +45,12 @@ func _run() -> void:
 			var d := Vector3.RIGHT.rotated(Vector3.UP, TAU * i / 4.0) * 3.0
 			var q := PhysicsRayQueryParameters3D.create(aim + d, aim)
 			var hit := space.intersect_ray(q)
+			# A hillside or the belt in the way says nothing about this post: past them.
+			for tries in 4:
+				if hit.is_empty() or hit.collider == trunks:
+					break
+				q.exclude = q.exclude + [hit.rid]
+				hit = space.intersect_ray(q)
 			if not hit.is_empty() and hit.collider == trunks:
 				stopped += 1
 		if stopped < 4:

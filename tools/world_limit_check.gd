@@ -6,7 +6,9 @@ extends SceneTree
 ## 2. Each scattered thing is one single thing: no scene of several plants, no wood on a grid.
 ##   Godot.exe --headless --path . -s res://tools/world_limit_check.gd
 
-const WORLD := Rect2(-136.0, -80.0, 256.0, 160.0)  # build_world.gd WORLD
+const WORLD := Rect2(-236.0, -220.0, 500.0, 440.0)  # build_world.gd WORLD
+const RIM_CENTRE := Vector2(14.0, 0.0)  # build_world.gd
+const RIM_RADII := Vector2(215.0, 190.0)
 
 var _failed := false
 
@@ -35,13 +37,43 @@ func _run() -> void:
 	_ok(at.x > 22.0, "walks out of the workshop east, past x 13.6 (to x %.1f)" % at.x)
 	at = await _walk(me, Vector3(20.0, 1.0, 15.0), Vector3(0, 0, 1), 6.0)
 	_ok(at.z > 29.0, "walks south past z 27.6 (to z %.1f)" % at.z)
-	# From just inside the wood's far edge, straight at each cliff.
-	for side: Array in [[Vector3(100.0, 0, 3.0), Vector3.RIGHT], [Vector3(30.0, 0, 62.0), Vector3.BACK], [Vector3(30.0, 0, -62.0), Vector3.FORWARD], [Vector3(-40.0, 0, 70.0), Vector3.BACK], [Vector3(103.0, 0, -22.0), Vector3.RIGHT], [Vector3(103.0, 0, 27.0), Vector3.RIGHT], [Vector3(-124.0, 0, 72.0), Vector3.LEFT]]:
+	# The belt of fallen trunks closes all round: from inside it, straight out, nothing but the belt stops a ray.
+	var belt: Node = main.get_node("World/Forest/RimBelt")
+	var others: Array[RID] = [main.get_node("World/Forest/Trunks").get_rid()]
+	var gaps := 0
+	for i in 1440:
+		var dir := Vector2.from_angle(TAU * (i + 0.37) / 1440.0)
+		var d := dir / RIM_RADII
+		var r := pow(pow(absf(d.x), 4.0) + pow(absf(d.y), 4.0), -0.25)
+		var from2 := RIM_CENTRE + dir * (r - 30.0)
+		var to2 := RIM_CENTRE + dir * (r + 12.0)
+		var space := me.get_world_3d().direct_space_state
+		var ground := func(at: Vector2) -> float:
+			var fall := PhysicsRayQueryParameters3D.create(Vector3(at.x, 200.0, at.y), Vector3(at.x, -50.0, at.y))
+			fall.exclude = others + [belt.get_rid()]
+			var h: Dictionary = space.intersect_ray(fall)
+			return h.position.y + 3.0 if not h.is_empty() else 5.0  # chest high would pass under the belt's box on a slope
+		var level: float = ground.call(RIM_CENTRE + dir * (r - 5.0))  # level, at the belt's height: a slope would pass under its box
+		var q := PhysicsRayQueryParameters3D.create(Vector3(from2.x, level, from2.y), Vector3(to2.x, level, to2.y))
+		q.exclude = others
+		var hit: Dictionary = space.intersect_ray(q)
+		# A swell in the ground or a stone on the way doesn't count: past it.
+		for tries in 6:
+			if hit.is_empty() or hit.collider == belt:
+				break
+			q.exclude = q.exclude + [hit.rid]
+			hit = space.intersect_ray(q)
+		if hit.is_empty() or hit.collider != belt:
+			gaps += 1
+			print("     gap at ray %d: (%.0f, %.0f) to (%.0f, %.0f), last hit %s" % [i, from2.x, from2.y, to2.x, to2.y, str(hit.get("collider", "none"))])
+	_ok(gaps == 0, "the belt of fallen trunks closes the map all round (%d rays of 1440 got through)" % gaps)
+	# From just inside it, straight out on each side.
+	for side: Array in [[Vector3(170.0, 0, 3.0), Vector3.RIGHT], [Vector3(30.0, 0, 150.0), Vector3.BACK], [Vector3(30.0, 0, -150.0), Vector3.FORWARD], [Vector3(-40.0, 0, 70.0), Vector3.BACK], [Vector3(103.0, 0, -22.0), Vector3.RIGHT], [Vector3(103.0, 0, 27.0), Vector3.RIGHT], [Vector3(-124.0, 0, 72.0), Vector3.LEFT]]:
 		var from: Vector3 = side[0]
 		var ray := PhysicsRayQueryParameters3D.create(from + Vector3.UP * 80.0, from + Vector3.DOWN * 20.0)
 		var hit: Dictionary = me.get_world_3d().direct_space_state.intersect_ray(ray)
 		at = await _walk(me, (hit.position as Vector3) + Vector3.UP * 0.6, side[1], 12.0)
-		_ok(WORLD.grow(-1.0).has_point(Vector2(at.x, at.z)) and at.y > -1.0, "the cliff holds them on the map going %s: stopped at (%.1f, %.1f, %.1f)" % [side[1], at.x, at.y, at.z])
+		_ok(WORLD.grow(-1.0).has_point(Vector2(at.x, at.z)) and at.y > -1.0, "the belt holds them on the map going %s: stopped at (%.1f, %.1f, %.1f)" % [side[1], at.x, at.y, at.z])
 	print("world_limit_check: ", "FAILED" if _failed else "passed")
 	quit(1 if _failed else 0)
 

@@ -9,7 +9,7 @@ extends "res://tools/build_arena.gd"
 ##   godot --headless --path . -s res://tools/build_world.gd
 ## The helpers (add, worn, pbr_box, _prop, block, collide, pendant, _pit...) are build_arena.gd's.
 
-const WORLD := Rect2(-136.0, -80.0, 256.0, 160.0)  # x, z: the ground, the junkyard's grid included, so the ring of dunes closes behind the mountain too
+const WORLD := Rect2(-236.0, -220.0, 500.0, 440.0)  # x, z: the ground, the junkyard's grid included, so the ring of dunes closes behind the mountain too
 const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; edges on the desert grid (CELL)
 ## The back yard (2026-11-03, the user: "the pit goes; the back yard is flat ground and heaps and heaps
 ## of junk, as if we were a scrap dealer in the desert; some mountains touching the sky"): flat ground
@@ -21,13 +21,19 @@ const YARD := Rect2(-136.0, -80.0, 130.0, 160.0)
 const HEAP_AREA := Rect2(-136.0, -80.0, 128.0, 160.0)
 const CELL := 2.0  # m, the desert mesh's grid
 const DUNE_START := 6.0  # m from the pad's edge where the ground starts to roll
-const EDGE_RISE := 12.0  # m the dunes climb to at the world's edge: the players' natural border
-const EDGE_REACH := 28.0  # m in from the edge over which they climb
-## What ends the walk: no wall, the dunes turn into a sand cliff too steep to climb (the player's
-## floor_max_angle is 60 degrees, tan 1.73), its foot wandering in and out through the fog.
-const RIM_REACH := 3.0  # m in from the edge where the cliff's foot lies at the closest...
-const RIM_WANDER := 4.0  # m ...and this much further in at the furthest
-const RIM_SLOPE := 3.0  # m up per m in
+## What ends the walk (2026-11-05, the user: "the area is too small and ahead it's blocked by a mountain,
+## that's absurd; make the map bigger and make its limit feel logical"): no cliff. The ground climbs
+## gently into wooded hills and on them the wood has closed itself: a belt of fallen trunks, thick and
+## tall, with more wood standing behind it. Numbers are my guess.
+const EDGE_RISE := 9.0  # m the ground climbs to at the belt
+const EDGE_REACH := 70.0  # m in from the belt over which it climbs
+const RIM_CENTRE := Vector2(14.0, 0.0)
+const RIM_RADII := Vector2(215.0, 190.0)  # the belt: a rounded oblong, no straight sides
+const RIM_WANDER := 9.0  # m it wanders in from there
+const RIM_SLOPE := 0.25  # m up per m past it
+const RIM_STEP := 1.7  # m along the belt between fallen trunks
+const RIM_SOLID_EVERY := 3  # one length of the belt's collision per this many steps
+const RIM_SOLID := Vector3(13.0, 7.0, 3.0)  # m: along, up, through
 
 ## The workshop: back wall on x = WS.position.x, open towards +x (the yard, the spawns).
 const WS := Rect2(2.0, -4.5, 7.0, 9.0)  # 2026-11-02, the user: half as long, compact like a van
@@ -165,18 +171,24 @@ func _ground_y(x: float, z: float, noise: FastNoiseLite) -> float:
 	# Low uneven swells and gullies, not smooth dunes (2026-11-02, the user: "looks like a Unity demo").
 	var h := noise.get_noise_2d(x, z) * 2.2 * roll + noise.get_noise_2d(x * 4.1, z * 4.1) * 0.35 * roll
 	h = maxf(h, -0.6)
-	var edge := minf(minf(x - WORLD.position.x, WORLD.end.x - x), minf(z - WORLD.position.y, WORLD.end.y - z))
+	var edge := -_to_rim(x, z, noise)
 	var ridge := noise.get_noise_2d(x * 0.45 + 300.0, z * 0.45) * 0.5 + 0.5
 	h += pow(1.0 - clampf(edge / EDGE_REACH, 0.0, 1.0), 1.8) * EDGE_RISE * (0.45 + 0.9 * ridge)
 	h += _past_rim(x, z, noise) * RIM_SLOPE
 	return h
 
 
-## How far (x, z) lies up the cliff at the world's edge, in metres past its foot; 0 off it.
-func _past_rim(x: float, z: float, noise: FastNoiseLite) -> float:
-	var edge := minf(minf(x - WORLD.position.x, WORLD.end.x - x), minf(z - WORLD.position.y, WORLD.end.y - z))
+## Metres past the belt of fallen trunks at (x, z): under 0 inside it.
+func _to_rim(x: float, z: float, noise: FastNoiseLite) -> float:
+	var q := (Vector2(x, z) - RIM_CENTRE) / RIM_RADII
+	var d := pow(pow(absf(q.x), 4.0) + pow(absf(q.y), 4.0), 0.25)
 	var wander := noise.get_noise_2d(x * 0.6 + 700.0, z * 0.6) * 0.5 + 0.5
-	return maxf(RIM_REACH + wander * RIM_WANDER - edge, 0.0)
+	return (d - 1.0) * minf(RIM_RADII.x, RIM_RADII.y) + wander * RIM_WANDER
+
+
+## How far (x, z) lies past the belt at the map's limit, in metres; 0 inside it.
+func _past_rim(x: float, z: float, noise: FastNoiseLite) -> float:
+	return maxf(_to_rim(x, z, noise), 0.0)
 
 
 ## The desert: one grid mesh over WORLD with the pad's cells left out, its collision the same
@@ -589,7 +601,9 @@ var _floor_things := []
 ## A copy's tone: from the clearing's edge into the wood it goes dark, so the first trees show and
 ## behind them it's black between the trunks; some yellower, some browner, a few half dead.
 func _wood_tone(p: Vector2, rng: RandomNumberGenerator) -> Color:
-	var deep := smoothstep(WOOD_DARK_FROM, WOOD_DARK_FROM + WOOD_DARK_REACH, _out_of_clearing(p) + rng.randf_range(-3.0, 3.0))
+	var out := _out_of_clearing(p) + rng.randf_range(-3.0, 3.0)
+	# Darkest at the wood's front, what the clearing looks into; further in it opens again: players walk there.
+	var deep := smoothstep(WOOD_DARK_FROM, WOOD_DARK_FROM + WOOD_DARK_REACH, out) * (1.0 - 0.75 * smoothstep(WOOD_LIGHT_FROM, WOOD_LIGHT_FROM + 30.0, out))
 	var kind := rng.randf()
 	var hue := Color(1.0, 1.0, 0.95)
 	if kind < 0.3:
@@ -617,7 +631,9 @@ const CLEARING_RADII := Vector2(40.0, 34.0)
 const FOREST_START := 0.0  # m out from the clearing's edge: the first trees
 const FOREST_FULL := 7.0  # m: as thick as it gets from here out
 const FOREST_SPACING := Vector2(2.0, 3.6)  # m to the nearest tree: thickest, thinnest
-const FOREST_DARTS := 90000
+const FOREST_DARTS := 480000
+const FOREST_DEEP_FROM := 75.0  # m out from the clearing's edge
+const FOREST_DEEP_APART := 2.6  # times the spacing there
 const FOREST_CHUNK := 40.0
 const HEAP_TREE_LINE := 0.5  # m of scrap a tree still stands in
 const HEAP_NEAR := Rect2(-40.0, -20.0, 32.0, 40.0)  # pile.gd NEAR
@@ -625,6 +641,7 @@ const VEIL_ROWS := [[12.0, 0.6], [18.0, 0.8], [25.0, 0.95], [34.0, 1.0]]  # m in
 const VEIL_H := 19.0  # under the crowns: above them it showed against the sky as pale rays
 const WOOD_DARK := 0.32  # a tree's light deep in the wood...
 const WOOD_DARK_FROM := 4.0  # ...from this far in from the clearing's edge (m)...
+const WOOD_LIGHT_FROM := 55.0  # m in: from here it lightens again
 const WOOD_DARK_REACH := 14.0  # ...over this many metres
 
 
@@ -664,7 +681,7 @@ func _forest() -> void:
 		var p := Vector2(rng.randf_range(WORLD.position.x, WORLD.end.x), rng.randf_range(WORLD.position.y, WORLD.end.y))
 		# 2026-11-04, the user: the trees stopped at a line before the junk. Now right up to the heaps'
 		# foot and in among its lowest edge, all round; only the ground players work on stays clear.
-		if _heap_h(p) > HEAP_TREE_LINE or HEAP_NEAR.grow(5.0).has_point(p) or _past_rim(p.x, p.y, _desert_noise) > 0.0:
+		if _heap_h(p) > HEAP_TREE_LINE or HEAP_NEAR.grow(5.0).has_point(p):
 			continue
 		var away := _out_of_clearing(p) + _desert_noise.get_noise_2d(p.x * 2.0, p.y * 2.0) * 5.0
 		var thick := smoothstep(FOREST_START, FOREST_FULL, away)
@@ -672,6 +689,11 @@ func _forest() -> void:
 			continue
 		var open := clampf(_desert_noise.get_noise_2d(p.x * 1.4 + 500.0, p.y * 1.4 - 200.0) * 1.8 + 0.5, 0.0, 1.0)
 		var apart := minf(lerpf(FOREST_SPACING.x, FOREST_SPACING.y, open) / maxf(thick, 0.4), 10.0)
+		# Past where the fog ends for anyone at the clearing's edge, thinner: it costs less and still reads as wood.
+		apart *= lerpf(1.0, FOREST_DEEP_APART, smoothstep(FOREST_DEEP_FROM, FOREST_DEEP_FROM + 25.0, away))
+		# Behind the belt thick again: nothing to see through to the world's edge.
+		if _past_rim(p.x, p.y, _desert_noise) > 0.0:
+			apart = minf(apart, FOREST_SPACING.y * 1.3)
 		var cell := Vector2i(floori(p.x / 16.0), floori(p.y / 16.0))
 		var free := true
 		for i in range(-1, 2):
@@ -695,11 +717,12 @@ func _forest() -> void:
 		var xf := Transform3D(lean * Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * girth, sc, sc * girth)), at)
 		plant.call(kind[0], xf, false)
 		count += 1
-		_posts(kind, xf, trunks, sc * girth)
-		var post_at := PackedVector3Array()
-		for post: Array in kind[5].posts:
-			post_at.append(xf * (post[0] as Vector3))
-		_stand_rows.append([kind[4], at, _ground_y(p.x, p.y, _desert_noise), kind[5].touch and kind[5].ok, post_at])
+		if _past_rim(p.x, p.y, _desert_noise) == 0.0:  # behind the belt nobody walks up to it
+			_posts(kind, xf, trunks, sc * girth)
+			var post_at := PackedVector3Array()
+			for post: Array in kind[5].posts:
+				post_at.append(xf * (post[0] as Vector3))
+			_stand_rows.append([kind[4], at, _ground_y(p.x, p.y, _desert_noise), kind[5].touch and kind[5].ok, post_at])
 		# The floor between them: ferns, shrubs, a stone.
 		if rng.randf() < 0.25:
 			var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.8, 2.5)
@@ -711,6 +734,7 @@ func _forest() -> void:
 	for thing: Array in _floor_things:
 		plant.call(thing[0], thing[1], true)
 	_wood_floor(plant, rng)
+	_rim_belt(root, plant, rng)
 	# No distance limits at all (2026-11-04, the user: "they load in as you get closer, very
 	# annoying"): a range counts from a chunk's middle, so 40 m of ferns and trees came on at once.
 	# The fog hides the far ones, and they're a few hundred triangles each.
@@ -767,7 +791,7 @@ const FLOOR_SCENES := [
 	["carcass", 0.03, 1.6, [["bones", 3, 6], ["skull", 0, 1], ["green", 0, 1]]],
 	["dump", 0.05, 1.5, [["junk", 4, 8], ["twig", 2, 3], ["moss", 1, 3], ["green", 1, 3]]],
 ]
-const FLOOR_SPOTS := 1100  # scenes wanted over the whole ground
+const FLOOR_SPOTS := 2200  # scenes wanted over the whole ground
 const FLOOR_APART := 4.0  # m between two scenes' middles
 const FLOOR_CHUNK := 160.0  # m: small things, a few of each: wider squares than the trees', fewer draws
 const FLOOR_SOFT := ["green", "moss", "fern", "mushroom", "bark"]  # never in the way
@@ -834,6 +858,82 @@ func _wood_floor(plant: Callable, rng: RandomNumberGenerator) -> void:
 				_floor_solid(thing, thing_xf, group)
 				items += 1
 	print("wood floor: ", made, " scenes, ", items, " things")
+
+
+## The map's limit: fallen trunks piled along the belt, roots among them, one solid length after another.
+## Its own body, so tools/world_limit_check.gd can tell that it closes.
+func _rim_belt(root: Node, plant: Callable, rng: RandomNumberGenerator) -> void:
+	var things: Dictionary = _wood().floor
+	var logs: Array = []
+	for log_thing: Array in things["log"]:
+		var size: Vector3 = log_thing[2]
+		if size[size.max_axis_index()] > 2.0 * minf(size.x, minf(size.y, size.z)):
+			logs.append(log_thing)
+	var roots: Array = things["root"]
+	var wall := StaticBody3D.new()
+	wall.name = "RimBelt"
+	add(wall, root)
+	var a := 0.0
+	var n := 0
+	var pieces := 0
+	while a < TAU + 0.06:  # past the start: no gap where the ring closes
+		var dir := Vector2(cos(a), sin(a))
+		var at := _rim_point(dir)
+		var along := (_rim_point(Vector2(cos(a + 0.05), sin(a + 0.05))) - _rim_point(Vector2(cos(a - 0.05), sin(a - 0.05)))).normalized()  # wide: the wander alone can turn a short step
+		a += RIM_STEP / maxf(at.distance_to(RIM_CENTRE), 1.0)
+		n += 1
+		if _heap_h(at) > 0.05:
+			continue
+		var out := Vector2(along.y, -along.x)
+		if out.dot(dir) < 0.0:
+			out = -out
+		var yaw := atan2(-along.y, along.x)
+		for row in rng.randi_range(2, 5):
+			pieces += 1
+			var off := at + out * rng.randf_range(-1.4, 1.4) + along * rng.randf_range(-1.2, 1.2)
+			var y := _ground_y(off.x, off.y, _desert_noise) + 0.35 + row * rng.randf_range(0.7, 0.95)
+			var log_kind: Array = logs[rng.randi() % logs.size()]
+			plant.call(log_kind[0], _rim_log(log_kind, off, y, yaw, rng), true, FLOOR_CHUNK)
+		if rng.randf() < 0.3:
+			var thing: Array = roots[rng.randi() % roots.size()]
+			var off := at - out * rng.randf_range(1.5, 3.0)
+			plant.call(thing[0], _floor_xf(thing, "root", off, rng), true, FLOOR_CHUNK)
+		if n % RIM_SOLID_EVERY == 0:
+			var cs := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = RIM_SOLID
+			cs.shape = box
+			cs.transform = Transform3D(Basis(Vector3.UP, yaw), Vector3(at.x, _ground_y(at.x, at.y, _desert_noise) + RIM_SOLID.y * 0.4, at.y))
+			add(cs, wall)
+	print("rim belt: ", pieces, " trunks")
+
+
+## Where the belt lies on the way out from its middle along `dir`.
+func _rim_point(dir: Vector2) -> Vector2:
+	var d := dir / RIM_RADII
+	var r := pow(pow(absf(d.x), 4.0) + pow(absf(d.y), 4.0), -0.25)
+	var p := RIM_CENTRE + dir * r
+	for i in 3:
+		p -= dir * _to_rim(p.x, p.y, _desert_noise)
+	return p
+
+
+## A trunk lying along the belt: its long side to `yaw`, a little off level, its middle at (at, y).
+func _rim_log(thing: Array, at: Vector2, y: float, yaw: float, rng: RandomNumberGenerator) -> Transform3D:
+	var size: Vector3 = thing[2]
+	var axis := size.max_axis_index()
+	var lay := Basis()  # its long side onto x
+	if axis == Vector3.AXIS_Y:
+		lay = Basis(Vector3.BACK, -PI * 0.5)
+	elif axis == Vector3.AXIS_Z:
+		lay = Basis(Vector3.UP, PI * 0.5)
+	var dims := [size.x, size.y, size.z]
+	dims.sort()
+	# As long as a fallen trunk, no thicker than one: the scans are stubby, stretched alone they turn into hills.
+	var s: float = minf(rng.randf_range(6.0, 10.0) / maxf(size[axis], 0.1), rng.randf_range(1.1, 1.7) / maxf(dims[1], 0.05))
+	var b := Basis(Vector3.UP, yaw + rng.randf_range(-0.45, 0.45)) * Basis(Vector3.BACK, rng.randf_range(-0.22, 0.22)) * lay
+	var mid: Vector3 = (b.scaled(Vector3.ONE * s)) * _parts_box(thing[0]).get_center()
+	return Transform3D(b.scaled(Vector3.ONE * s), Vector3(at.x, y, at.y) - mid)
 
 
 ## A thing on the floor that stands in the way is solid (2026-11-04, the user: "you walk through them"):

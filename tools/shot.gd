@@ -22,6 +22,13 @@ const SHOTS := {
 	"junk_edge": [Vector3(8.0, 1.7, 22.0), Vector3(-30.0, 6.0, 45.0)],
 	"junk_side": [Vector3(0.0, 1.7, -24.0), Vector3(-35.0, 6.0, -45.0)],
 	"junk_top": [Vector3(35.0, 70.0, 0.0), Vector3(-30.0, 0.0, 0.0)],
+	# y under 0: over the ground there, by that much (the map's limit lies up on the hills).
+	"wall_east": [Vector3(208.0, -1.7, 8.0), Vector3(235.0, -1.0, 2.0)],
+	"wall_near": [Vector3(205.0, -1.7, 90.0), Vector3(222.0, -1.0, 110.0)],
+	"wall_north": [Vector3(30.0, -1.7, -170.0), Vector3(36.0, -1.0, -205.0)],
+	"rim_top": [Vector3(190.0, -45.0, 0.0), Vector3(235.0, -1.0, 0.0)],
+	"rim_low": [Vector3(218.0, -2.0, 4.0), Vector3(232.0, -2.5, 4.0)],
+	"far_walk": [Vector3(120.0, -1.7, 20.0), Vector3(180.0, -8.0, 26.0)],
 	"wood_up": [Vector3(46.0, 1.7, -2.0), Vector3(50.0, 14.0, 1.0)],
 	"wood_front": [Vector3(11.0, 1.7, 1.0), Vector3(60.0, 9.0, 0.0)],
 	"wood_near": [Vector3(38.0, 1.7, -6.0), Vector3(70.0, 8.0, 6.0)],
@@ -185,7 +192,16 @@ func _initialize() -> void:
 			main.add_child(lamp)
 	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return SHOTS.has(a))
 	for shot_name in (only if not only.is_empty() else SHOTS.keys()):
-		cam.look_at_from_position(SHOTS[shot_name][0], SHOTS[shot_name][1])
+		var eye: Vector3 = SHOTS[shot_name][0]
+		var aim: Vector3 = SHOTS[shot_name][1]
+		if eye.y < 0.0:
+			var world_3d := cam.get_world_3d()
+			var down := func(at: Vector3) -> float:
+				var hit: Dictionary = world_3d.direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(Vector3(at.x, 200.0, at.z), Vector3(at.x, -50.0, at.z)))
+				return hit.position.y if not hit.is_empty() else 0.0
+			eye.y = down.call(eye) - eye.y
+			aim.y = down.call(aim) - aim.y
+		cam.look_at_from_position(eye, aim)
 		if lamp:
 			lamp.set(&"_placed", false)
 			lamp.call(&"follow", cam.global_transform, 0.0)

@@ -66,7 +66,8 @@ void fragment() {
 	alb *= mix(0.88, 1.12, patch) * mix(0.9, 1.06, n);
 	if (wood_oval.z > 0.0) {
 		float deep = (length((p - wood_oval.xy) / wood_oval.zw) - 1.0) * min(wood_oval.z, wood_oval.w);
-		alb *= mix(1.0, wood_dark, smoothstep(0.0, wood_dark_reach, deep + (n - 0.5) * 8.0));
+		// Darkest at the wood's front, lighter again far in: players walk there (build_world.gd _wood_tone).
+		alb *= mix(1.0, wood_dark, smoothstep(0.0, wood_dark_reach, deep + (n - 0.5) * 8.0) * (1.0 - 0.7 * smoothstep(55.0, 85.0, deep)));
 		alb *= mix(1.0, night_shade_to, smoothstep(night_shade.x, night_shade.y, deep + (n - 0.5) * 6.0) * (1.0 - psx_haze_day));
 	}
 	ALBEDO = alb;
