@@ -97,6 +97,9 @@ signal all_down
 ## hours a game second. Host's, told to everyone whenever its pace changes; every machine runs it
 ## on from there.
 signal clock_changed(hour: float, rate: float)
+## A new day's bulletin is on the television (scripts/tv.gd), every morning; the line being read, -1: none.
+signal news_changed(day: int)
+signal news_line(day: int, line: int)
 ## Tonight's moon (MOONS, or "boss") and which night it is, counted from 1; the host picks it as
 ## dusk begins (scripts/day_night.gd shows it).
 signal moon_changed(kind: String, night: int)
@@ -314,10 +317,19 @@ const BOARD_REACH := 3.0  # m
 ## for the team. Rounds poured into the hopper melt MELT_RATES[melt_level] a second into brass, the
 ## team's; the press makes rounds out of it, each player's own. Upgrades are paid like the fence: from
 ## the vault in co-op, alone from one's own gold. Numbers are placeholders.
-const MELTER_POS := Vector3(10.24, 0.0, 27.15)  # tools/range_dressing.gd _workshop
-const PRESS_POS := Vector3(11.34, 0.0, 27.53)  # on the bench's low stand
+const MELTER_POS := Vector3(7.95, 0.0, -0.44)  # tools/build_world.gd _workshop_inside: the hopper
+const PRESS_POS := Vector3(8.33, 0.0, -1.54)  # on the bench's low stand
 const LEVER_POS := Vector3(8.2, 0.0, -27.6)  # the wave lever on the north wall (tools/zombie_bay.gd _lever)
 const STATION_REACH := 2.0  # m from its middle, feet
+## The television in the house and its daily bulletin (2026-11-05, the user: "her gün TV'ye bakılacak
+## haberler için"; data/bultenler.json): E in reach and it is read out, a line at a time, to whoever is in
+## earshot; the host keeps the day and the line, everyone sees the same. Numbers are first guesses.
+const TV_POS := Vector3(2.2, 0.0, 0.0)  # tools/build_world.gd TV_AT
+const TV_REACH := 3.2  # m, feet: from in front of it
+const TV_HEAR := 10.0  # m: the lines come up on screen within this
+const NEWS_FILE := "res://data/bultenler.json"
+const NEWS_LINE_MIN := 3.2  # s a line stays up
+const NEWS_LINE_PER_CHAR := 0.075  # s
 ## The railing's bays (docs/ayrintilar.md "Çit", 2026-10-31, the user's call: no one life for the
 ## whole fence; each bay has its own, a bay clawed through comes down and the dead walk in through
 ## the hole; it is mended at the workshop bench, bay by bay). The dead claw it down (scripts/waves.gd
@@ -385,7 +397,7 @@ const REQUESTS := {
 	&"request_claim_quests": 0, &"request_take_pistol": 0, &"request_melt": 0,
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 	&"request_pull_lever": 0, &"request_repair_fence": 0, &"request_revive": 1,
-	&"request_skip_time": 0, &"request_debug_raid": 0, &"request_debug_spawn": 4, &"request_debug_moon": 1,
+	&"request_watch_news": 0, &"request_skip_time": 0, &"request_debug_raid": 0, &"request_debug_spawn": 4, &"request_debug_moon": 1,
 }
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
@@ -398,7 +410,7 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"loose_taken", &"scrap_collapse", &"heap_clock", &"heap_piece_taken", &"fired", &"shot_landed", &"key_revealed", &"key_taken", &"key_layout",
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
-	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed"]
+	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed", &"news_changed", &"news_line"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4}
 
@@ -483,6 +495,11 @@ var hour_rate := 24.0 / DAY_SECONDS  # hours a game second
 var _skip_left := 0.0  # host: s of N's run still to go
 var _skip_to := 0.0  # host: the hour it ends on
 var _clock_wait := CLOCK_SEND
+var news_day := 1  # the bulletin on the television: a day begins in the morning, day 1 at the start
+var news_at := -1  # the line being read, -1: none
+var _news_wait := 0.0  # host: s till the next line
+var _news_table: Array = []  # data/bultenler.json's bulletins, by day - 1
+var _news_cut := {}  # past them: no signal
 var moon := "full"  # tonight's (or the last night's, by day)
 var nights := 0  # nights begun so far
 var _in_night := false  # host: dusk has begun and it isn't day again yet
@@ -559,6 +576,9 @@ func _ready() -> void:
 			_event.rpc_id(id, &"fence_changed", [fence_bays])
 			_event.rpc_id(id, &"clock_changed", [hour, hour_rate])
 			_event.rpc_id(id, &"moon_changed", [moon, nights])
+			_event.rpc_id(id, &"news_changed", [news_day])
+			if news_at >= 0:  # in the middle of being read: they come in on this line
+				_event.rpc_id(id, &"news_line", [news_day, news_at])
 			for q: String in quests_done:  # no gold: what the team got before is not theirs
 				_event.rpc_id(id, &"quest_done", [q, 0])
 			_event.rpc_id(id, &"quests_changed", [quest_board, quest_progress, quests_ready])
@@ -634,6 +654,7 @@ func _process(delta: float) -> void:
 	if Net.is_client:
 		return  # the hopper melts on the host
 	_clock(delta)
+	_news(delta)
 	_health(delta)
 	if melt_bin > 0:
 		_melt_part += MELT_RATES[melt_level] * delta
@@ -674,12 +695,64 @@ func _clock(delta: float) -> void:
 			moon = _roll_moon()
 		_world(&"moon_changed", [moon, nights])
 	elif dark == 0.0:
+		if _in_night:  # morning: a new day, its bulletin on the air
+			news_day = nights + 1
+			news_at = -1
+			_world(&"news_changed", [news_day])
 		_in_night = false
 	_clock_wait -= delta
 	if _clock_wait <= 0.0:
 		_clock_wait = CLOCK_SEND
 		if Net.online:
 			_event.rpc(&"clock_changed", [hour, hour_rate])
+
+
+## Host: the bulletin being read moves on a line, or ends.
+func _news(delta: float) -> void:
+	if news_at < 0:
+		return
+	_news_wait -= delta
+	if _news_wait > 0.0:
+		return
+	var lines: Array = news_entry(news_day).get("satirlar", [])
+	news_at = news_at + 1 if news_at + 1 < lines.size() else -1
+	if news_at >= 0:
+		_news_wait = news_line_secs(lines[news_at])
+	_world(&"news_line", [news_day, news_at])
+
+
+## The bulletin of `day` (data/bultenler.json); past the last one, no signal.
+func news_entry(day: int) -> Dictionary:
+	if _news_table.is_empty():
+		var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(NEWS_FILE))
+		_news_table = data.bultenler
+		_news_cut = data.kesik
+	return _news_table[day - 1] if day >= 1 and day <= _news_table.size() else _news_cut
+
+
+## How long a line stays up.
+static func news_line_secs(text: String) -> float:
+	return maxf(NEWS_LINE_MIN, text.length() * NEWS_LINE_PER_CHAR)
+
+
+## Feet in front of the television, close enough to turn it up. `slack`: someone else's pose is a little old.
+func near_tv(at: Vector3, slack := 0.0) -> bool:
+	return Vector2(at.x - TV_POS.x, at.z - TV_POS.z).length() <= TV_REACH + slack
+
+
+## Reads today's bulletin out, from the top; once running it runs to its end, whoever else asks.
+func request_watch_news(peer := 0) -> void:
+	if _send(&"request_watch_news", [], peer) or Net.is_client:
+		return
+	var p := player(peer)
+	if p.has_pose and not near_tv(p.pos, 0.0 if _is_local(peer) else 1.0):
+		return
+	var lines: Array = news_entry(news_day).get("satirlar", [])
+	if news_at >= 0 or lines.is_empty():
+		return
+	news_at = 0
+	_news_wait = news_line_secs(lines[0])
+	_world(&"news_line", [news_day, 0])
 
 
 func _roll_moon() -> String:
@@ -1892,6 +1965,12 @@ func _event(event: StringName, args: Array) -> void:
 		&"moon_changed":
 			moon = args[0]
 			nights = args[1]
+		&"news_changed":
+			news_day = args[0]
+			news_at = -1
+		&"news_line":
+			news_day = args[0]
+			news_at = args[1]
 		&"health_changed":
 			player(args[0]).hp = args[1]
 		&"player_downed":

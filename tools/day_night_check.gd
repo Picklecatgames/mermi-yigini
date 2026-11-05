@@ -13,7 +13,7 @@ extends SceneTree
 const PORT := 24697
 const LOG := "user://day_night_check_client.log"
 const ENGINE_LOG := "user://day_night_check_client_engine.log"
-const STAND := Vector3(4.0, 0.0, 0.0)  # on the yard's concrete, looking along +x
+const STAND := Vector3(3.0, 0.0, 7.5)  # on the yard's concrete beside the house, looking along +x
 const YAW := -PI / 2  # player.gd: looking along (-sin, 0, -cos)
 
 var gs: Node

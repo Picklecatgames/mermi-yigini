@@ -12,9 +12,18 @@ extends SceneTree
 ## `--zombie=X,Z` puts a walker up there, facing -x, seen a moment after it's up.
 
 const SHOTS := {
-	"ws_front": [Vector3(17.0, 1.7, 4.0), Vector3(5.0, 1.4, -0.5)],  # build_world.gd: the workshop from the yard
-	"ws_in": [Vector3(8.6, 1.7, -3.6), Vector3(2.5, 1.1, 1.5)],
-	"ws_wide": [Vector3(44.0, 9.0, 26.0), Vector3(4.0, 1.0, -2.0)],
+	"ev_on": [Vector3(21.0, 1.7, 7.0), Vector3(6.0, 2.2, 0.5)],  # build_world.gd: the house from the yard
+	"ev_arka": [Vector3(-4.5, 1.7, 2.5), Vector3(6.0, 2.2, -1.0)],  # from the mountain's side, the back door
+	"ev_kuzey": [Vector3(8.0, 1.7, -14.0), Vector3(5.5, 2.2, 0.0)],
+	"ev_uzak": [Vector3(44.0, 9.0, 26.0), Vector3(4.0, 1.0, -2.0)],
+	"ev_spawn": [Vector3(7.3, 1.7, 0.9), Vector3(2.2, 1.1, 0.0)],  # what a player sees first: the crate, the TV, the mountain's window
+	"ev_tv": [Vector3(3.9, 1.5, 0.2), Vector3(2.2, 0.95, 0.0)],
+	"ev_tv_yakin": [Vector3(2.95, 1.05, 0.0), Vector3(2.2, 0.95, 0.0)],
+	"ev_tezgah": [Vector3(5.6, 1.7, -0.6), Vector3(8.6, 1.1, -2.2)],
+	"ev_kapi": [Vector3(4.0, 1.7, -1.2), Vector3(1.6, 1.5, -3.0)],  # the back door: the mountain through it
+	"ev_veranda": [Vector3(6.0, 1.7, 0.9), Vector3(12.5, 1.5, 0.9)],  # through the veranda to the wood
+	"ev_yatak": [Vector3(4.4, 1.7, 1.6), Vector3(2.6, 0.7, 3.2)],
+	"ev_ic": [Vector3(8.4, 2.3, 3.2), Vector3(2.4, 0.9, -1.8)],
 	"overview": [Vector3(80.0, 45.0, 0.0), Vector3(0.0, 0.0, 0.0)],
 	"desert": [Vector3(18.0, 1.7, 4.0), Vector3(80.0, 2.0, 40.0)],
 	"junk_front": [Vector3(-3.0, 1.7, 0.0), Vector3(-40.0, 5.0, 0.0)],
@@ -180,6 +189,14 @@ func _initialize() -> void:
 		if a.begins_with("--zombie="):
 			var at := a.trim_prefix("--zombie=").split_floats(",")
 			root.get_node("GameState").request_debug_spawn("walker", Vector3(at[0], 0.0, at[1]), PI / 2.0, 1)
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--news="):  # --news=DAY,LINE: the television on that day's bulletin, at that line
+			var nd := a.trim_prefix("--news=").split_floats(",")
+			var gs := root.get_node("GameState")
+			gs.news_day = int(nd[0])
+			gs.news_at = int(nd[1])
+			gs._news_wait = 1000.0
+			gs.news_line.emit(gs.news_day, gs.news_at)
 	var lamp: SpotLight3D = null
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--moon="):

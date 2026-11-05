@@ -181,6 +181,7 @@ var _board_hint: Control  # at the quest board while something waits there (E cl
 var _bench_hint: Control  # at the open bench (E sits down at it)
 var _melt_hint: Control  # at the hopper with rounds in the hand (E pours them in)
 var _hopper_hint: Control  # at the hopper, the hand empty (E shows how it melts)
+var _tv_hint: Control  # at the television, nothing on (E: today's bulletin)
 var _press_hint: Control  # at the press (E makes rounds)
 var _lever_hint: Control  # at the wave lever with a wave waiting (E pulls it, scripts/waves.gd)
 var _table_hint: Control  # looking at the desk at the spawn with the pistol on it (E takes it)
@@ -229,6 +230,9 @@ func _ready() -> void:
 	_hopper_hint = _crosshair_hint(UiStyle.hint("E", "Eritme hunisi"))
 	_press_hint = _crosshair_hint(UiStyle.hint("E", "Mermi üret"))
 	_lever_hint = _crosshair_hint(UiStyle.hint("E", "Dalgayı başlat"))
+	_tv_hint = _crosshair_hint(UiStyle.hint("E", "Bildiri"))
+	GameState.news_line.connect(_on_news_line)
+	GameState.news_changed.connect(_on_news_day)
 	add_child(_bench)
 	add_child(_board_menu)
 	add_child(_melter)
@@ -573,6 +577,8 @@ func _station() -> String:
 	var waves := get_tree().get_first_node_in_group("waves")
 	if waves and waves.can_pull(global_position):
 		spots["lever"] = GameState.LEVER_POS
+	if GameState.near_tv(global_position) and GameState.news_at < 0 and not GameState.news_entry(GameState.news_day).get("satirlar", []).is_empty():
+		spots["tv"] = GameState.TV_POS
 	var look := -_camera.global_basis.z
 	var ahead := Vector2(look.x, look.z).normalized()
 	var best := ""
@@ -621,6 +627,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_press.open()
 			"lever":
 				GameState.request_pull_lever()
+			"tv":
+				GameState.request_watch_news()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_scrap_hand.global_position, -_camera.global_basis.z)
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
@@ -628,6 +636,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode >= KEY_1 and event.physical_keycode < KEY_1 + GameState.GUNS.size() - 1:
 		# 1 draws the first gun; the key of the one in hand puts it away (bare fists).
 		GameState.request_select_gun(event.physical_keycode - KEY_1 + 1)
+
+
+## A line of the bulletin, on screen for whoever is in earshot of the set.
+func _on_news_line(day: int, line: int) -> void:
+	if line < 0 or Vector2(global_position.x - GameState.TV_POS.x, global_position.z - GameState.TV_POS.z).length() > GameState.TV_HEAR:
+		return
+	var text: String = GameState.news_entry(day).satirlar[line]
+	_hud.say(text, GameState.news_line_secs(text))
+
+
+func _on_news_day(day: int) -> void:
+	if day > 1:
+		_hud.say("Yeni bildiri", 3.0)
 
 
 ## The warmup's pistol is ours: the view turns to the heap and the bottom of the screen says
@@ -882,6 +903,7 @@ func _physics_process(delta: float) -> void:
 	_hopper_hint.visible = station == "melter" and GameState.carried == 0
 	_press_hint.visible = station == "press"
 	_lever_hint.visible = station == "lever"
+	_tv_hint.visible = station == "tv"
 	var p := GameState.player()
 	_table_hint.visible = _looking_at_table()
 	if p.has_pistol:  # taken here, or on record from before a rejoin

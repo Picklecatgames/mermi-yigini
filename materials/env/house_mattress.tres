@@ -1,0 +1,24 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://materials/psx_prop_2s.gdshader" id="1_vqkut"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/clay_plaster.res" id="2_x3daf"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_vqkut")
+shader_parameter/albedo_tex = ExtResource("2_x3daf")
+shader_parameter/tint = Color(0.42, 0.38, 0.32, 1)
+shader_parameter/snap = null
+shader_parameter/alpha_cut = null
+shader_parameter/snap_world = null
+shader_parameter/affine = null
+shader_parameter/emission = null
+shader_parameter/emission_energy = null
+shader_parameter/uv_scale = null
+shader_parameter/uv_offset = null
+shader_parameter/vertex_tint = null
+shader_parameter/triplanar = true
+shader_parameter/tri_metres = 0.9
+shader_parameter/far_colour = null
+shader_parameter/far_fade = null
+shader_parameter/shade_below = null

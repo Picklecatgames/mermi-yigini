@@ -10,7 +10,7 @@ extends SceneTree
 ## barrel_fire.gd tune their emission) stay StandardMaterial3D, made PS1 the same way: lit per
 ## vertex, unfiltered, small textures.
 ## tools/build_world.gd (_prop, _cukur) and scripts/pile.gd take the _psx.scn wherever there is one.
-##   Godot.exe --headless --path . -s res://tools/psx_props.gd -- [bench workshop hurda cukur ogutucu tex orman orman_ek]
+##   Godot.exe --headless --path . -s res://tools/psx_props.gd -- [house bench workshop hurda cukur ogutucu tex orman orman_ek]
 ## No group: all of them. tex: the workshop's sheet and steel textures (assets/psx/tex/, build_world).
 
 const SHADER := preload("res://materials/psx_prop.gdshader")
@@ -36,6 +36,11 @@ const WORKSHOP := [
 	["caged_hanging_light", 1400, 128], ["covered_car", 2500, 256], ["rusted_wheel_rim_01", 500, 128],
 	["rusted_wheel_rim_02", 500, 128],
 ]
+## The house (tools/build_house.py) and what stands only in it; its inside's textures (build_world.gd _house).
+const HOUSE := [["res://assets/props/house/house.glb", 5000, 256, 0.62], ["res://assets/env/models/Television_01/Television_01_1k.gltf", 1400, 256],
+	["res://assets/env/models/sofa_02/sofa_02_1k.gltf", 1500, 256], ["res://assets/env/models/old_gas_mask/old_gas_mask_1k.gltf", 500, 128],
+	["res://assets/env/models/clipboard/clipboard_1k.gltf", 200, 64]]
+const HOUSE_TEX := ["raw_plank_wall", "old_wood_floor", "rough_pine_door", "clay_plaster"]
 const HURDA := "res://assets/props/hurda/hurda.json"
 const HURDA_TEX := 64  # 2026-11-03, the user: hundreds of small pieces boiled at 270p
 ## Pieces go over to their average colour this far away (m; materials/psx_prop.gdshaderinc far_fade).
@@ -118,6 +123,7 @@ var _tint := Color.WHITE  # the wood's added kinds: this file's colour (tools/or
 var _floor := false  # ...and it lies on the floor: no dark foot
 var _sat := ORMAN_SATURATION  # ...and how much of its colour stays
 var _value := 1.0  # nature: the entry's darkening (NATURE's fourth number)
+var _dim := 1.0  # the house: its bright weathered boards and sheet were pale as snow in the low sun
 var _thickened := 0  # parts blown up in this scene (_thicken)
 var _avg := {}  # small texture: its average colour
 
@@ -140,6 +146,13 @@ func _init() -> void:
 		var flat := Image.create(4, 4, false, Image.FORMAT_RGB8)
 		flat.fill(Color(1.0, 1.0, 0.0))  # ambient 1, rough 1, metal 0
 		ok = ResourceSaver.save(ImageTexture.create_from_image(flat), TEX_OUT % "flat_arm") == OK and ok
+	if all or "house" in args:
+		for id: String in HOUSE_TEX:
+			ok = ResourceSaver.save(_small(load(TEX_SRC % [id, id]), 128), TEX_OUT % id) == OK and ok
+		for e: Array in HOUSE:
+			_dim = e[3] if e.size() > 3 else 1.0
+			ok = _convert(e[0], e[1], e[2]) and ok
+		_dim = 1.0
 	if all or "bench" in args:
 		for e: Array in BENCH:
 			ok = _convert(e[0], e[1], e[2]) and ok
@@ -546,7 +559,7 @@ func _keyed_once(tex: Texture2D) -> Texture2D:
 func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 	if tex == null:
 		return null
-	var key := [tex, px, webp, _grade, _nature, _ground, _value, _orman, _sat]
+	var key := [tex, px, webp, _grade, _nature, _ground, _value, _orman, _sat, _dim]
 	if _texs.has(key):
 		return _texs[key]
 	var img: Image = tex.get_image().duplicate()
@@ -565,6 +578,12 @@ func _small(tex: Texture2D, px: int, webp := true) -> Texture2D:
 			for x in img.get_width():
 				var c := img.get_pixel(x, y)
 				img.set_pixel(x, y, _graded(c, true) if _grade else (_old_wood(c) if _orman else (_desert(c, GROUND_SATURATION, GROUND_VALUE) if _ground else _desert(c, NATURE_SATURATION, _value))))
+	if _dim < 1.0:
+		img.convert(Image.FORMAT_RGBA8)
+		for y in img.get_height():
+			for x in img.get_width():
+				var c := img.get_pixel(x, y)
+				img.set_pixel(x, y, Color(c.r * _dim, c.g * _dim, c.b * _dim, c.a))
 	img.generate_mipmaps()
 	var last := img.duplicate() as Image
 	last.resize(1, 1, Image.INTERPOLATE_BILINEAR)

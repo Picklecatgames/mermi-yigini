@@ -533,7 +533,7 @@ func _debug_spawn(type: String, at: Vector3, yaw: float, count: int) -> void:
 		var in_row := mini(SUMMON_ROW, count - row * SUMMON_ROW)
 		var pos := at + ahead * (SUMMON_AHEAD + row * SUMMON_GAP * 1.5) + side * ((i % SUMMON_ROW) - (in_row - 1) / 2.0) * SUMMON_GAP
 		pos += Vector3(_rng.randf_range(-0.2, 0.2), 0.0, _rng.randf_range(-0.2, 0.2))
-		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 4.0, pos + Vector3.DOWN * 6.0, 1))
+		var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 2.2, pos + Vector3.DOWN * 6.0, 1))  # from under the house's ceiling, not onto its roof
 		pos.y = hit.position.y if hit else at.y
 		_summon(StringName(type), pos, yaw + PI, w)
 

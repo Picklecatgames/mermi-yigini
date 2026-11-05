@@ -1,0 +1,158 @@
+{
+  "_not": "Günlük TV bültenleri, gün 1'den, oyun günü başına biri. kanal: ekranın durumu (normal, gecici, korsan, sessiz, kesik). spiker: A resmî, B geçici yayıncı, C A'nın kaydı, boş: ses yok. bilgi: taşıdığı gerçek oyun bilgisi; ekrana çıkmaz, scripts/waves.gd TYPES 'from' ile eşlenmiş, bir gece bir dalga varsayımıyla. demo: demoda da var. durum: tamam ya da taslak.",
+  "bultenler": [
+    {
+      "gun": 1, "kanal": "normal", "spiker": "A", "demo": true, "durum": "tamam",
+      "baslik": "RESMÎ BİLDİRİ 1",
+      "satirlar": [
+        "İyi günler. Sağlık Bakanlığı'nın bildirisini okuyorum.",
+        "Bugün yeni bir virüsün ilk günüdür.",
+        "Belirtiler: ateş, burun kanaması, ışığa bakamama.",
+        "Hastalar karanlık çöktükten sonra ağaçlık alanlardan çıkmaktadır.",
+        "Hastayı yalnız başına isabet durdurur.",
+        "Ses yapmayın. Evinizde kalın.",
+        "Bir sonraki bildiri yarın sabah okunacaktır."
+      ],
+      "bilgi": "Gece ormandan gelirler; kafaya nişan al. 'Ses yapmayın' havadır, oyunda sesle çekme yok."
+    },
+    {
+      "gun": 2, "kanal": "normal", "spiker": "A", "demo": true, "durum": "tamam",
+      "baslik": "RESMÎ BİLDİRİ 2",
+      "satirlar": [
+        "İyi günler. Durum kontrol altındadır.",
+        "Bazı hastaların koştuğu bildirilmiştir.",
+        "Koşan hastalar yürüyenlerden önce ulaşır.",
+        "Bu gece kapıya sırtınızı dönmeyin.",
+        "Yiyeceklerinizi saymanız önerilir. Paniğe gerek yoktur."
+      ],
+      "bilgi": "2. dalgadan koşanlar (runner)."
+    },
+    {
+      "gun": 3, "kanal": "normal", "spiker": "A", "demo": true, "durum": "tamam",
+      "baslik": "RESMÎ BİLDİRİ 3",
+      "satirlar": [
+        "İyi günler. Dünkü bildiri düzeltilmiştir.",
+        "Koşan hasta yoktur. Koşanlar hasta değildir.",
+        "Yerde sürünen kişilere yardım etmeyin.",
+        "Sürünenler göz hizasında görünmez. Yere bakın.",
+        "Sokağa çıkma yasağı devam etmektedir."
+      ],
+      "bilgi": "3. dalgadan sürünenler (crawler); çelişki başlar."
+    },
+    {
+      "gun": 4, "kanal": "normal", "spiker": "A", "demo": true, "durum": "tamam",
+      "baslik": "RESMÎ BİLDİRİ 4",
+      "satirlar": [
+        "İyi günler. Güvenlik görevlileri görevleri başındadır.",
+        "Üniformalı kişilere yaklaşmayın.",
+        "Yelekleri mermiyi tutmaktadır. Yalnız başa nişan alınız.",
+        "Tahliye otobüsleri yola çıkmıştır.",
+        "Tahliye yapılmayacaktır. Evinizde kalın."
+      ],
+      "bilgi": "4. dalgadan zırhlılar (armored): baş dışında mermi az işler."
+    },
+    {
+      "gun": 5, "kanal": "gecici", "spiker": "B", "demo": true, "durum": "tamam",
+      "baslik": "GEÇİCİ YAYIN",
+      "satirlar": [
+        "Bakanlıktan yayın yapılamamaktadır. Bu metni bana verdiler.",
+        "Bağıran bir hasta görürseniz önce onu vurun.",
+        "Bağırınca çevresindekiler hızlanıyor.",
+        "Bu gece gökyüzünde birden fazla ay görülebilir. Bakmayın.",
+        "Yarın bu saatte biri bunu okuyacaktır."
+      ],
+      "bilgi": "5. dalgadan çığırtkan (screamer) yakındakileri hızlandırır; 5. gece patron ayı."
+    },
+    {
+      "gun": 6, "kanal": "gecici", "spiker": "B", "durum": "taslak",
+      "baslik": "GEÇİCİ YAYIN",
+      "satirlar": [
+        "Dünkü metnin kaynağı bulunamamıştır.",
+        "Köpeklerinizi bağlayın. Bağlı olmayan köpeklerden kaçılamaz.",
+        "Koşmayın. Duvara sırtınızı verin, gelince vurun."
+      ],
+      "bilgi": "6. dalgadan köpekler, en hızlılar."
+    },
+    {
+      "gun": 7, "kanal": "gecici", "spiker": "B", "durum": "taslak",
+      "baslik": "GEÇİCİ YAYIN",
+      "satirlar": [
+        "Şişmiş hastalar görülmektedir.",
+        "Vurulduklarında patlarlar. Uzaktan vurun.",
+        "Çamaşırlarınızı kaynatın. Bu bir talimat değildir."
+      ],
+      "bilgi": "7. dalgadan şişkinler (bloater), hep patlar."
+    },
+    {
+      "gun": 8, "kanal": "korsan", "spiker": "B", "durum": "taslak",
+      "baslik": "YAYIN",
+      "satirlar": [
+        "Burada kimse kalmadı. Metni kendim yazıyorum.",
+        "Tulumlu olanlar var, maskeli. Kafaya sıkma, geçmiyor.",
+        "Gövdesine sık. Bakanlık bunu söylemedi. Ben söylüyorum."
+      ],
+      "bilgi": "8. dalgadan maskeliler (masked): baş vuruşu az işler."
+    },
+    {
+      "gun": 9, "kanal": "normal", "spiker": "A", "durum": "taslak",
+      "baslik": "RESMÎ BİLDİRİ 9",
+      "satirlar": [
+        "İyi günler. Durum kontrol altındadır.",
+        "Son dört gün yayın kesintisi olmamıştır. Geçici yayın yapılmamıştır.",
+        "Yaralı hastalar iyileşmektedir. Bu sevindirici bir gelişmedir.",
+        "Yaraladığınız hastayı bırakmayın."
+      ],
+      "bilgi": "9. dalgadan iyileşenler (regen): bırakılınca can toplar."
+    },
+    {
+      "gun": 10, "kanal": "normal", "spiker": "A", "durum": "taslak",
+      "baslik": "RESMÎ BİLDİRİ 10",
+      "satirlar": [
+        "İyi günler. Durum kontrol altındadır.",
+        "Ses yapın. Evinizden çıkın. Kapılarınızı açık bırakın.",
+        "Çok iri bir hasta görülmüştür. Mermi saymayın.",
+        "Bu gece gökyüzüne yine bakmayın."
+      ],
+      "bilgi": "10. dalgadan iri (brute), 10. gece patron ayı. 1. günün öğüdünün tersi."
+    },
+    {
+      "gun": 11, "kanal": "sessiz", "spiker": "C", "durum": "taslak",
+      "baslik": "RESMÎ BİLDİRİ 1",
+      "satirlar": [
+        "İyi günler. Sağlık Bakanlığı'nın bildirisini okuyorum.",
+        "Bugün yeni bir virüsün ilk günüdür.",
+        "Az kalan hasta öfkelenir, daha hızlı gelir. Bitirin.",
+        "İyi günler. Sağlık Bakanlığı'nın bildirisini okuyorum."
+      ],
+      "bilgi": "11. dalgadan öfkeliler (rager): canı azalınca hızlanır. Kayıt başa sarar, araya başka biri girer."
+    },
+    {
+      "gun": 12, "kanal": "korsan", "spiker": "B", "durum": "taslak",
+      "baslik": "YAYIN",
+      "satirlar": [
+        "Hâlâ açıksanız dinleyin. Vericiyi ben açtım, kapatan olmadı.",
+        "Her gece daha kalabalık geliyorlar.",
+        "Benim kapım gitti. Sizin eviniz kaç kapılı?"
+      ],
+      "bilgi": "Evin iki kapısı var, ikisi de tutulmalı."
+    },
+    {
+      "gun": 13, "kanal": "sessiz", "spiker": "", "durum": "taslak",
+      "baslik": "EVİNİZDE KALIN",
+      "satirlar": [
+        "Küçükler sürüyle geliyor. Tek tek nişan almayın.",
+        "EVİNİZDE KALIN"
+      ],
+      "bilgi": "13. dalgadan sürü (swarm). Yalnız ekran yazısı, spiker yok."
+    },
+    {
+      "gun": 14, "kanal": "kesik", "spiker": "", "durum": "taslak",
+      "baslik": "",
+      "satirlar": [
+        "BAŞI YOK"
+      ],
+      "bilgi": "14. dalgadan blob, başı yok. Yayın kesilir, kumlanmanın içinde tek satır."
+    }
+  ],
+  "kesik": { "kanal": "kesik", "spiker": "", "baslik": "", "satirlar": [], "bilgi": "14. günden sonra yayın yok." }
+}
