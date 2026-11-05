@@ -113,7 +113,15 @@ const ORMAN_SHADE := Vector2(9.0, 0.42)
 ## bushes near the eye went cream.
 ## My guesses, not rules.
 const ORMAN_SHADE_NEAR := Vector3(4.0, 18.0, 0.75)
-const ORMAN_NEAR_FILL := 1.1
+const ORMAN_NEAR_FILL := 3.5
+## Bark materials the pack left flat grey, and the bark they take (triplanar): flat, they were a smooth
+## brown cut-out up close.
+const ORMAN_BARK_TEX := {"Cypress_bark.1": "res://assets/env/orman/cypress_0.png", "Cypress_bark.2": "res://assets/env/orman/cypress_0.png"}
+## A real bark worked into every trunk up close (psx_prop.gdshaderinc bark_tex), in shade_near's reach:
+## the scanned cherry's bark was a smooth smear. How much, and how big (m per repeat).
+const ORMAN_BARK_DETAIL := "res://assets/env/orman/cypress_0.png"  # deep cracks: the pack's bark differs in hue, hardly in light
+const ORMAN_BARK_DETAIL_SHARE := 0.8
+const ORMAN_BARK_METRES := 1.2
 const ORMAN_BARK := Color(0.50, 0.52, 0.46)  # dark bark, leaves kept lit: too dark a leaf goes flat in 15-bit colour
 const ORMAN_ROCK := Color(0.5, 0.52, 0.42)  # the pack's pale stones stood out of the floor white
 const NATURE_DUST := Color(0.5, 0.42, 0.31)
@@ -501,7 +509,9 @@ func _material(m: Material, px: int) -> Material:
 	var b := m as BaseMaterial3D
 	var out: Material
 	var blend := b.transparency in [BaseMaterial3D.TRANSPARENCY_ALPHA, BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS]
-	if b.emission_enabled or (blend and not _nature):
+	# The wood never glows: the cypress's bark had its leaf atlas as emission (the pack's slip), and
+	# lit by nothing it burned green and flat up close (2026-11-05, the user: "the trees break").
+	if (b.emission_enabled and not _orman) or (blend and not _nature):
 		var c := b.duplicate() as BaseMaterial3D
 		c.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
 		c.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
@@ -521,6 +531,11 @@ func _material(m: Material, px: int) -> Material:
 	else:
 		var sm := ShaderMaterial.new()
 		sm.shader = SHADER_SOFT if _orman else (SHADER_2S if b.cull_mode == BaseMaterial3D.CULL_DISABLED else SHADER)
+		if _orman and b.albedo_texture == null and ORMAN_BARK_TEX.has(b.resource_name):
+			# Untextured bark parts take their tree's bark, by world place (no UVs worth having)
+			sm.set_shader_parameter("albedo_tex", _small(load(ORMAN_BARK_TEX[b.resource_name]), px))
+			sm.set_shader_parameter("triplanar", true)
+			sm.set_shader_parameter("tri_metres", 1.5)
 		if b.albedo_texture:
 			var tex := b.albedo_texture
 			if _nature and b.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
@@ -544,6 +559,10 @@ func _material(m: Material, px: int) -> Material:
 				if b.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED:
 					sm.set_shader_parameter("shade_near", ORMAN_SHADE_NEAR)
 					sm.set_shader_parameter("near_fill", ORMAN_NEAR_FILL)
+					var bark := _small(load(ORMAN_BARK_DETAIL), 256)
+					sm.set_shader_parameter("bark_tex", bark)
+					sm.set_shader_parameter("bark_detail", ORMAN_BARK_DETAIL_SHARE)
+					sm.set_shader_parameter("bark_metres", ORMAN_BARK_METRES)
 		if b.uv1_scale != Vector3.ONE or b.uv1_offset != Vector3.ZERO:
 			sm.set_shader_parameter("uv_scale", Vector2(b.uv1_scale.x, b.uv1_scale.y))
 			sm.set_shader_parameter("uv_offset", Vector2(b.uv1_offset.x, b.uv1_offset.y))

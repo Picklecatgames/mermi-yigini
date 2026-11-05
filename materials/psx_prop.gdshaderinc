@@ -35,6 +35,13 @@ uniform vec2 shade_below = vec2(0.0, 1.0);  // x m above the world's floor down 
 uniform vec3 shade_near = vec3(0.0);  // by day, closer than x m (fading out by y) the canopy's shade lets at least z of the light through (z 0: off)
 uniform float near_fill = 0.0;  // ...and in that reach the bark's own colour times this on top, the sky's bounce: a trunk with the sun behind it was black
 #ifdef PSX_SOFT
+// ...and in that reach a real bark's light and dark worked into the trunk's own colour, by world place
+// every bark_metres: the scanned cherry's bark was a smooth brown smear at 512 px (bark_detail 0: off)
+uniform sampler2D bark_tex : source_color, filter_linear_mipmap, repeat_enable, hint_default_white;
+uniform float bark_detail = 0.0;
+uniform float bark_metres = 1.2;
+#endif
+#ifdef PSX_SOFT
 global uniform float psx_haze_day;  // 1 by day, 0 by night (scripts/scrap_hills.gd)
 uniform float night_fill = 5.0;  // by night the sky's light on the first trees, times: the dark sky lights so little that 15-bit colour shows them as black
 #endif
@@ -113,13 +120,25 @@ void fragment() {
 		shade_lit = mix(max(shade, shade_near.z), shade, smoothstep(shade_near.x, shade_near.y, length(VERTEX)));
 	}
 #ifdef PSX_SOFT
-	// Moss up the trunks of the wood, in patches by place (2026-11-05, the user: old and damp).
+	float nearby = shade_near.z > 0.0 ? 1.0 - smoothstep(shade_near.x, shade_near.y, length(VERTEX)) : 0.0;
+	if (bark_detail > 0.0 && nearby > 0.0) {
+		vec2 w = abs(world_nrm.xz) + 0.001;
+		w /= w.x + w.y;
+		vec3 p = world_pos / bark_metres;
+		vec3 b = texture(bark_tex, vec2(p.z, -p.y)).rgb * w.x + texture(bark_tex, vec2(p.x, -p.y)).rgb * w.y;
+		float mid = max(dot(textureLod(bark_tex, vec2(0.5), 12.0).rgb, vec3(0.333)), 0.005);  // its smallest mip: its average, in the same (linear) light
+		float ratio = clamp(pow(dot(b, vec3(0.333)) / mid, 0.8), 0.3, 1.8);
+		ALBEDO *= mix(1.0, ratio, bark_detail * nearby * (1.0 - abs(world_nrm.y)));
+	}
+	// Moss up the trunks of the wood, in patches by place (2026-11-05, the user: old and damp). Damp
+	// moss is darker than the bark, not lighter: lifted it read as a yellow-green glow at the foot.
+	float moss = 0.0;
 	if (shade_below.x > 0.0) {
 		float blot = sin(world_pos.x * 2.3 + 1.7 * sin(world_pos.z * 3.1 + world_pos.y * 1.4)) * sin(world_pos.y * 2.7 + 2.0 * sin(world_pos.x * 2.1) + world_pos.z * 2.6);
 		float low = 1.0 - smoothstep(0.1, 2.0, world_pos.y);
-		float moss = smoothstep(-0.5, 0.6, blot + low * 0.6) * low;
+		moss = smoothstep(-0.5, 0.6, blot + low * 0.6) * low;
 		float bark = dot(ALBEDO, vec3(0.333));
-		ALBEDO = mix(ALBEDO, (bark + 0.03) * vec3(1.05, 1.4, 0.62) * 1.25, moss * 0.6);
+		ALBEDO = mix(ALBEDO, (bark * 0.9 + 0.015) * vec3(0.92, 1.12, 0.6), moss * 0.6);
 	}
 	// The wood's dark (each copy's tone, the canopy's shade) is where the sky's light doesn't reach, not
 	// a black bark: by night the lamp and the fire still show a tree's colours deep in the wood.
@@ -143,8 +162,12 @@ void fragment() {
 	ROUGHNESS = 1.0;
 	EMISSION = texture(emission_tex, uv).rgb * emission.rgb * emission_energy;
 #ifdef PSX_SOFT
+	// The sky's bounce on the trunk you stand by: strongest where the bark faces you, falling off to its
+	// sides, so it stays round and its bark reads; the moss takes none, it only glowed (2026-11-05, the
+	// user: "the trees break").
 	if (near_fill > 0.0) {
-		EMISSION += ALBEDO * near_fill * psx_haze_day * (1.0 - smoothstep(shade_near.x, shade_near.y, length(VERTEX)));
+		float facing = mix(0.35, 1.0, clamp(NORMAL.z, 0.0, 1.0));
+		EMISSION += ALBEDO * near_fill * facing * (1.0 - moss * 0.4) * psx_haze_day * nearby;
 	}
 #endif
 #ifdef PSX_HAZE
