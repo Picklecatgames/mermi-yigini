@@ -41,6 +41,7 @@ const RIM_SOLID := Vector3(13.0, 7.0, 3.0)  # m: along, up, through
 ## All of these are read off the model's own walls at HOUSE_SCALE: inside faces.
 const HOUSE_AT := Vector3(7.01, 0, 3.8)  # the model's origin
 const HOUSE_SCALE := 1.65  # tools/build_house.py SCALE
+const HOUSE := Rect2(1.6, -5.47, 10.67, 10.92)  # all of it, outside: the ground's damp and tufts go round this
 const MAIN := Rect2(1.664, -5.42, 6.946, 10.82)  # the big room, x, z
 const WING := Rect2(8.73, -4.63, 3.4, 5.196)  # the side room
 const CEIL_Y := 2.9
@@ -76,6 +77,7 @@ func _initialize() -> void:
 	_house()
 	_workshop_inside()
 	_world_spawns()
+	_floor_map()
 	_lighten(arena, Transform3D())
 	var scene := PackedScene.new()
 	print("pack: ", scene.pack(arena), " save: ", ResourceSaver.save(scene, "res://scenes/world.tscn"))
@@ -89,9 +91,9 @@ func _initialize() -> void:
 ## these over; its night: tools/psx_shots.gd `_night`.
 func _sky() -> void:
 	# Poly Haven's Kloofendal Overcast pure sky (CC0), 1k and unfiltered: its big pixels are the PS1's.
-	var sky_mat := PanoramaSkyMaterial.new()
-	sky_mat.panorama = load("res://assets/env/hdri/kloofendal_overcast_puresky_1k.hdr")
-	sky_mat.filter = false
+	var sky_mat := ShaderMaterial.new()
+	sky_mat.shader = load("res://materials/env/old_sky.gdshader")
+	sky_mat.set_shader_parameter("panorama", load("res://assets/env/hdri/kloofendal_overcast_puresky_1k.hdr"))
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	sky.radiance_size = Sky.RADIANCE_SIZE_256
@@ -117,7 +119,7 @@ func _sky() -> void:
 	env.glow_hdr_threshold = 1.6
 	env.fog_enabled = true  # dust hanging over the desert: the far ground goes into it
 	env.fog_mode = Environment.FOG_MODE_DEPTH
-	env.fog_light_color = Color(0.1, 0.12, 0.095)  # the old wood's haze: a damp grey-green, the trees going into it
+	env.fog_light_color = Color(0.095, 0.115, 0.105)  # the old wood's haze: a damp grey-green, the trees going into it
 	env.fog_density = 1.0  # depth fog: all the way to the colour at fog_depth_end
 	env.fog_depth_begin = 22.0
 	env.fog_depth_end = 85.0
@@ -134,7 +136,7 @@ func _sky() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.name = "Sun"
 	sun.rotation_degrees = SUN_ANGLE
-	sun.light_color = Color(0.96, 0.89, 0.78)
+	sun.light_color = Color(0.9, 0.9, 0.82)
 	sun.light_energy = 1.25  # through the overcast; a little over the ambient, so the shadows read
 	sun.shadow_enabled = true
 	# Short and coarse, PS1 taste (2026-11-03, the user: the lighting PS1-fit): past 50 m the fog
@@ -254,8 +256,8 @@ func _desert() -> void:
 	mat.set_shader_parameter("noise_tex", tex)
 	mat.set_shader_parameter("wood_oval", Vector4(CLEARING_CENTRE.x, CLEARING_CENTRE.y, CLEARING_RADII.x, CLEARING_RADII.y))
 	mat.set_shader_parameter("pad", Vector4(PAD.position.x, PAD.position.y, PAD.end.x, PAD.end.y))
-	mat.set_shader_parameter("sand_tint", Color(0.56, 0.58, 0.32))
-	mat.set_shader_parameter("earth_tint", Color(0.9, 0.9, 0.62))
+	mat.set_shader_parameter("sand_tint", Color(0.46, 0.46, 0.3))
+	mat.set_shader_parameter("earth_tint", Color(0.68, 0.6, 0.46))
 	ResourceSaver.save(mat, "res://materials/env/desert.tres")
 	var body := StaticBody3D.new()
 	body.name = "Desert"
@@ -691,6 +693,7 @@ func _forest() -> void:
 			tones.append(tone)
 			chunks[key][m][2] = tones
 	var count := 0
+	var tufted := []  # [where, foot radius], the trees anyone gets near
 	for dart in FOREST_DARTS:
 		var p := Vector2(rng.randf_range(WORLD.position.x, WORLD.end.x), rng.randf_range(WORLD.position.y, WORLD.end.y))
 		# 2026-11-04, the user: the trees stopped at a line before the junk. Now right up to the heaps'
@@ -731,6 +734,10 @@ func _forest() -> void:
 		var xf := Transform3D(lean * Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * girth, sc, sc * girth)), at)
 		plant.call(kind[0], xf, false)
 		count += 1
+		var foot := clampf(float(kind[3]) * sc, 0.25, 1.4)
+		_marks.append([p, foot + 1.0, foot + 1.5])
+		if away < TUFTS_FROM_TREES:
+			tufted.append([p, foot])
 		if _past_rim(p.x, p.y, _desert_noise) == 0.0:  # behind the belt nobody walks up to it
 			_posts(kind, xf, trunks, sc * girth)
 			var post_at := PackedVector3Array()
@@ -749,6 +756,7 @@ func _forest() -> void:
 		plant.call(thing[0], thing[1], true)
 	_wood_floor(plant, rng)
 	_rim_belt(root, plant, rng)
+	_tufts(plant, tufted, rng)  # last: the same dice before it, the same wood
 	# No distance limits at all (2026-11-04, the user: "they load in as you get closer, very
 	# annoying"): a range counts from a chunk's middle, so 40 m of ferns and trees came on at once.
 	# The fog hides the far ones, and they're a few hundred triangles each.
@@ -785,6 +793,131 @@ func _forest() -> void:
 		m.position = Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y)
 		add(m, root)
 		m.add_to_group("forest_edge", true)
+
+
+## Moss and a little green at the foot of what stands (2026-11-05, the user: "yosunlaşmalar yeşillikler
+## hafiften koy, herşey sanki oraya dikilmiş gibi duruyor"): round the near trees' feet, in ragged
+## patches over the clearing's outer part, along the pad's kerb and the house's walls. Walked through.
+## Every number my guess, no rule.
+const TUFTS_FROM_TREES := 55.0  # m out from the clearing's edge
+const TUFTS_CLEARING := 900  # darts over the clearing
+const TUFTS_SIZE := 1.3  # times the plant's own range
+const TUFTS_TALL := 0.55  # m: the tallest
+
+
+func _tufts(plant: Callable, tufted: Array, rng: RandomNumberGenerator) -> void:
+	var things: Dictionary = _wood().floor
+	var low := {"moss": [], "green": []}
+	for group: String in low:
+		for thing: Array in things[group]:
+			if _parts_box(thing[0]).size.y * float(thing[1].x) < TUFTS_TALL:
+				low[group].append(thing)
+	var put := func(group: String, at: Vector2) -> void:
+		var list: Array = low[group]
+		var thing: Array = list[rng.randi() % list.size()]
+		var xf := _floor_xf(thing, group, at, rng)
+		var tall: float = (_parts_box(thing[0]).size.y * xf.basis.get_scale().y)
+		xf.basis = xf.basis.scaled(Vector3.ONE * minf(TUFTS_SIZE, TUFTS_TALL / maxf(tall, 0.01)))  # never a bush in the face
+		plant.call(thing[0], xf, true, FLOOR_CHUNK)
+	var n := 0
+	for t: Array in tufted:
+		for i in rng.randi_range(1, 3):
+			var at: Vector2 = t[0] + Vector2.from_angle(rng.randf() * TAU) * (float(t[1]) * rng.randf_range(0.7, 1.4))
+			if _heap_h(at) <= 0.05:
+				put.call("moss", at)
+				n += 1
+		if rng.randf() < 0.3:
+			var at: Vector2 = t[0] + Vector2.from_angle(rng.randf() * TAU) * (float(t[1]) + rng.randf_range(0.1, 0.9))
+			if _heap_h(at) <= 0.05:
+				put.call("green", at)
+				n += 1
+	for dart in TUFTS_CLEARING:
+		var p := CLEARING_CENTRE + Vector2.from_angle(rng.randf() * TAU) * CLEARING_RADII * sqrt(rng.randf())
+		if PAD.grow(0.6).has_point(p) or HEAP_NEAR.grow(3.0).has_point(p) or _heap_h(p) > 0.05:
+			continue
+		if _desert_noise.get_noise_2d(p.x * 3.0 + 70.0, p.y * 3.0) < 0.05 + 0.25 * smoothstep(0.0, -22.0, _out_of_clearing(p)):
+			continue  # bare between the patches, barer towards the middle
+		for i in rng.randi_range(1, 3):
+			put.call("moss" if rng.randf() < 0.7 else "green", p + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.1, 0.8))
+			n += 1
+	# The pad's edge and the walls: what grows where nobody treads.
+	for ring: Array in [[PAD.grow(0.25), 1.5, 0.65, true], [HOUSE.grow(0.2), 1.1, 0.5, false]]:
+		var along := 0.0
+		var r: Rect2 = ring[0]
+		var whole := 2.0 * (r.size.x + r.size.y)
+		while along < whole:
+			along += float(ring[1]) * rng.randf_range(0.5, 1.5)
+			var at := _round_rect(r, along)
+			if rng.randf() < float(ring[2]) and _heap_h(at) <= 0.05 and not HEAP_NEAR.grow(3.0).has_point(at):
+				put.call("green" if ring[3] and rng.randf() < 0.35 else "moss", at)
+				n += 1
+	print("tufts: ", n)
+
+
+## The point `along` metres round the rectangle's edge.
+func _round_rect(r: Rect2, along: float) -> Vector2:
+	var d := fmod(along, 2.0 * (r.size.x + r.size.y))
+	if d < r.size.x:
+		return Vector2(r.position.x + d, r.position.y)
+	d -= r.size.x
+	if d < r.size.y:
+		return Vector2(r.end.x, r.position.y + d)
+	d -= r.size.y
+	if d < r.size.x:
+		return Vector2(r.end.x - d, r.end.y)
+	return Vector2(r.position.x, r.end.y - (d - r.size.x))
+
+
+## The floor's map (materials/env/floor_map.gdshaderinc): round everything standing on it a damp dark
+## and moss, 2 px a metre; saved next to the textures and handed to the floor's materials. Last, once
+## everything stands. _marks: [where, dark radius, moss radius], from the wood; the rest from the
+## meshes standing on the pad.
+var _marks := []
+const FLOOR_PX := 2.0
+const FLOOR_MAP := "res://assets/psx/tex/floor_map.res"
+const FLOOR_MATS := ["res://materials/env/desert.tres", "res://materials/env/yard_concrete.tres"]
+const FLOOR_MOSS := [1.0, 0.85]  # the concrete grows less
+
+
+func _floor_map() -> void:
+	_marks_of_props(arena, Transform3D())
+	for s in int(2.0 * (HOUSE.size.x + HOUSE.size.y) / 0.8):  # the house's walls: its shell's box is too big for a mark
+		_marks.append([_round_rect(HOUSE, s * 0.8), 1.1, 1.3])
+	var w := int(WORLD.size.x * FLOOR_PX)
+	var h := int(WORLD.size.y * FLOOR_PX)
+	var data := PackedByteArray()
+	data.resize(w * h * 2)
+	data.fill(0)
+	for mark: Array in _marks:
+		var c: Vector2 = (mark[0] - WORLD.position) * FLOOR_PX
+		var far: float = maxf(mark[1], mark[2]) * FLOOR_PX
+		for y in range(maxi(0, floori(c.y - far)), mini(h, ceili(c.y + far) + 1)):
+			for x in range(maxi(0, floori(c.x - far)), mini(w, ceili(c.x + far) + 1)):
+				var dist := Vector2(x + 0.5, y + 0.5).distance_to(c) / FLOOR_PX
+				var i := (y * w + x) * 2
+				data[i] = maxi(data[i], int(255.0 * pow(clampf(1.0 - dist / float(mark[1]), 0.0, 1.0), 1.4)))
+				data[i + 1] = maxi(data[i + 1], int(255.0 * clampf(1.0 - dist / float(mark[2]), 0.0, 1.0)))
+	var tex := ImageTexture.create_from_image(Image.create_from_data(w, h, false, Image.FORMAT_RG8, data))
+	print("floor map: ", _marks.size(), " marks, save ", ResourceSaver.save(tex, FLOOR_MAP))
+	for i in FLOOR_MATS.size():
+		var mat: ShaderMaterial = load(FLOOR_MATS[i])
+		mat.set_shader_parameter("floor_map", load(FLOOR_MAP))
+		mat.set_shader_parameter("floor_rect", Vector4(WORLD.position.x, WORLD.position.y, WORLD.size.x, WORLD.size.y))
+		mat.set_shader_parameter("floor_moss", FLOOR_MOSS[i])
+		ResourceSaver.save(mat, FLOOR_MATS[i])
+
+
+## What stands on the pad, by its mesh's box: small enough to be a thing (the house's own shell isn't).
+func _marks_of_props(n: Node, up: Transform3D) -> void:
+	var xf: Transform3D = up * (n as Node3D).transform if n is Node3D else up
+	if n is MeshInstance3D and (n as MeshInstance3D).mesh:
+		var box: AABB = xf * (n as MeshInstance3D).get_aabb()
+		var p := Vector2(box.get_center().x, box.get_center().z)
+		var wide := maxf(box.size.x, box.size.z)
+		if PAD.has_point(p) and box.position.y < 0.3 and box.size.y > 0.2 and wide < 3.5:
+			_marks.append([p, wide * 0.5 + 0.7, wide * 0.5 + 0.9])
+	for c in n.get_children():
+		_marks_of_props(c, xf)
 
 
 ## What a wood's floor has on it (2026-11-04, the user: "too sterile; rocks, rubbish, bones, things
@@ -870,6 +1003,9 @@ func _wood_floor(plant: Callable, rng: RandomNumberGenerator) -> void:
 				var thing_xf := _floor_xf(thing, group, at, rng)
 				plant.call(thing[0], thing_xf, true, FLOOR_CHUNK)
 				_floor_solid(thing, thing_xf, group)
+				if group in ["boulder", "rock", "log", "stump", "root"]:
+					var seat: float = _parts_box(thing[0]).size.x * thing_xf.basis.get_scale().x * 0.5
+					_marks.append([at, seat + 0.7, seat + 1.1])
 				items += 1
 	print("wood floor: ", made, " scenes, ", items, " things")
 

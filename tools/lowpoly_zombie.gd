@@ -45,6 +45,7 @@ const GLB := {"blob": "res://assets/characters/zombies/blob/blob.glb",
 ## they keep their looks, faded and dirty: the orange a rusted orange, the turquoise a washed grey-green.
 const DIRT := Color(0.3, 0.25, 0.2)
 const PSX_GRADE_OF := {"demon": [0.3, 0.62, 0.45, Color(0.36, 0.2, 0.16), 0.3],
+		"oldman": [1.2, 0.92, 0.04, Color(0.36, 0.3, 0.22), 0.18],  # 2026-11-05: damp, old skin, off the ground's tan
 		}
 ## psx: what a model loses (2026-11-03, the user: the cop's cap looks broken). "meshes" go whole;
 ## "uv" drops the triangles from the neck up whose corners all sit in one of these UV rects.

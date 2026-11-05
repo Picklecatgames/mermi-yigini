@@ -113,7 +113,7 @@ func _ps1_shader(m: ShaderMaterial) -> void:
 	var was := {}
 	for u: Dictionary in m.shader.get_shader_uniform_list():
 		var t = m.get_shader_parameter(u.name)
-		if t is Texture2D and not (t is NoiseTexture2D):
+		if t is Texture2D and not (t is NoiseTexture2D) and u.name != "floor_map":  # floor_map: data
 			was[u.name] = t
 			m.set_shader_parameter(u.name, _shrunk(t))
 	_mats[m] = was

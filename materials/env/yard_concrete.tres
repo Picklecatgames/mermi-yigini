@@ -3,6 +3,7 @@
 [ext_resource type="Shader" path="res://materials/env/worn_surface.gdshader" id="1_m426g"]
 [ext_resource type="Texture2D" path="res://assets/psx/tex/dirty_concrete.res" id="2_17jmm"]
 [ext_resource type="Texture2D" path="res://assets/psx/tex/flat_arm.res" id="3_m426g"]
+[ext_resource type="Texture2D" path="res://assets/psx/tex/floor_map.res" id="4_m426g"]
 
 [sub_resource type="FastNoiseLite" id="FastNoiseLite_xasoj"]
 seed = 26119
@@ -36,3 +37,6 @@ shader_parameter/rust = null
 shader_parameter/wear_x = null
 shader_parameter/wear_width = null
 shader_parameter/cutout = null
+shader_parameter/floor_map = ExtResource("4_m426g")
+shader_parameter/floor_rect = Vector4(-236, -220, 500, 440)
+shader_parameter/floor_moss = 0.85
