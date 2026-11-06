@@ -1,5 +1,5 @@
 extends StaticBody3D
-## The melting hopper in the workshop (tools/range_dressing.gd _workshop, hopper.glb), showing what
+## The melting hopper in the workshop (tools/build_world.gd _workshop_inside, hopper.glb), showing what
 ## the team's hopper is doing (GameState melt_bin, melt_level): the rounds poured in lie on its
 ## grate (as many of the glb's own as the bin's share of FULL), the burner's flame and the
 ## crucible's melt burn high while it melts and sink back once it is empty, higher a level up, and

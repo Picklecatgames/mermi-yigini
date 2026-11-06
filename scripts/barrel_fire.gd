@@ -1,5 +1,5 @@
 extends Node3D
-## The fire in the workshop's barrel stove (range_dressing.gd _workshop): charred logs on a bed of
+## The fire in the workshop's barrel stove (tools/build_world.gd _workshop_inside): charred logs on a bed of
 ## embers, flames licking up out of the rim, sparks drifting off, a little smoke, its light
 ## breathing, and a crackle heard only close by. Put at the barrel's foot. Built at load, local
 ## decoration only, no sync. The flames are an old console's (2026-11-03, the user: Kenney's soft
@@ -7,7 +7,7 @@ extends Node3D
 ## assets/vfx/fire_n64) stepped on a few quads that face the camera (materials/psx_flipbook.gdshader),
 ## and the sparks plain square specks. No smoke.
 
-@export var rim := 0.85  # the drum's top (barrel_stove's; range_dressing sets it for the burn barrel)
+@export var rim := 0.85  # the drum's top (barrel_stove's; tools/build_world.gd sets it for the burn barrel)
 @export var inner := 0.27  # its inside radius
 @export var bed := 0.61  # the coals' height: on the drum's grate
 @export var logs := true  # false when the drum's model brings its own burning wood

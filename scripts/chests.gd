@@ -1,6 +1,7 @@
 extends Node3D
-## The crates on the chest stands (tools/build_arena.gd puts a Socket on each, group
-## "chest_socket", meta "level"; its +Z faces the heap's side of the hall, so the row looks one way).
+## The crates on the chest stands (a Socket on each, group "chest_socket", meta "level"; its +Z
+## faces the row's front). The old hall's builder put the stands up; the open ground
+## (tools/build_world.gd) has none yet, so nothing shows (docs/ayrintilar.md "Eski tasarımdan kodda kalanlar").
 ## Models: assets/props/chests/chest_NN.gltf, textures in chest_NN/ (tools/build_chests.py), 1 m wide, bottom on the origin,
 ## front on +Z. Each is drawn wider the higher its level: the reward grows down the row. A level
 ## without a model yet stays an empty stand. Opening them comes with the keys (yol haritası 13).

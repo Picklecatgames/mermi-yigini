@@ -328,7 +328,8 @@ const QUEST_FIXED_KINDS := ["combo", "key_found", "bullets_melted", "bench_bough
 var quest_scale := 0.5  # tools/quest_sim.gd --sweep: four mid players finish the main chain in ~36 min
 ## A pool slot draws at random among this many of the easiest quests left in it.
 const QUEST_DRAW := 2
-## The quest board (investigation board, tools/range_dressing.gd), feet; rewards are claimed there.
+## The quest board (investigation board), feet; rewards are claimed there. Still where it stood in the
+## old hall: the open ground (tools/build_world.gd) has no board yet.
 const BOARD_POS := Vector3(8.85, 0.0, 26.72)
 const BOARD_REACH := 3.0  # m
 ## The melting hopper and the press (docs/ayrintilar.md "Pres", docs/uretim_agaci.md), one each
@@ -358,8 +359,8 @@ const BAY_HP := 12
 ## The railing's build, read from here alone (2026-11-01, the user: "çiti ileride hem görsel hem
 ## yapısal bir değişikliğe ve level sistemine göre çeşitlendireceğiz"; how is not settled yet): its
 ## kind, its height (the posts' tops), its rails' heights (m, the middle of each), their square
-## section, how many bays (between bays + 1 posts) and the end posts' ± z. tools/build_arena.gd
-## builds it from this, scripts/fence.gd reads the rails off the built one, and the ones that go over
+## section, how many bays (between bays + 1 posts) and the end posts' ± z. The old hall's builder
+## built it from this (the open ground has no railing), scripts/fence.gd reads the rails off the built one, and the ones that go over
 ## or under it (waves.gd cross_of) measure it by fence_top() and fence_gap().
 const FENCE := {"kind": &"rail", "height": 1.1, "rails": [1.075, 0.55], "bar": 0.05, "bays": 20, "span": 27.5}
 const FENCE_BAYS: int = FENCE.bays
@@ -368,7 +369,7 @@ const FENCE_SPAN: float = FENCE.span  # ± along z, its end posts
 const BAY_PATCH := 4
 const FENCE_REPAIR_COST := 3  # gold a point
 const FENCE_SEND := 0.25  # s between the host's updates of the clawing to clients
-const REPAIR_POS := Vector3(12.2, 0.0, 26.85)  # in front of the workshop bench (tools/range_dressing.gd _workshop)
+const REPAIR_POS := Vector3(9.85, 0.0, -3.37)  # the workshop bench's front edge (tools/build_world.gd BENCH_AT, yaw 0, front +z; 12.2, 26.85 was the old hall's bench)
 const REPAIR_REACH := 2.5  # m, feet: bench_menu.gd opens within REACH of its front edge
 ## Going down (docs/ayrintilar.md "Baygınlık", 2026-10-31, the user's call: the zombies in through a
 ## broken bay go for the players, a player at 0 life falls, the screen reddens, darkens and then
@@ -423,7 +424,7 @@ const REQUESTS := {
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
 ## Render layer of what hangs over the range (roof, lamps, the bay's lid and baffles, ducts); some
-## lights reach only it (tools/build_arena.gd overhead()).
+## lights reach only it (the old hall's builder; only tools/walk_shot.gd still uses it).
 const OVERHEAD_LAYER := 3
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.

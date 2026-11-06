@@ -1,4 +1,4 @@
-extends "res://tools/build_arena.gd"
+extends "res://tools/world_kit.gd"
 ## Builds scenes/world.tscn, the open ground (2026-11-02, the user: the old hall and everything in it
 ## goes; a wide rectangle out in the open, Mad Max wasteland, a light desert with a few dead trees):
 ## a concrete pad, on it the house (2026-11-05, the user: "our home's bad; a house of a few rooms or
@@ -8,7 +8,7 @@ extends "res://tools/build_arena.gd"
 ## round it all sand and cracked earth rising into dunes at the edges.
 ## The scene is never edited by hand: change the numbers here and re-run
 ##   godot --headless --path . -s res://tools/build_world.gd
-## The helpers (add, worn, pbr_box, _prop, block, collide, pendant, _pit...) are build_arena.gd's.
+## The helpers (add, worn, pbr_box, _prop, block, collide, _lighten) are tools/world_kit.gd's.
 
 const WORLD := Rect2(-236.0, -220.0, 500.0, 440.0)  # x, z: the ground, the junkyard's grid included, so the ring of dunes closes behind the mountain too
 const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; edges on the desert grid (CELL)
@@ -52,7 +52,7 @@ const WING_DOOR := [-3.84, -2.63, 0.0, 2.38]  # z, between the rooms
 const WIN_WEST := [[-3.13, -1.6, 0.69, 2.23], [1.24, 2.78, 0.69, 2.23]]  # z; the mountain's side
 const WIN_WING := [9.37, 10.9, 0.69, 2.23]  # x, the side room's south wall, over the porch
 const BENCH_AT := Vector3(9.85, 0, -4.03)  # the crew's bench, its back on the side room's north wall; GameState.PRESS_POS follows it
-const BENCH_SCALE := 1.2  # as it stood in the hall (range_dressing.gd _workshop)
+const BENCH_SCALE := 1.2  # as it stood in the old hall (its builder is gone)
 const HOPPER_AT := Vector3(11.45, 0, -3.75)  # GameState.MELTER_POS
 const DESK_AT := Vector3(5.0, 0, -0.2)  # the pistol's crate, right in front of the spawns
 const TV_AT := Vector3(2.25, 0, -0.2)  # GameState.TV_POS; between the mountain's windows, in the spawns' view
@@ -1887,12 +1887,6 @@ func pbr_box(id: String, metres: float, tint := Color.WHITE, world := true, save
 	return m
 
 
-func _cukur(piece: String, xf: Transform3D, parent: Node) -> void:
-	var n: Node3D = (load(_ps1(CUKUR + piece + ".gltf")) as PackedScene).instantiate()
-	n.transform = xf
-	add(n, parent)
-
-
 ## The workshop's sheets and steel, PS1: the texture small and unfiltered (assets/psx/tex/, made by
 ## tools/psx_props.gd tex), lit per vertex, drawn from both sides; `metres` > 0 maps it by world
 ## position every `metres` (the steel boxes) instead of by UV.
@@ -2010,7 +2004,7 @@ func _lamp(parent: Node, at: Vector3, model: String, energy: float, shadow := fa
 
 
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly
-## (docs/ayrintilar.md "Radyo"); as range_dressing.gd _radio, in the bench's own frame.
+## (docs/ayrintilar.md "Radyo"); as the old hall had it, in the bench's own frame.
 func _bench_radio(bench: Node3D) -> void:
 	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/props/radio/radio.glb",
 		bench.transform * Vector3(-0.38, 1.293, -0.275), bench.rotation.y + 0.45, 1.1)

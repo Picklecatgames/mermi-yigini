@@ -138,7 +138,7 @@ void fragment() {
 ## height up the coil (its foot 0, its top 1) and outer radius in the coil's own metres.
 const RING_H := [0.455, 0.54, 0.635]
 const RING_RAD := [0.046, 0.040, 0.035]
-const COIL_SCALE := 1.2  # the bench's scale (range_dressing.gd _workshop, electric_demo.gd BENCH)
+const COIL_SCALE := 1.2  # the bench's scale (tools/build_world.gd BENCH_SCALE, electric_demo.gd BENCH)
 const ORBITS := [Vector2(0.0, 3.0), Vector2(3.3, 5.2), Vector2(5.5, 6.6)]  # s after CHARGE, round each ring
 const TURN_DIR := [1.0, -1.0, 1.0]  # +1 is clockwise seen from above
 const TO_TIP := Vector2(6.6, 7.1)  # s after CHARGE: off the top ring to the tip, arriving on ZAP

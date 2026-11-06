@@ -1,5 +1,5 @@
 extends StaticBody3D
-## The desk in front of the spawns (tools/build_arena.gd _spawns) with the pistol on it: E while
+## The crate in front of the spawns (tools/build_world.gd, GunTable) with the pistol on it: E while
 ## looking at it takes the pistol (player.gd, GameState.request_take_pistol), drawn at once with an
 ## empty magazine. Its job done, the desk fades away; on this machine only, everyone takes their own.
 ## No GameState in here: the builder runs without autoloads and wouldn't attach this script.
