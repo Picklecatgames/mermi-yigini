@@ -385,9 +385,38 @@ const NAV_AREA := Rect2(-64.0, -68.0, 146.0, 136.0)
 ## bazen saklansınlar, oyuncuya atlasınlar"; numbers mine, docs/ayrintilar.md "Avcı zekâsı"). See _direct.
 const DIRECTOR_EVERY := 2.0
 const CALM := 0.3
-const EVENT_GAP := 30.0
-const QUIET_AFTER_HIT := 20.0
-const EVENT_CHANCE := 0.35
+const EVENT_GAP := 120.0  # s between two tricks on one player
+const TRICK_GAP := 45.0  # s between any two tricks, whoever they are on
+const QUIET_AFTER_HIT := 30.0
+const EVENT_CHANCE := 0.25
+## A night's budget (2026-11-06, the user: "sürekli de tetiklenmesin, tadında kalsın"): of each
+## trick at most this many a night, all of them together at most NIGHT_TRICKS_ALL (more players,
+## a few more: NIGHT_TRICKS_PER_PLAYER each past the first). The rest of the dead simply come.
+const NIGHT_TRICKS := {&"ambush": 2, &"shy": 1, &"sneak": 1}
+const NIGHT_TRICKS_ALL := 3
+const NIGHT_TRICKS_PER_PLAYER := 1
+## The moment before a trick: it stops short, the head jerks round (REACT_PAUSE s), then it goes.
+const REACT_PAUSE := 0.55
+## Making for cover: COVER_PACE of its pace, unsteady (COVER_JERK), slowing over the last COVER_BRAKE m.
+const COVER_PACE := 0.75
+const COVER_JERK := 0.3
+const COVER_BRAKE := 1.8
+## The leap (zombie_body.gd leap): from within LEAP_MAX m (and past LEAP_MIN), onto LEAP_SHORT m short of them.
+const LEAP_MAX := 5.5
+const LEAP_MIN := 1.8
+const LEAP_SHORT := 1.0
+## Never into a player's body (2026-11-06, the user: they shove the player): kept PLAYER_ROOM m off.
+const PLAYER_ROOM := 0.75
+## Caught in a head lamp's beam (within LAMP_CONE degrees, LAMP_REACH m), at night, now and then
+## (LAMP_CHANCE a look, LAMP_EVERY s apart): it stops short (STARTLE_HOLD s) and jerks; one zombie
+## at most every STARTLE_AGAIN s, one player's beam every LAMP_GAP s.
+const LAMP_EVERY := 0.5
+const LAMP_REACH := 14.0
+const LAMP_CONE := 12.0
+const LAMP_CHANCE := 0.25
+const STARTLE_HOLD := 0.45
+const STARTLE_AGAIN := 25.0
+const LAMP_GAP := 12.0
 const TENSE_HIT := 0.5
 const TENSE_NEAR := 0.12
 const TENSE_NEAR_M := 10.0
@@ -510,6 +539,12 @@ var _last_event := {}  # host: peer -> _clock of the last trick
 var _last_trick := {}  # host: peer -> which
 var _last_hit := {}  # host: peer -> _clock of the last blow on them
 var _direct_wait := 0.0
+var _last_any := -INF  # host: _clock of the last trick on anyone
+var _last_any_trick := &""
+var _night_tricks := {}  # host: trick -> how many tonight (the night: _tricks_night)
+var _tricks_night := -1
+var _lamp_wait := 0.0
+var _last_startle := {}  # host: peer -> _clock
 var _trunks := {}
 var _trunks_built := false
 var nav_live := false  # the navigation map has taken our mesh in (_nav_watch)
@@ -608,6 +643,7 @@ func _process(delta: float) -> void:
 		if not z.dead:
 			_walk(z, delta)
 	_spread(delta)
+	_keep_off_players()
 	_beat += 1
 	for z: Dictionary in _zombies.values():
 		if not z.dead and (_beat + z.id) % FIT_EVERY == 0:
@@ -622,6 +658,7 @@ func _process(delta: float) -> void:
 	_nav_watch(delta)
 	_night_step()
 	_direct(delta)
+	_lamps(delta)
 	if phase == Phase.FIGHT:
 		_screams(delta)
 		_maws(delta)
@@ -1023,6 +1060,27 @@ func _on_cue(cue: Array) -> void:
 			if not z.is_empty() and not z.dead:
 				z.aware = true
 				z.body.notice()
+		&"mode":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead:
+				z.mode = cue[2]
+				z.body.set_mode(cue[2])
+		&"leap":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead:
+				z.aware = true
+				z.mode = &""
+				z.leap_times = z.body.leap()
+				z.leap_on = true
+				z.leap_t = 0.0
+				z.leap_a = cue[2]
+				z.leap_b = cue[3]
+				z.moving = false
+		&"startle":
+			var z: Dictionary = _zombies.get(cue[1], {})
+			if not z.is_empty() and not z.dead:
+				z.body.startle()
+				z.hold = STARTLE_HOLD
 		&"at":
 			if Net.is_client:
 				_got_at(cue[1], cue[2])
@@ -1261,7 +1319,9 @@ func _add_zombie(id: int, kind: StringName, seed: int, gate: String, pos: Vector
 			"flank": (1.0 if seed % 2 == 0 else -1.0) * lerpf(0.5, 1.0, float(absi(seed) % 101) / 100.0),
 			"lunge": 0.0, "lunge_cool": 0.0, "pace_now": 0.0, "gait": "",
 			"stuck_t": 0.0, "stuck_from": pos, "stuck_n": 0, "detour": Vector3.ZERO, "detour_t": 0.0,
-			"role": &"", "role_t": 0.0, "role_wait": 0.0, "role_route": 0.0, "hide": Vector3.INF, "recheck": 0.0, "pounce": 0.0}
+			"role": &"", "role_t": 0.0, "role_wait": 0.0, "role_route": 0.0, "hide": Vector3.INF, "recheck": 0.0, "pounce": 0.0,
+			"pause_t": 0.0, "mode": &"", "watched": false, "leap_ready": false, "leap_on": false, "leap_t": 0.0,
+			"leap_times": [0.0, 0.0, 0.0], "leap_a": Vector3.ZERO, "leap_b": Vector3.ZERO, "startle_cd": 0.0}
 	_zombies[id] = z
 	z.bar.setup(_hp_full.get(id, hp_of(z.type, wave, elite)), elite)
 	node.add_child(z.bar)
@@ -1334,7 +1394,9 @@ func _walk(z: Dictionary, delta: float) -> void:
 		if z.rush <= 0.0 and not z.path.is_empty() and z.down <= 0.0 and z.hold <= 0.0:
 			z.body.move(z.speed)  # back to its own pace
 	if z.inside:
-		if z.hold > 0.0:
+		if z.get("leap_on", false):
+			_leaping(z, delta)
+		elif z.hold > 0.0:
 			z.hold -= delta
 		elif Net.is_client:
 			_follow(z, delta)
@@ -1689,6 +1751,14 @@ func _hurt(z: Dictionary, dmg: float, peer: int, weak: bool, gun: String, dir :=
 		return
 	_hp[z.id] -= dmg
 	z.calm = 0.0
+	if z.has("afield") and _hp[z.id] > 0:  # shot: it goes for the one who did it, in a rage
+		z.grudge = peer
+		z.grudge_t = GRUDGE_TIME
+		if z.role != &"":
+			z.prey = peer if _standing().has(peer) else z.prey
+			_pounce(z)
+		else:
+			_alert(z)
 	if _hp[z.id] > 0:
 		_hp_news[z.id] = float(_hp[z.id]) / _hp_full[z.id]
 		(z.bar as Node).set_left(_hp_news[z.id])  # here at once; the others get it with the next batch
@@ -2300,6 +2370,12 @@ func _hunt(z: Dictionary, delta: float) -> void:
 	z.pounce = maxf(0.0, z.pounce - delta)
 	var off := prey - at
 	off.y = 0.0
+	if z.leap_ready:
+		if off.length() <= LEAP_MIN or z.body.crawling:
+			z.leap_ready = false
+		elif off.length() <= LEAP_MAX:
+			_leap(z, prey)
+			return
 	if off.length() <= REACH:
 		_moving(z, 0.0)
 		_turn_to(node, off, FACE_TURN * delta)
@@ -2478,6 +2554,8 @@ func _moving(z: Dictionary, v: float) -> void:
 func _night_step() -> void:
 	if not night_spawns or get_tree().get_first_node_in_group("forest_edge") == null:
 		return
+	if not nav_live:  # the night waits for the way through the wood (_bake_nav, ~20 s after the start)
+		return
 	var p := night_progress(GameState.hour)
 	if p < 0.0 or GameState.night_of(GameState.hour) < NIGHT_DARK:
 		return
@@ -2639,6 +2717,8 @@ func _got_at(out: Array, inside: Array) -> void:
 			z.hole = -1
 			z.path = []
 			z.claws += 1
+		if z.get("leap_on", false):
+			continue  # in the air on its own timeline (_leaping): the host's word would tug it
 		if z.seen == Vector3.INF or (inside[i + 1] as Vector3).distance_to((z.node as Node3D).global_position) > AT_SNAP:
 			(z.node as Node3D).global_position = inside[i + 1]
 		z.seen = inside[i + 1]
@@ -2701,7 +2781,12 @@ func _direct(delta: float) -> void:
 	if _direct_wait > 0.0:
 		return
 	_direct_wait = DIRECTOR_EVERY
+	if _tricks_night != GameState.nights:
+		_tricks_night = GameState.nights
+		_night_tricks.clear()
 	for peer: int in up:
+		if _clock - _last_any < TRICK_GAP or tricks_tonight() >= NIGHT_TRICKS_ALL + NIGHT_TRICKS_PER_PLAYER * (up.size() - 1):
+			return
 		if _tension.get(peer, 0.0) > CALM or _clock - _last_event.get(peer, -INF) < EVENT_GAP \
 				or _clock - _last_hit.get(peer, -INF) < QUIET_AFTER_HIT:
 			continue
@@ -2711,12 +2796,22 @@ func _direct(delta: float) -> void:
 		if _is_busy(peer):
 			tricks = [&"sneak", &"sneak", &"ambush"]  # a player at the bench or the heap: mostly from behind
 		var last: StringName = _last_trick.get(peer, &"")
-		while last in tricks:
-			tricks.erase(last)
+		var last_any: StringName = _last_any_trick
+		for t: StringName in tricks.duplicate():
+			if t == last or t == last_any or _night_tricks.get(t, 0) >= NIGHT_TRICKS[t]:
+				tricks.erase(t)
 		_shuffle(tricks)
 		for trick: StringName in tricks:
 			if _play(trick, peer, up[peer]):
 				break
+
+
+## Host: tricks given tonight, all of them.
+func tricks_tonight() -> int:
+	var n := 0
+	for t: StringName in _night_tricks:
+		n += _night_tricks[t]
+	return n
 
 
 ## Host: whether `peer` is at something with their eyes on it: a menu of the workshop open
@@ -2755,23 +2850,94 @@ func give_role(z: Dictionary, trick: StringName, peer: int) -> void:
 	z.role_wait = 0.0
 	_last_event[peer] = _clock
 	_last_trick[peer] = trick
+	_last_any = _clock
+	_last_any_trick = trick
+	_night_tricks[trick] = _night_tricks.get(trick, 0) + 1
+	z.pause_t = REACT_PAUSE
+	_set_mode(z, &"glance")
 	event_log.append([_clock, peer, trick, z.id])
+
+
+## Host: `z`'s bearing (zombie_body.gd set_mode) on every peer.
+func _set_mode(z: Dictionary, m: StringName) -> void:
+	if z.get("mode", &"") == m:
+		return
+	z.mode = m
+	GameState.cue_wave([&"mode", z.id, m])
 
 
 ## Host: the end of a trick: it shrieks and comes on at once (POUNCE times its pace for POUNCE_TIME s).
 func _pounce(z: Dictionary) -> void:
 	z.role = &""
-	z.aware = false  # so _alert sends the shriek
-	_alert(z)
-	z.pounce = POUNCE_TIME
 	z.lunge_cool = 0.0
 	z.think = 0.0
 	event_log.append([_clock, z.prey, &"pounce", z.id])
+	var up := _standing()
+	var d := Vector2((z.node as Node3D).global_position.x - up[z.prey].x, (z.node as Node3D).global_position.z - up[z.prey].z).length() if up.has(z.prey) else INF
+	if d <= LEAP_MAX and d > LEAP_MIN and not z.body.crawling:
+		_leap(z, up[z.prey])  # near: straight out at them
+		return
+	_set_mode(z, &"")
+	z.aware = false  # so _alert sends the shriek
+	_alert(z)
+	z.pounce = POUNCE_TIME
+	z.leap_ready = true  # it leaps once near (_hunt)
+
+
+## Host: `z` leaps at its prey at `prey` (on the floor): every peer plays the coil, the flight and
+## the landing from the cue (_leaping); it comes down LEAP_SHORT m short of where they stood.
+func _leap(z: Dictionary, prey: Vector3) -> void:
+	var node: Node3D = z.node
+	var from := node.global_position
+	var off := prey - from
+	off.y = 0.0
+	var to := from + off.normalized() * maxf(0.0, off.length() - LEAP_SHORT)
+	to = _on_ground(to + Vector3.UP * 1.0, node)
+	z.leap_ready = false
+	z.pounce = 0.0
+	z.aware = true
+	z.mode = &""
+	GameState.cue_wave([&"leap", z.id, from, to])
+	event_log.append([_clock, z.prey, &"leap", z.id])
+
+
+## Every peer: `z` in its leap, from the cue: still through the coil (facing where it goes), along
+## a smooth arc over the ground in the flight (the clip itself rises and falls), still in the landing.
+## Done, the host swings if they are still there.
+func _leaping(z: Dictionary, delta: float) -> void:
+	var node: Node3D = z.node
+	z.leap_t += delta
+	var times: Array = z.leap_times
+	var a: Vector3 = z.leap_a
+	var b: Vector3 = z.leap_b
+	var t: float = z.leap_t
+	if t < times[0]:
+		_turn_to(node, b - a, FACE_TURN * 2.0 * delta)
+		return
+	var s := clampf((t - times[0]) / maxf(times[1], 0.01), 0.0, 1.0)
+	node.global_position = a.lerp(b, smoothstep(0.0, 1.0, s))
+	if t < times[0] + times[1] + times[2]:
+		return
+	z.leap_on = false
+	z.moving = false
+	z.gait = ""
+	z.pace_now = _pace(z) * 0.5
+	if not Net.is_client:
+		var up := _standing()
+		if up.has(z.prey) and Vector2(node.global_position.x - up[z.prey].x, node.global_position.z - up[z.prey].z).length() <= REACH + REACH_SLACK:
+			_swing(z)
 
 
 ## Host: `z` playing its trick on its prey at `prey` (on the floor). True while it does (it moved).
 func _play_role(z: Dictionary, delta: float, at: Vector3, prey: Vector3) -> bool:
 	z.role_t += delta
+	if z.pause_t > 0.0:  # the moment it stops short, its head round
+		z.pause_t -= delta
+		z.pace_now = 0.0
+		_moving(z, 0.0)
+		if z.pause_t <= 0.0:
+			_set_mode(z, &"crouch")
+		return true
 	var p = GameState.player(z.prey)
 	var look := Vector3(-sin(p.yaw), 0.0, -cos(p.yaw))
 	var rel := at - prey
@@ -2793,11 +2959,14 @@ func _play_role(z: Dictionary, delta: float, at: Vector3, prey: Vector3) -> bool
 				if z.hide == Vector3.INF:
 					_pounce(z)  # no trunk to wait at: it simply comes
 					return false
-			if _go(z, at, z.hide, _stalk_pace(z) * AMBUSH_PACE, delta, 0.08):
+			if _go(z, at, z.hide, _cover_pace(z), delta, 0.08, true):
 				if z.role_wait <= 0.0:
 					z.role_wait = z.role_t
 					event_log.append([_clock, z.prey, &"waiting", z.id])
-				_turn_to(z.node, -rel, FACE_TURN * delta)
+				_set_mode(z, &"cover")
+				_turn_to(z.node, -rel, FACE_TURN * 0.5 * delta)  # slowly round to them
+			else:
+				_set_mode(z, &"crouch")
 			return true
 		&"shy":
 			# Far off: looked at, it goes behind the nearest trunk; with their back to it, it comes on quick.
@@ -2805,17 +2974,29 @@ func _play_role(z: Dictionary, delta: float, at: Vector3, prey: Vector3) -> bool
 				_pounce(z)
 				return false
 			if looked < SHY_SEEN:
+				if not z.watched:  # their eyes on it: it freezes a moment, then slips away
+					z.watched = true
+					z.pause_t = REACT_PAUSE
+					_set_mode(z, &"")
+					_turn_to(z.node, -rel, PI)
+					return true
 				if z.hide == Vector3.INF or not _is_hidden(prey, z.hide):
 					z.hide = _cover(prey, at, Vector2(maxf(4.0, d - 4.0), d + 4.0))
 					if z.hide != Vector3.INF:
 						event_log.append([_clock, z.prey, &"hiding", z.id])
-				if z.hide != Vector3.INF and _go(z, at, z.hide, _pace(z), delta, 0.08):
-					_turn_to(z.node, -rel, FACE_TURN * delta)
+				if z.hide != Vector3.INF and _go(z, at, z.hide, _cover_pace(z), delta, 0.08, true):
+					_set_mode(z, &"cover")
+					_turn_to(z.node, -rel, FACE_TURN * 0.5 * delta)
+				else:
+					_set_mode(z, &"crouch")
 				return true
+			z.watched = false
 			if looked > SHY_AWAY:
 				z.hide = Vector3.INF
+				_set_mode(z, &"crouch")
 				_go(z, at, prey, _pace(z) * SHY_COME, delta)
 				return true
+			z.pace_now = 0.0
 			_moving(z, 0.0)  # half watched: it holds still
 			_turn_to(z.node, -rel, FACE_TURN * delta)
 			return true
@@ -2824,6 +3005,7 @@ func _play_role(z: Dictionary, delta: float, at: Vector3, prey: Vector3) -> bool
 			if z.role_t > SNEAK_GIVE_UP or d < SNEAK_OUT or looked < SNEAK_SEEN and d < SNEAK_SEEN_M:
 				_pounce(z)
 				return false
+			_set_mode(z, &"crouch")
 			var behind := prey - look * SNEAK_BEHIND
 			var to := behind if looked < 150.0 and d > SNEAK_BEHIND * 0.7 else prey
 			_go(z, at, to, _stalk_pace(z), delta)
@@ -2832,8 +3014,13 @@ func _play_role(z: Dictionary, delta: float, at: Vector3, prey: Vector3) -> bool
 	return false
 
 
+## Making for cover: quick and unsteady, never at an even pace.
+func _cover_pace(z: Dictionary) -> float:
+	return _pace(z) * COVER_PACE * (1.0 + COVER_JERK * sin(z.walked * 2.7 + z.zig) * sin(z.walked * 1.3 + z.zig * 2.0))
+
+
 ## Host: `z` (at `at`) one step towards `to` at `pace` m/s, round what is in the way; true once there.
-func _go(z: Dictionary, at: Vector3, to: Vector3, pace: float, delta: float, near := 0.35) -> bool:
+func _go(z: Dictionary, at: Vector3, to: Vector3, pace: float, delta: float, near := 0.35, brake := false) -> bool:
 	var off := to - at
 	off.y = 0.0
 	if off.length() < near:
@@ -2850,6 +3037,8 @@ func _go(z: Dictionary, at: Vector3, to: Vector3, pace: float, delta: float, nea
 	way.y = 0.0
 	if way.length() < 0.05:
 		way = off
+	if brake:  # into cover: easing off over the last metres
+		pace *= clampf(off.length() / COVER_BRAKE, 0.3, 1.0)
 	z.pace_now = move_toward(z.pace_now, pace, ACCEL * delta)
 	var step := minf(z.pace_now * delta, off.length())
 	var node: Node3D = z.node
@@ -2939,3 +3128,58 @@ func _cover(eye: Vector3, from: Vector3, ring: Vector2) -> Vector3:
 				near = cost
 				best = spot
 	return best
+
+
+## Every peer: none of the dead stands in a player's body (it shoved them about: the host's moves
+## it into them, a capsule against a capsule). Each is put PLAYER_ROOM m off every player standing
+## (here: the host's word for all; a client its own player, the rest it follows).
+func _keep_off_players() -> void:
+	var at := []
+	if Net.is_client:
+		var me = GameState.player()
+		if me.has_pose:
+			at.append(me.pos)
+	else:
+		at = _standing().values()
+	if at.is_empty():
+		return
+	for z: Dictionary in _zombies.values():
+		if z.dead or not z.released or z.get("leap_on", false):
+			continue
+		var node: Node3D = z.node
+		for p: Vector3 in at:
+			var off := node.global_position - p
+			off.y = 0.0
+			var d := off.length()
+			if d < PLAYER_ROOM:
+				var out := off / d if d > 0.01 else (-node.global_transform.basis.z).normalized()
+				node.global_position += out * (PLAYER_ROOM - d)
+
+
+## Host: a head lamp catching one of the dead now and then (see LAMP_REACH above).
+func _lamps(delta: float) -> void:
+	for z: Dictionary in _zombies.values():
+		z.startle_cd = maxf(0.0, z.startle_cd - delta)
+	_lamp_wait -= delta
+	if _lamp_wait > 0.0 or GameState.night_of(GameState.hour) < 0.5:
+		return
+	_lamp_wait = LAMP_EVERY
+	for peer: int in GameState._slots_now():
+		var p = GameState.player(peer)
+		if not p.has_pose or GameState.is_down(peer) or _clock - _last_startle.get(peer, -INF) < LAMP_GAP:
+			continue
+		var look := Vector3(-sin(p.yaw), 0.0, -cos(p.yaw))
+		for z: Dictionary in _zombies.values():
+			if z.dead or not z.has("afield") or z.startle_cd > 0.0 or z.swinging or z.get("leap_on", false) or z.role != &"":
+				continue
+			var rel: Vector3 = (z.node as Node3D).global_position - p.pos
+			rel.y = 0.0
+			if rel.length() > LAMP_REACH or rel.length() < 2.5 or rad_to_deg(look.angle_to(rel)) > LAMP_CONE:
+				continue
+			z.startle_cd = STARTLE_AGAIN
+			if _rng.randf() >= LAMP_CHANCE:
+				continue
+			_last_startle[peer] = _clock
+			event_log.append([_clock, peer, &"startle", z.id])
+			GameState.cue_wave([&"startle", z.id])
+			break

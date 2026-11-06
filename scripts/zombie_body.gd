@@ -299,8 +299,9 @@ func _process(delta: float) -> void:
 	_bend = (_bend + _bend_v * delta).limit_length(KICK_MAX)
 	_nod_v += (-KICK_STIFF * _nod - KICK_DAMP * _nod_v) * delta
 	_nod = (_nod + _nod_v * delta).limit_length(KICK_MAX)
-	_flinch.bend = _bend
-	_flinch.nod = _nod
+	_step_mode(delta)
+	_flinch.bend = _bend + _pose_bend
+	_flinch.nod = _nod + _pose_nod
 	for i in 2:
 		_arm_kick_v[i] += (-KICK_STIFF * _arm_kick[i] - KICK_DAMP * _arm_kick_v[i]) * delta
 		_arm_kick[i] = (_arm_kick[i] + _arm_kick_v[i] * delta).limit_length(KICK_MAX * 1.5)
@@ -633,7 +634,73 @@ func attack() -> float:
 ## stand it up): there the spring alone (wound()) jerks it.
 func hit() -> void:
 	if not _busy and not crawling and not quick():  # running, the clip would stand it still while it slides on
-		_one_shot("hit")
+		var clip := _pick("hit")
+		for i in 3:  # hit_b staggers 0.76 m back in the hips, played in place it slid out and snapped back
+			if not clip in HIT_SKIP:
+				break
+			clip = _pick("hit")
+		if not clip in HIT_SKIP:
+			_play_once(clip)
+
+
+## Its bearing (waves.gd, the hunter's tricks; 2026-11-06, the user: "robot gibi bir ağaca gitmesi
+## gerilim vermez"), laid on whatever clip plays, eased in and out (MODE_EASE rad/s):
+## &"" upright · &"crouch" hunched low, head down and forward (stealing up, making for cover) ·
+## &"cover" hunched at a trunk, the head turning slowly out and back, the body leaning out now and
+## then, never still · &"glance" the head jerked round to one side (the moment it has seen you) ·
+## &"coil" the body drawn down and back before a leap. Every peer from the cue alone; the swing of
+## the cover's peeking from its own seed, so a row behind trunks never moves together.
+func set_mode(m: StringName) -> void:
+	if m == _mode:
+		return
+	_mode = m
+	_mode_t = 0.0
+
+
+func _step_mode(delta: float) -> void:
+	_mode_t += delta
+	var bend := Vector3.ZERO
+	var nod := Vector3.ZERO
+	var ph := float(posmod(_seed, 997)) / 997.0 * TAU
+	match _mode:
+		&"crouch":
+			bend = Vector3(MODE_HUNCH, 0.0, 0.0)
+			nod = Vector3(-MODE_HUNCH * 0.6, 0.0, 0.0)  # the head stays up, looking where it goes
+		&"cover":
+			var peek := sin(_mode_t * 0.9 + ph) * 0.5 + 0.5  # 0 behind, 1 out
+			peek = smoothstep(0.25, 0.9, peek)
+			bend = Vector3(MODE_HUNCH * 0.7, 0.0, MODE_LEAN * peek * (1.0 if _seed % 2 == 0 else -1.0))
+			nod = Vector3(-MODE_HUNCH * 0.4, MODE_PEEK * (peek - 0.3) * (1.0 if _seed % 2 == 0 else -1.0), 0.0)
+			nod.x += sin(_mode_t * 2.3 + ph) * 0.05  # breathing, the head bobbing
+		&"glance":
+			nod = Vector3(0.0, MODE_GLANCE * (1.0 if _seed % 2 == 0 else -1.0), 0.0)
+		&"coil":
+			bend = Vector3(MODE_HUNCH * 1.4, 0.0, 0.0)
+			nod = Vector3(-MODE_HUNCH * 1.0, 0.0, 0.0)
+	var k := minf(1.0, (MODE_EASE_FAST if _mode in [&"glance", &"coil"] else MODE_EASE) * delta)
+	_pose_bend = _pose_bend.lerp(bend, k)
+	_pose_nod = _pose_nod.lerp(nod, k)
+
+
+## A leap at someone (waves.gd _leap): the standing jump's crouch (the coil), the spring and the
+## flight, the landing, quickened by LEAP_RATE. Returns [s to the spring, s in the air, s landing].
+func leap() -> Array:
+	if _dead:
+		return [0.0, 0.0, 0.0]
+	_voice.scream()
+	set_mode(&"")
+	_busy = true
+	_ap.play_section(VAULT_CLIP, LEAP_FROM, LEAP_TO, BLEND * 0.5)
+	_ap.speed_scale = LEAP_RATE
+	return [(VAULT_OFF - LEAP_FROM) / LEAP_RATE, (VAULT_LAND - VAULT_OFF) / LEAP_RATE, (LEAP_TO - VAULT_LAND) / LEAP_RATE]
+
+
+## Caught in a head lamp's light (waves.gd _lamps): the head snaps round and the body jerks, no cry.
+func startle() -> void:
+	if _dead:
+		return
+	_nod_v += Vector3(KICK * 0.8, KICK * 1.5 * (1.0 if _seed % 2 == 0 else -1.0), 0.0)
+	_bend_v += Vector3(-KICK * 0.6, 0.0, 0.0)
 
 
 ## It has seen or heard a player (waves.gd _sense): a shriek and the head jerking up, in its stride.
@@ -643,6 +710,24 @@ func notice() -> void:
 	_voice.scream()
 	_nod_v += Vector3(-KICK * 1.2, 0.0, 0.0)
 	_bend_v += Vector3(KICK * 0.5, 0.0, 0.0)
+
+
+const HIT_SKIP: Array[String] = ["hit_b"]
+const MODE_HUNCH := 0.45  # rad forward through the spine
+const MODE_LEAN := 0.35  # rad to the side, out from behind the trunk
+const MODE_PEEK := 0.7  # rad the head turns out
+const MODE_GLANCE := 0.8
+const MODE_EASE := 3.0
+const MODE_EASE_FAST := 12.0
+## The standing jump (VAULT_CLIP) from its crouch to its landing; it jumps on the spot, the hips
+## going 0.12 m forward (measured), so the leap's way over the ground is the body's, not the clip's.
+const LEAP_FROM := 0.45
+const LEAP_TO := 2.3
+const LEAP_RATE := 1.5
+var _mode := &""
+var _mode_t := 0.0
+var _pose_bend := Vector3.ZERO
+var _pose_nod := Vector3.ZERO
 
 
 ## Roar (mutants) or scream (zombies). Returns the clip's length (s).
