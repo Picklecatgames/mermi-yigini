@@ -31,6 +31,8 @@ func _initialize() -> void:
 		await physics_frame
 	while waves._nav.navigation_mesh == null:
 		await process_frame
+	while not waves.nav_live:  # the map takes the mesh in on threads (waves.gd _nav_watch)
+		await physics_frame
 	gs.hour = 17.0  # the evening before the first night
 	Engine.time_scale = SPEED
 	var last_log := 0

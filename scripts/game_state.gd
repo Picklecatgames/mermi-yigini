@@ -399,7 +399,7 @@ const MELTER_SEND := 0.25  # s between the host's updates of the melting to clie
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
-enum Act { IDLE, WALKING, RELOADING, SHOOTING, DANCING }
+enum Act { IDLE, WALKING, RELOADING, SHOOTING, DANCING, BUSY }  # BUSY: a workshop menu open (player.gd), for waves.gd
 
 ## What a client may ask the host for, with its argument count (`peer` comes from the sender).
 const REQUESTS := {
@@ -457,6 +457,8 @@ class PlayerState:
 	var pos := Vector3.ZERO  # feet, from the last pose
 	var has_pose := false
 	var crouch := false  # from the last pose
+	var act := 0  # Act, from the last pose
+	var busy_at := -100.0  # s (ticks): the last dig at the heap (waves.gd: busy, a sneak from behind)
 	var yaw := 0.0  # look, from the last pose (waves.gd: the night's dead come where nobody looks)
 	var character := ""  # CHARACTERS id; "" until picked
 	var hp := HP_MAX
@@ -1300,6 +1302,7 @@ func _heap_step() -> int:
 ## Player grabs bullets at `at` by hand, up to carry capacity and at most `limit`.
 func request_pick_up(at: Vector3, limit := 1 << 30, peer := 0) -> int:
 	var p := player(peer)
+	p.busy_at = Time.get_ticks_msec() / 1000.0
 	var want := mini(carry_capacity_of(peer) - p.carried, limit)
 	if want <= 0:
 		return 0  # a full hand asks nobody (E held sends a request every frame otherwise)
@@ -1357,6 +1360,7 @@ func request_arm_special(id: String, peer := 0) -> void:
 ## bullet (another player, same frame) get nothing.
 func request_pick_up_loose(id: int, peer := 0) -> int:
 	var p := player(peer)
+	p.busy_at = Time.get_ticks_msec() / 1000.0
 	if _taken_loose.has(id) or p.carried >= carry_capacity_of(peer) or pile <= 0:
 		return 0
 	if Net.is_client and peer == 0:
@@ -1989,6 +1993,7 @@ func send_pose(pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crou
 	p.has_pose = true
 	p.crouch = crouch
 	p.yaw = yaw
+	p.act = act
 	if not Net.online or (Net.is_client and not _spawned):
 		return  # a joiner stands on the host's spot until its own comes: bodies would collide
 	var t := Time.get_ticks_msec() / 1000.0
@@ -2014,6 +2019,7 @@ func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool
 	p.has_pose = true
 	p.crouch = crouch
 	p.yaw = yaw
+	p.act = act
 	pose_received.emit(peer, t, pos, yaw, pitch, act, air, crouch, aim)
 	for id in multiplayer.get_peers():
 		if id != peer:

@@ -224,7 +224,8 @@ func _raid() -> bool:
 		await physics_frame
 	var d1 := node.global_position.distance_to(me.global_position)
 	var ground: Vector3 = waves._on_ground(node.global_position, node)
-	if not _ok(d1 < d0 - 1.0 and absf(ground.y - node.global_position.y) < 0.3, "it comes for the player on the ground (%.1f -> %.1f m, %.2f m off it)" % [d0, d1, ground.y - node.global_position.y]): return false
+	if not _ok(d1 < d0 - 1.0 and absf(ground.y - node.global_position.y) < 0.3, "it comes for the player on the ground (%.1f -> %.1f m, %.2f m off it; role '%s', prey %d, pace %.2f, path %d, busy %s, nav %s)" % [d0, d1,
+			ground.y - node.global_position.y, first.role, first.prey, first.pace_now, first.path.size(), first.body.busy(), waves.nav_live]): return false
 	while waves._raiding:
 		await process_frame
 	_clear()
