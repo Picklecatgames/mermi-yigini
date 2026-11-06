@@ -19,6 +19,11 @@ func _run() -> void:
 	world.remove_child(forest)
 	forest.set_script(null)
 	root.add_child(forest)
+	# The clearing's few trees (build_world.gd _wasteland) have their posts on their own bodies.
+	var clearing: Node = world.get_node_or_null("Wasteland")
+	if clearing:
+		world.remove_child(clearing)
+		root.add_child(clearing)
 	await physics_frame
 	await physics_frame
 	var space := (forest as Node3D).get_world_3d().direct_space_state
@@ -47,11 +52,11 @@ func _run() -> void:
 			var hit := space.intersect_ray(q)
 			# A hillside or the belt in the way says nothing about this post: past them.
 			for tries in 4:
-				if hit.is_empty() or hit.collider == trunks:
+				if hit.is_empty() or _a_tree(hit.collider, trunks):
 					break
 				q.exclude = q.exclude + [hit.rid]
 				hit = space.intersect_ray(q)
-			if not hit.is_empty() and hit.collider == trunks:
+			if not hit.is_empty() and _a_tree(hit.collider, trunks):
 				stopped += 1
 		if stopped < 4:
 			bad_solid += 1
@@ -64,3 +69,8 @@ func _run() -> void:
 	print("wood_stand_check: ", "FAILED" if failed else "passed")
 	world.free()
 	quit(1 if failed else 0)
+
+
+## The wood's posts, or one of the clearing's trees (a body of its own with its posts).
+func _a_tree(body: Object, trunks: StaticBody3D) -> bool:
+	return body == trunks or (body is StaticBody3D and (body as Node).get_parent().name == "Wasteland")

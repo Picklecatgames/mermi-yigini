@@ -10,7 +10,7 @@ extends SceneTree
 ## barrel_fire.gd tune their emission) stay StandardMaterial3D, made PS1 the same way: lit per
 ## vertex, unfiltered, small textures.
 ## tools/build_world.gd (_prop, _cukur) and scripts/pile.gd take the _psx.scn wherever there is one.
-##   Godot.exe --headless --path . -s res://tools/psx_props.gd -- [house bench workshop hurda cukur ogutucu tex orman orman_ek]
+##   Godot.exe --headless --path . -s res://tools/psx_props.gd -- [house bench workshop hurda cukur ogutucu tex orman orman_ek] [only=folder,folder]
 ## No group: all of them. tex: the workshop's sheet and steel textures (assets/psx/tex/, build_world).
 
 const SHADER := preload("res://materials/psx_prop.gdshader")
@@ -218,7 +218,13 @@ func _init() -> void:
 
 func _orman_ek() -> bool:
 	var ok := true
+	var only := []  # only=a,b: just those folders
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("only="):
+			only = Array(arg.trim_prefix("only=").split(","))
 	for e: Array in preload("res://tools/orman_kinds.gd").CONVERT:
+		if not only.is_empty() and not e[0] in only:
+			continue
 		_tint = e[4]
 		_floor = e[5]
 		_sat = e[6] if e.size() > 6 else ORMAN_SATURATION

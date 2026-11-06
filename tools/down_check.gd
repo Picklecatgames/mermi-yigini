@@ -141,7 +141,7 @@ func _online() -> void:
 	await create_timer(gs.DOWN_TIME).timeout
 	if not _ok(_all_down == 0, "no all_down: we stand"): return
 	# The bench: not in the fight, then for the price.
-	me.global_position = gs.REPAIR_POS + Vector3(0, 0, -0.9)
+	me.global_position = gs.REPAIR_POS + Vector3(0, 0, 0.9)  # in front of the bench (its front faces +z)
 	me.reset_physics_interpolation()
 	await create_timer(0.3).timeout
 	gs.vault = 1000.0
@@ -233,7 +233,7 @@ func _client() -> void:
 	if not await _until(func() -> bool: return not gs.is_down(), "the host to raise us", 30.0): return
 	if not _ok(absf(gs.player().hp - gs.REVIVE_HP) < 3.0 and me.watching == 0 and not host_body.watched, "raised, back in our own eyes"): return
 	if not await _until(func() -> bool: return gs.is_down(host_peer), "the host to go down"): return
-	me.global_position = gs.REPAIR_POS + Vector3(0, 0, -0.9)
+	me.global_position = gs.REPAIR_POS + Vector3(0, 0, 0.9)  # in front of the bench (its front faces +z)
 	me.reset_physics_interpolation()
 	await create_timer(0.5).timeout  # our pose reaches the host
 	if not _ok(gs.request_revive(host_peer), "we raise the host"): return

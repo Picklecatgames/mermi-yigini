@@ -1,4 +1,4 @@
-extends "res://tools/build_arena.gd"
+extends "res://tools/world_kit.gd"
 ## Builds scenes/world.tscn, the open ground (2026-11-02, the user: the old hall and everything in it
 ## goes; a wide rectangle out in the open, Mad Max wasteland, a light desert with a few dead trees):
 ## a concrete pad, on it the house (2026-11-05, the user: "our home's bad; a house of a few rooms or
@@ -8,7 +8,7 @@ extends "res://tools/build_arena.gd"
 ## round it all sand and cracked earth rising into dunes at the edges.
 ## The scene is never edited by hand: change the numbers here and re-run
 ##   godot --headless --path . -s res://tools/build_world.gd
-## The helpers (add, worn, pbr_box, _prop, block, collide, pendant, _pit...) are build_arena.gd's.
+## The helpers (add, worn, pbr_box, _prop, block, collide, _lighten) are tools/world_kit.gd's.
 
 const WORLD := Rect2(-236.0, -220.0, 500.0, 440.0)  # x, z: the ground, the junkyard's grid included, so the ring of dunes closes behind the mountain too
 const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; edges on the desert grid (CELL)
@@ -52,7 +52,7 @@ const WING_DOOR := [-3.84, -2.63, 0.0, 2.38]  # z, between the rooms
 const WIN_WEST := [[-3.13, -1.6, 0.69, 2.23], [1.24, 2.78, 0.69, 2.23]]  # z; the mountain's side
 const WIN_WING := [9.37, 10.9, 0.69, 2.23]  # x, the side room's south wall, over the porch
 const BENCH_AT := Vector3(9.85, 0, -4.03)  # the crew's bench, its back on the side room's north wall; GameState.PRESS_POS follows it
-const BENCH_SCALE := 1.2  # as it stood in the hall (range_dressing.gd _workshop)
+const BENCH_SCALE := 1.2  # as it stood in the old hall (its builder is gone)
 const HOPPER_AT := Vector3(11.45, 0, -3.75)  # GameState.MELTER_POS
 const DESK_AT := Vector3(5.0, 0, -0.2)  # the pistol's crate, right in front of the spawns
 const TV_AT := Vector3(2.25, 0, -0.2)  # GameState.TV_POS; between the mountain's windows, in the spawns' view
@@ -323,8 +323,12 @@ func _wasteland() -> void:
 		_wood_tree(root, _pick_tree(rng, wood.close, Vector2(p.x, p.z)), p, rng)
 	# Nothing strewn one by one over the open ground (2026-11-04, the user: "the stones look like
 	# shards, as if a few were sprinkled"): what lies about lies in the scenes of _wood_floor.
-	for p: Vector3 in spots.call(3, 14.0, 60.0, false, 12.0):
-		_prop(root, MODELS + "covered_car/covered_car_1k.gltf", p, rng.randf() * TAU, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.05, 0.05)))
+	# The covered cars stood anywhere, one with a trunk through its bonnet (2026-11-06, the user): the one
+	# car now stands by the old track (_terk), the same dice thrown so the rest lies as it did.
+	spots.call(3, 14.0, 60.0, false, 12.0)
+	for i in 3:
+		rng.randf()
+		rng.randf_range(-0.05, 0.05)
 	for p: Vector3 in spots.call(10, 3.0, 50.0, true, 3.0):
 		var junk: String = ["old_tyre/old_tyre_1k.gltf", "rusted_wheel_rim_01/rusted_wheel_rim_01_1k.gltf", "rusted_wheel_rim_02/rusted_wheel_rim_02_1k.gltf"][rng.randi() % 3]
 		var thing := _prop(root, MODELS + junk, p, rng.randf() * TAU)
@@ -455,7 +459,9 @@ func _wood() -> Dictionary:
 			var parts := _wood_kind(k[0], k[1])
 			var mid: float = (k[3].x + k[3].y) * 0.5
 			var stood := _stand(parts, mid, k[4] * mid)
-			trees.append([parts, k[2], k[3], k[4], _family(parts, k[1][0] if not k[1].is_empty() else k[0], fams), stood])
+			var fam := _family(parts, k[1][0] if not k[1].is_empty() else k[0], fams)
+			var label: String = (k[0] as String).get_file().get_basename().trim_suffix("_psx") + (":" + String(k[1].back()).left(26) if not k[1].is_empty() else "")
+			trees.append([parts, k[2], k[3], k[4], fam, stood, _kind_id(label, parts)])
 			if k[1].is_empty() or not String(k[1][0]).begins_with("Background"):
 				close.append(trees[-1])
 		for k: Array in ORMAN_KINDS.TREES:
@@ -463,7 +469,7 @@ func _wood() -> Dictionary:
 			var tall := _parts_box(parts).size.y
 			var mid: float = (k[4].x + k[4].y) * 0.5 / tall
 			var stood := _stand(parts, mid, k[5], k[2])
-			trees.append([parts, k[3], k[4] / tall, k[5] / mid, _family(parts, k[2], fams), stood])
+			trees.append([parts, k[3], k[4] / tall, k[5] / mid, _family(parts, k[2], fams), stood, _kind_id(k[2], parts)])
 			if k[6]:
 				close.append(trees[-1])
 		var under := []
@@ -478,10 +484,77 @@ func _wood() -> Dictionary:
 			for k: Array in ORMAN_KINDS.FLOOR[g]:
 				var parts := _wood_kind(ORMAN_KINDS.scene(k[0]), k[1])
 				var size := _parts_box(parts).size
-				floor_things[g].append([parts, k[2] / maxf(size.x, maxf(size.y, size.z)), size])
+				floor_things[g].append([parts, k[2] / maxf(size.x, maxf(size.y, size.z)), size, _floor_kind_id(String(k[0]).get_file().get_basename() + (":" + String(k[1].back()).left(24) if not k[1].is_empty() else ""), parts)])
 		floor_things.green.append_array(_old_floor(under))
 		_wood_kinds = {"trees": _normal_shares(trees), "close": _normal_shares(close), "under": under, "rocks": rocks, "floor": floor_things}
 	return _wood_kinds
+
+
+## What tools/forest_collide_check.gd needs to see each tree and thing as it is drawn: every kind's
+## meshes once (Forest's meta tree_kinds, floor_kinds: [name, [[mesh, transform], ...], its box]),
+## each copy by its kind's number and its transform (stand rows, floor_rows).
+var _tree_kind_list := []
+var _floor_kind_list := []
+var _floor_rows := []  # [group, floor kind, transform]: everything on the floor not walked through
+## The trunks as they stand, for what is put down after them (a car, a log, a camp): never into one.
+## Vector2i (4 m cell) -> [[point on the trunk's axis, radius m], ...], from the foot up to 2 m.
+var _trunk_grid := {}
+var _clearing_feet: Array[Vector2] = []  # the clearing's trees (_wasteland): no tree of the wood within 2 m
+const TRUNK_CELL := 4.0
+
+
+func _bare(parts: Array) -> Array:
+	var out := []
+	for part: Array in parts:
+		out.append([part[0], part[1]])
+	return out
+
+
+func _kind_id(label: String, parts: Array) -> int:
+	_tree_kind_list.append([label, _bare(parts), AABB()])
+	return _tree_kind_list.size() - 1
+
+
+func _floor_kind_id(label: String, parts: Array) -> int:
+	_floor_kind_list.append([label, _bare(parts), _parts_box(parts)])
+	return _floor_kind_list.size() - 1
+
+
+## A tree as it stands, `xf` in the world: its row for the checks, its trunk for what comes after.
+func _note_tree(kind: Array, xf: Transform3D, sc: float) -> void:
+	var post_at := PackedVector3Array()
+	var radii := PackedFloat32Array()
+	for post: Array in kind[5].posts:
+		post_at.append(xf * (post[0] as Vector3))
+		radii.append(clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX) + DRAWN_SKIN)
+	var p := Vector2(xf.origin.x, xf.origin.z)
+	_stand_rows.append([kind[4], xf.origin, _ground_y(p.x, p.y, _desert_noise), kind[5].touch and kind[5].ok, post_at, kind[6], xf, radii])
+	if post_at.is_empty():
+		return
+	var axis := [[Vector3(post_at[0].x, xf.origin.y, post_at[0].z), radii[0]]]
+	for i in post_at.size():
+		if i > 0:
+			axis.append([(post_at[i - 1] + post_at[i]) * 0.5, maxf(radii[i - 1], radii[i])])
+		axis.append([post_at[i], radii[i]])
+	for e: Array in axis:
+		var c := Vector2i(floori(e[0].x / TRUNK_CELL), floori(e[0].z / TRUNK_CELL))
+		if not _trunk_grid.has(c):
+			_trunk_grid[c] = []
+		_trunk_grid[c].append(e)
+
+
+## Would a thing with this box (its own units) standing by `xf` go into a trunk? `margin` m of air round it.
+func _trunk_hit(box: AABB, xf: Transform3D, margin: float) -> bool:
+	var wbox := xf * box
+	var reach := wbox.grow(TREE_STAND.MAX_POST + margin)
+	var inv := xf.affine_inverse()
+	var s := minf(xf.basis.x.length(), minf(xf.basis.y.length(), xf.basis.z.length()))
+	for i in range(floori(reach.position.x / TRUNK_CELL), floori(reach.end.x / TRUNK_CELL) + 1):
+		for j in range(floori(reach.position.z / TRUNK_CELL), floori(reach.end.z / TRUNK_CELL) + 1):
+			for e: Array in _trunk_grid.get(Vector2i(i, j), []):
+				if reach.has_point(e[0]) and box.grow((float(e[1]) + margin) / s).has_point(inv * (e[0] as Vector3)):
+					return true
+	return false
 
 
 ## Puts a kind's origin where its trunk meets the ground (tools/tree_stand.gd), moving its parts: its
@@ -501,9 +574,135 @@ func _stand(parts: Array, scale: float, hint: float, kind := "") -> Dictionary:
 	for part: Array in parts:
 		part[1] = Transform3D(Basis(), -foot) * part[1]
 	var posts := []
-	for post: Array in m.posts:
-		posts.append([(post[0] as Vector3) - foot, post[1]])
+	var drawn := _drawn_posts(solid, Vector3.ZERO, scale) if m.ok else []  # the parts stand on the foot now
+	if drawn.size() >= 3:
+		posts = drawn
+	else:
+		for post: Array in m.posts:
+			posts.append([(post[0] as Vector3) - foot, post[1]])
 	return {"posts": posts, "touch": touch, "ok": m.ok}
+
+
+## The trunk's posts as the mesh draws it (2026-11-06, the user: "some trees you walk through";
+## tools/forest_collide_check.gd): tree_stand's posts kept to the kinds table's width, thinner than a
+## flared foot or a fat trunk, and on a few kinds the low ones stood beside the trunk, where a root
+## set the foot. Here, at each of DRAWN_AT m over the foot, the plane's cut through the wood nearest the
+## foot's line up (a ring that closes before anything open, a leaf card), its middle and its furthest
+## point. Following the last cut up instead strayed onto a low branch (the cypress).
+## [[centre, radius], ...] in the parts' units; fewer than three: the mesh had no trunk to cut.
+const DRAWN_AT := [0.55, 0.9, 1.25, 1.6, 1.95, 2.3]  # from the knee: lower is roots, stepped over; posts there shut the gaps the dead walk (waves.gd reads every post as a circle on the floor)
+const DRAWN_H := 0.4  # m, each post's height: they overlap a little
+const DRAWN_SKIN := 0.05  # m round the wood: a body stops a hair off the bark, never in it
+const DRAWN_MAX := 1.2  # m: wider made the wood shut for the dead (zombie_stuck_check) and thinned it (world_limit_check)
+
+
+func _drawn_posts(parts: Array, foot: Vector3, scale: float) -> Array:
+	var tris := TREE_STAND.triangles(parts)
+	var at := Vector2(foot.x, foot.z)
+	var out := []
+	for m: float in DRAWN_AT:
+		var y: float = foot.y + m / scale
+		# The nearest piece, and any other ring as near: a fork's second stem.
+		for piece: Array in _cut_near(tris, y, at, 0.9 / scale, 3.0 / scale):
+			var c: Vector2 = piece[0]
+			var r := 0.0
+			for q: Vector2 in piece[1]:
+				r = maxf(r, q.distance_to(c))
+			# Up to the next post the wood may lean out of it: the cut a little higher, round the same middle.
+			var above := _cut_near(tris, y + 0.17 / scale, c, 0.4 / scale, 3.0 / scale)
+			if not above.is_empty():
+				for q: Vector2 in above[0][1]:
+					r = maxf(r, q.distance_to(c))
+			out.append([Vector3(c.x, y, c.y), minf(r, DRAWN_MAX / scale)])
+	# One cut far wider than the rest is no trunk: a card, a clump of grass, a flare's last root.
+	var rs := []
+	for post: Array in out:
+		rs.append(post[1])
+	rs.sort()
+	if not rs.is_empty():
+		var mid: float = rs[rs.size() / 2]
+		for post: Array in out:
+			post[1] = minf(post[1], maxf(mid * 1.6, mid + 0.15 / scale))
+	return out
+
+
+## The pieces of the plane's cut at `y` near `at` (within `reach`, no wider than `widest`): [[its box's
+## middle, its points], ...], the nearest first (closed rings before open), then the other closed ones; [] if none.
+func _cut_near(tris: PackedVector3Array, y: float, at: Vector2, reach: float, widest: float) -> Array:
+	var segs := PackedVector2Array()
+	for t in range(0, tris.size() - 2, 3):
+		var pts := PackedVector2Array()
+		for e in 3:
+			var a: Vector3 = tris[t + e]
+			var b: Vector3 = tris[t + (e + 1) % 3]
+			if (a.y < y) != (b.y < y):
+				var p := a.lerp(b, (y - a.y) / (b.y - a.y))
+				pts.append(Vector2(p.x, p.z))
+		if pts.size() == 2:
+			segs.append_array(pts)
+	if segs.is_empty():
+		return []
+	var n := segs.size() / 2
+	var parent := PackedInt32Array()
+	parent.resize(n)
+	for i in n:
+		parent[i] = i
+	var ends := {}  # point -> segments ending there
+	var q := widest / 3000.0
+	for i in n:
+		for p: Vector2 in [segs[i * 2], segs[i * 2 + 1]]:
+			var key := Vector2i(roundi(p.x / q), roundi(p.y / q))
+			if ends.has(key):
+				var a: int = _root_of(parent, i)
+				var b: int = _root_of(parent, ends[key][0])
+				parent[a] = b
+				ends[key].append(i)
+			else:
+				ends[key] = [i]
+	var boxes := {}
+	var open := {}
+	for key: Vector2i in ends:
+		if (ends[key] as Array).size() == 1:
+			open[_root_of(parent, ends[key][0])] = true
+	for i in n:
+		var r := _root_of(parent, i)
+		var b := Rect2(segs[i * 2], Vector2.ZERO).expand(segs[i * 2 + 1])
+		boxes[r] = (boxes[r] as Rect2).merge(b) if boxes.has(r) else b
+	var best := -1
+	var best_d := INF
+	for r: int in boxes:
+		var b: Rect2 = boxes[r]
+		var d := b.get_center().distance_to(at)
+		if maxf(b.size.x, b.size.y) > widest or d > reach:
+			continue
+		d += reach * 0.3 if open.has(r) else 0.0  # a scan's trunk is often open too
+		if d < best_d:
+			best_d = d
+			best = r
+	if best < 0:
+		return []
+	var keep := [best]
+	for r: int in boxes:
+		var b: Rect2 = boxes[r]
+		# Another ring, or any piece of wood with some thickness (a scan's open stem; a leaf card's cut is a thin line).
+		var thick := minf(b.size.x, b.size.y) > widest * 0.03
+		if r != best and (not open.has(r) or thick) and maxf(b.size.x, b.size.y) <= widest and b.get_center().distance_to(at) < reach:
+			keep.append(r)
+	var out := []
+	for r: int in keep:
+		var pts := PackedVector2Array()
+		for i in n:
+			if _root_of(parent, i) == r:
+				pts.append(segs[i * 2])
+				pts.append(segs[i * 2 + 1])
+		out.append([(boxes[r] as Rect2).get_center(), pts])
+	return out
+
+
+func _root_of(parent: PackedInt32Array, i: int) -> int:
+	while parent[i] != i:
+		i = parent[i]
+	return i
 
 
 ## A kind's posts round its trunk, as it stands by `xf`: a short cylinder at each height, so a leaning
@@ -512,8 +711,8 @@ func _posts(kind: Array, xf: Transform3D, body: StaticBody3D, sc: float) -> void
 	for post: Array in kind[5].posts:
 		var cs := CollisionShape3D.new()
 		var cyl := CylinderShape3D.new()
-		cyl.radius = clampf(post[1] * sc, TREE_STAND.MIN_POST, TREE_STAND.MAX_POST)
-		cyl.height = 0.85
+		cyl.radius = clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX) + DRAWN_SKIN
+		cyl.height = DRAWN_H if kind[5].posts.size() > 3 else 0.85
 		cs.shape = cyl
 		cs.position = xf * (post[0] as Vector3)
 		add(cs, body)
@@ -606,6 +805,8 @@ func _wood_tree(parent: Node, kind: Array, at: Vector3, rng: RandomNumberGenerat
 		mi.transform = xf * part[1]
 		add(mi, body)
 	_posts(kind, xf, body, s)
+	_note_tree(kind, Transform3D(Basis(), body.position) * xf, s)
+	_clearing_feet.append(p)
 
 
 ## Something low on the floor, no collision: a fern, a stone, a log. Drawn with the wood (_forest).
@@ -696,6 +897,7 @@ func _forest() -> void:
 			chunks[key][m][2] = tones
 	var count := 0
 	var tufted := []  # [where, foot radius], the trees anyone gets near
+	_make_track()
 	for dart in FOREST_DARTS:
 		var p := Vector2(rng.randf_range(WORLD.position.x, WORLD.end.x), rng.randf_range(WORLD.position.y, WORLD.end.y))
 		# 2026-11-04, the user: the trees stopped at a line before the junk. Now right up to the heaps'
@@ -734,18 +936,26 @@ func _forest() -> void:
 		var lean := Basis(Vector3(cos(lean_to), 0.0, sin(lean_to)), deg_to_rad(rng.randf_range(0.0, WOOD_LEAN)))
 		var girth := rng.randf_range(0.88, 1.12)
 		var xf := Transform3D(lean * Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * girth, sc, sc * girth)), at)
-		plant.call(kind[0], xf, false)
-		count += 1
-		var foot := clampf(float(kind[3]) * sc, 0.25, 1.4)
-		_marks.append([p, foot + 1.0, foot + 1.5])
-		if away < TUFTS_FROM_TREES:
-			tufted.append([p, foot])
-		if _past_rim(p.x, p.y, _desert_noise) == 0.0:  # behind the belt nobody walks up to it
-			_posts(kind, xf, trunks, sc * girth)
-			var post_at := PackedVector3Array()
-			for post: Array in kind[5].posts:
-				post_at.append(xf * (post[0] as Vector3))
-			_stand_rows.append([kind[4], at, _ground_y(p.x, p.y, _desert_noise), kind[5].touch and kind[5].ok, post_at])
+		# The old track (_terk): its trees were cut; the same dice are thrown, so the rest of the wood stands as it did.
+		var off_track := _off_track(p)
+		# Ragged: cut straight, its edge trees stood in two rows along it (world_limit_check).
+		var cut := off_track < TRACK_HALF * (0.7 + 0.65 * (_desert_noise.get_noise_2d(p.x * 9.0 + 40.0, p.y * 9.0) * 0.5 + 0.5)) and _out_of_clearing(p) < TRACK_TO - 6.0
+		# A tree of the clearing (_wasteland, before the wood) stood there already: trunk through trunk.
+		var taken := _trunk_into(kind, xf, sc * girth) or _clearing_feet.any(func(f: Vector2) -> bool: return f.distance_to(p) < 2.0)
+		if cut or taken:
+			_wood_tone(p, rng)
+			if cut:
+				_felled.append([p, off_track])
+		else:
+			plant.call(kind[0], xf, false)
+			count += 1
+			var foot := clampf(float(kind[3]) * sc, 0.25, 1.4)
+			_marks.append([p, foot + 1.0, foot + 1.5])
+			if away < TUFTS_FROM_TREES:
+				tufted.append([p, foot])
+			if _past_rim(p.x, p.y, _desert_noise) == 0.0:  # behind the belt nobody walks up to it
+				_posts(kind, xf, trunks, sc * girth)
+				_note_tree(kind, xf, sc * girth)
 		# The floor between them: ferns, shrubs, a stone.
 		if rng.randf() < 0.25:
 			var off := Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(0.8, 2.5)
@@ -754,6 +964,7 @@ func _forest() -> void:
 				b.y = _ground_y(b.x, b.z, _desert_noise) - 0.04
 				var parts: Array = wood.under[rng.randi() % wood.under.size()]
 				plant.call(parts, Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.5, 1.0)), b), true)
+	_terk(plant)
 	for thing: Array in _floor_things:
 		plant.call(thing[0], thing[1], true)
 	_wood_floor(plant, rng)
@@ -779,7 +990,10 @@ func _forest() -> void:
 			at.append(o[0])
 			stands[o[1]] = at
 	root.set_meta("tree_families", stands)
-	root.set_meta("stand", _stand_rows)  # tools/wood_stand_check.gd
+	root.set_meta("stand", _stand_rows)  # tools/wood_stand_check.gd, forest_collide_check.gd
+	root.set_meta("tree_kinds", _tree_kind_list)
+	root.set_meta("floor_kinds", _floor_kind_list)
+	root.set_meta("floor_rows", _floor_rows)
 	print("forest: ", count, " trees in ", chunks.size(), " chunks")
 	_veils(root)
 	# The wood's inner edge, every 30 degrees round the pad: where the dead can step out.
@@ -795,6 +1009,321 @@ func _forest() -> void:
 		m.position = Vector3(p.x, _ground_y(p.x, p.y, _desert_noise), p.y)
 		add(m, root)
 		m.add_to_group("forest_edge", true)
+
+
+## The old wood's stories (2026-11-06, the user: the wood's age, its abandonment; no strewing, each thing
+## where someone left it): an old forest track into the clearing, a covered car pulled off it, the poles
+## of a line long dead, a sign nobody can read; a camp left in a hurry; a fence gone to ruin; a snag whose
+## top lies at its foot. Only at the near wood's edge, between where the dead step out (_forest's
+## ForestEdge markers, every 30 deg), never in the clearing. Each thing drawn with the wood (no distance
+## limit), solid where it stands in the way, never into a trunk (_trunk_hit), the floor's damp round it.
+## Where, how many and how big: all my guess, not a rule.
+const TRACK_ANGLE := 15.0  # deg round the clearing: between the markers at 0 and 30
+const TRACK_HALF := 1.7  # m either side of its middle: no trees there (they were cut), ruts
+const TRACK_FROM := -4.0  # m out of the clearing's edge: where its ruts begin...
+const TRACK_TO := 46.0  # ...and where the wood has taken it back
+const CAMP_ANGLE := 75.0
+const FENCE_ANGLES := Vector2(278.0, 293.0)
+const SNAG_ANGLE := 345.0
+var _track := PackedVector2Array()
+var _felled := []  # [where, how far off the track's middle]
+var _clear_zones := []  # [where, radius]: the floor's scenes keep out
+var _terk_kinds := {}  # label -> [parts, floor kind]
+
+
+## A point `out` m out of the clearing's edge, `deg` round it.
+func _oval_at(deg: float, out: float) -> Vector2:
+	var dir := Vector2.from_angle(deg_to_rad(deg))
+	return CLEARING_CENTRE + dir * CLEARING_RADII * (1.0 + out / minf(CLEARING_RADII.x, CLEARING_RADII.y))
+
+
+## The track's middle line, from the clearing out, wandering a little.
+func _make_track() -> void:
+	_track = PackedVector2Array()
+	var out := TRACK_FROM
+	while out <= TRACK_TO:
+		_track.append(_oval_at(TRACK_ANGLE + 7.0 * sin(out * 0.07) - 3.0, out))
+		out += 1.0
+
+
+## Metres from `p` to the track's middle; INF far off it.
+func _off_track(p: Vector2) -> float:
+	var best := INF
+	for i in _track.size() - 1:
+		best = minf(best, p.distance_to(Geometry2D.get_closest_point_to_segment(p, _track[i], _track[i + 1])))
+	return best
+
+
+func _kept_clear(p: Vector2, r: float) -> bool:
+	for z: Array in _clear_zones:
+		if p.distance_to(z[0]) < float(z[1]) + r:
+			return true
+	return _off_track(p) < TRACK_HALF + r
+
+
+## Would this tree's trunk (its posts, as it would stand by `xf`) go into one standing already?
+func _trunk_into(kind: Array, xf: Transform3D, sc: float) -> bool:
+	for post: Array in kind[5].posts:
+		var w: Vector3 = xf * (post[0] as Vector3)
+		var r := clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX)
+		for i in range(floori((w.x - 2.5) / TRUNK_CELL), floori((w.x + 2.5) / TRUNK_CELL) + 1):
+			for j in range(floori((w.z - 2.5) / TRUNK_CELL), floori((w.z + 2.5) / TRUNK_CELL) + 1):
+				for e: Array in _trunk_grid.get(Vector2i(i, j), []):
+					if absf(e[0].y - w.y) < 0.5 and Vector2(e[0].x, e[0].z).distance_to(Vector2(w.x, w.z)) < r + float(e[1]):
+						return true
+	return false
+
+
+## Any trunk within `r` m of `p`?
+func _trunk_near(p: Vector2, r: float) -> bool:
+	for i in range(floori((p.x - r - 1.0) / TRUNK_CELL), floori((p.x + r + 1.0) / TRUNK_CELL) + 1):
+		for j in range(floori((p.y - r - 1.0) / TRUNK_CELL), floori((p.y + r + 1.0) / TRUNK_CELL) + 1):
+			for e: Array in _trunk_grid.get(Vector2i(i, j), []):
+				if Vector2(e[0].x, e[0].z).distance_to(p) < r + float(e[1]):
+					return true
+	return false
+
+
+## The nearest spot to `want` with no trunk within `r`, looked for out to `reach` m; INF if none.
+func _free_near(want: Vector2, r: float, reach: float) -> Vector2:
+	var d := 0.0
+	while d <= reach:
+		var n := maxi(1, int(TAU * d / 0.5))
+		for k in n:
+			var p := want + Vector2.from_angle(TAU * k / n + d) * d
+			if not _trunk_near(p, r) and _heap_h(p) <= 0.05 and _past_rim(p.x, p.y, _desert_noise) == 0.0:
+				return p
+		d += 0.4
+	return Vector2.INF
+
+
+## A story's piece: [file, mesh nodes] as one, standing on its bottom's middle.
+func _terk_parts(label: String, file: String, names := []) -> Array:
+	if not _terk_kinds.has(label):
+		var parts := _wood_kind(file, names)
+		_terk_kinds[label] = [parts, _floor_kind_id("terk:" + label, parts)]
+	return _terk_kinds[label]
+
+
+## The names of a file's meshes that begin with `prefix`.
+func _names_like(file: String, prefix: String) -> Array:
+	var scene: Node = (load(file) as PackedScene).instantiate()
+	var out := []
+	for mi: MeshInstance3D in scene.find_children("*", "MeshInstance3D", true, false):
+		if String(mi.name).begins_with(prefix):
+			out.append(String(mi.name))
+	scene.free()
+	return out
+
+
+## Puts a piece down: drawn with the wood, solid (`solid`: "box" its box, "" its box if it stands in the way, "none") and noted for the
+## checks; refused if it would go into a trunk. Its foot's damp `damp` m round.
+func _put(plant: Callable, label: String, file: String, names: Array, xf: Transform3D, solid: String, damp := 0.0) -> bool:
+	var k: Array = _terk_parts(label, file, names)
+	var box := _parts_box(k[0])
+	if _trunk_hit(box, xf, 0.08):
+		return false
+	plant.call(k[0], xf, true, FLOOR_CHUNK)
+	var ground := _ground_y(xf.origin.x, xf.origin.z, _desert_noise)
+	_floor_rows.append(["terk", k[1], xf, ground])
+	if solid == "box" or (solid == "" and (xf * box).end.y > ground + FLOOR_SOLID_FROM):  # the floor's rule (_floor_solid)
+		var cs := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = box.size * xf.basis.get_scale()
+		cs.shape = shape
+		cs.transform = Transform3D(xf.basis.orthonormalized(), xf * box.get_center())
+		add(cs, _trunks)
+	if damp > 0.0:
+		_marks.append([Vector2(xf.origin.x, xf.origin.z), damp, damp + 0.4])
+	return true
+
+
+## Tipped by `tilt` (its own axes), turned to `yaw`, leaning by `lean` (the world's), standing at `at` sunk `sink` m.
+func _xf_at(at: Vector2, yaw: float, s := 1.0, tilt := Basis(), sink := 0.0, lean := Basis()) -> Transform3D:
+	return Transform3D((lean * Basis(Vector3.UP, yaw) * tilt).scaled(Vector3.ONE * s), Vector3(at.x, _ground_y(at.x, at.y, _desert_noise) - sink, at.y))
+
+
+func _terk(plant: Callable) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 131
+	var fence := ORMAN_KINDS.scene("modular_chainlink_fence")
+	var poles := ORMAN_KINDS.scene("modular_electricity_poles")
+	var made := []
+	# 1. The track: ruts, cut stumps along its sides, the car pulled off it, the line's poles, the sign.
+	for i in _track.size() - 1:
+		var a := _track[i]
+		var b := _track[i + 1]
+		var side := (b - a).normalized().orthogonal()
+		var fade := 1.0 - smoothstep(TRACK_TO - 18.0, TRACK_TO, _out_of_clearing(a))
+		for f in 3:
+			var p := a.lerp(b, f / 3.0)
+			for s: float in [-0.8, 0.8]:
+				if rng.randf() < fade * 0.9:
+					_marks.append([p + side * s, 0.42 * fade + 0.1, 0.01])
+	for f: Array in _felled:
+		if float(f[1]) > TRACK_HALF - 0.9 and rng.randf() < 0.5:
+			var st: Array = (_wood().floor.stump as Array)[rng.randi() % 3]
+			var xf := _xf_at(f[0], rng.randf() * TAU, rng.randf_range(0.9, 1.2) / maxf(st[2].x, st[2].z), Basis(), 0.04)
+			if not _trunk_hit(_parts_box(st[0]), xf, 0.05):
+				plant.call(st[0], xf, true, FLOOR_CHUNK)
+				_floor_rows.append(["stump", st[3], xf, _ground_y(xf.origin.x, xf.origin.z, _desert_noise)])
+				_floor_solid(st, xf, "stump")
+				_marks.append([f[0], 1.0, 1.4])
+	# The car: off the track's side, its nose into the wood, a few metres in.
+	var car := MODELS + "covered_car/covered_car_1k_psx.scn"
+	var car_done := false
+	for out: float in [9.0, 12.0, 7.0, 15.0, 18.0, 21.0, 24.0]:
+		if car_done:
+			break
+		for s: float in [3.4, -3.4, 4.2, -4.2]:
+			var i := clampi(int(out - TRACK_FROM), 0, _track.size() - 2)
+			var dir := (_track[i + 1] - _track[i]).normalized()
+			var at := _track[i] + dir.orthogonal() * s
+			var yaw := -dir.angle() + PI * 0.5 + rng.randf_range(-0.35, 0.35) + (0.0 if s > 0.0 else PI)
+			var xf := _xf_at(at, yaw, 1.0, Basis(Vector3.FORWARD, rng.randf_range(-0.04, 0.04)) * Basis(Vector3.RIGHT, -0.05), 0.06)
+			if _put(plant, "covered_car", car, [], xf, "box", 2.6):
+				_clear_zones.append([at, 3.2])
+				made.append("car %.1f,%.1f" % [at.x, at.y])
+				car_done = true
+				break
+	# The line's poles along the track's other side: one still up, leaning; one down across the floor.
+	var pole_names := _names_like(poles, "preset_02_")
+	for e: Array in [[6.0, -2.6, false], [27.0, -2.4, true], [40.0, -2.8, false]]:
+		var i := clampi(int(float(e[0]) - TRACK_FROM), 0, _track.size() - 2)
+		var dir := (_track[i + 1] - _track[i]).normalized()
+		var spot := _free_near(_track[i] + dir.orthogonal() * float(e[1]), 1.0, 3.5)
+		if spot == Vector2.INF:
+			continue
+		var tilt := Basis(Vector3(dir.x, 0, dir.y), deg_to_rad(rng.randf_range(5.0, 11.0)))
+		if e[2]:
+			tilt = Basis(Vector3(-dir.y, 0, dir.x), deg_to_rad(86.0))  # down, its foot at the spot, its top along the track
+		if _put(plant, "pole", poles, pole_names, _xf_at(spot, -dir.angle() + rng.randf_range(-0.3, 0.3), 1.0, Basis(), 0.35 if not e[2] else 0.0, tilt), "box", 0.8):
+			made.append("pole %.1f,%.1f" % [spot.x, spot.y])
+	# The sign where the track leaves the clearing: a post, its plate hanging askew, nothing left on it.
+	var si := clampi(int(1.5 - TRACK_FROM), 0, _track.size() - 2)
+	var sdir := (_track[si + 1] - _track[si]).normalized()
+	var sat := _free_near(_track[si] + sdir.orthogonal() * 2.3, 0.4, 1.5)
+	if sat != Vector2.INF:
+		var post_xf := _xf_at(sat, -sdir.angle() + PI * 0.5, 1.0, Basis(Vector3.RIGHT, deg_to_rad(6.0)) * Basis(Vector3.FORWARD, deg_to_rad(-4.0)), 0.5)
+		if _put(plant, "sign_post", fence, ["modular_chainlink_fence_post"], post_xf, "box", 0.6):
+			_sign_plate(plant, post_xf)
+			made.append("sign %.1f,%.1f" % [sat.x, sat.y])
+	# 2. The camp: a cold fire ring, a stool knocked over, the pot and its lid apart, boots, a jerrycan;
+	# off in the dark what's left of someone.
+	var camp := _free_near(_oval_at(CAMP_ANGLE, 7.0), 3.0, 6.0)
+	if camp != Vector2.INF:
+		_clear_zones.append([camp, 3.4])
+		if _put(plant, "fire_pit", ORMAN_KINDS.scene("stone_fire_pit"), [], _xf_at(camp, rng.randf() * TAU, 1.0, Basis(), 0.06), "", 1.6):
+			made.append("camp %.1f,%.1f" % [camp.x, camp.y])
+			_marks.append([camp, 1.3, 0.05])  # soot, nothing grows
+		var logs: Array = _wood().floor.log
+		for n in 3:  # burnt ends in the ring
+			var lg: Array = logs[2 + n % 3]
+			var a := TAU * n / 3.0 + rng.randf_range(-0.3, 0.3)
+			var at := camp + Vector2.from_angle(a) * 0.15
+			var xf := Transform3D((Basis(Vector3.UP, -a) * Basis(Vector3.BACK, deg_to_rad(rng.randf_range(10.0, 20.0)))).scaled(Vector3.ONE * 0.75 / maxf(lg[2].x, maxf(lg[2].y, lg[2].z))), Vector3(at.x, _ground_y(at.x, at.y, _desert_noise) + 0.02, at.y))
+			plant.call(lg[0], xf, true, FLOOR_CHUNK)
+		var things := [
+			["stool", ORMAN_KINDS.scene("folding_wooden_stool"), [], 1.7, Basis(Vector3.RIGHT, PI * 0.5), -0.05],
+			["pot", ORMAN_KINDS.scene("pot_enamel_01"), ["pot_enamel_01_base"], 1.0, Basis(Vector3.BACK, 0.25), 0.02],
+			["pot_lid", ORMAN_KINDS.scene("pot_enamel_01"), ["pot_enamel_01_lid"], 1.5, Basis(Vector3.RIGHT, 0.5), 0.0],
+			["boot_l", ORMAN_KINDS.scene("rubber_boots"), ["rubber_boots_dirty_l"], 2.4, Basis(), 0.02],
+			["boot_r", ORMAN_KINDS.scene("rubber_boots"), ["rubber_boots_dirt_r"], 2.9, Basis(Vector3.BACK, PI * 0.5), -0.03],
+			["jerrycan", ORMAN_KINDS.scene("plastic_jerrycan"), [], 2.2, Basis(Vector3.RIGHT, PI * 0.5), -0.1],
+		]
+		var turn := rng.randf() * TAU
+		for ti in things.size():
+			var t: Array = things[ti]
+			var a := turn + rng.randf_range(-0.5, 0.5) + ti * 1.05
+			var at := camp + Vector2.from_angle(a) * float(t[3])
+			_put(plant, t[0], t[1], t[2], _xf_at(at, rng.randf() * TAU, 1.0, t[4], -float(t[5])), "", 0.0)
+		var bones: Array = _wood().floor.bones
+		var skulls: Array = _wood().floor.skull
+		var far := _free_near(camp + Vector2.from_angle(turn + PI) * 4.2, 0.6, 2.0)
+		if far != Vector2.INF:
+			plant.call(bones[1][0], _xf_at(far, rng.randf() * TAU, 0.7 / maxf(bones[1][2].x, bones[1][2].z), Basis(Vector3.BACK, 0.3), 0.05), true, FLOOR_CHUNK)
+			plant.call(skulls[2][0], _xf_at(far + Vector2(0.45, 0.2), rng.randf() * TAU, 0.22 / maxf(skulls[2][2].x, skulls[2][2].z), Basis(Vector3.RIGHT, 0.6), 0.03), true, FLOOR_CHUNK)
+			_marks.append([far, 0.9, 1.1])
+	# 3. The fence: posts every 2 m along the wood's edge, leaning, some snapped; wire on a few, one length down.
+	var last := Transform3D()
+	var last_ok := false
+	var deg := FENCE_ANGLES.x
+	var down := false
+	while deg <= FENCE_ANGLES.y:
+		var at := _oval_at(deg, 2.2 + 0.8 * sin(deg * 0.4))
+		var nxt := _oval_at(deg + 1.0, 2.2 + 0.8 * sin((deg + 1.0) * 0.4))
+		var along := (nxt - at).normalized()
+		deg += 2.0 / at.distance_to(nxt)
+		var lean := Basis(Vector3(along.x, 0, along.y), deg_to_rad(rng.randf_range(-12.0, 12.0))) * Basis(Vector3(-along.y, 0, along.x), deg_to_rad(rng.randf_range(-6.0, 6.0)))
+		var snapped := rng.randf() < 0.25
+		var xf := _xf_at(at, -along.angle(), 1.0, Basis(), 0.55 if not snapped else 1.3, lean)
+		var ok := not _trunk_near(at, 0.25) and _put(plant, "fence_post", fence, ["modular_chainlink_fence_post"], xf, "box", 0.5)
+		if ok and last_ok and rng.randf() < 0.55:
+			var a := Vector2(last.origin.x, last.origin.z)
+			var mid := (a + at) * 0.5
+			var w := a.distance_to(at)
+			var wire := ["modular_chainlink_fence_double"]
+			if not down and rng.randf() < 0.4:  # a length torn off, lying in the leaves
+				down = true
+				var flat := _xf_at(mid + Vector2(-along.y, along.x) * 1.4, -along.angle(), 1.0, Basis(Vector3.RIGHT, deg_to_rad(88.0)), 0.02)
+				_put(plant, "fence_down", fence, wire, flat, "", 0.0)
+			else:
+				var sag := Basis(Vector3(-along.y, 0, along.x), deg_to_rad(rng.randf_range(-8.0, 8.0)))
+				var wxf := _xf_at(mid, -along.angle(), 1.0, Basis(), 0.15, sag)
+				wxf.basis = wxf.basis * Basis().scaled(Vector3(w / 1.95, 1.0 if not snapped else 0.6, 1.0))
+				if _put(plant, "fence_wire", fence, wire, wxf, "box", 0.0):
+					_clear_zones.append([mid, 1.0])
+		if ok:
+			_clear_zones.append([at, 0.6])
+			made.append("fence %.1f,%.1f" % [at.x, at.y])
+		last = xf
+		last_ok = ok
+	# 4. A snag, its broken top lying at its foot along a line no tree stands on.
+	var snag_at := _free_near(_oval_at(SNAG_ANGLE, 5.0), 2.2, 8.0)
+	var snag: Array = []
+	for k: Array in _wood().close:
+		if k[4] == "snag_a":
+			snag = k
+	if snag_at != Vector2.INF and not snag.is_empty():
+		var trunk: Array = (_wood().floor.log as Array)[1]  # Poly Haven's dead trunk
+		var size: Vector3 = trunk[2]
+		var lay := Basis()
+		if size.max_axis_index() == Vector3.AXIS_Z:
+			lay = Basis(Vector3.UP, PI * 0.5)
+		elif size.max_axis_index() == Vector3.AXIS_Y:
+			lay = Basis(Vector3.BACK, -PI * 0.5)
+		for tries in 36:
+			var yaw := TAU * tries / 36.0
+			var dir := Vector2.from_angle(yaw)
+			var length := rng.randf_range(5.0, 6.5)
+			var mid := snag_at + dir * (length * 0.5 + 0.6)
+			var s := length / size[size.max_axis_index()]
+			var b := (Basis(Vector3.UP, -yaw) * Basis(Vector3.BACK, deg_to_rad(4.0)) * lay).scaled(Vector3.ONE * s)
+			var centre: Vector3 = b * _parts_box(trunk[0]).get_center()
+			var bottom: float = (b * _parts_box(trunk[0]).position).y
+			var xf := Transform3D(b, Vector3(mid.x - centre.x, _ground_y(mid.x, mid.y, _desert_noise) - minf(bottom, centre.y) - 0.12, mid.y - centre.z))
+			if _put(plant, "snag_top", ORMAN_KINDS.scene("dead_tree_trunk"), [], xf, "box", 1.0):
+				var sc: float = rng.randf_range(snag[2].x, snag[2].y)
+				var sxf := Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * sc), Vector3(snag_at.x, _ground_under(snag_at, snag[3] * sc) - 0.08, snag_at.y))
+				plant.call(snag[0], sxf, false)
+				_posts(snag, sxf, _trunks, sc)
+				_note_tree(snag, sxf, sc)
+				_marks.append([snag_at, 1.6, 2.2])
+				_clear_zones.append([snag_at, 1.0])
+				_clear_zones.append([mid, length * 0.5])
+				made.append("snag %.1f,%.1f top %.1f,%.1f" % [snag_at.x, snag_at.y, mid.x, mid.y])
+				break
+	print("terk: ", made)
+
+
+## The sign's plate on its post: rusted blank, hanging askew.
+func _sign_plate(plant: Callable, post: Transform3D) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.62, 0.42, 0.02)
+	mesh.material = _psx_mat("rust_coarse_01", Color(0.62, 0.5, 0.42), "terk_sign")
+	var b := post.basis.orthonormalized() * Basis(Vector3.BACK, deg_to_rad(17.0)) * Basis(Vector3.RIGHT, deg_to_rad(-5.0))
+	var xf := Transform3D(b, post * Vector3(0.0, 1.85, 0.06) + b * Vector3(0.18, -0.12, 0.0))
+	plant.call([[mesh, Transform3D()]], xf, true, FLOOR_CHUNK)
 
 
 ## Moss and a little green at the foot of what stands (2026-11-05, the user: "yosunlaşmalar yeşillikler
@@ -1010,8 +1539,13 @@ func _wood_floor(plant: Callable, rng: RandomNumberGenerator) -> void:
 				var at := from + Vector2.from_angle(rng.randf() * TAU) * reach
 				if _heap_h(at) > 0.05 or PAD.grow(1.0).has_point(at) or _past_rim(at.x, at.y, _desert_noise) > 0.0:
 					continue
-				placed.append(at)
 				var thing_xf := _floor_xf(thing, group, at, rng)
+				# 2026-11-06, the user: things stood inside trunks. Never into one, nor into a story's ground (_terk).
+				if not group in FLOOR_SOFT and (_trunk_hit(_parts_box(thing[0]), thing_xf, 0.15) or _kept_clear(at, 0.5)):
+					continue
+				placed.append(at)
+				if not group in FLOOR_SOFT and _parts_box(thing[0]).size.y * thing_xf.basis.get_scale().y > 0.3:
+					_floor_rows.append([group, thing[3], thing_xf, _ground_y(at.x, at.y, _desert_noise)])
 				plant.call(thing[0], thing_xf, true, FLOOR_CHUNK)
 				_floor_solid(thing, thing_xf, group)
 				if group in ["boulder", "rock", "log", "stump", "root"]:
@@ -1105,7 +1639,8 @@ func _floor_solid(thing: Array, xf: Transform3D, group: String) -> void:
 	var box := _parts_box(thing[0])
 	var s := xf.basis.get_scale().x
 	var size := box.size * s
-	if size.y < FLOOR_SOLID_FROM or (xf * box.get_center()).y + size.y * 0.5 < _ground_y(xf.origin.x, xf.origin.z, _desert_noise) + FLOOR_SOLID_FROM:
+	# Its top as it lies (tipped, half sunk), the same as tools/forest_collide_check.gd looks at it.
+	if (xf * box).end.y < _ground_y(xf.origin.x, xf.origin.z, _desert_noise) + FLOOR_SOLID_FROM:
 		return
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
@@ -1352,12 +1887,6 @@ func pbr_box(id: String, metres: float, tint := Color.WHITE, world := true, save
 	return m
 
 
-func _cukur(piece: String, xf: Transform3D, parent: Node) -> void:
-	var n: Node3D = (load(_ps1(CUKUR + piece + ".gltf")) as PackedScene).instantiate()
-	n.transform = xf
-	add(n, parent)
-
-
 ## The workshop's sheets and steel, PS1: the texture small and unfiltered (assets/psx/tex/, made by
 ## tools/psx_props.gd tex), lit per vertex, drawn from both sides; `metres` > 0 maps it by world
 ## position every `metres` (the steel boxes) instead of by UV.
@@ -1475,7 +2004,7 @@ func _lamp(parent: Node, at: Vector3, model: String, energy: float, shadow := fa
 
 
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly
-## (docs/ayrintilar.md "Radyo"); as range_dressing.gd _radio, in the bench's own frame.
+## (docs/ayrintilar.md "Radyo"); as the old hall had it, in the bench's own frame.
 func _bench_radio(bench: Node3D) -> void:
 	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/props/radio/radio.glb",
 		bench.transform * Vector3(-0.38, 1.293, -0.275), bench.rotation.y + 0.45, 1.1)

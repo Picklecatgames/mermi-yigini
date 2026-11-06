@@ -79,6 +79,24 @@ func _kind(kind: StringName, model: StringName) -> void:
 	await _strip(body, run, name + "_run", [0.0, 0.08, 0.16, 0.24, 0.32, 0.4])
 	body.idle()
 	await _travel(body, 0.0, 0.5)
+	if "--modes" in OS.get_cmdline_user_args():  # the bearings (zombie_body.gd set_mode), each eased in
+		var sheet := Image.create(FRAME.x * 6, FRAME.y, false, Image.FORMAT_RGBA8)
+		var i := 0
+		for m: StringName in [&"", &"crouch", &"cover", &"cover", &"glance", &"coil"]:
+			body.set_mode(m)
+			await _travel(body, 0.0, 1.2 if i != 3 else 2.0)
+			await RenderingServer.frame_post_draw
+			var shot := root.get_viewport().get_texture().get_image()
+			shot.convert(Image.FORMAT_RGBA8)
+			var size := shot.get_size()
+			var w := size.y * FRAME.x / FRAME.y
+			var part := shot.get_region(Rect2i((size.x - w) / 2, 0, w, size.y))
+			part.resize(FRAME.x, FRAME.y, Image.INTERPOLATE_BILINEAR)
+			sheet.blit_rect(part, Rect2i(Vector2i.ZERO, FRAME), Vector2i(FRAME.x * i, 0))
+			i += 1
+		body.set_mode(&"")
+		sheet.save_png("user://zombi_%s_%s_modes.png" % [tag, name])
+		print("saved modes ", name)
 	var whole: float = body.attack()
 	var strike: float = body.strike
 	await _strip(body, 0.0, name + "_attack", [0.0, strike * 0.35, strike * 0.7, strike, strike + 0.15, whole - 0.05])

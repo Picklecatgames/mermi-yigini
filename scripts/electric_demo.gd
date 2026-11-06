@@ -7,7 +7,7 @@ extends Node3D
 ## camera. Space or a click plays it again.
 
 const FX := preload("res://scripts/electric_fx.gd")
-const BENCH := 1.2  # as range_dressing.gd _workshop scales it
+const BENCH := 1.2  # the bench's scale (tools/build_world.gd BENCH_SCALE)
 const TOP := 0.98 * BENCH  # the top, glb y 0.98
 const PAPER := 0.011  # m, the blueprints lying there stand up to this off the top (Paper_blue_01, measured)
 const AT := Vector3(-0.09 * BENCH, TOP + PAPER, 0.05)  # where the round is worked on

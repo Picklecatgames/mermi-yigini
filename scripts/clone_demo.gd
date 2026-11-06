@@ -3,7 +3,7 @@ extends Node3D
 ## it goes into the game. Two takes: 1 is clone_fx.gd, 2 is clone_fx_drop.gd (1 is the default; `-- 2`
 ## on the command line starts on the second). Space or a click plays it again.
 
-const BENCH := 1.2  # as range_dressing.gd _workshop scales it
+const BENCH := 1.2  # the bench's scale (tools/build_world.gd BENCH_SCALE)
 const TOP := 0.98 * BENCH  # the top, glb y 0.98
 const PAPER := 0.011  # m, the blueprints lying there stand up to this off the top (Paper_blue_01, measured)
 const TAKES := [preload("res://scripts/clone_fx.gd"), preload("res://scripts/clone_fx_drop.gd")]
