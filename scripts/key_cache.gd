@@ -7,7 +7,7 @@ extends Node3D
 ## the surface over a key comes down to it, everything above a cone at that slope with its tip on
 ## the key has to go, however and wherever one digs (pile.gd min_take). A key is put where that
 ## cone holds its cost: the commons just under the pit's top, the legendaries deep down in it.
-## By hand the first fifteen minutes move ~1,500 pieces in all (docs/ajan_kritik/ekonomi.md).
+## By hand the first fifteen minutes move ~1,500 pieces in all (docs/arsiv/ajan_kritik/ekonomi.md).
 ##
 ## When digging gets down to a key it pops out onto the surface, glows in its tier's colour and
 ## lies there until someone walks over it. Placement and the reveal check run where the heap is
