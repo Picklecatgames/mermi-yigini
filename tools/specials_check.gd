@@ -4,6 +4,9 @@ extends SceneTree
 ##   Godot.exe --headless --path . -s res://tools/specials_check.gd
 
 
+const OPEN_AIR := Vector3(20.0, 0.2, -6.0)  # on the concrete pad, clear of the house (build_world.gd PAD, HOUSE)
+
+
 func _initialize() -> void:
 	root.add_child(load("res://scenes/main.tscn").instantiate())
 	for i in 3:
@@ -64,6 +67,17 @@ func _initialize() -> void:
 	# What a special does to the player it hits (their own machine plays it).
 	var me: CharacterBody3D = get_first_node_in_group("walker")
 	var vm_cam: Camera3D = me.get_node("ViewmodelView/SubViewport/Camera")
+	# Out under the open sky: the players start in the house now (tools/build_world.gd), whose ceiling
+	# stopped the flight at 1.1 m (the old hall's roof was 9 m up). On the pad east of the house,
+	# nothing over it or along the way it is thrown.
+	me.global_position = OPEN_AIR
+	me.velocity = Vector3.ZERO
+	for i in 30:
+		await physics_frame
+	var space := me.get_world_3d().direct_space_state
+	var up := PhysicsRayQueryParameters3D.create(me.global_position + Vector3.UP * 2.0, me.global_position + Vector3.UP * 12.0)
+	up.exclude = [me.get_rid()]
+	assert(me.is_on_floor() and space.intersect_ray(up).is_empty(), "standing out in the open at %s" % me.global_position)
 	var start := me.global_position
 	me._hit_by_special("punch", Vector3(0, 0, 1))
 	var top := 0.0

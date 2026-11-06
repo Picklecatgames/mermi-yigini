@@ -16,7 +16,7 @@ Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğ
 - Hurda yığını yükseklik alanı + yüzde gerçek parçalar, altında gömülü parçalar (`scripts/pile.gd`); çamur yüzeyi hiç çizilmez (kullanıcı kuralı). Atış izi, kovan ve uçan mermi görselleri MultiMesh + havuz, mermi başına node yok.
 - Co-op: bütün durum `GameState` autoload'unda, her oyuncu eylemi `request_*`, host otoriter, bağlantı yalnız `scripts/net.gd`. Yeni dünya sinyali `_world` ile, `EVENTS`'e yaz; yeni istemci komutu `REQUESTS`'e. Rastgelelik yalnız host'ta. Kontrol: `tools/net_check.gd`.
 - Viewmodel: tek kol rig'i, her silah aynı eldivende (`tools/build_arms.py`); ayarlar `viewmodel.gd` `SETS`.
-- `scenes/arena.tscn` elle düzenlenmez: `tools/build_arena.gd`'yi değiştirip çalıştır (açık alana geçince yerini alacak sahne için de aynı kural: kurucu betik, elle düzenleme yok).
+- `scenes/world.tscn` elle düzenlenmez: `tools/build_world.gd`'yi değiştirip çalıştır (kurucu betik, elle düzenleme yok; eski `arena.tscn` ve `build_arena.gd` silindi).
 - Ses: gerçek kayıtlar kullanıcıdan gelir, kodla ses üretilmez.
 - Headless kontroller `tools/*_check.gd`; değişiklikten sonra ilgili olanı çalıştır. Test tuşları: T sınırsız mermi (debug), Z zombi çağırma, N gece-gündüz, B gece + ormandan dalga, F7/F8 host/join, F2-F6 fabrika (parça, döndür, kur, yık, kasa). J dans (oyun tuşu).
 
