@@ -1,14 +1,14 @@
 extends Node
 ## The open ground's background (2026-11-03, the user: rebuild it for the open ground, list the
-## recordings it lacks). `night` (false: day; the day and night cycle sets it, none yet): at night
-## the crickets and the forest from all round, flat, at one level; the hum of the lit workshop lamp
+## recordings it lacks). At night (the clock's, GameState.night_of; `night` forces it): the crickets and the forest from all round, flat, at one level; the hum of the lit workshop lamp
 ## nearest the listener, only when standing under it, day or night; and a living night round the
 ## base (`EVENTS`): owls, a dormouse, wild pigs through the brush, a red deer roaring, each at its
 ## own natural, random interval, from a new direction, near or far, a passer-by moving as it
 ## sounds. By day nothing yet: wind, blowing sand and creaking sheet are the user's to bring
 ## (docs/ayrintilar.md, PS1 eleştirmeni turu 1); owls and crickets under the midday sun were
 ## wrong. The hall's "louder at a wall", its village and the mine cart inside are gone with the
-## hall. Local decoration only, no sync.
+## hall. Local decoration only, no sync. Its child ForestPresence (forest_presence.gd) is the one
+## part the host drives: what is heard in the wood, to one player at a time, hushes included.
 ## Beds hold nothing memorable, so their loop goes unnoticed; anything that stands out is a one-shot
 ## at random times, never in a loop (2026-10-24: the owl in the old 8 s night loop came round every
 ## 6.5 s, the user; 2026-10-25: a world that keeps changing, "half an hour on, something passes by
@@ -43,7 +43,12 @@ const HUM_NEAR := 1.0  # m (on the floor) from a lamp's spot: full hum
 const HUM_FAR := 3.5  # m: silent; lamps are 6-7 m apart, so between two it is gone
 const HUM_EASE := 4.0  # 1/s: the hum swells and fades instead of snapping as you walk
 
+## Forces the night on (shots and checks); otherwise the night follows the clock (GameState.hour).
 var night := false
+var _bed := [0.0, 0.0]  # the beds' eased level, before a hush
+## The wood going quiet (forest_presence.gd "hush"): s into it, and its shape.
+var _hush := {}
+var presence: Node
 var _lamps: Array[Vector3] = []
 var _outside: Array[AudioStreamPlayer] = []  # crickets, forest
 var _hum: AudioStreamPlayer
@@ -76,6 +81,27 @@ func _ready() -> void:
 		# The first of each comes early enough to be heard soon, never all together.
 		events.append({"row": e, "clips": clips, "player": _player("", -80.0, false), "last": -1,
 			"wait": randf_range(gap.x * 0.15, gap.x * 0.8), "angle": 0.0, "sweep": 0.0, "length": 1.0})
+	presence = preload("res://scripts/forest_presence.gd").new()
+	add_child(presence)
+
+
+func is_night() -> bool:
+	return night or GameState.night_of(GameState.hour) > 0.5
+
+
+## The crickets and the wood fall quiet: `depth` dB down over `down` s, held `hold` s, back over
+## `up` s; the night's events wait it out. Only here: the host sent it to this player alone.
+func hush(down: float, hold: float, up: float, depth: float) -> void:
+	_hush = {"t": 0.0, "down": down, "hold": hold, "up": up, "depth": depth}
+
+
+## The beds' share now, 1 without a hush.
+func hush_gain() -> float:
+	if _hush.is_empty():
+		return 1.0
+	var t: float = _hush.t
+	var k := smoothstep(0.0, _hush.down, t) * (1.0 - smoothstep(_hush.down + _hush.hold, _hush.down + _hush.hold + _hush.up, t))
+	return db_to_linear(_hush.depth * k)
 
 
 func _process(delta: float) -> void:
@@ -88,10 +114,17 @@ func _process(delta: float) -> void:
 		best_d = minf(best_d, Vector2(l.x - at.x, l.z - at.z).length())
 	var target := db_to_linear(HUM_DB) * (1.0 - smoothstep(HUM_NEAR, HUM_FAR, best_d))
 	_hum.volume_linear = lerpf(_hum.volume_linear, target, 1.0 - exp(-HUM_EASE * delta))
+	var dark := is_night()
+	if not _hush.is_empty():
+		_hush.t += delta
+		if _hush.t > _hush.down + _hush.hold + _hush.up:
+			_hush = {}
+	var gain := hush_gain()
 	for i in _outside.size():
-		var to := db_to_linear([NIGHT_DB, FOREST_DB][i]) if night else 0.0
-		_outside[i].volume_linear = lerpf(_outside[i].volume_linear, to, 1.0 - exp(-BED_EASE * delta))
-	if night:
+		var to := db_to_linear([NIGHT_DB, FOREST_DB][i]) if dark else 0.0
+		_bed[i] = lerpf(_bed[i], to, 1.0 - exp(-BED_EASE * delta))
+		_outside[i].volume_linear = _bed[i] * gain
+	if dark and _hush.is_empty():  # nothing calls while the wood holds its breath
 		_events(delta)
 
 
