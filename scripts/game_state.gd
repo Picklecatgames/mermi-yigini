@@ -1858,6 +1858,8 @@ func request_hello(token: String, peer := 0) -> void:
 			_world(&"gun_changed", [peer, p.gun])
 		if p.levels.grip > 0:
 			_world(&"pistol_grip", [peer, p.levels.grip])
+		if p.torch:  # the flashlight was in hand when they left: everyone, they too, sees it again
+			_world(&"torch_changed", [peer, true])
 		if p.character != "" and character_taken(p.character, peer):
 			p.character = ""  # someone took it while they were away: they pick again
 		if p.character != "":
