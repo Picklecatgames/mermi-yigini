@@ -328,7 +328,8 @@ const QUEST_FIXED_KINDS := ["combo", "key_found", "bullets_melted", "bench_bough
 var quest_scale := 0.5  # tools/quest_sim.gd --sweep: four mid players finish the main chain in ~36 min
 ## A pool slot draws at random among this many of the easiest quests left in it.
 const QUEST_DRAW := 2
-## The quest board (investigation board, tools/range_dressing.gd), feet; rewards are claimed there.
+## The quest board (investigation board), feet; rewards are claimed there. Still where it stood in the
+## old hall: the open ground (tools/build_world.gd) has no board yet.
 const BOARD_POS := Vector3(8.85, 0.0, 26.72)
 const BOARD_REACH := 3.0  # m
 ## The melting hopper and the press (docs/ayrintilar.md "Pres", docs/uretim_agaci.md), one each
@@ -368,7 +369,7 @@ const FENCE_SPAN: float = FENCE.span  # ± along z, its end posts
 const BAY_PATCH := 4
 const FENCE_REPAIR_COST := 3  # gold a point
 const FENCE_SEND := 0.25  # s between the host's updates of the clawing to clients
-const REPAIR_POS := Vector3(12.2, 0.0, 26.85)  # in front of the workshop bench (tools/range_dressing.gd _workshop)
+const REPAIR_POS := Vector3(9.85, 0.0, -3.37)  # the workshop bench's front edge (tools/build_world.gd BENCH_AT, yaw 0, front +z; 12.2, 26.85 was the old hall's bench)
 const REPAIR_REACH := 2.5  # m, feet: bench_menu.gd opens within REACH of its front edge
 ## Going down (docs/ayrintilar.md "Baygınlık", 2026-10-31, the user's call: the zombies in through a
 ## broken bay go for the players, a player at 0 life falls, the screen reddens, darkens and then

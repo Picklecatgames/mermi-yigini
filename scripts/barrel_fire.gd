@@ -1,5 +1,5 @@
 extends Node3D
-## The fire in the workshop's barrel stove (range_dressing.gd _workshop): charred logs on a bed of
+## The fire in the workshop's barrel stove (tools/build_world.gd _workshop_inside): charred logs on a bed of
 ## embers, flames licking up out of the rim, sparks drifting off, a little smoke, its light
 ## breathing, and a crackle heard only close by. Put at the barrel's foot. Built at load, local
 ## decoration only, no sync. The flames are an old console's (2026-11-03, the user: Kenney's soft

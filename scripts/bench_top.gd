@@ -1,8 +1,8 @@
 extends StaticBody3D
-## The workshop bench (range_dressing.gd _workshop) with its top cleared: upgrades are shown
+## The workshop bench (tools/build_world.gd _workshop_inside) with its top cleared: upgrades are shown
 ## happening there (2026-10-24, the user's call). Left on it: the blueprints and the Tesla coil in
 ## the back right corner. Done at load because parts freed inside the glb instance at build time
-## aren't saved in arena.tscn. The shelves stay; the drill press goes (it glitched, 2026-10-25).
+## aren't saved in world.tscn. The shelves stay; the drill press goes (it glitched, 2026-10-25).
 
 ## The wooden vise on the top, part of the desk's own mesh (glb space): its triangles are dropped.
 const VISE := AABB(Vector3(-0.37, 0.985, -0.16), Vector3(0.74, 0.3, 0.73))
@@ -15,7 +15,7 @@ const BATTERY := AABB(Vector3(0.66, 0.782, -0.34), Vector3(0.28, 0.25, 0.41))
 const Reveal := preload("res://scripts/reveal.gd")
 
 
-## The corner round the bench (range_dressing.gd _workshop), world x: on the wall over it the radio,
+## The corner round the bench (tools/build_world.gd _workshop_inside), world x: on the wall over it the radio,
 ## posters and their tape, the guns on nails, the lamp (z past WALL_Z; the string of bulbs hangs in
 ## front of that and stays), low in front of it the carpet and the warm bounce light.
 const CORNER_X := Vector2(9.2, 14.0)
