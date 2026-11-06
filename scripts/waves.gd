@@ -375,7 +375,7 @@ const GAIT_RUN := 0.7
 ## STUCK_MOVED m in STUCK_EVERY s while it means to walk finds its way again (a fresh path), then
 ## steps aside DETOUR m for DETOUR_TIME s, and at the STUCK_SNAP-th time is put back on the mesh.
 const STUCK_EVERY := 1.2
-const STUCK_MOVED := 0.4
+const STUCK_MOVED := 0.7  # a walker shuffling to and fro at a trunk covers 0.5 m a second and was never "stuck"
 const DETOUR := 2.5
 const DETOUR_TIME := 1.2
 const STUCK_SNAP := 4
