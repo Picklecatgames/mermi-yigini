@@ -30,3 +30,17 @@ reels/
 assets/props/ogutucu/raw/
 assets/props/ogutucu/doku/
 assets/props/ogutucu/doku_pisir/
+
+# Kontrol koşucusu günlükleri/önizlemeler (tools/run_checks.ps1 normalde %TEMP%'e yazar; yanlışlıkla buraya düşerse)
+*.log
+.tmp/
+*.tmp
+*.bak
+
+# Blender otomatik yedekleri
+*.blend1
+*.blend2
+
+# Claude Code oturum kilidi / yerel durum
+.claude/scheduled_tasks.lock
+.claude/worktrees/
