@@ -642,6 +642,8 @@ func join_cues() -> Array:
 				var at := node.global_position
 				at.y = 0.0
 				cues.append([&"cross", id, &"wind" if z.cross == &"wind" else &"duck", at, z.cross_to])
+			if z.get("mode", &"") != &"":  # crouched, in cover, glancing round (a trick): the joiner sees it so
+				cues.append([&"mode", id, z.mode])
 	var hurt := []
 	for id: int in _hp:
 		if _zombies.has(id) and _hp[id] < _hp_full[id]:
