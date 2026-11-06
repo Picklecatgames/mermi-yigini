@@ -682,19 +682,6 @@ func _step_mode(delta: float) -> void:
 	_pose_nod = _pose_nod.lerp(nod, k)
 
 
-## A leap at someone (waves.gd _leap): the standing jump's crouch (the coil), the spring and the
-## flight, the landing, quickened by LEAP_RATE. Returns [s to the spring, s in the air, s landing].
-func leap() -> Array:
-	if _dead:
-		return [0.0, 0.0, 0.0]
-	_voice.scream()
-	set_mode(&"")
-	_busy = true
-	_ap.play_section(VAULT_CLIP, LEAP_FROM, LEAP_TO, BLEND * 0.5)
-	_ap.speed_scale = LEAP_RATE
-	return [(VAULT_OFF - LEAP_FROM) / LEAP_RATE, (VAULT_LAND - VAULT_OFF) / LEAP_RATE, (LEAP_TO - VAULT_LAND) / LEAP_RATE]
-
-
 ## Caught in a head lamp's light (waves.gd _lamps): the head snaps round and the body jerks, no cry.
 func startle() -> void:
 	if _dead:
@@ -719,11 +706,6 @@ const MODE_PEEK := 0.7  # rad the head turns out
 const MODE_GLANCE := 0.8
 const MODE_EASE := 3.0
 const MODE_EASE_FAST := 12.0
-## The standing jump (VAULT_CLIP) from its crouch to its landing; it jumps on the spot, the hips
-## going 0.12 m forward (measured), so the leap's way over the ground is the body's, not the clip's.
-const LEAP_FROM := 0.45
-const LEAP_TO := 2.3
-const LEAP_RATE := 1.5
 var _mode := &""
 var _mode_t := 0.0
 var _pose_bend := Vector3.ZERO

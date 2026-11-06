@@ -402,12 +402,23 @@ const REACT_PAUSE := 0.55
 const COVER_PACE := 0.75
 const COVER_JERK := 0.3
 const COVER_BRAKE := 1.8
-## The leap (zombie_body.gd leap): from within LEAP_MAX m (and past LEAP_MIN), onto LEAP_SHORT m short of them.
+## The leap out (2026-11-06, the user: the standing jump "çok kötü duruyor"; it hopped on the spot):
+## a lunge. It coils (LUNGE_COIL s, low and drawn back, a shriek), then hurls itself at them hunched
+## low at LUNGE_DASH m/s, its run clip at full stretch, and swings as it gets there. From within
+## LEAP_MAX m (and past LEAP_MIN), onto LEAP_SHORT m short of where they stood.
 const LEAP_MAX := 5.5
 const LEAP_MIN := 1.8
 const LEAP_SHORT := 1.0
+const LUNGE_COIL := 0.32
+const LUNGE_DASH := 5.5
 ## Never into a player's body (2026-11-06, the user: they shove the player): kept PLAYER_ROOM m off.
 const PLAYER_ROOM := 0.75
+## Never through a tree (2026-11-06, the user: "zombilerin ağacın içinden geçmesi hatası var"): the
+## dead walk by being put where they go, no body pushing back, and the mesh keeps them only 0.25 m
+## off a trunk's post, the last metres at a player are straight, a leap straight: each is put
+## TRUNK_ROOM m (plus TRUNK_LOOK times the post, the bark being wider than it) off every trunk.
+const TRUNK_ROOM := 0.3
+const TRUNK_LOOK := 1.25
 ## Caught in a head lamp's beam (within LAMP_CONE degrees, LAMP_REACH m), at night, now and then
 ## (LAMP_CHANCE a look, LAMP_EVERY s apart): it stops short (STARTLE_HOLD s) and jerks; one zombie
 ## at most every STARTLE_AGAIN s, one player's beam every LAMP_GAP s.
@@ -455,7 +466,7 @@ const SNEAK_GIVE_UP := 45.0
 const TRUNK_CELL := 8.0
 const TRUNK_MIN := 0.18  # m: thinner trunks hide nobody
 const HIDE_BEHIND := 1.5  # m: a trunk this near what it hides
-const COVER_GAP := 0.35  # m behind the trunk's side
+const COVER_GAP := 0.05  # m more behind the trunk than _keep_off_trunks keeps it
 
 ## The night (2026-11-05, the user: "gece olduktan sonra bir anda tüm zombiler saldırıya geçmesin;
 ## bir iki tane rastgele ormanın içinden spawn olup bize doğru gelsinler"): from NIGHT_START to
@@ -530,6 +541,7 @@ var _holes: Array[int] = []  # host: the bays down, as last seen
 var _nav: NavigationRegion3D  # our side of the railing, for the ones inside; the open ground's clearing and wood
 ## Host: the night's trickle (_night_step). Checks may stop it (night_spawns = false).
 var night_spawns := true
+var keep_off_trunks := true  # tools/zombie_stuck_check.gd --as-before turns it off, to show the trees walked through
 var _night := -1  # GameState.nights the plan below is for
 var _night_wave := 0
 var _night_groups: Array = []  # [[types...], due (night 0..1)], in order
@@ -646,6 +658,7 @@ func _process(delta: float) -> void:
 		if not z.dead:
 			_walk(z, delta)
 	_spread(delta)
+	_keep_off_trunks()
 	_keep_off_players()
 	_beat += 1
 	for z: Dictionary in _zombies.values():
@@ -747,6 +760,7 @@ func _summon(type: StringName, pos: Vector3, yaw: float, w: int, elite := false)
 	var z: Dictionary = _zombies[id]
 	z.released = true  # the host sends where it has them (_send_at), wave or no wave
 	z.afield = true
+	_keep_off_trunks([z])  # not up inside a tree
 
 
 ## Host: B (debug builds; GameState.request_debug_raid). Once it is dark, the night's trickle
@@ -1072,13 +1086,17 @@ func _on_cue(cue: Array) -> void:
 			var z: Dictionary = _zombies.get(cue[1], {})
 			if not z.is_empty() and not z.dead:
 				z.aware = true
-				z.mode = &""
-				z.leap_times = z.body.leap()
+				z.mode = &"coil"
+				z.body.notice()  # the shriek, the head jerking
+				z.body.set_mode(&"coil")
+				var dash: float = Vector2((cue[3] as Vector3).x - (cue[2] as Vector3).x, (cue[3] as Vector3).z - (cue[2] as Vector3).z).length() / LUNGE_DASH
+				z.leap_times = [LUNGE_COIL, dash, 0.0]
 				z.leap_on = true
 				z.leap_t = 0.0
 				z.leap_a = cue[2]
 				z.leap_b = cue[3]
 				z.moving = false
+				z.body.idle()
 		&"startle":
 			var z: Dictionary = _zombies.get(cue[1], {})
 			if not z.is_empty() and not z.dead:
@@ -2919,27 +2937,36 @@ func _leap(z: Dictionary, prey: Vector3) -> void:
 	event_log.append([_clock, z.prey, &"leap", z.id])
 
 
-## Every peer: `z` in its leap, from the cue: still through the coil (facing where it goes), along
-## a smooth arc over the ground in the flight (the clip itself rises and falls), still in the landing.
-## Done, the host swings if they are still there.
+## Every peer: `z` in its lunge, from the cue: coiled where it stands, turning square on (the
+## coil); then flung along the ground at them, hunched, its run at full stretch, quickest at the
+## start and still quick at the end (no easing into a stop: it hits). Done, the host swings.
 func _leaping(z: Dictionary, delta: float) -> void:
 	var node: Node3D = z.node
+	var was: float = z.leap_t
 	z.leap_t += delta
 	var times: Array = z.leap_times
 	var a: Vector3 = z.leap_a
 	var b: Vector3 = z.leap_b
 	var t: float = z.leap_t
 	if t < times[0]:
-		_turn_to(node, b - a, FACE_TURN * 2.0 * delta)
+		_turn_to(node, b - a, FACE_TURN * 3.0 * delta)
 		return
+	if was < times[0]:  # off
+		z.body.set_mode(&"crouch")
+		z.body.move(LUNGE_DASH)
 	var s := clampf((t - times[0]) / maxf(times[1], 0.01), 0.0, 1.0)
-	node.global_position = a.lerp(b, smoothstep(0.0, 1.0, s))
-	if t < times[0] + times[1] + times[2]:
+	var eased := 1.0 - pow(1.0 - s, 1.6)  # out hard, still going at the end
+	var flat := a.lerp(b, eased)
+	node.global_position = Vector3(flat.x, lerpf(a.y, b.y, eased), flat.z)
+	_turn_to(node, b - a, FACE_TURN * delta)
+	if s < 1.0:
 		return
 	z.leap_on = false
-	z.moving = false
+	z.moving = true
 	z.gait = ""
-	z.pace_now = _pace(z) * 0.5
+	z.mode = &""
+	z.body.set_mode(&"")
+	z.pace_now = _pace(z)
 	if not Net.is_client:
 		var up := _standing()
 		if up.has(z.prey) and Vector2(node.global_position.x - up[z.prey].x, node.global_position.z - up[z.prey].z).length() <= REACH + REACH_SLACK:
@@ -3070,8 +3097,8 @@ func _go(z: Dictionary, at: Vector3, to: Vector3, pace: float, delta: float, nea
 	return false
 
 
-## The tree trunks of the open ground (their posts, tools/build_world.gd _posts) in cells of
-## TRUNK_CELL m: cell -> [[x, z, radius], ...]. Built once.
+## The tree trunks of the open ground (their posts, tools/build_world.gd _posts) and the rocks and
+## logs on its floor (radius negative) in cells of TRUNK_CELL m: cell -> [[x, z, radius], ...]. Built once.
 func _trunk_cells() -> Dictionary:
 	if _trunks_built:
 		return _trunks
@@ -3082,10 +3109,21 @@ func _trunk_cells() -> Dictionary:
 		for c: Node in n.get_children():
 			stack.append(c)
 		var cs := n as CollisionShape3D
+		if cs and cs.shape is BoxShape3D and cs.get_parent() is StaticBody3D and cs.get_parent().name == "Trunks":
+			# A rock, a log on the wood's floor (build_world.gd _floor_solid): kept off too, its
+			# inner circle, as a negative radius (no cover: _cover and _is_hidden pass it over).
+			var size: Vector3 = (cs.shape as BoxShape3D).size
+			var sc := cs.global_basis.get_scale()
+			var rr := minf(size.x * sc.x, size.z * sc.z) * 0.5
+			if rr > 0.15:
+				var q := cs.global_position
+				var k := Vector2i(floori(q.x / TRUNK_CELL), floori(q.z / TRUNK_CELL))
+				if not _trunks.has(k):
+					_trunks[k] = []
+				_trunks[k].append(Vector3(q.x, q.z, -rr))
+			continue
 		if cs and cs.shape is CylinderShape3D and cs.get_parent() is StaticBody3D:
 			var r: float = (cs.shape as CylinderShape3D).radius * cs.global_basis.get_scale().x
-			if r < TRUNK_MIN:
-				continue
 			var p := cs.global_position
 			var key := Vector2i(floori(p.x / TRUNK_CELL), floori(p.z / TRUNK_CELL))
 			if not _trunks.has(key):
@@ -3105,6 +3143,8 @@ func _is_hidden(eye: Vector3, at: Vector3) -> bool:
 	for x in range(lo.x, hi.x + 1):
 		for y in range(lo.y, hi.y + 1):
 			for t: Vector3 in cells.get(Vector2i(x, y), []):
+				if t.z < TRUNK_MIN:
+					continue
 				var c := Vector2(t.x, t.y)
 				var along := (c - a).dot(b - a) / maxf((b - a).length_squared(), 0.0001)
 				if along <= 0.0 or along >= 1.0 or (b - c).length() > HIDE_BEHIND:
@@ -3126,12 +3166,14 @@ func _cover(eye: Vector3, from: Vector3, ring: Vector2) -> Vector3:
 	for x in range(at.x - reach, at.x + reach + 1):
 		for y in range(at.y - reach, at.y + reach + 1):
 			for t: Vector3 in cells.get(Vector2i(x, y), []):
+				if t.z < TRUNK_MIN:
+					continue
 				var c := Vector2(t.x, t.y)
 				var away := c - Vector2(eye.x, eye.z)
 				var d := away.length()
 				if d < ring.x or d > ring.y:
 					continue
-				var spot2 := c + away / d * (t.z + COVER_GAP)
+				var spot2 := c + away / d * (t.z * TRUNK_LOOK + TRUNK_ROOM + COVER_GAP)  # just clear of the bark (_keep_off_trunks)
 				var cost := spot2.distance_to(Vector2(from.x, from.z))
 				if cost >= near:
 					continue
@@ -3201,3 +3243,29 @@ func _lamps(delta: float) -> void:
 			event_log.append([_clock, peer, &"startle", z.id])
 			GameState.cue_wave([&"startle", z.id])
 			break
+
+
+## Host (clients follow its word): none of the dead on the open ground stands in a tree (TRUNK_ROOM).
+func _keep_off_trunks(only: Array = []) -> void:
+	if Net.is_client or not keep_off_trunks:
+		return
+	var cells := _trunk_cells()
+	if cells.is_empty():
+		return
+	for z: Dictionary in (only if not only.is_empty() else _zombies.values()):
+		if z.dead or not z.has("afield"):
+			continue
+		var node: Node3D = z.node
+		var p := Vector2(node.global_position.x, node.global_position.z)
+		var key := Vector2i(floori(p.x / TRUNK_CELL), floori(p.y / TRUNK_CELL))
+		var room: float = TRUNK_ROOM * z.body.size
+		for x in range(key.x - 1, key.x + 2):
+			for y in range(key.y - 1, key.y + 2):
+				for t: Vector3 in cells.get(Vector2i(x, y), []):
+					var off := p - Vector2(t.x, t.y)
+					var need: float = (t.z * TRUNK_LOOK if t.z > 0.0 else -t.z) + room
+					var d := off.length()
+					if d < need:
+						p = Vector2(t.x, t.y) + (off / d if d > 0.001 else Vector2.RIGHT) * need
+		node.global_position.x = p.x
+		node.global_position.z = p.y

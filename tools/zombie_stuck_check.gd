@@ -28,6 +28,7 @@ func _initialize() -> void:
 	root.add_child(main)
 	gs = root.get_node("GameState")
 	waves = main.get_node("Waves")
+	waves.keep_off_trunks = not "--as-before" in OS.get_cmdline_user_args()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--stand="):
 			var xz := a.trim_prefix("--stand=").split(",")
@@ -79,6 +80,7 @@ func _initialize() -> void:
 	probe.collision_mask = 1
 	var space: PhysicsDirectSpaceState3D = main.get_viewport().world_3d.direct_space_state
 	var samples := 0
+	var in_tree := {}  # id -> samples with its middle inside a tree's trunk (the posts are 0.85 m: the probe above misses them)
 	while t < SIM:
 		await process_frame
 		t += dt
@@ -105,6 +107,10 @@ func _initialize() -> void:
 			probe.exclude = skip
 			probe.transform = Transform3D(Basis(), node.global_position + Vector3.UP * 1.0)
 			samples += 1
+			if _in_tree(node.global_position):
+				in_tree[id] = in_tree.get(id, 0) + 1
+				var zz: Dictionary = waves._zombies[id]
+				print("  in a tree: Z%d t %.1f at (%.2f, %.2f) swinging %s leap %s busy %s" % [id, t, node.global_position.x, node.global_position.z, zz.swinging, zz.leap_on, zz.body.busy()])
 			var hits := space.intersect_shape(probe, 1)
 			if not hits.is_empty():
 				inside[id] = inside.get(id, 0) + 1
@@ -148,6 +154,22 @@ func _initialize() -> void:
 			freed += waves._zombies[id].get("unstuck", 0)
 	print("inside a trunk, rock or wall: %d of %d looks (%d walkers)" % [through, samples, inside.size()])
 	print("found their way again after standing: %d times" % freed)
-	var ok := stuck.is_empty() and reached.size() >= ids.size() * 0.9 and through <= samples / 100
+	var trees := 0
+	for id: int in in_tree:
+		trees += in_tree[id]
+	print("inside a tree's trunk: %d of %d looks (%d walkers)" % [trees, samples, in_tree.size()])
+	var ok := stuck.is_empty() and reached.size() >= ids.size() * 0.9 and through <= samples / 100 and trees == 0
 	print("PASS" if ok else "FAIL")
 	quit(0 if ok else 1)
+
+
+## Whether `at` is inside a tree's trunk (the post's circle, waves.gd _trunk_cells).
+func _in_tree(at: Vector3) -> bool:
+	var cells: Dictionary = waves._trunk_cells()
+	var key := Vector2i(floori(at.x / waves.TRUNK_CELL), floori(at.z / waves.TRUNK_CELL))
+	for x in range(key.x - 1, key.x + 2):
+		for y in range(key.y - 1, key.y + 2):
+			for t: Vector3 in cells.get(Vector2i(x, y), []):
+				if t.z > 0.0 and Vector2(at.x - t.x, at.z - t.y).length() < t.z:
+					return true
+	return false
