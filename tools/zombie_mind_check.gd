@@ -17,7 +17,7 @@ extends SceneTree
 ## - room: none ever stands inside the player's body (they shoved it about).
 
 const STAND := Vector3(40.0, 0.0, 4.0)  # in the clearing near its east edge, the wood ahead
-const STRIP := Vector2i(300, 360)
+const STRIP := Vector2i(300, 380)
 
 var main: Node
 var waves: Node
@@ -142,30 +142,37 @@ func _strip(name: String, node: Node3D, count: int, every: float, side := 3.5) -
 	if not shots:
 		await _hold(count * every)
 		return
+	# Its own view on the same world: no hands, no screen over it, its own camera.
+	var vp := SubViewport.new()
+	vp.size = Vector2i(STRIP.x * 2, STRIP.y * 2)
+	vp.world_3d = main.get_viewport().world_3d
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	main.add_child(vp)
 	var cam := Camera3D.new()
-	cam.fov = 45.0
-	main.add_child(cam)
-	var old := main.get_viewport().get_camera_3d()
+	cam.fov = 50.0
+	vp.add_child(cam)
 	cam.current = true
+	var lamp := OmniLight3D.new()  # a little light on it, the night being night
+	lamp.omni_range = 8.0
+	lamp.light_energy = 0.8
+	vp.add_child(lamp)
 	var sheet := Image.create(STRIP.x * count, STRIP.y, false, Image.FORMAT_RGBA8)
 	for i in count:
 		var to := node.global_position - at
 		to.y = 0.0
-		var across := to.normalized().cross(Vector3.UP)
-		cam.global_position = node.global_position + across * side - to.normalized() * 1.0 + Vector3.UP * 1.3
+		var dir := to.normalized()
+		var across := dir.cross(Vector3.UP)
+		# From the player's side of it, half round: the trunk it hides behind shows, and it.
+		cam.global_position = node.global_position - dir * side * 0.7 + across * side * 0.7 + Vector3.UP * 1.4
 		cam.look_at(node.global_position + Vector3.UP * 0.9)
+		lamp.global_position = cam.global_position + Vector3.UP * 0.5
 		await RenderingServer.frame_post_draw
-		var img := main.get_viewport().get_texture().get_image()
+		var img := vp.get_texture().get_image()
 		img.convert(Image.FORMAT_RGBA8)
-		var size := img.get_size()
-		var w := size.y * STRIP.x / STRIP.y
-		var part := img.get_region(Rect2i((size.x - w) / 2, 0, w, size.y))
-		part.resize(STRIP.x, STRIP.y, Image.INTERPOLATE_BILINEAR)
-		sheet.blit_rect(part, Rect2i(Vector2i.ZERO, STRIP), Vector2i(STRIP.x * i, 0))
+		img.resize(STRIP.x, STRIP.y, Image.INTERPOLATE_BILINEAR)
+		sheet.blit_rect(img, Rect2i(Vector2i.ZERO, STRIP), Vector2i(STRIP.x * i, 0))
 		await _hold(every)
-	cam.queue_free()
-	if old:
-		old.current = true
+	vp.queue_free()
 	var path := "user://zombi_%s_%s.png" % [tag, name]
 	sheet.save_png(path)
 	print("saved ", ProjectSettings.globalize_path(path))
@@ -284,10 +291,10 @@ func _shot_rage() -> void:
 	await _hold(3.0)
 	var chest := node.global_position + Vector3.UP * 1.2
 	var dir := (chest - (at + Vector3.UP * 1.6)).normalized()
-	waves._on_shot(peer, chest, -dir, dir, node, 0, false, 0)
+	waves._on_shot(peer, chest, -dir, dir, node, 0, false, 1)  # combo 1: a paying hit, as GameState sends it
 	await _strip("vurulunca", node, 10, 0.08, 3.0)
 	var d0 := _flat(node.global_position, at)
-	await _hold(2.0)
+	await _hold(3.0)
 	var d1 := _flat(node.global_position, at)
 	_ok(z.role == &"" and z.aware and z.grudge == peer and d1 < d0 - 3.0,
 			"shot mid-trick, it dropped it and came for the shooter (%.1f -> %.1f m)" % [d0, d1])
@@ -341,6 +348,9 @@ func _director() -> void:
 	var spots := []
 	for i in 6:
 		spots.append(at + Vector3.FORWARD.rotated(Vector3.UP, -PI / 2 + (i - 2.5) * 0.35) * 30.0)
+	gs.hour = waves.NIGHT_START  # one whole night: its budget is counted night by night
+	await _hold(0.3)
+	waves._tricks_night = -1
 	var came := 0
 	for s: Vector3 in spots:
 		_one(s)
@@ -371,7 +381,7 @@ func _director() -> void:
 	var counts := {}
 	for e: Array in tricks:
 		counts[e[2]] = counts.get(e[2], 0) + 1
-	print("  a night (%.0f s): %s; %d of the dead came, %d got a trick" % [night, counts, came, tricks.size()])
+	print("  a night (%.0f s): %s; %d of the dead came, %d got a trick; the director counted %s" % [night, counts, came, tricks.size(), waves._night_tricks])
 	_ok(tricks.size() >= 2 and tricks.size() <= waves.NIGHT_TRICKS_ALL, "%d tricks in the night (budget %d)" % [tricks.size(), waves.NIGHT_TRICKS_ALL])
 	var each_ok := true
 	for t: StringName in counts:

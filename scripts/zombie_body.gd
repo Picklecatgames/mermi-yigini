@@ -669,7 +669,7 @@ func _step_mode(delta: float) -> void:
 		&"cover":
 			var peek := sin(_mode_t * 0.9 + ph) * 0.5 + 0.5  # 0 behind, 1 out
 			peek = smoothstep(0.25, 0.9, peek)
-			bend = Vector3(MODE_HUNCH * 0.7, 0.0, MODE_LEAN * peek * (1.0 if _seed % 2 == 0 else -1.0))
+			bend = Vector3(MODE_HUNCH * 0.9, 0.0, MODE_LEAN * peek * (1.0 if _seed % 2 == 0 else -1.0))
 			nod = Vector3(-MODE_HUNCH * 0.4, MODE_PEEK * (peek - 0.3) * (1.0 if _seed % 2 == 0 else -1.0), 0.0)
 			nod.x += sin(_mode_t * 2.3 + ph) * 0.05  # breathing, the head bobbing
 		&"glance":
@@ -713,7 +713,7 @@ func notice() -> void:
 
 
 const HIT_SKIP: Array[String] = ["hit_b"]
-const MODE_HUNCH := 0.45  # rad forward through the spine
+const MODE_HUNCH := 0.6  # rad forward through the spine
 const MODE_LEAN := 0.35  # rad to the side, out from behind the trunk
 const MODE_PEEK := 0.7  # rad the head turns out
 const MODE_GLANCE := 0.8

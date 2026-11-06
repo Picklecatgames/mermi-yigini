@@ -45,6 +45,8 @@ func _initialize() -> void:
 			print("FAIL: the navigation mesh never baked")
 			quit(1)
 			return
+	while not waves.nav_live:  # the map takes the mesh in on threads (waves.gd _nav_watch)
+		await physics_frame
 	print("nav baked in %.1f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	for i in 5:
 		await physics_frame

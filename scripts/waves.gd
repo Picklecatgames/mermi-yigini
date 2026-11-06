@@ -347,6 +347,7 @@ const GROUND_EVERY := 4  # frames between a test zombie's looks at the ground un
 ## It picks among the players by distance, sticks to its pick (STICK m), is drawn off one many
 ## already go for (CROWDED m each) and goes for one who shot it (GRUDGE m, for GRUDGE_TIME s).
 const STALK := 0.45
+const STALK_MIN := 0.8  # m/s: a stalk slower than this never gets there
 const HEAR := 12.0
 const NOTICE := 32.0
 const SHOT_HEAR := 45.0
@@ -541,6 +542,8 @@ var _last_hit := {}  # host: peer -> _clock of the last blow on them
 var _direct_wait := 0.0
 var _last_any := -INF  # host: _clock of the last trick on anyone
 var _last_any_trick := &""
+var _presence: Node  # forest_presence.gd, found on first need
+var _presence_looked := false
 var _night_tricks := {}  # host: trick -> how many tonight (the night: _tricks_night)
 var _tricks_night := -1
 var _lamp_wait := 0.0
@@ -2478,7 +2481,9 @@ func _unstick(z: Dictionary, at: Vector3, to: Vector3, delta: float) -> void:
 func _stalk_pace(z: Dictionary) -> float:
 	var span: Vector2 = z.body.gait_span("walk")
 	var v := _pace(z) * STALK
-	return clampf(v, span.x, span.y * 0.95) if span.y > 0.0 else v
+	if span.y * 0.95 < STALK_MIN:  # its walk clips crawl along (0.15 m/s on some): its own gait instead
+		return v
+	return clampf(v, maxf(span.x, STALK_MIN), span.y * 0.95)
 
 
 ## Host: a swing at its prey (every peer sees it). Through the wind-up it keeps coming at them; the
@@ -2787,7 +2792,7 @@ func _direct(delta: float) -> void:
 	for peer: int in up:
 		if _clock - _last_any < TRICK_GAP or tricks_tonight() >= NIGHT_TRICKS_ALL + NIGHT_TRICKS_PER_PLAYER * (up.size() - 1):
 			return
-		if _tension.get(peer, 0.0) > CALM or _clock - _last_event.get(peer, -INF) < EVENT_GAP \
+		if tension_of(peer) > CALM or _clock - _last_event.get(peer, -INF) < EVENT_GAP \
 				or _clock - _last_hit.get(peer, -INF) < QUIET_AFTER_HIT:
 			continue
 		if _rng.randf() >= EVENT_CHANCE:
@@ -2804,6 +2809,19 @@ func _direct(delta: float) -> void:
 		for trick: StringName in tricks:
 			if _play(trick, peer, up[peer]):
 				break
+
+
+## Host: how tense `peer` is: ours (the dead about them, blows) or the wood's watching
+## (forest_presence.gd presence_tension), whichever is higher: one budget for both.
+func tension_of(peer: int) -> float:
+	if not _presence_looked:
+		_presence_looked = true
+		for n: Node in get_tree().root.find_children("*", "Node", true, false):
+			if n.has_method("presence_tension"):
+				_presence = n
+				break
+	var wood: float = _presence.presence_tension(peer) if _presence and is_instance_valid(_presence) else 0.0
+	return maxf(_tension.get(peer, 0.0), wood)
 
 
 ## Host: tricks given tonight, all of them.
