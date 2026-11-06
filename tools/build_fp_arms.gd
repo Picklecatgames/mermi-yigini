@@ -13,6 +13,11 @@ extends SceneTree
 const DIR := "res://assets/characters/players/"
 const ARM := ["Arm", "ForeArm", "Hand"]  # after "mixamorig_Left"/"mixamorig_Right"; the hand's fingers too
 const PSX := preload("res://tools/lowpoly_zombie.gd")
+## Over the body's grade, the arms' own (2026-11-06, the hands drew pale grey plastic by day): a
+## little blood back under the skin [tone, how much], blotches of it [colour, at most], and no
+## shine (the gun's rim light glossed them). The body itself keeps PSX_GRADE_OF. My guess, not a rule.
+const SKIN_OF := {"oldman": {"warm": [Color(0.6, 0.45, 0.38), 0.16], "blotch": [Color(0.42, 0.27, 0.22), 0.3],
+	"dark": 0.9, "specular": 0.12, "roughness": 1.0}}
 
 
 func _initialize() -> void:
@@ -108,9 +113,30 @@ static func _ps1(std: BaseMaterial3D, id: String) -> BaseMaterial3D:
 		img.resize(PSX.PSX_TEX, PSX.PSX_TEX, Image.INTERPOLATE_LANCZOS)
 		if PSX.PSX_GRADE_OF.has(id):
 			PSX._grade(img, PSX.PSX_GRADE_OF[id])
+		if SKIN_OF.has(id):
+			_skin(img, SKIN_OF[id])
 		img.generate_mipmaps()
 		m.albedo_texture = ImageTexture.create_from_image(img)
+	if SKIN_OF.has(id):
+		m.metallic_specular = SKIN_OF[id].specular
+		m.roughness = SKIN_OF[id].roughness
 	return m
+
+
+## SKIN_OF on a graded texture, in place.
+static func _skin(img: Image, k: Dictionary) -> void:
+	var spots := FastNoiseLite.new()
+	spots.seed = 23
+	spots.frequency = 0.06
+	spots.fractal_octaves = 3
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			var d: Color = c.lerp(k.warm[0], k.warm[1]) * float(k.dark)
+			var b := clampf(spots.get_noise_2d(x, y) * 2.2 - 0.25, 0.0, 1.0) * float(k.blotch[1])
+			d = d.lerp(k.blotch[0] * (0.6 + c.v * 0.6), b)
+			d.a = c.a
+			img.set_pixel(x, y, d)
 
 
 static func _is_arm(bone: String) -> bool:
