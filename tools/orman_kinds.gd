@@ -75,6 +75,13 @@ const CONVERT := [
 	["oil_tin", "oil_tin.gltf", 80, 64, JUNK, true],
 	["small_oil_can_01", "small_oil_can_01.gltf", 80, 64, JUNK, true],
 	["street_rat", "street_rat.gltf", 150, 64, JUNK, true],
+	# the wood's stories (build_world.gd _terk; Poly Haven, CC0)
+	["stone_fire_pit", "stone_fire_pit.gltf", 500, 128, ROCK, true],
+	["modular_chainlink_fence", "modular_chainlink_fence.gltf", 1200, 128, JUNK, false],
+	["modular_electricity_poles", "modular_electricity_poles.gltf", 2400, 128, WOOD, false],
+	["rubber_boots", "rubber_boots.gltf", 400, 64, JUNK, true],
+	["pot_enamel_01", "pot_enamel_01.gltf", 200, 64, JUNK, true],
+	["folding_wooden_stool", "folding_wooden_stool.gltf", 300, 128, WOOD, true],
 ]
 
 
