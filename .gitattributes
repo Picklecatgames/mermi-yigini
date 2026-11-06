@@ -1,2 +1,8 @@
 # Normalize line endings so Windows/other machines don't produce whole-file diffs
 * text=auto eol=lf
+
+# Üretilen büyük metin dosyaları: git diff / show / log -p bunları bağlama dökmesin
+# ("Binary files differ" der). Birleşme davranışı değişmez. Görmek için: git diff --text <yol>
+scenes/world.tscn -diff linguist-generated
+scenes/arena.tscn -diff linguist-generated
+data/scrap_face.json -diff linguist-generated

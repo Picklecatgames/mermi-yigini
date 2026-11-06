@@ -111,6 +111,31 @@ const SETS := {
 		"shake": 0.12, "weight": 2.2},
 }
 const FISTS := preload("res://assets/weapons/arms/fists.gltf")
+## The flashlight in the right hand (GameState PlayerState.torch, F): Poly Haven vintage_flashlight,
+## an old red battery lantern, the glass at +z. It is carried by the bar on its top, the arm hanging
+## down beside the body, the elbow a little bent (2026-11-06, the user: "bu fener yukarıdan tutulur
+## ve kol aşağıda durur, dirsek hafif kırık şekilde"): the fists' clips play, then the right arm is
+## swung down (TORCH_ARM) and the left out of view (TORCH_LEFT_DROP); the lantern hangs from the fist,
+## the bar level, the glass where the body faces and tipped a share of the look up or down
+## (TORCH_PITCH), and it swings behind the hand (TORCH_SWING). Nothing fires or aims with it.
+## The numbers are mine (docs/ayrintilar.md "Fener").
+const TORCH_MODEL := preload("res://assets/props/hurda/vintage_flashlight.glb")
+const TORCH_GRIP := Vector3(0.0, 0.13, -0.01)  # the bar's middle, in the model
+const TORCH_LENS := Vector3(0.0, 0.105, 0.155)  # the glass's face, in the model
+const TORCH_IN_FIST := 0.07  # m from the wrist along the hand: the middle of the fist (the other players' bodies)
+const TORCH_ROLL := -0.8  # rad the hand turns about the forearm: the fingers come over the bar and round it
+## rad off the fists' guard: x the upper arm about the view's right axis, y the elbow (negative opens
+## it), z the upper arm about the view's line (the elbow out): the arm comes in from the upper right,
+## the hand on the bar a little right of and under the middle of the view (2026-11-06, the user's sketch).
+const TORCH_ARM := Vector3(1.2, -2.2, 0.4)
+const TORCH_LEFT_DROP := -1.25  # rad the left upper arm goes down, out of view
+const TORCH_PITCH := 0.6  # of the look's pitch the wrist tips the lantern by
+const TORCH_DOWN := 0.12  # rad the glass looks down on top, as a lantern is carried
+## rad the lantern is turned to the left off the heading: seen side on, the glass to the left, the
+## beam crossing the view (2026-11-06, the user's sketch); the beam itself only TORCH_BEAM_YAW.
+const TORCH_YAW := 0.9
+const TORCH_BEAM_YAW := 0.45
+const TORCH_SWING := 7.0  # 1/s: how fast the hanging lantern catches up with the hand's turn
 const FP_ARMS := preload("res://scripts/fp_arms.gd")  # the player character's own arms (dress)
 const Attachments := preload("res://scripts/gun_attachments.gd")
 ## A spinning gun is one sound, not one per round: barrels coming up, a firing loop while rounds
@@ -213,6 +238,12 @@ var view_fov := 0.0
 ## GameState.GUNS index in hand (-1 before the first draw), and its SETS entry.
 var gun := -1
 var _kit := {}
+var torch := false  # the flashlight in the hand instead (set_torch); shown once the swap is through
+var _want_torch := false
+var _torch: Node3D  # in the world's coordinates (top level), hung from the fist each frame
+var _torch_swing := Basis()
+var torch_arm := TORCH_ARM  # (tools: tried out here)
+var torch_roll := TORCH_ROLL
 var _want_gun := 0  # drawn once the one in hand is put away
 var _clip := ""
 var _punch := 0
@@ -345,6 +376,13 @@ func _ready() -> void:
 	_anim.mixer_applied.connect(_turn_barrels)
 	_attach = BoneAttachment3D.new()
 	_skel.add_child(_attach)
+	_torch = TORCH_MODEL.instantiate()
+	_torch.visible = false
+	_torch.top_level = true
+	add_child(_torch)
+	for v: VisualInstance3D in _torch.find_children("*", "VisualInstance3D", true, false):
+		v.layers = 1 << (LAYER - 1)
+		(v as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_attach.add_child(_muzzle)
 	_attach.add_child(_port)
 	GameState.upgraded.connect(func(id: String, level: int) -> void:
@@ -557,8 +595,21 @@ func equip(i: int) -> void:
 	_want_gun = i
 	if gun == -1:
 		_swap()
-	elif _clip != "holster" and _want_gun != gun:
+	elif _clip != "holster" and (_want_gun != gun or _want_torch != torch):
 		_play("holster")
+
+
+## The flashlight into the hand (the fists' clips put the hand away and bring it back with it), or out.
+func set_torch(on: bool) -> void:
+	_want_torch = on
+	equip(_want_gun if gun != -1 else maxi(_want_gun, 0))
+
+
+## Where the flashlight's glass is, as the player's camera sees it, the beam along -z (TORCH_BEAM_YAW).
+func torch_lens() -> Transform3D:
+	var at := _torch.global_transform * TORCH_LENS
+	var b := Basis(Vector3.UP, TORCH_BEAM_YAW - TORCH_YAW) * _torch.global_basis.orthonormalized() * Basis(Vector3.UP, PI)
+	return Transform3D(b, in_view(at))
 
 
 ## Shows the wanted gun's mesh on the arms and stands the arms where its clips were framed.
@@ -584,10 +635,28 @@ func _swap() -> void:
 	_anim.play(_kit.clips + "Idle")
 	_anim.seek(0.0, true)
 	_anim.advance(0.0)  # seek alone does not pose the rig before the first frame
+	torch = _want_torch and gun == 0
+	_torch.visible = torch
 	pistol_grip(_skel, GameState.upgrade_value("grip") > 0)
 	_measure_sights()
 	_fit_attachments()
 	_play("draw")
+
+
+## The lantern hung from the fist as the arm is posed this frame: the bar level, the glass along the
+## view's heading tipped TORCH_PITCH of its pitch, swinging after the hand.
+func _hang_torch() -> void:
+	# The bar lies in the curled fingers: between the middle finger's root and its tip.
+	var at := func(bone: String) -> Vector3: return _skel.global_transform * _skel.get_bone_global_pose(_skel.find_bone(bone)).origin
+	var fist: Vector3 = (at.call("DEF-f_middle.01.R") + at.call("DEF-f_middle.03.R") + at.call("DEF-f_index.02.R")) / 3.0
+	var ahead := -(get_parent() as Node3D).global_basis.z
+	var flat := Vector3(ahead.x, 0.0, ahead.z).normalized()
+	var pitch := asin(clampf(ahead.y, -1.0, 1.0)) * TORCH_PITCH - TORCH_DOWN
+	var dir := (flat * cos(pitch) + Vector3.UP * sin(pitch)).normalized()
+	var want := Basis(Vector3.UP, TORCH_YAW) * Basis.looking_at(dir, Vector3.UP) * Basis(Vector3.UP, PI)
+	var dt := get_process_delta_time()
+	_torch_swing = want if not _torch.visible else _torch_swing.slerp(want, 1.0 - exp(-TORCH_SWING * dt)).orthonormalized()
+	_torch.global_transform = Transform3D(_torch_swing, fist - _torch_swing * TORCH_GRIP)
 
 
 ## The laser bought at the bench (GameState UPGRADES) rides the Deagle; made the
@@ -738,7 +807,7 @@ func _process(delta: float) -> void:
 				_want_reload = RELOAD_BUFFER
 			wheel_used = false
 	_was_captured = captured
-	var want_aim := captured and live and gun > 0 and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
+	var want_aim := captured and live and gun > 0 and not torch and Input.is_action_pressed("aim") and _clip in ADS_CLIPS
 	if _kit.has("spin"):
 		_spin(delta, want_aim)
 	_cues()
@@ -807,9 +876,27 @@ func _spin_play(what: AudioStream) -> void:
 ## After the clip has posed the rig: the set's own fixes (fix_pose) and the barrels' turn on top of it.
 func _turn_barrels() -> void:
 	fix_pose(_skel, _kit)
+	if torch:  # the right arm hangs down with the lantern, the left out of view
+		var right := (_skel.global_basis.inverse() * (get_parent() as Node3D).global_basis.x).normalized()
+		_turn_bone("DEF-upper_arm.L", right, TORCH_LEFT_DROP)
+		var fwd := (_skel.global_basis.inverse() * -(get_parent() as Node3D).global_basis.z).normalized()
+		_turn_bone("DEF-upper_arm.R", fwd, torch_arm.z)
+		_turn_bone("DEF-upper_arm.R", right, torch_arm.x)
+		_turn_bone("DEF-forearm.R", right, torch_arm.y)
+		var fore := _skel.find_bone("DEF-forearm.R")
+		var along := (_skel.get_bone_global_pose(_skel.find_bone("DEF-hand.R")).origin - _skel.get_bone_global_pose(fore).origin).normalized()
+		_turn_bone("DEF-hand.R", along, torch_roll)
+		_hang_torch()
 	if _kit.has("spin") and _barrel != 0.0:
 		var b := _skel.find_bone(_kit.spin.bone)
 		_skel.set_bone_pose_rotation(b, _skel.get_bone_pose_rotation(b) * Quaternion(_kit.spin.axis, _barrel))
+
+
+## Turns bone `name` by `angle` rad about `axis` (skeleton space) where it is, its children with it.
+func _turn_bone(name: String, axis: Vector3, angle: float) -> void:
+	var b := _skel.find_bone(name)
+	var g := _skel.get_bone_global_pose(b)
+	_skel.set_bone_global_pose(b, Transform3D(Basis(axis, angle) * g.basis, g.origin))
 
 
 ## s between rounds now: the gun's own, or a spinning gun's ramp toward it.
@@ -820,6 +907,8 @@ func _interval() -> float:
 
 
 func _can_fire() -> bool:
+	if torch or _want_torch:
+		return false  # the hand holds the flashlight
 	if gun == 0:
 		return _clip == ""  # a punch plays out before the next
 	if _kit.has("spin") and spin < 1.0:
