@@ -18,7 +18,7 @@ Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğ
 - Viewmodel: tek kol rig'i, her silah aynı eldivende (`tools/build_arms.py`); ayarlar `viewmodel.gd` `SETS`.
 - `scenes/world.tscn` elle düzenlenmez: `tools/build_world.gd`'yi değiştirip çalıştır (kurucu betik, elle düzenleme yok; eski `arena.tscn` ve `build_arena.gd` silindi).
 - Ses: gerçek kayıtlar kullanıcıdan gelir, kodla ses üretilmez.
-- Headless kontroller `tools/*_check.gd`; değişiklikten sonra ilgili olanı çalıştır. Test tuşları: T sınırsız mermi (debug), Z zombi çağırma, N gece-gündüz, B gece + ormandan dalga, F7/F8 host/join, F2-F6 fabrika (parça, döndür, kur, yık, kasa). J dans (oyun tuşu).
+- Headless kontroller `tools/*_check.gd`; değişiklikten sonra ilgili olanı çalıştır. Test tuşları: T sınırsız mermi (debug), Z zombi çağırma, N gece-gündüz, B gece + ormandan dalga, F7/F8 host/join, F2-F6 fabrika (parça, döndür, kur, yık, kasa). J dans, F fener (oyun tuşları).
 
 ## Ekip ve süreç
 

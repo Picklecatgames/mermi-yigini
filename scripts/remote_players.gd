@@ -251,7 +251,8 @@ class Character extends Node3D:
 	var _head := -1
 	var _flash: Node3D
 	var _flash_left := 0.0
-	var _lamp: SpotLight3D  # scripts/head_lamp.gd, at the eyes
+	var _lamp: SpotLight3D  # scripts/head_lamp.gd: the flashlight's light, from its glass
+	var _torch: Node3D  # the flashlight in the right hand (GameState PlayerState.torch)
 	var _fx: Node3D
 	var _tag_box: MeshInstance3D
 	var _tag_mat: StandardMaterial3D
@@ -851,8 +852,7 @@ class Character extends Node3D:
 			_gun.visible = false
 			if _flash:
 				_flash.visible = false
-			if dancing and _lamp:
-				_lamp.call(&"follow", eye_transform().translated_local(Vector3(0.0, 0.08, -0.15)), delta)
+			_hold_torch(delta)
 			return
 		_gun.visible = gun != 0
 		_kick = move_toward(_kick, 0.0, _kick * KICK_BACK * delta + 0.0001)
@@ -870,14 +870,35 @@ class Character extends Node3D:
 			_gun.transform = _kicked(_lowered(held), delta)
 			_grip()
 		_turn_head(wrapf(_look_yaw - _body_yaw, -PI, PI), _look_pitch - _pitch)
-		if _lamp == null:
-			_lamp = preload("res://scripts/head_lamp.gd").new()
-			add_child(_lamp)
-		_lamp.call(&"follow", eye_transform().translated_local(Vector3(0.0, 0.08, -0.15)), delta)  # on the brow, ahead of the face
+		_hold_torch(delta)
 		if _flash:
 			_flash.global_transform = Transform3D(_gun.global_basis.orthonormalized(), muzzle_position())
 			_flash_left -= delta
 			_flash.visible = _flash_left > 0.0
+
+	## The flashlight (F) hanging from the right hand by its bar (viewmodel.gd TORCH_*), and its
+	## light from its glass. Not on our own body (shadow_only): ours is the first-person view's (player.gd).
+	func _hold_torch(delta: float) -> void:
+		if shadow_only or _wrist < 0:
+			return
+		var on: bool = GameState.player(peer).torch
+		if _lamp == null:
+			_lamp = preload("res://scripts/head_lamp.gd").new()
+			add_child(_lamp)
+		if on and _torch == null:
+			_torch = VIEWMODEL.TORCH_MODEL.instantiate()
+			add_child(_torch)
+		if _torch:
+			_torch.visible = on and not _fallen
+		if not on:
+			return
+		var hand := _skel.global_transform * _skel.get_bone_global_pose(_wrist)
+		# Hung from the fist by its bar, the glass where they face, tipped a share of their look.
+		var look := Basis.from_euler(Vector3(_look_pitch * VIEWMODEL.TORCH_PITCH - VIEWMODEL.TORCH_DOWN, _look_yaw + VIEWMODEL.TORCH_YAW, 0.0)) * Basis(Vector3.UP, PI)
+		var beam := Basis(Vector3.UP, VIEWMODEL.TORCH_BEAM_YAW - VIEWMODEL.TORCH_YAW) * look * Basis(Vector3.UP, PI)
+		var fist := hand.origin + hand.basis.y.normalized() * VIEWMODEL.TORCH_IN_FIST
+		_torch.global_transform = Transform3D(look, fist - look * VIEWMODEL.TORCH_GRIP)
+		_lamp.call(&"follow", Transform3D(beam, _torch.global_transform * VIEWMODEL.TORCH_LENS), delta)
 
 	## Where these eyes are and look: the local player watches through them while down (player.gd).
 	func eye_transform() -> Transform3D:

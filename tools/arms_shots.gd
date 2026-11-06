@@ -2,7 +2,8 @@ extends SceneTree
 ## The first-person arms as the player sees them, the PS1 screen on: bare fists and the pistol, by
 ## day and at night (psx_shots.gd's night), over the grass and into the wood:
 ##   Godot.exe --path . --position -10000,-10000 --resolution 1280x720 -s res://tools/arms_shots.gd -- --tag=T
-## `--psx=0` without the PS1 screen. user://arms_<T>_<fists|pistol>_<view>_<day|night>.png
+## `--psx=0` without the PS1 screen; `--holds=fists,pistol,deagle,uzi,scorpion,minigun` (GameState.GUNS
+## ids; default fists,pistol), `--views=grass`. user://arms_<T>_<hold>_<view>_<day|night>.png
 
 const VIEWS := {  # eye, looking at
 	"grass": [Vector3(20.0, 1.7, 6.0), Vector3(30.0, 0.2, 9.0)],
@@ -13,11 +14,17 @@ const VIEWS := {  # eye, looking at
 func _initialize() -> void:
 	var tag := "x"
 	var psx := 4
+	var holds := PackedStringArray(["fists", "pistol"])
+	var views := PackedStringArray(VIEWS.keys())
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--tag="):
 			tag = a.trim_prefix("--tag=")
 		elif a.begins_with("--psx="):  # 0: no PS1 screen, the arms as lit
 			psx = a.trim_prefix("--psx=").to_int()
+		elif a.begins_with("--holds="):
+			holds = a.trim_prefix("--holds=").split(",")
+		elif a.begins_with("--views="):
+			views = a.trim_prefix("--views=").split(",")
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	await process_frame
 	var settings: Node = root.get_node("Settings")
@@ -33,15 +40,20 @@ func _initialize() -> void:
 	for night: bool in [false, true]:
 		if night:
 			_night(main)
-		for hold: String in ["fists", "pistol"]:
+		for hold: String in holds:
+			var gun := 0
+			for i in gs.GUNS.size():
+				if gs.GUNS[i].id == hold:
+					gun = i
 			if hold == "pistol":
 				gs.request_take_pistol()
-				if gs.player().gun != 1:
-					gs.request_select_gun(1)
-			elif gs.player().gun != 0:
-				gs.request_select_gun(0)
-			await _frames(90)  # the draw plays out
-			for v: String in VIEWS:
+			elif gun > 1:
+				gs.player().infinite_ammo = true  # opens every gun (gun_open)
+			if gs.player().gun != gun:
+				gs.request_select_gun(gun)
+			await create_timer(2.5).timeout  # the draw plays out (frames run fast with no vsync)
+			await _frames(5)
+			for v: String in views:
 				var eye: Vector3 = VIEWS[v][0]
 				var d: Vector3 = (VIEWS[v][1] - eye).normalized()
 				player.global_position = eye - Vector3.UP * 1.6

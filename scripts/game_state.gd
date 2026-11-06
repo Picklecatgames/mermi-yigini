@@ -121,6 +121,11 @@ signal presence_cue(peer: int, cue: Dictionary)
 ## `peer`'s head lamp flickers, the flicker `seed` (scripts/head_lamp.gd flicker_steps); the host's
 ## call (scripts/lamp_flicker.gd), on every machine.
 signal lamp_flicker(peer: int, seed: int)
+## `peer` took the flashlight out (F) or put it away; in hand it takes both hands' place of a gun.
+signal torch_changed(peer: int, on: bool)
+## `peer`'s flashlight dies in the wood (scripts/lamp_flicker.gd): the flicker `seed` (head_lamp.gd
+## blackout_steps), and whether something is waiting there when it comes back on.
+signal torch_blackout(peer: int, seed: int, creature: bool)
 
 const PILE_START := 100_000_000
 ## The day (2026-11-03, first guesses: the user hasn't set its length, docs/ayrintilar.md open
@@ -399,7 +404,7 @@ const MELTER_SEND := 0.25  # s between the host's updates of the melting to clie
 ## Name tag colour per spawn slot, until players pick their own (Faz 6, step 25).
 const PLAYER_COLORS: Array[Color] = [Color(0.95, 0.55, 0.1), Color(0.2, 0.6, 1.0), Color(0.35, 0.8, 0.3), Color(0.85, 0.3, 0.75)]
 ## What a player is doing, sent with its pose so other machines can show it.
-enum Act { IDLE, WALKING, RELOADING, SHOOTING, DANCING }
+enum Act { IDLE, WALKING, RELOADING, SHOOTING, DANCING, BUSY }  # BUSY: a workshop menu open (player.gd), for waves.gd
 
 ## What a client may ask the host for, with its argument count (`peer` comes from the sender).
 const REQUESTS := {
@@ -412,6 +417,7 @@ const REQUESTS := {
 	&"request_upgrade_station": 1, &"request_press": 2, &"request_pick_character": 1,
 	&"request_pull_lever": 0, &"request_repair_fence": 0, &"request_revive": 1,
 	&"request_watch_news": 0, &"request_skip_time": 0, &"request_debug_raid": 0, &"request_debug_spawn": 4, &"request_debug_moon": 1,
+	&"request_toggle_torch": 0,
 	&"request_factory_place": 4, &"request_factory_remove": 2, &"request_factory_resync": 0,
 }
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
@@ -426,7 +432,7 @@ const EVENTS: Array[StringName] = [&"pile_changed", &"bullets_taken", &"bullets_
 	&"player_shot", &"player_slots", &"vault_changed", &"gun_changed",
 	&"quests_changed", &"quest_done", &"melter_changed", &"pistol_grip", &"character_changed", &"wave_cue",
 	&"fence_changed", &"health_changed", &"player_downed", &"player_revived", &"all_down", &"clock_changed", &"moon_changed", &"news_changed", &"news_line",
-	&"factory_cmd", &"factory_clock", &"factory_snapshot", &"presence_cue", &"lamp_flicker"]
+	&"factory_cmd", &"factory_clock", &"factory_snapshot", &"presence_cue", &"lamp_flicker", &"torch_changed", &"torch_blackout"]
 ## Events with a node in them, and where: nodes travel as paths, every peer runs the same scenes.
 const NODE_ARG := {&"shot_landed": 4}
 
@@ -453,10 +459,13 @@ class PlayerState:
 	var armed := ""  # the special the next shot fires; "" for a plain round
 	var infinite_ammo := false  # test mode (T)
 	var has_pistol := false  # took it off the table at the spawn (scripts/gun_table.gd)
+	var torch := false  # the flashlight in hand (F): no gun then (torch_on_gun)
 	var rounds := {}  # PRESS_ROUNDS id -> made at the press, not fired yet
 	var pos := Vector3.ZERO  # feet, from the last pose
 	var has_pose := false
 	var crouch := false  # from the last pose
+	var act := 0  # Act, from the last pose
+	var busy_at := -100.0  # s (ticks): the last dig at the heap (waves.gd: busy, a sneak from behind)
 	var yaw := 0.0  # look, from the last pose (waves.gd: the night's dead come where nobody looks)
 	var character := ""  # CHARACTERS id; "" until picked
 	var hp := HP_MAX
@@ -620,6 +629,8 @@ func _ready() -> void:
 					_event.rpc_id(id, &"gun_changed", [peer, _players[peer].gun])
 				if _players[peer].levels.grip > 0 and peer != id:
 					_event.rpc_id(id, &"pistol_grip", [peer, _players[peer].levels.grip])
+				if _players[peer].torch:
+					_event.rpc_id(id, &"torch_changed", [peer, true])
 				if _players[peer].character != "" and peer != id:
 					_event.rpc_id(id, &"character_changed", [peer, _players[peer].character])
 				if peer != id:
@@ -829,6 +840,27 @@ func request_skip_time(peer := 0) -> void:
 ## director's way in); `near`: a dead one is the cause, not nothing. Whether it went.
 func try_lamp_flicker(peer: int, near := true) -> bool:
 	return lamp_flicker_rolls.try_flicker(peer, near)
+
+
+## The flashlight (2026-11-06, the user: "oyuncu fener ile silah arasında tercih yapmalı"): F takes it
+## out, the gun in hand goes away (fists, its magazine back into the hand as with any gun change);
+## a gun key puts the flashlight away and draws that gun. Its light is scripts/head_lamp.gd.
+func request_toggle_torch(peer := 0) -> void:
+	if _send(&"request_toggle_torch", [], peer) or Net.is_client:
+		return
+	var p := player(peer)
+	var who := local_peer() if peer == 0 else peer
+	var on := not p.torch
+	if on and p.gun != 0 and not torch_on_gun(peer):
+		request_select_gun(p.gun, peer)  # the one in hand again: away
+	p.torch = on
+	_world(&"torch_changed", [who, on])
+
+
+## A later bench upgrade puts the flashlight on the gun (2026-11-06, the user: "ilerideki bir
+## geliştirmeyle silaha fener takabilecek"); till then there is none, and it is one or the other.
+func torch_on_gun(peer := 0) -> bool:
+	return player(peer).levels.get("gun_light", 0) > 0
 
 
 ## Debug builds: night and its dead at once (B; 2026-11-03, the user asked for a key for both). By day
@@ -1300,6 +1332,7 @@ func _heap_step() -> int:
 ## Player grabs bullets at `at` by hand, up to carry capacity and at most `limit`.
 func request_pick_up(at: Vector3, limit := 1 << 30, peer := 0) -> int:
 	var p := player(peer)
+	p.busy_at = Time.get_ticks_msec() / 1000.0
 	var want := mini(carry_capacity_of(peer) - p.carried, limit)
 	if want <= 0:
 		return 0  # a full hand asks nobody (E held sends a request every frame otherwise)
@@ -1357,6 +1390,7 @@ func request_arm_special(id: String, peer := 0) -> void:
 ## bullet (another player, same frame) get nothing.
 func request_pick_up_loose(id: int, peer := 0) -> int:
 	var p := player(peer)
+	p.busy_at = Time.get_ticks_msec() / 1000.0
 	if _taken_loose.has(id) or p.carried >= carry_capacity_of(peer) or pile <= 0:
 		return 0
 	if Net.is_client and peer == 0:
@@ -1409,6 +1443,9 @@ func request_select_gun(gun: int, peer := 0) -> void:
 		return
 	if gun == p.gun:
 		gun = 0
+	if gun != 0 and p.torch and not torch_on_gun(peer) and not Net.is_client:
+		p.torch = false  # a gun wants the hand: the flashlight goes away
+		_world(&"torch_changed", [local_peer() if peer == 0 else peer, false])
 	var sent := _send(&"request_select_gun", [gun], peer)
 	# Each gun has its own magazine: what was in the last one goes back into the hand.
 	if p.loaded > 0 and not p.infinite_ammo:
@@ -1989,6 +2026,7 @@ func send_pose(pos: Vector3, yaw: float, pitch: float, act: int, air: bool, crou
 	p.has_pose = true
 	p.crouch = crouch
 	p.yaw = yaw
+	p.act = act
 	if not Net.online or (Net.is_client and not _spawned):
 		return  # a joiner stands on the host's spot until its own comes: bodies would collide
 	var t := Time.get_ticks_msec() / 1000.0
@@ -2014,6 +2052,7 @@ func _pose(t: float, pos: Vector3, yaw: float, pitch: float, act: int, air: bool
 	p.has_pose = true
 	p.crouch = crouch
 	p.yaw = yaw
+	p.act = act
 	pose_received.emit(peer, t, pos, yaw, pitch, act, air, crouch, aim)
 	for id in multiplayer.get_peers():
 		if id != peer:
@@ -2123,6 +2162,8 @@ func _event(event: StringName, args: Array) -> void:
 			player(args[0]).levels.grip = args[1]
 		&"character_changed":
 			player(args[0]).character = args[1]
+		&"torch_changed":
+			player(args[0]).torch = args[1]
 	if NODE_ARG.has(event):
 		# A node only the host has lands as null (spent shells are on no layer, so none yet).
 		var i: int = NODE_ARG[event]

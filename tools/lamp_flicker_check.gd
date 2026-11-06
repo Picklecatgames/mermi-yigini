@@ -196,10 +196,12 @@ func _lamps() -> bool:
 	main.add_child(holder)
 	var theirs: SpotLight3D = LAMP.new()
 	holder.add_child(theirs)
+	gs.request_toggle_torch()  # our flashlight out (F); peer 5's said to be out as well
+	theirs.held = true
 	var t0 := Time.get_ticks_msec()
 	while (ours.lit < 1.0 or theirs.lit < 1.0) and Time.get_ticks_msec() - t0 < 5000:
 		await process_frame
-	if not _ok(ours.lit == 1.0 and theirs.lit == 1.0 and ours.owner_peer() == gs.local_peer() and theirs.owner_peer() == 5, "at night both lamps are full on; ours is the local player's, the other peer 5's"): return false
+	if not _ok(ours.lit == 1.0 and theirs.lit == 1.0 and ours.owner_peer() == gs.local_peer() and theirs.owner_peer() == 5, "both flashlights out, full on; ours is the local player's, the other peer 5's"): return false
 	# The host's call for us: only our lamp.
 	var rolls: Node = gs.lamp_flicker_rolls
 	rolls.now += 10000.0
