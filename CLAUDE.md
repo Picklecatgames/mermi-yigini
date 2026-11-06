@@ -1,15 +1,15 @@
 # Mermi Yığını
 
-Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğün önündeki üs; gündüz topla ve üret, gece gelen dalgalara karşı savun. "Mermi Yığını" yalnız geçici proje adı; tasarımı ada bağlama. Hedef: 5-6 saatlik tam oyun (2026-11-05, kullanıcı kararı), ondan kısa, ~1 saatlik ücretsiz Steam demosu. Sistem ayrıntıları ve sayılar: `docs/ayrintilar.md` (yalnız dokunduğun sistemin bölümünü oku). Sıra: `docs/yol_haritasi.md`.
+Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğün önündeki üs; gündüz topla ve üret, gece gelen dalgalara karşı savun. "Mermi Yığını" yalnız geçici proje adı; tasarımı ada bağlama. Hedef: 5-6 saatlik tam oyun (2026-11-05, kullanıcı kararı), ondan kısa, ~1 saatlik ücretsiz Steam demosu. Sistem ayrıntıları ve sayılar: `docs/sistemler/` (dizin: `README.md`; yalnız dokunduğun sistemin dosyasını oku, üstte 3-5 satır özet var). Sıra: `docs/yol_haritasi.md`.
 
 ## Oyun özeti
 
-**Yeni yön (2026-11-02, kullanıcı kararı): açık alanda gece-gündüz hayatta kalma.** Ayrıntı: `docs/ayrintilar.md` → "Yeni yön: açık alan". Plan ve oturumlar: `docs/devam_promptu.md`.
+**Yeni yön (2026-11-02, kullanıcı kararı): açık alanda gece-gündüz hayatta kalma.** Ayrıntı: `docs/sistemler/acik_alan.md`. Plan ve oturumlar: `docs/devam_promptu.md`.
 - Bugüne kadar kurulan yapıların hepsi gidiyor (salon, korkuluk ve atış alanı, hurda çukuru). Oyun açık alanda geçer.
 - Üssün arkasında dağ şeklinde, ucu bucağı görünmeyen bir çöplük var. Oradan alınan hurda sökülüp işlenir.
 - Gündüz malzeme toplanır, sökülür; otomasyon, taret, silah vb. üretilir. Gece zombiler, yaratıklar, canavarlar gelir; her gece bir öncekinden zor.
 - Kullanıcının çizimi: önde dikdörtgen bir üs alanı (üstünde masa ve oyuncu), arkasında sivri tepeli büyük çöp dağı, çevresi geniş açık arazi.
-- Silahlar post-apokaliptik (şimdilik tabanca → Deagle → UZI → Scorpion → Minigun). Eski tasarımlardan kodda kalanlar: `docs/ayrintilar.md` → "Eski tasarımdan kodda kalanlar".
+- Silahlar post-apokaliptik (şimdilik tabanca → Deagle → UZI → Scorpion → Minigun). Eski tasarımlardan kodda kalanlar: `docs/sistemler/eski_tasarimdan_kalanlar.md`.
 
 ## Teknik kurallar
 
@@ -28,10 +28,16 @@ Godot 4, 3D FPS, 4 kişilik co-op. Post-apokaliptik açık alanda bir çöplüğ
 
 ## Asetler
 
-- Low poly (2026-11-02, kullanıcı kararı; PS3 tarzı değil). Düz renkli "mobil" görünüm istenmiyor, gore ve gerçekçi korkuya yakın olmalı; PS1 korku tarzı 3 zombide deneniyor. Ayrıntı `docs/ayrintilar.md` → "Low poly" ve "PS1 korku denemesi". Kaynak ve lisans listesi `docs/ayrintilar.md` → "Kullanılan asetler"; yeni aset oraya yazılır.
+- Low poly (2026-11-02, kullanıcı kararı; PS3 tarzı değil). Düz renkli "mobil" görünüm istenmiyor, gore ve gerçekçi korkuya yakın olmalı; PS1 korku tarzı 3 zombide deneniyor. Ayrıntı `docs/sistemler/acik_alan.md` → "Low poly" ve "PS1 korku denemesi". Kaynak ve lisans listesi `docs/sistemler/asetler.md`; yeni aset oraya yazılır.
 - CC0 tercih; CC-BY ise jenerikte isim. NC, ND, "personal use only", yalnız Unreal ve Lyra kaynaklı asetler alınmaz. Gerçek marka isimleri ve logolar yok.
 
 ## Araçlar
 
 - Godot MCP, Beckett MCP (yalnız editör açıkken), Blender MCP (yalnız Blender açıkken). Kapalı bir araç gerekirse kullanmaya çalışma, söyle.
 - Çoklu agent ya da uzun iş öncesi maliyeti söyleyip onay iste.
+
+## Dosya dizini ve çalışma
+
+- Hangi dosya nerede: `docs/sistemler/README.md` (sistem başına özetli dosyalar), `docs/devam_promptu.md` (kurallar ve güncel durum), `docs/yol_haritasi.md` (kalan işler). Biten ya da geçersiz belgeler `docs/arsiv/`, silinmez.
+- Kontrolleri `powershell -File tools/run_checks.ps1 <ad> ...` ile koş (tek satır özet, tam günlük `%TEMP%\mermi_checks\`, `--import`'u kendisi yapar); uzun Godot çıktısını okuma. `git diff`: dünya sahnesi `-diff` işaretli, boyut için `--stat`.
+- Godot: `C:/Users/vedat/projeler/Godot_v4.7.2-stable_win64.exe`; pencere açma, isimle öldürme (yalnız kendi PID'in). Ayrıntı `docs/devam_promptu.md`.
