@@ -22,6 +22,15 @@ var _own := {}  # key -> the character's bone frame at rest, from its joints
 var _rest := {}  # key -> the character's bone's rest basis, in skeleton space
 var _hinge := {}  # side -> the character's elbow axis at rest (the upper arm's frame's side)
 var _size := 1.0  # the rig's hand over the character's
+## A mitten (the old man's: nothing skinned to the middle finger, four fingers in one on the index
+## bones) follows the rig's middle finger in place of its index. On a gun the rig's index lies
+## straight along the frame (off the trigger) while the other three close round the grip; the
+## mitten went with the index and stood up along the slide like a sheet (2026-11-06).
+var _mitten := false
+## The hand and fingers a little under the rig's size, the joints staying where the rig's are: at
+## full size the mitten's back and the support hand stood either side of the pistol's grip like two
+## sheets, twice the slide's width (2026-11-06). My guess, not a rule.
+const HAND_FIT := 0.88
 
 
 ## On `fp`, `body` (an fp_arms.scn) in place of its own arms; drawn as `like` is.
@@ -39,13 +48,14 @@ func _init(fp: Skeleton3D, body: PackedScene, like: GeometryInstance3D) -> void:
 
 func _ready() -> void:
 	_measure(get_child(0))
+	_mitten = not _skinned(_sk.find_bone(_mixamo("R_middle1")))
 	for side: String in SIDES:
 		for k: String in ["upper", "fore"] + REMOTE.HAND:
 			_keys.append(side + "_" + k)
 	var at := {}
 	for key in _keys:
 		_bone[key] = _sk.find_bone(_mixamo(key))
-		_fp_bone[key] = _fp.find_bone(_fp_name(key))
+		_fp_bone[key] = _fp.find_bone(_fp_name(key.replace("_point", "_middle") if _mitten else key))
 		_rest[key] = _sk.get_bone_global_rest(_bone[key]).basis
 		at[key] = _sk.get_bone_global_rest(_bone[key]).origin
 		if key.ends_with("3"):  # Mixamo's tips: its last segments' own line
@@ -77,6 +87,18 @@ func _measure(scene: Node3D) -> void:
 	_sk.reset_bone_poses()
 
 
+## Whether any of our meshes has a vertex on `bone`.
+func _skinned(bone: int) -> bool:
+	for mi: MeshInstance3D in _sk.find_children("*", "MeshInstance3D", false, false):
+		if mi.skin == null:
+			continue
+		for k in mi.skin.get_bind_count():
+			var n := mi.skin.get_bind_name(k)
+			if (_sk.find_bone(n) if n != &"" else mi.skin.get_bind_bone(k)) == bone:
+				return true
+	return false
+
+
 ## Each of the rig's arm bones as it stands now, on the character's.
 func _follow() -> void:
 	var at := {}
@@ -85,7 +107,8 @@ func _follow() -> void:
 	var theirs := _frames(at, {})
 	for key in _keys:
 		var turn: Basis = theirs[key] * (_own[key] as Basis).inverse() * (_rest[key] as Basis)
-		_sk.set_bone_global_pose(_bone[key], Transform3D(turn.orthonormalized().scaled(Vector3.ONE * _size), at[key]))
+		var k := _size if key.ends_with("upper") or key.ends_with("fore") else _size * HAND_FIT
+		_sk.set_bone_global_pose(_bone[key], Transform3D(turn.orthonormalized().scaled(Vector3.ONE * k), at[key]))
 
 
 ## Frames for every key from joint positions: the hand's as remote_players.gd makes them, the
