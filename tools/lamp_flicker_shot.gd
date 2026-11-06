@@ -33,6 +33,7 @@ func _initialize() -> void:
 	gs.hour = 0.0
 	cam.look_at_from_position(Vector3(at[0], 1.7, at[1]), Vector3(at[2], 0.4, at[3]))
 	lamp = preload("res://scripts/head_lamp.gd").new()
+	lamp.held = true
 	main.add_child(lamp)
 	lamp.follow(cam.global_transform, 0.0)
 	for f in 150:  # the night comes down, the lamp eases on, TAA settles
