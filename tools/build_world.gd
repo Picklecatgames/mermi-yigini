@@ -590,10 +590,10 @@ func _stand(parts: Array, scale: float, hint: float, kind := "") -> Dictionary:
 ## foot's line up (a ring that closes before anything open, a leaf card), its middle and its furthest
 ## point. Following the last cut up instead strayed onto a low branch (the cypress).
 ## [[centre, radius], ...] in the parts' units; fewer than three: the mesh had no trunk to cut.
-const DRAWN_AT := [0.2, 0.55, 0.9, 1.25, 1.6, 1.95, 2.3]
+const DRAWN_AT := [0.55, 0.9, 1.25, 1.6, 1.95, 2.3]  # from the knee: lower is roots, stepped over; posts there shut the gaps the dead walk (waves.gd reads every post as a circle on the floor)
 const DRAWN_H := 0.4  # m, each post's height: they overlap a little
 const DRAWN_SKIN := 0.05  # m round the wood: a body stops a hair off the bark, never in it
-const DRAWN_MAX := 1.7  # m: wider at the foot is roots spread on the ground, stepped over
+const DRAWN_MAX := 1.2  # m: wider made the wood shut for the dead (zombie_stuck_check) and thinned it (world_limit_check)
 
 
 func _drawn_posts(parts: Array, foot: Vector3, scale: float) -> Array:
@@ -614,7 +614,7 @@ func _drawn_posts(parts: Array, foot: Vector3, scale: float) -> Array:
 				for q: Vector2 in above[0][1]:
 					r = maxf(r, q.distance_to(c))
 			out.append([Vector3(c.x, y, c.y), minf(r, DRAWN_MAX / scale)])
-	# One cut far wider than the rest is no trunk: a card or a clump of grass at the foot of a young one.
+	# One cut far wider than the rest is no trunk: a card, a clump of grass, a flare's last root.
 	var rs := []
 	for post: Array in out:
 		rs.append(post[1])
@@ -622,7 +622,7 @@ func _drawn_posts(parts: Array, foot: Vector3, scale: float) -> Array:
 	if not rs.is_empty():
 		var mid: float = rs[rs.size() / 2]
 		for post: Array in out:
-			post[1] = minf(post[1], maxf(mid * 2.2, mid + 0.3 / scale))
+			post[1] = minf(post[1], maxf(mid * 1.6, mid + 0.15 / scale))
 	return out
 
 
@@ -938,7 +938,8 @@ func _forest() -> void:
 		var xf := Transform3D(lean * Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc * girth, sc, sc * girth)), at)
 		# The old track (_terk): its trees were cut; the same dice are thrown, so the rest of the wood stands as it did.
 		var off_track := _off_track(p)
-		var cut := off_track < TRACK_HALF and _out_of_clearing(p) < TRACK_TO - 6.0
+		# Ragged: cut straight, its edge trees stood in two rows along it (world_limit_check).
+		var cut := off_track < TRACK_HALF * (0.7 + 0.65 * (_desert_noise.get_noise_2d(p.x * 9.0 + 40.0, p.y * 9.0) * 0.5 + 0.5)) and _out_of_clearing(p) < TRACK_TO - 6.0
 		# A tree of the clearing (_wasteland, before the wood) stood there already: trunk through trunk.
 		var taken := _trunk_into(kind, xf, sc * girth) or _clearing_feet.any(func(f: Vector2) -> bool: return f.distance_to(p) < 2.0)
 		if cut or taken:

@@ -12,11 +12,11 @@ extends SceneTree
 ## Results per tree kind and per thing.
 ##   Godot.exe --headless --path . -s res://tools/forest_collide_check.gd
 const R := 0.35  # scenes/player.tscn body_shape
-const HEIGHTS := [0.5, 1.0, 1.5]
+const HEIGHTS := [0.75, 1.1, 1.5]  # a body's hips, chest, shoulders: lower is roots, stepped over
 const DIRS := 8
 ## m the ball may reach into the drawn wood at each height: further, and the eye (the capsule's middle, R in)
-## comes within 0.15 m of the bark; at the foot a root's flare is wider than a body's knee
-const SINK := [0.3, 0.2, 0.2]
+## comes within 0.15 m of the bark
+const SINK := [0.3, 0.2, 0.2]  # the hips may brush a big low limb, 1.4 m under the eye
 const FAT := 0.6  # m of air between ball and wood: noted
 const SOLID_FROM := 0.5  # build_world.gd FLOOR_SOLID_FROM
 const BAND := 2.4
