@@ -52,7 +52,7 @@ const WING_DOOR := [-3.84, -2.63, 0.0, 2.38]  # z, between the rooms
 const WIN_WEST := [[-3.13, -1.6, 0.69, 2.23], [1.24, 2.78, 0.69, 2.23]]  # z; the mountain's side
 const WIN_WING := [9.37, 10.9, 0.69, 2.23]  # x, the side room's south wall, over the porch
 const BENCH_AT := Vector3(9.85, 0, -4.03)  # the crew's bench, its back on the side room's north wall; GameState.PRESS_POS follows it
-const BENCH_SCALE := 1.2  # as it stood in the hall (range_dressing.gd _workshop)
+const BENCH_SCALE := 1.2  # as it stood in the old hall (its builder is gone)
 const HOPPER_AT := Vector3(11.45, 0, -3.75)  # GameState.MELTER_POS
 const DESK_AT := Vector3(5.0, 0, -0.2)  # the pistol's crate, right in front of the spawns
 const TV_AT := Vector3(2.25, 0, -0.2)  # GameState.TV_POS; between the mountain's windows, in the spawns' view
@@ -2004,7 +2004,7 @@ func _lamp(parent: Node, at: Vector3, model: String, energy: float, shadow := fa
 
 
 ## The crew's 1967 radio on the bench's shelf playing four Hawaiian guitar 78s in a loop, quietly
-## (docs/ayrintilar.md "Radyo"); as range_dressing.gd _radio, in the bench's own frame.
+## (docs/ayrintilar.md "Radyo"); as the old hall had it, in the bench's own frame.
 func _bench_radio(bench: Node3D) -> void:
 	var radio: Node3D = _prop(arena.get_node("Bench"), "res://assets/props/radio/radio.glb",
 		bench.transform * Vector3(-0.38, 1.293, -0.275), bench.rotation.y + 0.45, 1.1)

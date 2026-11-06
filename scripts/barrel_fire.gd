@@ -7,7 +7,7 @@ extends Node3D
 ## assets/vfx/fire_n64) stepped on a few quads that face the camera (materials/psx_flipbook.gdshader),
 ## and the sparks plain square specks. No smoke.
 
-@export var rim := 0.85  # the drum's top (barrel_stove's; range_dressing sets it for the burn barrel)
+@export var rim := 0.85  # the drum's top (barrel_stove's; tools/build_world.gd sets it for the burn barrel)
 @export var inner := 0.27  # its inside radius
 @export var bed := 0.61  # the coals' height: on the drum's grate
 @export var logs := true  # false when the drum's model brings its own burning wood

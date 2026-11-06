@@ -8,7 +8,7 @@ extends StaticBody3D
 const VISE := AABB(Vector3(-0.37, 0.985, -0.16), Vector3(0.74, 0.3, 0.73))
 const HOOK := AABB(Vector3(-0.37, 0.5, 0.375), Vector3(0.74, 0.7, 0.5))  # its handle, hung over the front edge (z 0.366)
 ## The battery box on the low stand at the hopper end (top 0.779): the press stands there instead
-## (range_dressing.gd _workshop, 2026-10-28, the user's call).
+## (tools/build_world.gd _workshop_inside, from 2026-10-28, the user's call).
 const BATTERY := AABB(Vector3(0.66, 0.782, -0.34), Vector3(0.28, 0.25, 0.41))
 
 
