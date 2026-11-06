@@ -134,7 +134,7 @@ var _vm_env: Environment
 var _vm_lights: Array[DirectionalLight3D] = []  # the gun's own key and rim
 var _vm_suns: Array[DirectionalLight3D] = []  # the world's suns, which the gun's light follows
 var _vm_day := Vector2.ONE  # the suns' energy and the world's ambient as built, by day
-var _lamp := preload("res://scripts/head_lamp.gd").new()  # at night, from the eyes
+var _lamp := preload("res://scripts/head_lamp.gd").new()  # the flashlight's light (F), from its glass
 ## The head lamp on the hands and the gun (2026-11-03, the PS1 critic: at night the lamp lit the
 ## ground and left the hands a black cut-out in front of it): the gun's ambient goes up to this and
 ## over to the lamp's colour as it lights. Neither a spot nor an omni light on the gun's layer
@@ -264,6 +264,9 @@ func _ready() -> void:
 	GameState.gun_changed.connect(func(peer: int, gun: int) -> void:
 		if peer == GameState.local_peer():
 			_viewmodel.equip(gun))
+	GameState.torch_changed.connect(func(peer: int, on: bool) -> void:
+		if peer == GameState.local_peer():
+			_viewmodel.set_torch(on))
 	_scrap_hand = Node3D.new()
 	_scrap_hand.position = SCRAP_HAND_POS
 	_camera.add_child(_scrap_hand)
@@ -650,6 +653,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				GameState.request_watch_news()
 	elif event.is_action_pressed("throw"):
 		GameState.request_throw(_scrap_hand.global_position, -_camera.global_basis.z)
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_F and not _hands_busy():
+		GameState.request_toggle_torch()  # F: the flashlight out, or away (2026-11-06, the user)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_J:
 		_dancing = not _dancing
 	elif OS.is_debug_build() and not Net.online and event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
@@ -755,11 +760,23 @@ func _process(delta: float) -> void:
 		_crosshair.visible = false
 	_vm_camera.global_transform = _camera.global_transform
 	_vm_follow_light()
-	_lamp.follow(_camera.global_transform.translated_local(Vector3(0.0, 0.08, 0.0)), delta)  # on the brow
+	_lamp.follow(_torch_beam(), delta)
 	var vm_fov: float = _viewmodel.view_fov
 	_vm_camera.fov = _camera.fov if vm_fov == 0.0 else rad_to_deg(2.0 * atan(tan(deg_to_rad(vm_fov) * 0.5) / _zoom))
 	if _viewmodel._want_gun != GameState.player().gun:  # e.g. after leaving: local_peer() changed
 		_viewmodel.equip(GameState.player().gun)
+	if _viewmodel._want_torch != GameState.player().torch:
+		_viewmodel.set_torch(GameState.player().torch)
+
+
+## The flashlight's beam: from the glass of the lantern in the hand, where it points (viewmodel.gd
+## _hang_torch: the body's heading, a share of the look's pitch, swinging with the hand).
+func _torch_beam() -> Transform3D:
+	var cam := _camera.global_transform
+	if not _viewmodel.torch:
+		return cam
+	var lens: Transform3D = _viewmodel.torch_lens()
+	return Transform3D(lens.basis, lens.origin)
 
 
 func _place_head() -> void:

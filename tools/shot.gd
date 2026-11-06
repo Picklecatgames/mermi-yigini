@@ -6,7 +6,7 @@ extends SceneTree
 ## Add `-- --dig` to drain 3M pieces from one spot at the foot of the scrap heap's face first, and
 ## `--collapse` to make the face give way there just before the shots (pieces still tumbling in the
 ## first); name shots after `--` to take only those.
-## Add `--lamp` for a player's head lamp at the camera (it lights itself when the sun goes), `--moon=KIND`
+## Add `--lamp` for a flashlight on at the camera, `--moon=KIND`
 ## for tonight's moon (GameState.MOONS, or boss), `--tag=NAME` to add a name to the files, `--psx=N` for
 ## Settings' "PS1 ekranı" N (2: 270 lines), as the player sees it, not from the developer's own settings.
 ## `--zombie=X,Z` puts a walker up there, facing -x, seen a moment after it's up.
@@ -211,6 +211,7 @@ func _initialize() -> void:
 		elif a == "--lamp":
 			tag += "_lamp"
 			lamp = preload("res://scripts/head_lamp.gd").new()
+			lamp.set(&"held", true)  # the flashlight on, from the camera
 			main.add_child(lamp)
 	var only := Array(OS.get_cmdline_user_args()).filter(func(a: String) -> bool: return SHOTS.has(a))
 	for shot_name in (only if not only.is_empty() else SHOTS.keys()):
