@@ -126,7 +126,8 @@ func _initialize() -> void:
 			for r: Array in rows:
 				if r[0] >= t - STUCK_FOR - 0.01:
 					if t >= STUCK_FOR + 1.0 and r[1] - d < STUCK_GAIN and not stuck.has(id):
-						stuck[id] = [t, node.global_position, d]
+						var zr: Dictionary = waves._zombies[id]
+						stuck[id] = [t, node.global_position, d, "role %s hide %s wait %.1f role_t %.1f aware %s" % [zr.role, zr.hide, zr.role_wait, zr.role_t, zr.aware]]
 					break
 	var out := ""
 	for a in OS.get_cmdline_user_args():
@@ -139,7 +140,7 @@ func _initialize() -> void:
 				f.store_line("%d\t%.1f\t%.2f\t%.2f\t%.2f" % [id, r[0], r[1], r[2].x, r[2].z])
 	for id: int in stuck:
 		var s: Array = stuck[id]
-		print("  stuck: Z%d at t %.1f s, (%.1f, %.1f), %.1f m off" % [id, s[0], s[1].x, s[1].z, s[2]])
+		print("  stuck: Z%d at t %.1f s, (%.1f, %.1f), %.1f m off, %s" % [id, s[0], s[1].x, s[1].z, s[2], s[3]])
 	var times: Array = reached.values()
 	times.sort()
 	print("reached the player: %d of %d%s" % [reached.size(), ids.size(),

@@ -375,7 +375,7 @@ const GAIT_RUN := 0.7
 ## STUCK_MOVED m in STUCK_EVERY s while it means to walk finds its way again (a fresh path), then
 ## steps aside DETOUR m for DETOUR_TIME s, and at the STUCK_SNAP-th time is put back on the mesh.
 const STUCK_EVERY := 1.2
-const STUCK_MOVED := 0.4
+const STUCK_MOVED := 0.7  # a walker shuffling to and fro at a trunk covers 0.5 m a second and was never "stuck"
 const DETOUR := 2.5
 const DETOUR_TIME := 1.2
 const STUCK_SNAP := 4
@@ -417,8 +417,8 @@ const PLAYER_ROOM := 0.75
 ## dead walk by being put where they go, no body pushing back, and the mesh keeps them only 0.25 m
 ## off a trunk's post, the last metres at a player are straight, a leap straight: each is put
 ## TRUNK_ROOM m (plus TRUNK_LOOK times the post, the bark being wider than it) off every trunk.
-const TRUNK_ROOM := 0.3
-const TRUNK_LOOK := 1.25
+const TRUNK_ROOM := 0.05  # well under the mesh's 0.25 m agent radius (its simplified edges cut corners further in): any more and the push fights the path, a walker stalls at the ring
+const TRUNK_LOOK := 1.0  # the posts are cut from the drawn wood now (build_world.gd _drawn_posts)
 ## Caught in a head lamp's beam (within LAMP_CONE degrees, LAMP_REACH m), at night, now and then
 ## (LAMP_CHANCE a look, LAMP_EVERY s apart): it stops short (STARTLE_HOLD s) and jerks; one zombie
 ## at most every STARTLE_AGAIN s, one player's beam every LAMP_GAP s.
