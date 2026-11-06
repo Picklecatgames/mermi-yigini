@@ -499,6 +499,7 @@ var _floor_rows := []  # [group, floor kind, transform]: everything on the floor
 ## The trunks as they stand, for what is put down after them (a car, a log, a camp): never into one.
 ## Vector2i (4 m cell) -> [[point on the trunk's axis, radius m], ...], from the foot up to 2 m.
 var _trunk_grid := {}
+var _clearing_feet: Array[Vector2] = []  # the clearing's trees (_wasteland): no tree of the wood within 2 m
 const TRUNK_CELL := 4.0
 
 
@@ -525,7 +526,7 @@ func _note_tree(kind: Array, xf: Transform3D, sc: float) -> void:
 	var radii := PackedFloat32Array()
 	for post: Array in kind[5].posts:
 		post_at.append(xf * (post[0] as Vector3))
-		radii.append(clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX))
+		radii.append(clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX) + DRAWN_SKIN)
 	var p := Vector2(xf.origin.x, xf.origin.z)
 	_stand_rows.append([kind[4], xf.origin, _ground_y(p.x, p.y, _desert_noise), kind[5].touch and kind[5].ok, post_at, kind[6], xf, radii])
 	if post_at.is_empty():
@@ -591,7 +592,8 @@ func _stand(parts: Array, scale: float, hint: float, kind := "") -> Dictionary:
 ## [[centre, radius], ...] in the parts' units; fewer than three: the mesh had no trunk to cut.
 const DRAWN_AT := [0.2, 0.55, 0.9, 1.25, 1.6, 1.95, 2.3]
 const DRAWN_H := 0.4  # m, each post's height: they overlap a little
-const DRAWN_MAX := 1.3  # m: wider at the foot is roots spread on the ground, stepped over
+const DRAWN_SKIN := 0.05  # m round the wood: a body stops a hair off the bark, never in it
+const DRAWN_MAX := 1.7  # m: wider at the foot is roots spread on the ground, stepped over
 
 
 func _drawn_posts(parts: Array, foot: Vector3, scale: float) -> Array:
@@ -600,14 +602,18 @@ func _drawn_posts(parts: Array, foot: Vector3, scale: float) -> Array:
 	var out := []
 	for m: float in DRAWN_AT:
 		var y: float = foot.y + m / scale
-		var piece := _cut_near(tris, y, at, 0.9 / scale, 3.0 / scale)
-		if piece.is_empty():
-			continue
-		var c: Vector2 = piece[0]
-		var r := 0.0
-		for q: Vector2 in piece[1]:
-			r = maxf(r, q.distance_to(c))
-		out.append([Vector3(c.x, y, c.y), minf(r, DRAWN_MAX / scale)])
+		# The nearest piece, and any other ring as near: a fork's second stem.
+		for piece: Array in _cut_near(tris, y, at, 0.9 / scale, 3.0 / scale):
+			var c: Vector2 = piece[0]
+			var r := 0.0
+			for q: Vector2 in piece[1]:
+				r = maxf(r, q.distance_to(c))
+			# Up to the next post the wood may lean out of it: the cut a little higher, round the same middle.
+			var above := _cut_near(tris, y + 0.17 / scale, c, 0.4 / scale, 3.0 / scale)
+			if not above.is_empty():
+				for q: Vector2 in above[0][1]:
+					r = maxf(r, q.distance_to(c))
+			out.append([Vector3(c.x, y, c.y), minf(r, DRAWN_MAX / scale)])
 	# One cut far wider than the rest is no trunk: a card or a clump of grass at the foot of a young one.
 	var rs := []
 	for post: Array in out:
@@ -620,8 +626,8 @@ func _drawn_posts(parts: Array, foot: Vector3, scale: float) -> Array:
 	return out
 
 
-## The piece of the plane's cut at `y` nearest `at` (within `reach`, no wider than `widest`): [its box's
-## middle, its points], closed rings first; [] if none.
+## The pieces of the plane's cut at `y` near `at` (within `reach`, no wider than `widest`): [[its box's
+## middle, its points], ...], the nearest first (closed rings before open), then the other closed ones; [] if none.
 func _cut_near(tris: PackedVector3Array, y: float, at: Vector2, reach: float, widest: float) -> Array:
 	var segs := PackedVector2Array()
 	for t in range(0, tris.size() - 2, 3):
@@ -669,18 +675,28 @@ func _cut_near(tris: PackedVector3Array, y: float, at: Vector2, reach: float, wi
 		var d := b.get_center().distance_to(at)
 		if maxf(b.size.x, b.size.y) > widest or d > reach:
 			continue
-		d += reach if open.has(r) else 0.0
+		d += reach * 0.3 if open.has(r) else 0.0  # a scan's trunk is often open too
 		if d < best_d:
 			best_d = d
 			best = r
 	if best < 0:
 		return []
-	var pts := PackedVector2Array()
-	for i in n:
-		if _root_of(parent, i) == best:
-			pts.append(segs[i * 2])
-			pts.append(segs[i * 2 + 1])
-	return [(boxes[best] as Rect2).get_center(), pts]
+	var keep := [best]
+	for r: int in boxes:
+		var b: Rect2 = boxes[r]
+		# Another ring, or any piece of wood with some thickness (a scan's open stem; a leaf card's cut is a thin line).
+		var thick := minf(b.size.x, b.size.y) > widest * 0.03
+		if r != best and (not open.has(r) or thick) and maxf(b.size.x, b.size.y) <= widest and b.get_center().distance_to(at) < reach:
+			keep.append(r)
+	var out := []
+	for r: int in keep:
+		var pts := PackedVector2Array()
+		for i in n:
+			if _root_of(parent, i) == r:
+				pts.append(segs[i * 2])
+				pts.append(segs[i * 2 + 1])
+		out.append([(boxes[r] as Rect2).get_center(), pts])
+	return out
 
 
 func _root_of(parent: PackedInt32Array, i: int) -> int:
@@ -695,7 +711,7 @@ func _posts(kind: Array, xf: Transform3D, body: StaticBody3D, sc: float) -> void
 	for post: Array in kind[5].posts:
 		var cs := CollisionShape3D.new()
 		var cyl := CylinderShape3D.new()
-		cyl.radius = clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX)
+		cyl.radius = clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX) + DRAWN_SKIN
 		cyl.height = DRAWN_H if kind[5].posts.size() > 3 else 0.85
 		cs.shape = cyl
 		cs.position = xf * (post[0] as Vector3)
@@ -790,6 +806,7 @@ func _wood_tree(parent: Node, kind: Array, at: Vector3, rng: RandomNumberGenerat
 		add(mi, body)
 	_posts(kind, xf, body, s)
 	_note_tree(kind, Transform3D(Basis(), body.position) * xf, s)
+	_clearing_feet.append(p)
 
 
 ## Something low on the floor, no collision: a fern, a stone, a log. Drawn with the wood (_forest).
@@ -923,7 +940,7 @@ func _forest() -> void:
 		var off_track := _off_track(p)
 		var cut := off_track < TRACK_HALF and _out_of_clearing(p) < TRACK_TO - 6.0
 		# A tree of the clearing (_wasteland, before the wood) stood there already: trunk through trunk.
-		var taken := _trunk_near(p, clampf(float(kind[3]) * sc, 0.25, 1.0))
+		var taken := _trunk_into(kind, xf, sc * girth) or _clearing_feet.any(func(f: Vector2) -> bool: return f.distance_to(p) < 2.0)
 		if cut or taken:
 			_wood_tone(p, rng)
 			if cut:
@@ -1041,6 +1058,19 @@ func _kept_clear(p: Vector2, r: float) -> bool:
 		if p.distance_to(z[0]) < float(z[1]) + r:
 			return true
 	return _off_track(p) < TRACK_HALF + r
+
+
+## Would this tree's trunk (its posts, as it would stand by `xf`) go into one standing already?
+func _trunk_into(kind: Array, xf: Transform3D, sc: float) -> bool:
+	for post: Array in kind[5].posts:
+		var w: Vector3 = xf * (post[0] as Vector3)
+		var r := clampf(post[1] * sc, TREE_STAND.MIN_POST, DRAWN_MAX)
+		for i in range(floori((w.x - 2.5) / TRUNK_CELL), floori((w.x + 2.5) / TRUNK_CELL) + 1):
+			for j in range(floori((w.z - 2.5) / TRUNK_CELL), floori((w.z + 2.5) / TRUNK_CELL) + 1):
+				for e: Array in _trunk_grid.get(Vector2i(i, j), []):
+					if absf(e[0].y - w.y) < 0.5 and Vector2(e[0].x, e[0].z).distance_to(Vector2(w.x, w.z)) < r + float(e[1]):
+						return true
+	return false
 
 
 ## Any trunk within `r` m of `p`?
@@ -1248,7 +1278,7 @@ func _terk(plant: Callable) -> void:
 		last = xf
 		last_ok = ok
 	# 4. A snag, its broken top lying at its foot along a line no tree stands on.
-	var snag_at := _free_near(_oval_at(SNAG_ANGLE, 5.0), 0.9, 6.0)
+	var snag_at := _free_near(_oval_at(SNAG_ANGLE, 5.0), 2.2, 8.0)
 	var snag: Array = []
 	for k: Array in _wood().close:
 		if k[4] == "snag_a":
@@ -1510,7 +1540,7 @@ func _wood_floor(plant: Callable, rng: RandomNumberGenerator) -> void:
 					continue
 				var thing_xf := _floor_xf(thing, group, at, rng)
 				# 2026-11-06, the user: things stood inside trunks. Never into one, nor into a story's ground (_terk).
-				if not group in FLOOR_SOFT and (_trunk_hit(_parts_box(thing[0]), thing_xf, 0.05) or _kept_clear(at, 0.5)):
+				if not group in FLOOR_SOFT and (_trunk_hit(_parts_box(thing[0]), thing_xf, 0.15) or _kept_clear(at, 0.5)):
 					continue
 				placed.append(at)
 				if not group in FLOOR_SOFT and _parts_box(thing[0]).size.y * thing_xf.basis.get_scale().y > 0.3:

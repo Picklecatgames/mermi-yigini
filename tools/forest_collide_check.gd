@@ -14,7 +14,9 @@ extends SceneTree
 const R := 0.35  # scenes/player.tscn body_shape
 const HEIGHTS := [0.5, 1.0, 1.5]
 const DIRS := 8
-const SINK := [0.3, 0.15, 0.15]  # m the ball may reach into the drawn wood at each height: a root's flare at the foot is wider than a body's knee
+## m the ball may reach into the drawn wood at each height: further, and the eye (the capsule's middle, R in)
+## comes within 0.15 m of the bark; at the foot a root's flare is wider than a body's knee
+const SINK := [0.3, 0.2, 0.2]
 const FAT := 0.6  # m of air between ball and wood: noted
 const SOLID_FROM := 0.5  # build_world.gd FLOOR_SOLID_FROM
 const BAND := 2.4
@@ -176,7 +178,7 @@ func _run() -> void:
 					if not reach.has_point(Vector2(rows[ti][6].origin.x, rows[ti][6].origin.z)):
 						continue
 					if not tree_pts.has(ti):
-						tree_pts[ti] = _near_axis(buckets[rows[ti][5]], rows[ti][6], rows[ti][2])
+						tree_pts[ti] = _near_axis(buckets[rows[ti][5]], rows[ti][6], rows[ti][2], rows[ti][4], rows[ti][7])
 					for p: Vector3 in tree_pts[ti]:
 						if small.has_point(inv * p):
 							hit = true
@@ -322,14 +324,22 @@ func _band(buckets: Dictionary, xf: Transform3D, ground: float) -> PackedVector3
 	return out
 
 
-## The drawn wood within a metre of the trunk's axis up to BAND: vertices and the middles of the triangles.
-func _near_axis(buckets: Dictionary, xf: Transform3D, ground: float) -> PackedVector3Array:
+## The drawn wood round the trunk up to BAND (within its post's width and a hand more, the post nearest in
+## height; leaves further out don't count): vertices and the middles of the triangles.
+func _near_axis(buckets: Dictionary, xf: Transform3D, ground: float, posts: PackedVector3Array, radii: PackedFloat32Array) -> PackedVector3Array:
 	var tris := _band(buckets, xf, ground)
-	var foot := Vector2(xf.origin.x, xf.origin.z)
 	var out := PackedVector3Array()
+	if posts.is_empty():
+		return out
 	for t in range(0, tris.size() - 2, 3):
 		for p: Vector3 in [tris[t], tris[t + 1], tris[t + 2], (tris[t] + tris[t + 1] + tris[t + 2]) / 3.0]:
-			if p.y > ground - 0.05 and p.y < ground + BAND and Vector2(p.x, p.z).distance_to(foot) < 1.0:
+			if p.y < ground - 0.05 or p.y > ground + BAND:
+				continue
+			var k := 0
+			for i in posts.size():
+				if absf(posts[i].y - p.y) < absf(posts[k].y - p.y):
+					k = i
+			if Vector2(p.x, p.z).distance_to(Vector2(posts[k].x, posts[k].z)) < radii[k] + 0.1:
 				out.append(p)
 	return out
 
@@ -362,25 +372,32 @@ func _trunk_cut(tris: PackedVector3Array, y: float, foot: Vector2) -> Dictionary
 	for i in parent.size():
 		parent[i] = i
 	var at := {}
+	var ends := {}  # how many segments end at a point: one, and the piece is open (a leaf card, not bark)
 	for i in parent.size():
 		for p: Vector2 in [segs[i * 2], segs[i * 2 + 1]]:
-			var key := Vector2i(roundi(p.x * 50.0), roundi(p.y * 50.0))
+			var key := Vector2i(roundi(p.x * 1000.0), roundi(p.y * 1000.0))
+			ends[key] = ends.get(key, 0) + 1
 			if at.has(key):
 				_union(parent, i, at[key])
 			else:
 				at[key] = i
+	var open := {}
+	for key: Vector2i in ends:
+		if ends[key] == 1:
+			open[_find(parent, at[key])] = true
 	var boxes := {}
 	for i in parent.size():
 		var r := _find(parent, i)
 		var b: Rect2 = Rect2(segs[i * 2], Vector2.ZERO).expand(segs[i * 2 + 1])
 		boxes[r] = (boxes[r] as Rect2).merge(b) if boxes.has(r) else b
 	var best := -1
-	var best_d := 1.5
+	var best_d := INF
 	for r: int in boxes:
 		var b: Rect2 = boxes[r]
-		if maxf(b.size.x, b.size.y) > 3.0:
-			continue
 		var d := b.get_center().distance_to(foot)
+		if maxf(b.size.x, b.size.y) > 3.0 or d > 1.5:
+			continue
+		d += 0.3 if open.has(r) else 0.0  # bark before a card: the same rule as build_world.gd _cut_near
 		if d < best_d:
 			best_d = d
 			best = r
