@@ -4,6 +4,9 @@ extends CharacterBody3D
 ## the head is top level and placed every frame from the interpolated body plus the mouse look,
 ## so the view never waits a physics tick and never steps on a fast monitor.
 
+## A walking step, as its sound plays (forest_presence.gd: the steps that follow ours).
+signal stepped
+
 const SPEED := 5.0
 const SPRINT_SPEED := 8.0
 const JUMP_VELOCITY := 4.5
@@ -979,6 +982,7 @@ func _head_bob(delta: float) -> void:
 		# Two steps per bob cycle, at the bottom of each vertical dip (sin(2·bob) = -1).
 		if floor((_bob + PI / 4.0) / PI) != floor((before + PI / 4.0) / PI):
 			_step_sound.play()
+			stepped.emit()
 	_bob_amount = move_toward(_bob_amount, 1.0 if moving else 0.0, delta * 5.0)
 	_bob_offset = Vector3(cos(_bob) * BOB_AMP, sin(_bob * 2.0) * BOB_AMP, 0.0) * _bob_amount * Settings.value("head_bob") / 100.0
 
