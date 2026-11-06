@@ -201,6 +201,7 @@ func _game() -> void:
 	var grab := 0
 	var gun := 0
 	var hold := 0
+	var cams := {}  # --cam=name@x,h,z@x,h,z;...: eye and target, h m over the ground there
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--psx="):
 			psx = a.trim_prefix("--psx=").to_int()
@@ -219,6 +220,13 @@ func _game() -> void:
 			hold = a.trim_prefix("--hold=").to_int()
 		elif a.begins_with("--grab="):  # that many scrap pieces in hand, grabbed off the heap as with E
 			grab = a.trim_prefix("--grab=").to_int()
+		elif a.begins_with("--cam="):
+			for c in a.trim_prefix("--cam=").split(";"):
+				var e := c.get_slice("@", 1).split_floats(",")
+				var t := c.get_slice("@", 2).split_floats(",")
+				cams[c.get_slice("@", 0)] = [Vector3(e[0], e[1], e[2]), Vector3(t[0], t[1], t[2])]
+			if not views.any(func(v: String) -> bool: return cams.has(v)):
+				views = cams.keys()
 		elif a.begins_with("--set="):
 			for kv in a.trim_prefix("--set=").split(","):
 				more[kv.get_slice(":", 0)] = str_to_var(kv.get_slice(":", 1))
@@ -250,8 +258,11 @@ func _game() -> void:
 		if night:
 			_night(main)
 		for v: String in views:
-			var eye: Vector3 = GAME_VIEWS[v][0]
-			var at: Vector3 = GAME_VIEWS[v][1]
+			var eye: Vector3 = GAME_VIEWS[v][0] if GAME_VIEWS.has(v) else cams[v][0]
+			var at: Vector3 = GAME_VIEWS[v][1] if GAME_VIEWS.has(v) else cams[v][1]
+			if cams.has(v):
+				eye.y += _ground(main, eye)
+				at.y += _ground(main, at)
 			if v == "bark":
 				var b := _bark(main, eye)
 				eye = b[0]
@@ -287,6 +298,23 @@ func _game() -> void:
 				await _frames(3)
 				root.get_viewport().get_texture().get_image().save_png(file.trim_suffix(".png") + "_f%d.png" % k)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.save_path))
+
+
+## The ground's height at (x, z): the first thing a ray down from high up meets that isn't a tree.
+func _ground(main: Node, p: Vector3) -> float:
+	var space := (main as Node3D).get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, 80.0, p.z), Vector3(p.x, -20.0, p.z))
+	var desert := main.find_child("Desert", true, false)
+	if desert:
+		var hit := space.intersect_ray(q)
+		for i in 8:
+			if hit.is_empty() or hit.collider == desert:
+				break
+			q.exclude = q.exclude + [hit.rid]
+			hit = space.intersect_ray(q)
+		if not hit.is_empty():
+			return hit.position.y
+	return 0.0
 
 
 ## The trunk post nearest `near` (build_world.gd _posts, a cylinder each), seen from 2 m on the
