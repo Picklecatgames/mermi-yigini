@@ -348,8 +348,8 @@ const BAY_HP := 12
 ## The railing's build, read from here alone (2026-11-01, the user: "çiti ileride hem görsel hem
 ## yapısal bir değişikliğe ve level sistemine göre çeşitlendireceğiz"; how is not settled yet): its
 ## kind, its height (the posts' tops), its rails' heights (m, the middle of each), their square
-## section, how many bays (between bays + 1 posts) and the end posts' ± z. tools/build_arena.gd
-## builds it from this, scripts/fence.gd reads the rails off the built one, and the ones that go over
+## section, how many bays (between bays + 1 posts) and the end posts' ± z. The old hall's builder
+## built it from this (the open ground has no railing), scripts/fence.gd reads the rails off the built one, and the ones that go over
 ## or under it (waves.gd cross_of) measure it by fence_top() and fence_gap().
 const FENCE := {"kind": &"rail", "height": 1.1, "rails": [1.075, 0.55], "bar": 0.05, "bays": 20, "span": 27.5}
 const FENCE_BAYS: int = FENCE.bays
@@ -412,7 +412,7 @@ const REQUESTS := {
 ## Uzak Atış counts at most this many metres behind the railing (+60% at 5%/m, Altın's top).
 const RANGE_BONUS_MAX := 12.0
 ## Render layer of what hangs over the range (roof, lamps, the bay's lid and baffles, ducts); some
-## lights reach only it (tools/build_arena.gd overhead()).
+## lights reach only it (the old hall's builder; only tools/walk_shot.gd still uses it).
 const OVERHEAD_LAYER := 3
 const TOKEN_FILE := "user://player_token.txt"
 ## World signals: emitted on the host and sent on to every client.

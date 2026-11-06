@@ -1,4 +1,4 @@
-extends "res://tools/build_arena.gd"
+extends "res://tools/world_kit.gd"
 ## Builds scenes/world.tscn, the open ground (2026-11-02, the user: the old hall and everything in it
 ## goes; a wide rectangle out in the open, Mad Max wasteland, a light desert with a few dead trees):
 ## a concrete pad, on it the house (2026-11-05, the user: "our home's bad; a house of a few rooms or
@@ -8,7 +8,7 @@ extends "res://tools/build_arena.gd"
 ## round it all sand and cracked earth rising into dunes at the edges.
 ## The scene is never edited by hand: change the numbers here and re-run
 ##   godot --headless --path . -s res://tools/build_world.gd
-## The helpers (add, worn, pbr_box, _prop, block, collide, pendant, _pit...) are build_arena.gd's.
+## The helpers (add, worn, pbr_box, _prop, block, collide, _lighten) are tools/world_kit.gd's.
 
 const WORLD := Rect2(-236.0, -220.0, 500.0, 440.0)  # x, z: the ground, the junkyard's grid included, so the ring of dunes closes behind the mountain too
 const PAD := Rect2(-6.0, -14.0, 32.0, 28.0)  # the concrete round the workshop; edges on the desert grid (CELL)
@@ -1350,12 +1350,6 @@ func pbr_box(id: String, metres: float, tint := Color.WHITE, world := true, save
 		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 		ResourceSaver.save(m, m.resource_path)
 	return m
-
-
-func _cukur(piece: String, xf: Transform3D, parent: Node) -> void:
-	var n: Node3D = (load(_ps1(CUKUR + piece + ".gltf")) as PackedScene).instantiate()
-	n.transform = xf
-	add(n, parent)
 
 
 ## The workshop's sheets and steel, PS1: the texture small and unfiltered (assets/psx/tex/, made by

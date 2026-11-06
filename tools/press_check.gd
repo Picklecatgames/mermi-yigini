@@ -1,6 +1,6 @@
 extends SceneTree
-## Headless check for the round press on the workshop bench's stand (range_dressing.gd _workshop,
-## scripts/press.gd):
+## Headless check for the round press on the workshop bench's stand in the open ground's house
+## (tools/build_world.gd, scripts/press.gd):
 ##   Godot.exe --headless --path . -s res://tools/press_check.gd
 ## Before its quest it is neither seen nor in the way, even once the bench it stands on has come;
 ## once the quest opening `hand_press` is done it drops in, lands where it was built, solid again.
@@ -11,11 +11,11 @@ var _gs: Node
 
 func _initialize() -> void:
 	_gs = root.get_node("GameState")
-	var arena: Node = load("res://scenes/arena.tscn").instantiate()
-	root.add_child(arena)
+	var world: Node = load("res://scenes/world.tscn").instantiate()  # the old hall (arena.tscn) is gone
+	root.add_child(world)
 	await process_frame
 	var press: StaticBody3D = get_first_node_in_group("press")
-	_ok(press != null, "the press is in the hall")
+	_ok(press != null, "the press is in the house")
 	if press == null:
 		quit(1)
 		return

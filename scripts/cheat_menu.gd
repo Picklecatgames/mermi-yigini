@@ -79,7 +79,7 @@ func _process(delta: float) -> void:
 
 
 func _sample() -> void:
-	if not "pile" in GameState:  # GameState failed to compile (tools/build_arena.gd runs without Net's class)
+	if not "pile" in GameState:  # GameState failed to compile (a builder like tools/build_world.gd runs without Net's class)
 		return
 	_samples.append(Vector3(GameState.gold, GameState.vault, GameState.pile))
 	if _samples.size() > WINDOW + 1:
